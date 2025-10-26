@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "optiverse"
+version = "0.1.0"
+description = "Optiverse: 2D ray-optics sandbox and component editor (PyQt6, modular)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Your Name" }]
+dependencies = [
+  "PyQt6>=6.5",
+  "numpy>=1.24",
+]
+
+[project.scripts]
+optiverse = "optiverse.app.main:main"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-qt>=4.4",
+  "coverage[toml]>=7.4",
+  "ruff>=0.6.0",
+  "black>=24.3.0",
+  "mypy>=1.8.0",
+]
+
+[project.urls]
+Homepage = "https://example.com"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["optiverse"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+qt_api = "pyqt6"
+
+[tool.coverage.run]
+branch = true
+source = ["src/optical_drawing"]
+omit = ["*/resources/gen/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 70
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-select = ["E", "F", "I", "UP", "B", "Q", "W"]
+ignore = ["E203"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.mypy]
+python_version = "3.10"
+strict_optional = true
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+pretty = true
+
+
