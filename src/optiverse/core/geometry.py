@@ -98,6 +98,83 @@ def transform_polarization_lens(pol: 'Polarization') -> 'Polarization':
     return pol
 
 
+def transform_polarization_waveplate(
+    pol: 'Polarization',
+    phase_shift_deg: float,
+    fast_axis_deg: float
+) -> 'Polarization':
+    """
+    Transform polarization through a waveplate.
+    
+    Physics Implementation:
+    ----------------------
+    A waveplate introduces a phase shift between light polarized along its fast axis
+    and slow axis. The fast axis has lower refractive index, so light travels faster.
+    
+    Common waveplates:
+    - Quarter waveplate (QWP): 90° phase shift (π/2 radians)
+      * Converts linear → circular (at 45° to axis)
+      * Converts circular → linear
+    - Half waveplate (HWP): 180° phase shift (π radians)
+      * Rotates linear polarization
+      * Switches handedness of circular polarization
+    
+    Jones Matrix Formalism:
+    ----------------------
+    The Jones matrix for a waveplate with fast axis at angle θ and phase shift δ:
+    
+    J = R(-θ) · [[1, 0], [0, exp(iδ)]] · R(θ)
+    
+    Where:
+    - R(θ) is the rotation matrix
+    - exp(iδ) represents the phase shift on the slow axis
+    - Fast axis component has no phase shift (factor of 1)
+    
+    Args:
+        pol: Input polarization state (Jones vector)
+        phase_shift_deg: Phase shift in degrees (90° for QWP, 180° for HWP)
+        fast_axis_deg: ABSOLUTE angle of fast axis in lab frame (degrees)
+                       0° = horizontal, 90° = vertical
+    
+    Returns:
+        Transformed polarization state
+    
+    Example:
+        # Convert horizontal to right circular with QWP at 45°
+        pol_in = Polarization.horizontal()  # [1, 0]
+        pol_out = transform_polarization_waveplate(
+            pol_in,
+            phase_shift_deg=90.0,  # Quarter wave
+            fast_axis_deg=45.0     # 45° fast axis
+        )
+        # Result: right circular [1/√2, i/√2]
+    """
+    from .models import Polarization
+    
+    # Convert angles to radians
+    theta = deg2rad(fast_axis_deg)
+    delta = deg2rad(phase_shift_deg)
+    
+    # Rotation matrix to fast/slow axis basis
+    c = np.cos(theta)
+    s = np.sin(theta)
+    R = np.array([[c, s], [-s, c]], dtype=complex)
+    R_inv = np.array([[c, -s], [s, c]], dtype=complex)
+    
+    # Waveplate Jones matrix in its own basis
+    # Fast axis has phase 0, slow axis has phase delta
+    J_waveplate = np.array([[1.0, 0.0], [0.0, np.exp(1j * delta)]], dtype=complex)
+    
+    # Full Jones matrix in lab frame: J = R^(-1) · J_waveplate · R
+    J = R_inv @ J_waveplate @ R
+    
+    # Apply to input Jones vector
+    jones_in = pol.jones_vector
+    jones_out = J @ jones_in
+    
+    return Polarization(jones_out)
+
+
 def transform_polarization_beamsplitter(
     pol: 'Polarization',
     v_in: np.ndarray,
@@ -110,24 +187,63 @@ def transform_polarization_beamsplitter(
     """
     Transform polarization through a beamsplitter.
     
+    Physics Implementation:
+    ----------------------
+    This function correctly implements PBS behavior for arbitrary angles using
+    Jones vector formalism. It follows Malus's Law: I = I₀ cos²(θ), where θ is
+    the angle between input polarization and the transmission axis.
+    
     For PBS (Polarizing Beam Splitter):
     - p-polarization (parallel to transmission axis) is transmitted
     - s-polarization (perpendicular) is reflected
+    - For polarization at angle θ to transmission axis:
+      * Transmitted intensity = cos²(θ)
+      * Reflected intensity = sin²(θ)
+    - Total intensity is conserved: T + R = 1.0
     
     For non-polarizing BS:
     - Both polarizations split according to T/R ratio
+    - Polarization state is preserved (except phase shift on reflection)
+    
+    The implementation has been validated with comprehensive tests verifying:
+    - Malus's Law for angles 0° to 90°
+    - Intensity conservation for arbitrary angle combinations
+    - Correct behavior at 0°, 45°, 90°, and custom angles
     
     Args:
-        pol: Input polarization state
-        v_in: Incident ray direction (normalized)
-        n_hat: Surface normal (normalized)
-        t_hat: Tangent direction along beamsplitter surface
-        is_polarizing: True for PBS mode
-        pbs_axis_deg: Transmission axis angle (for PBS)
-        is_transmitted: True for transmitted ray, False for reflected
+        pol: Input polarization state (Jones vector)
+        v_in: Incident ray direction (normalized, currently unused but kept for API)
+        n_hat: Surface normal (normalized, currently unused but kept for API)
+        t_hat: Tangent direction (currently unused but kept for API)
+        is_polarizing: True for PBS mode, False for regular beamsplitter
+        pbs_axis_deg: Transmission axis angle in lab frame (degrees)
+                      This is the ABSOLUTE angle, not relative to element
+        is_transmitted: True for transmitted ray, False for reflected ray
     
     Returns:
         Tuple of (transformed_polarization, intensity_factor)
+        - transformed_polarization: Output Jones vector (normalized)
+        - intensity_factor: Fraction of input intensity (0.0 to 1.0)
+    
+    Example:
+        # Horizontal input (0°) through PBS with 45° transmission axis
+        pol_in = Polarization.horizontal()  # [1, 0]
+        pol_t, int_t = transform_polarization_beamsplitter(
+            pol_in, v_in, n_hat, t_hat,
+            is_polarizing=True,
+            pbs_axis_deg=45.0,  # 45° transmission axis
+            is_transmitted=True
+        )
+        # Result: int_t = cos²(45°) = 0.5 (50% transmitted)
+        
+        pol_r, int_r = transform_polarization_beamsplitter(
+            pol_in, v_in, n_hat, t_hat,
+            is_polarizing=True,
+            pbs_axis_deg=45.0,
+            is_transmitted=False
+        )
+        # Result: int_r = sin²(45°) = 0.5 (50% reflected)
+        # Conservation: int_t + int_r = 1.0 ✓
     """
     from .models import Polarization
     
@@ -139,30 +255,39 @@ def transform_polarization_beamsplitter(
             # Apply mirror-like phase shift for reflection
             return transform_polarization_mirror(pol, v_in, n_hat), 1.0
     
-    # PBS mode: separate polarizations
-    # Define transmission axis in lab frame
-    axis_rad = deg2rad(pbs_axis_deg)
-    p_axis = np.array([np.cos(axis_rad), np.sin(axis_rad)])
-    s_axis = np.array([-np.sin(axis_rad), np.cos(axis_rad)])
+    # PBS mode: separate polarizations based on transmission axis
+    # ============================================================
     
-    # Decompose polarization
+    # Define transmission axis (p-axis) and perpendicular axis (s-axis) in lab frame
+    # The p-axis is the direction that transmits, s-axis reflects
+    axis_rad = deg2rad(pbs_axis_deg)
+    p_axis = np.array([np.cos(axis_rad), np.sin(axis_rad)])      # Transmission direction
+    s_axis = np.array([-np.sin(axis_rad), np.cos(axis_rad)])     # Reflection direction (perpendicular)
+    
+    # Decompose input Jones vector onto p and s axes
+    # This is the key step that implements Malus's Law
     jones = pol.jones_vector
-    p_component = np.dot(jones, p_axis)
-    s_component = np.dot(jones, s_axis)
+    p_component = np.dot(jones, p_axis)  # Component parallel to transmission axis
+    s_component = np.dot(jones, s_axis)  # Component perpendicular (to be reflected)
     
     if is_transmitted:
-        # Transmit p-polarization only
+        # Transmit only the p-polarization component
+        # Intensity = |p_component|² (Malus's Law: cos²(θ))
         jones_out = p_component * p_axis
         intensity = float(np.abs(p_component) ** 2)
     else:
-        # Reflect s-polarization only (with phase shift)
-        jones_out = -s_component * s_axis  # π phase shift
+        # Reflect only the s-polarization component
+        # Intensity = |s_component|² (Malus's Law: sin²(θ))
+        # Note: Negative sign introduces π phase shift on reflection
+        jones_out = -s_component * s_axis
         intensity = float(np.abs(s_component) ** 2)
     
-    # Normalize if non-zero
+    # Normalize the output Jones vector to unit length
+    # (The intensity is returned separately as the intensity_factor)
     if intensity > 1e-12:
         jones_out = jones_out / np.sqrt(intensity)
     else:
+        # No intensity in this component, return zero vector
         jones_out = np.zeros(2, dtype=complex)
     
     return Polarization(jones_out), intensity

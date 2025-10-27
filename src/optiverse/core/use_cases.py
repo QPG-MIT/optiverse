@@ -8,7 +8,7 @@ import numpy as np
 from .geometry import (
     deg2rad, normalize, reflect_vec, ray_hit_element,
     transform_polarization_mirror, transform_polarization_lens,
-    transform_polarization_beamsplitter
+    transform_polarization_beamsplitter, transform_polarization_waveplate
 )
 from .models import OpticalElement, SourceParams, RayPath, Polarization
 from .color_utils import qcolor_from_hex
@@ -27,6 +27,7 @@ def trace_rays(
     mirrors = [(e, e.p1, e.p2) for e in elements if e.kind == "mirror"]
     lenses = [(e, e.p1, e.p2) for e in elements if e.kind == "lens"]
     bss = [(e, e.p1, e.p2) for e in elements if e.kind == "bs"]
+    waveplates = [(e, e.p1, e.p2) for e in elements if e.kind == "waveplate"]
 
     EPS_ADV = 1e-3
     MIN_I = 0.02
@@ -105,6 +106,18 @@ def trace_rays(
                     if nearest[0] is None or t < nearest[0]:
                         nearest = (t, X, "bs", obj, t_hat, n_hat, C, L)
 
+                for obj, A, B in waveplates:
+                    if last_obj is obj:
+                        continue
+                    res = ray_hit_element(P, V, A, B)
+                    if res is None:
+                        continue
+                    t, X, t_hat, n_hat, C, L = res
+                    if t * vnorm > remaining:
+                        continue
+                    if nearest[0] is None or t < nearest[0]:
+                        nearest = (t, X, "waveplate", obj, t_hat, n_hat, C, L)
+
                 t, X, kind, obj, t_hat, n_hat, C, L = nearest
                 if X is None:
                     P2 = P + V * (remaining / max(1e-12, vnorm))
@@ -180,6 +193,20 @@ def trace_rays(
                     Ir = I * R
                     if Ir >= MIN_I:
                         stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, obj, events + 1, Ir, pol_r))
+                    continue
+
+                if kind == "waveplate":
+                    # Get waveplate properties
+                    phase_shift_deg = getattr(obj, 'phase_shift_deg', 90.0)
+                    fast_axis_deg = getattr(obj, 'fast_axis_deg', 0.0)
+                    
+                    # Transform polarization through waveplate
+                    pol2 = transform_polarization_waveplate(pol, phase_shift_deg, fast_axis_deg)
+                    
+                    # Ray continues straight through (no refraction or reflection)
+                    V2 = normalize(V)
+                    P2 = P + V2 * EPS_ADV
+                    stack.append((pts + [P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I, pol2))
                     continue
 
     return paths

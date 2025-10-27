@@ -11,11 +11,17 @@ class GraphicsView(QtWidgets.QGraphicsView):
         self.setRenderHints(
             QtGui.QPainter.RenderHint.Antialiasing | QtGui.QPainter.RenderHint.TextAntialiasing
         )
-        self.setViewportUpdateMode(QtWidgets.QGraphicsView.ViewportUpdateMode.BoundingRectViewportUpdate)
+        # Use FullViewportUpdate to properly render drawForeground (scale bar)
+        # BoundingRectViewportUpdate causes scale bar artifacts during panning
+        self.setViewportUpdateMode(QtWidgets.QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
         self.setTransformationAnchor(QtWidgets.QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setResizeAnchor(QtWidgets.QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setDragMode(QtWidgets.QGraphicsView.DragMode.RubberBandDrag)
         self.setAcceptDrops(True)
+        
+        # Enable scrollbars to support panning (visible when scene larger than viewport)
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         # scale bar prefs
         self._sb_len_px = 120
@@ -47,6 +53,73 @@ class GraphicsView(QtWidgets.QGraphicsView):
         self.zoomChanged.emit()
         self.viewport().update()
 
+    def drawBackground(self, painter: QtGui.QPainter, rect: QtCore.QRectF):
+        """Draw grid in background (MUCH faster than QGraphicsItems!)."""
+        super().drawBackground(painter, rect)
+        
+        # Get visible area in scene coordinates
+        visible_rect = self.mapToScene(self.viewport().rect()).boundingRect()
+        
+        # Add small margin
+        margin = 500  # Reduced margin for better performance
+        xmin = int(visible_rect.left()) - margin
+        xmax = int(visible_rect.right()) + margin
+        ymin = int(visible_rect.top()) - margin
+        ymax = int(visible_rect.bottom()) + margin
+        
+        # Adaptive grid density based on zoom
+        zoom_scale = self.transform().m11()
+        
+        if zoom_scale > 0.5:
+            step = 1  # 1mm grid
+        elif zoom_scale > 0.1:
+            step = 10  # 1cm grid
+        elif zoom_scale > 0.05:
+            step = 100  # 10cm grid
+        else:
+            step = 1000  # 1m grid
+        
+        # Setup pens
+        minor_pen = QtGui.QPen(QtGui.QColor(242, 242, 242))
+        major_pen = QtGui.QPen(QtGui.QColor(215, 215, 215))
+        axis_pen = QtGui.QPen(QtGui.QColor(170, 170, 170))
+        axis_pen.setStyle(QtCore.Qt.PenStyle.DashLine)
+        
+        for pen in (minor_pen, major_pen, axis_pen):
+            pen.setCosmetic(True)
+            pen.setWidth(1)
+        
+        painter.save()
+        
+        # Draw vertical lines
+        x = xmin - (xmin % step)  # Align to grid
+        while x <= xmax:
+            if x % 10 == 0:
+                painter.setPen(major_pen)
+            else:
+                painter.setPen(minor_pen)
+            painter.drawLine(QtCore.QPointF(x, ymin), QtCore.QPointF(x, ymax))
+            x += step
+        
+        # Draw horizontal lines
+        y = ymin - (ymin % step)  # Align to grid
+        while y <= ymax:
+            if y % 10 == 0:
+                painter.setPen(major_pen)
+            else:
+                painter.setPen(minor_pen)
+            painter.drawLine(QtCore.QPointF(xmin, y), QtCore.QPointF(xmax, y))
+            y += step
+        
+        # Draw axes
+        painter.setPen(axis_pen)
+        if ymin <= 0 <= ymax:
+            painter.drawLine(QtCore.QPointF(xmin, 0), QtCore.QPointF(xmax, 0))
+        if xmin <= 0 <= xmax:
+            painter.drawLine(QtCore.QPointF(0, ymin), QtCore.QPointF(0, ymax))
+        
+        painter.restore()
+    
     def drawForeground(self, painter: QtGui.QPainter, rect: QtCore.QRectF):
         # Draw snap alignment guides first (in scene coordinates)
         if self._snap_guides:
@@ -147,10 +220,11 @@ class GraphicsView(QtWidgets.QGraphicsView):
             self._clear_ghost()
 
         # Import here to avoid circular imports
-        from ...core.models import BeamsplitterParams, LensParams, MirrorParams
-        from ..beamsplitter_item import BeamsplitterItem
-        from ..lens_item import LensItem
-        from ..mirror_item import MirrorItem
+        from ...core.models import BeamsplitterParams, LensParams, MirrorParams, WaveplateParams
+        from ..beamsplitters import BeamsplitterItem
+        from ..lenses import LensItem
+        from ..mirrors import MirrorItem
+        from ..waveplates import WaveplateItem
 
         # Determine default angle for this component type
         kind = (rec.get("kind") or "lens").lower()
@@ -162,6 +236,8 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 angle = 90.0
             elif kind == "beamsplitter":
                 angle = 45.0
+            elif kind == "waveplate":
+                angle = 90.0
             elif kind == "mirror":
                 angle = 0.0
             else:
@@ -175,8 +251,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
         object_height_mm = float(rec.get("object_height_mm", rec.get("object_height", rec.get("length_mm", 60.0))))
         # mm_per_pixel computed from object_height_mm in normalized 1000px system
 
-        # Create the appropriate item type
-        # Don't include image for ghost preview to avoid visual clutter
+        # Create the appropriate item type with images for visual feedback
         if kind == "lens":
             efl_mm = float(rec.get("efl_mm", 100.0))
             params = LensParams(
@@ -185,8 +260,8 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 angle_deg=angle,
                 efl_mm=efl_mm,
                 object_height_mm=object_height_mm,
-                image_path=None,  # No sprite for ghost
-                line_px=None,
+                image_path=img,
+                line_px=line_px,
                 name=name
             )
             item = LensItem(params)
@@ -202,19 +277,36 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 object_height_mm=object_height_mm,
                 split_T=T,
                 split_R=R,
-                image_path=None,  # No sprite for ghost
-                line_px=None,
-                name=name
+                image_path=img,
+                line_px=line_px,
+                name=name,
+                is_polarizing=bool(rec.get("is_polarizing", False)),
+                pbs_transmission_axis_deg=float(rec.get("pbs_transmission_axis_deg", 0.0)),
             )
             item = BeamsplitterItem(params)
+        elif kind == "waveplate":
+            phase_shift_deg = float(rec.get("phase_shift_deg", 90.0))
+            fast_axis_deg = float(rec.get("fast_axis_deg", 0.0))
+            params = WaveplateParams(
+                x_mm=scene_pos.x(),
+                y_mm=scene_pos.y(),
+                angle_deg=angle,
+                object_height_mm=object_height_mm,
+                phase_shift_deg=phase_shift_deg,
+                fast_axis_deg=fast_axis_deg,
+                image_path=img,
+                line_px=line_px,
+                name=name
+            )
+            item = WaveplateItem(params)
         else:  # mirror (default)
             params = MirrorParams(
                 x_mm=scene_pos.x(),
                 y_mm=scene_pos.y(),
                 angle_deg=angle,
                 object_height_mm=object_height_mm,
-                image_path=None,  # No sprite for ghost
-                line_px=None,
+                image_path=img,
+                line_px=line_px,
                 name=name
             )
             item = MirrorItem(params)
@@ -223,13 +315,16 @@ class GraphicsView(QtWidgets.QGraphicsView):
         item.setAcceptedMouseButtons(QtCore.Qt.MouseButton.NoButton)
         item.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
         item.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
-        item.setOpacity(0.6)  # Semi-transparent ghost
+        item.setOpacity(0.7)  # Semi-transparent ghost (increased for better visibility)
         item.setZValue(9999)  # Render on top
 
         # Add to scene
         self.scene().addItem(item)
         self._ghost_item = item
         self._ghost_rec = dict(rec)  # Keep a copy for later use
+        
+        # Force viewport update to ensure ghost is visible
+        self.viewport().update()
 
     # ----- drag & drop (images and components) -----
     def dragEnterEvent(self, e: QtGui.QDragEnterEvent):
@@ -241,8 +336,11 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 rec = json.loads(bytes(md.data("application/x-optics-component")).decode("utf-8"))
                 self._clear_ghost()
                 self._make_ghost(rec, self.mapToScene(e.position().toPoint()))
-            except Exception:
-                pass
+            except Exception as ex:
+                # Log error for debugging
+                import traceback
+                print(f"Ghost preview error: {ex}")
+                traceback.print_exc()
             e.acceptProposedAction()
         elif md.hasImage() or md.hasUrls():
             e.acceptProposedAction()
@@ -258,8 +356,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
                     self._make_ghost(rec, self.mapToScene(e.position().toPoint()))
                 else:
                     self._ghost_item.setPos(self.mapToScene(e.position().toPoint()))
-            except Exception:
-                pass
+                    self.viewport().update()  # Force redraw as ghost moves
+            except Exception as ex:
+                print(f"Ghost move error: {ex}")
             e.acceptProposedAction()
         elif md.hasImage() or md.hasUrls():
             e.acceptProposedAction()
@@ -373,6 +472,8 @@ class GraphicsView(QtWidgets.QGraphicsView):
         """Handle middle button press for pan mode."""
         if e.button() == QtCore.Qt.MouseButton.MiddleButton:
             # Middle button → drag to pan
+            # Switch to NoAnchor for better panning (AnchorUnderMouse causes issues at low zoom)
+            self.setTransformationAnchor(self.ViewportAnchor.NoAnchor)
             self.setDragMode(self.DragMode.ScrollHandDrag)
             # Create fake left button event for pan mode
             fake = QtGui.QMouseEvent(
@@ -400,6 +501,8 @@ class GraphicsView(QtWidgets.QGraphicsView):
             super().mouseReleaseEvent(fake)
             # Back to select mode
             self.setDragMode(self.DragMode.RubberBandDrag)
+            # Restore anchor for zooming
+            self.setTransformationAnchor(self.ViewportAnchor.AnchorUnderMouse)
         else:
             super().mouseReleaseEvent(e)
 

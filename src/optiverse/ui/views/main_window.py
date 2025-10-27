@@ -11,6 +11,7 @@ from ...core.models import (
     BeamsplitterParams,
     LensParams,
     MirrorParams,
+    WaveplateParams,
     OpticalElement,
     SourceParams,
 )
@@ -25,6 +26,7 @@ from ...objects import (
     GraphicsView,
     LensItem,
     MirrorItem,
+    WaveplateItem,
     RulerItem,
     SourceItem,
     TextNoteItem,
@@ -97,7 +99,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Scene and view
         self.scene = QtWidgets.QGraphicsScene(self)
-        self.scene.setSceneRect(-600, -350, 1200, 700)
+        # Effectively "infinite" scene: 1 million x 1 million mm (1 km x 1 km)
+        # This provides unlimited scrollable area for panning at any zoom level
+        # Centered at origin for optical bench convention
+        self.scene.setSceneRect(-500000, -500000, 1000000, 1000000)
         self.view = GraphicsView(self.scene)
         self.view.parent = lambda: self  # For dropEvent callback
         self.setCentralWidget(self.view)
@@ -107,7 +112,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._ray_width_px = 2.0
         self.ray_items: list[QtWidgets.QGraphicsPathItem] = []
         self.autotrace = True
-        self._grid_items: list[QtWidgets.QGraphicsLineItem] = []
+        # Grid now drawn in GraphicsView.drawBackground() for better performance
         
         # Snap helper for magnetic alignment
         self._snap_helper = SnapHelper(tolerance_px=10.0)
@@ -129,7 +134,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.magnetic_snap = self.settings_service.get_value("magnetic_snap", True, bool)
 
         # Build UI
-        self._draw_grid()
         self._build_actions()
         self._build_toolbar()
         self._build_menubar()
@@ -137,37 +141,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Install event filter for snap and ruler placement
         self.scene.installEventFilter(self)
+        # Grid is now drawn automatically in GraphicsView.drawBackground()
 
-    def _draw_grid(self):
-        """Draw mm/cm grid lines."""
-        for it in self._grid_items:
-            try:
-                self.scene.removeItem(it)
-            except Exception:
-                pass
-        self._grid_items.clear()
-
-        minor_pen = QtGui.QPen(QtGui.QColor(242, 242, 242))
-        major_pen = QtGui.QPen(QtGui.QColor(215, 215, 215))
-        axis_pen = QtGui.QPen(QtGui.QColor(170, 170, 170))
-        axis_pen.setStyle(QtCore.Qt.PenStyle.DashLine)
-        for pen in (minor_pen, major_pen, axis_pen):
-            pen.setCosmetic(True)
-            pen.setWidth(1)
-
-        rect = self.scene.sceneRect()
-        xmin, xmax = int(rect.left()) - 1000, int(rect.right()) + 1000
-        ymin, ymax = int(rect.top()) - 1000, int(rect.bottom()) + 1000
-
-        for x in range(xmin, xmax + 1, 1):
-            line = self.scene.addLine(x, ymin, x, ymax, major_pen if x % 10 == 0 else minor_pen)
-            self._grid_items.append(line)
-        for y in range(ymin, ymax + 1, 1):
-            line = self.scene.addLine(xmin, y, xmax, y, major_pen if y % 10 == 0 else minor_pen)
-            self._grid_items.append(line)
-
-        self._grid_items.append(self.scene.addLine(-10000, 0, 10000, 0, axis_pen))
-        self._grid_items.append(self.scene.addLine(0, -10000, 0, 10000, axis_pen))
+    # Grid is now drawn in GraphicsView.drawBackground() for much better performance
+    # No need for _draw_grid() method anymore!
 
     def _build_actions(self):
         """Build all menu actions."""
@@ -401,19 +378,22 @@ class MainWindow(QtWidgets.QMainWindow):
         from ...objects.component_registry import ComponentRegistry
         categories = {
             "Lenses": [],
+            "Objectives": [],
             "Mirrors": [],
             "Beamsplitters": [],
+            "Waveplates": [],
             "Sources": [],
             "Other": []
         }
         
         for rec in records:
             kind = rec.get("kind", "other")
-            category = ComponentRegistry.get_category_for_kind(kind)
+            name = rec.get("name", "")
+            category = ComponentRegistry.get_category_for_kind(kind, name)
             categories[category].append(rec)
         
         # Create category nodes with components
-        for category_name in ["Lenses", "Mirrors", "Beamsplitters", "Sources", "Other"]:
+        for category_name in ["Lenses", "Objectives", "Mirrors", "Beamsplitters", "Waveplates", "Sources", "Other"]:
             comps = categories[category_name]
             if not comps:
                 continue
@@ -465,7 +445,14 @@ class MainWindow(QtWidgets.QMainWindow):
             angle_deg = float(rec.get("angle_deg"))
         else:
             # Fallback defaults if not specified
-            angle_deg = 90.0 if kind == "lens" else (45.0 if kind == "beamsplitter" else 0.0)
+            if kind == "lens":
+                angle_deg = 90.0
+            elif kind == "beamsplitter":
+                angle_deg = 45.0
+            elif kind == "waveplate":
+                angle_deg = 90.0
+            else:
+                angle_deg = 0.0
 
         if kind == "lens":
             efl_mm = float(rec.get("efl_mm", 100.0))
@@ -495,8 +482,25 @@ class MainWindow(QtWidgets.QMainWindow):
                 image_path=img,
                 line_px=line_px,
                 name=name,
+                is_polarizing=bool(rec.get("is_polarizing", False)),
+                pbs_transmission_axis_deg=float(rec.get("pbs_transmission_axis_deg", 0.0)),
             )
             item = BeamsplitterItem(params)
+        elif kind == "waveplate":
+            phase_shift_deg = float(rec.get("phase_shift_deg", 90.0))
+            fast_axis_deg = float(rec.get("fast_axis_deg", 0.0))
+            params = WaveplateParams(
+                x_mm=scene_pos.x(),
+                y_mm=scene_pos.y(),
+                angle_deg=angle_deg,
+                object_height_mm=object_height_mm,
+                phase_shift_deg=phase_shift_deg,
+                fast_axis_deg=fast_axis_deg,
+                image_path=img,
+                line_px=line_px,
+                name=name,
+            )
+            item = WaveplateItem(params)
         else:  # mirror
             params = MirrorParams(
                 x_mm=scene_pos.x(),
@@ -513,6 +517,8 @@ class MainWindow(QtWidgets.QMainWindow):
         item.edited.connect(self._maybe_retrace)
         cmd = AddItemCommand(self.scene, item)
         self.undo_stack.push(cmd)
+        # Clear previous selection and select only the newly dropped item
+        self.scene.clearSelection()
         item.setSelected(True)
         if self.autotrace:
             self.retrace()
@@ -777,6 +783,7 @@ class MainWindow(QtWidgets.QMainWindow):
         lenses: list[LensItem] = []
         mirrors: list[MirrorItem] = []
         beamsplitters: list[BeamsplitterItem] = []
+        waveplates: list[WaveplateItem] = []
 
         for it in self.scene.items():
             if isinstance(it, SourceItem):
@@ -787,6 +794,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 mirrors.append(it)
             elif isinstance(it, BeamsplitterItem):
                 beamsplitters.append(it)
+            elif isinstance(it, WaveplateItem):
+                waveplates.append(it)
 
         if not sources:
             return
@@ -801,6 +810,9 @@ class MainWindow(QtWidgets.QMainWindow):
             elems.append(OpticalElement(kind="mirror", p1=p1, p2=p2))
         for B in beamsplitters:
             p1, p2 = B.endpoints_scene()
+            # PBS transmission axis is stored in absolute lab frame coordinates
+            # It does NOT rotate with the element - you must manually adjust it
+            # if you want the axis to have a specific orientation
             elems.append(
                 OpticalElement(
                     kind="bs",
@@ -810,6 +822,19 @@ class MainWindow(QtWidgets.QMainWindow):
                     split_R=B.params.split_R,
                     is_polarizing=B.params.is_polarizing,
                     pbs_transmission_axis_deg=B.params.pbs_transmission_axis_deg,
+                )
+            )
+        for W in waveplates:
+            p1, p2 = W.endpoints_scene()
+            # Waveplate fast axis is stored in absolute lab frame coordinates
+            # Phase shift determines QWP (90°) or HWP (180°) behavior
+            elems.append(
+                OpticalElement(
+                    kind="waveplate",
+                    p1=p1,
+                    p2=p2,
+                    phase_shift_deg=W.params.phase_shift_deg,
+                    fast_axis_deg=W.params.fast_axis_deg,
                 )
             )
 

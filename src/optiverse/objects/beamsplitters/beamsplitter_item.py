@@ -53,27 +53,18 @@ class BeamsplitterItem(BaseObj):
             self._sprite = None
         
         if self.params.image_path and self.params.line_px:
-            import math
-            x1, y1, x2, y2 = self.params.line_px
-            # line_px is in normalized 1000px space
-            picked_len_px = max(1.0, math.hypot(x2 - x1, y2 - y1))
-            # Compute mm_per_pixel from object_height_mm (normalized 1000px system)
-            # object_height_mm defines the physical size of the full 1000px image
-            mm_per_pixel = self.params.object_height_mm / 1000.0 if self.params.object_height_mm > 0 else 0.1
-            # Calculate what the picked line represents in mm
-            picked_len_mm = picked_len_px * mm_per_pixel
-            
-            # Update element geometry to match picked line length
-            # This makes the line match the actual optical element size
-            self._actual_length_mm = picked_len_mm
-            self._update_geom()
-            
+            # ComponentSprite handles all denormalization internally
+            # We just pass the normalized coordinates and let it handle the rest
             self._sprite = ComponentSprite(
                 self.params.image_path,
                 self.params.line_px,
                 self.params.object_height_mm,
                 self,
             )
+            
+            # Update element geometry to match the object height
+            self._actual_length_mm = self.params.object_height_mm
+            self._update_geom()
         
         self.setZValue(0)
     
@@ -166,7 +157,9 @@ class BeamsplitterItem(BaseObj):
         pbs_axis.setSuffix(" °")
         pbs_axis.setValue(self.params.pbs_transmission_axis_deg)
         pbs_axis.setEnabled(self.params.is_polarizing)
-        pbs_axis.setToolTip("Angle of transmission axis (p-polarization passes, s-polarization reflects)")
+        pbs_axis.setToolTip("ABSOLUTE angle of transmission axis in lab frame\n"
+                           "(0° = horizontal, 90° = vertical)\n"
+                           "p-polarization (parallel) transmits, s-polarization (perpendicular) reflects")
         
         # Enable/disable T/R controls and PBS axis based on PBS mode
         def on_pbs_toggled(checked):

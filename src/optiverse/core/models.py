@@ -99,23 +99,26 @@ class ComponentRecord:
     Persistent component data for library storage.
     Represents a physical optical component with calibrated dimensions.
     
-    NORMALIZED IMAGE SYSTEM:
-    - All component images are stored at 1000px height
-    - line_px coordinates are in normalized 1000px space
-    - object_height_mm represents the physical size of the full 1000px image height
-    - mm_per_pixel is computed as: object_height_mm / 1000.0
-    - The picked line defines which feature to align (not used for scaling)
+    NORMALIZED 1000px COORDINATE SYSTEM:
+    - line_px coordinates are in normalized 1000px space (regardless of actual image size)
+    - object_height_mm represents the physical size of the optical element (picked line)
+    - When rendering, line_px must be denormalized: actual_coords = line_px * (actual_image_height / 1000.0)
+    - mm_per_pixel is then computed as: object_height_mm / picked_line_length_actual_px
+    - Images saved by the component editor are normalized to 1000px height, but legacy images may vary
     """
     name: str
-    kind: str  # 'lens' | 'mirror' | 'beamsplitter'
+    kind: str  # 'lens' | 'mirror' | 'beamsplitter' | 'waveplate'
     image_path: str
     line_px: Tuple[float, float, float, float]  # x1,y1,x2,y2 in normalized 1000px coordinate space
-    object_height_mm: float  # Physical size (mm) of the full 1000px image height
-    # mm_per_pixel is computed: object_height_mm / 1000.0 (not stored)
+    object_height_mm: float  # Physical size (mm) of the optical element (picked line length in mm)
+    # mm_per_pixel is computed at render time: object_height_mm / picked_line_length_actual_px (not stored)
     # lens only
     efl_mm: float = 0.0
     # beamsplitter only
     split_TR: Tuple[float, float] = (50.0, 50.0)
+    # waveplate only
+    phase_shift_deg: float = 90.0  # Phase shift in degrees (90° for QWP, 180° for HWP)
+    fast_axis_deg: float = 0.0  # Fast axis angle in lab frame (degrees)
     # optical axis angle (degrees) - default orientation when placed
     angle_deg: float = 0.0
     # misc
@@ -138,7 +141,7 @@ def serialize_component(rec: ComponentRecord) -> Dict[str, Any]:
     Only includes fields relevant to component kind.
     For beamsplitter, also writes legacy split_T/split_R for backward compatibility.
     """
-    # mm_per_pixel not stored - computed as object_height_mm / 1000.0
+    # mm_per_pixel not stored - computed at render time from object_height_mm and actual image dimensions
     base = {
         "name": rec.name,
         "kind": rec.kind,
@@ -156,6 +159,9 @@ def serialize_component(rec: ComponentRecord) -> Dict[str, Any]:
         # Legacy for backward compatibility
         base["split_T"] = float(t)
         base["split_R"] = float(r)
+    elif rec.kind == "waveplate":
+        base["phase_shift_deg"] = float(rec.phase_shift_deg)
+        base["fast_axis_deg"] = float(rec.fast_axis_deg)
     # mirror: no extra fields
     return base
 
@@ -174,7 +180,7 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
     kind = str(data.get("kind", "lens"))
     image_path = str(data.get("image_path", ""))
     
-    # Legacy: mm_per_pixel is no longer used - computed as object_height_mm / 1000.0
+    # Legacy: mm_per_pixel is no longer used - computed at render time from object_height_mm
     # Old JSON files with mm_per_pixel are ignored
 
     line_px = _coerce_line_px(data.get("line_px", (0, 0, 1, 0)))
@@ -198,6 +204,8 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
     # Type-specific
     efl_mm = 0.0
     split_TR = (50.0, 50.0)
+    phase_shift_deg = 90.0
+    fast_axis_deg = 0.0
 
     if kind == "lens":
         try:
@@ -218,6 +226,15 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
                 split_TR = (t, r)
             except Exception:
                 split_TR = (50.0, 50.0)
+    elif kind == "waveplate":
+        try:
+            phase_shift_deg = float(data.get("phase_shift_deg", 90.0))
+        except Exception:
+            phase_shift_deg = 90.0
+        try:
+            fast_axis_deg = float(data.get("fast_axis_deg", 0.0))
+        except Exception:
+            fast_axis_deg = 0.0
 
     return ComponentRecord(
         name=name,
@@ -227,6 +244,8 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
         object_height_mm=object_height_mm,
         efl_mm=efl_mm,
         split_TR=split_TR,
+        phase_shift_deg=phase_shift_deg,
+        fast_axis_deg=fast_axis_deg,
         angle_deg=angle_deg,
         notes=notes
     )
@@ -318,12 +337,36 @@ class BeamsplitterParams:
     # Polarization properties
     is_polarizing: bool = False  # True for PBS (Polarizing Beam Splitter)
     # For PBS: s-polarization (perpendicular) reflects, p-polarization (parallel) transmits
-    pbs_transmission_axis_deg: float = 0.0  # Angle of transmission axis relative to element
+    pbs_transmission_axis_deg: float = 0.0  # ABSOLUTE angle of transmission axis in lab frame (degrees)
+
+
+@dataclass
+class WaveplateParams:
+    """
+    Waveplate component parameters.
+    
+    Waveplates introduce a phase shift between orthogonal polarization components.
+    - Quarter waveplate (QWP): π/2 phase shift (90°)
+    - Half waveplate (HWP): π phase shift (180°)
+    
+    The fast axis is the axis along which light travels faster (lower refractive index).
+    The slow axis is perpendicular to the fast axis.
+    """
+    x_mm: float = 0.0
+    y_mm: float = 0.0
+    angle_deg: float = 90.0  # Orientation of the waveplate element
+    object_height_mm: float = 36.6  # Physical size of optical element
+    phase_shift_deg: float = 90.0  # Phase shift in degrees (90° for QWP, 180° for HWP)
+    fast_axis_deg: float = 0.0  # ABSOLUTE angle of fast axis in lab frame (degrees)
+    image_path: Optional[str] = None
+    mm_per_pixel: float = 0.1
+    line_px: Optional[Tuple[float, float, float, float]] = None
+    name: Optional[str] = None
 
 
 @dataclass
 class OpticalElement:
-    kind: str  # 'lens' | 'mirror' | 'bs'
+    kind: str  # 'lens' | 'mirror' | 'bs' | 'waveplate'
     p1: np.ndarray
     p2: np.ndarray
     efl_mm: float = 0.0
@@ -332,6 +375,9 @@ class OpticalElement:
     # Polarization properties
     is_polarizing: bool = False  # For PBS mode
     pbs_transmission_axis_deg: float = 0.0  # PBS transmission axis angle
+    # Waveplate properties
+    phase_shift_deg: float = 90.0  # Phase shift for waveplates
+    fast_axis_deg: float = 0.0  # Fast axis angle for waveplates
 
 
 @dataclass

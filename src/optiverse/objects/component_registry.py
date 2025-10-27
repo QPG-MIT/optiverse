@@ -34,7 +34,7 @@ class ComponentRegistry:
             "name": "Standard Lens (1\" mounted)",
             "kind": "lens",
             "efl_mm": 100.0,
-            "object_height_mm": 30.5,  # 1 inch (25.4 mm) diameter
+            "object_height_mm": 30.5,  # Physical height of optical element (1 inch = 25.4 mm diameter + mount)
             "image_path": _get_image_path("lens_1_inch_mounted.png"),
             "line_px": (320, 83, 320, 916),  # Vertical line in normalized 1000px space
             "angle_deg": 90,  # Vertical orientation by default
@@ -52,7 +52,7 @@ class ComponentRegistry:
             "name": "Standard Lens (2\" mounted)",
             "kind": "lens",
             "efl_mm": 100.0,
-            "object_height_mm": 55.9,  # 2 inch mounted
+            "object_height_mm": 55.9,  # Physical height of optical element (2 inch mounted)
             "image_path": _get_image_path("lens_1_inch_mounted.png"),
             "line_px": (320, 83, 320, 916),  # Vertical line in normalized 1000px space
             "angle_deg": 90,  # Vertical orientation by default
@@ -69,7 +69,7 @@ class ComponentRegistry:
         return {
             "name": "Standard Mirror (1\")",
             "kind": "mirror",
-            "object_height_mm": 49.4,  # 1 inch (25.4 mm) diameter with mount
+            "object_height_mm": 49.4,  # Physical height of optical element (1 inch with mount)
             "image_path": _get_image_path("standard_mirror_1_inch.png"),
             "line_px": (5, 220, 5, 780),  # Vertical line in normalized 1000px space
             "angle_deg": 0.0,  # Horizontal orientation by default
@@ -89,10 +89,10 @@ class ComponentRegistry:
             "split_T": 50.0,
             "split_R": 50.0,
             "split_TR": [50.0, 50.0],  # Alternative format for compatibility
-            "object_height_mm": 25.4,  # 1 inch (25.4 mm)
+            "object_height_mm": 25.4,  # Physical height of optical element (1 inch = 25.4 mm)
             "image_path": _get_image_path("beamsplitter_50_50_1_inch.png"),
             "line_px": (0, 0, 1000, 1000),  # Diagonal line in normalized 1000px space
-            "angle_deg": 0,  # 0° orientation by default
+            "angle_deg": 45,  # 45° orientation for proper beam splitting
         }
     
     @staticmethod
@@ -109,12 +109,30 @@ class ComponentRegistry:
             "split_T": 0.0,  # s-polarization reflects, p-polarization transmits
             "split_R": 0.0,
             "split_TR": [0.0, 0.0],  # Not used for PBS
-            "object_height_mm": 50.8,  # 2 inch (50.8 mm)
+            "object_height_mm": 50.8,  # Physical height of optical element (2 inch = 50.8 mm)
             "image_path": _get_image_path("pbs_2_inch.png"),
             "line_px": (0, 0, 1000, 1000),  # Diagonal line in normalized 1000px space
-            "angle_deg": 0,  # 0° orientation by default
+            "angle_deg": 45,  # 45° orientation for proper beam splitting
             "is_polarizing": True,  # This is a PBS
-            "pbs_transmission_axis_deg": 0.0,  # Horizontal transmission axis (p-pol transmits)
+            "pbs_transmission_axis_deg": 0.0,  # Horizontal transmission axis in lab frame (ABSOLUTE angle)
+        }
+    
+    @staticmethod
+    def get_standard_objective() -> Dict[str, Any]:
+        """
+        Get standard microscope objective definition.
+        
+        Returns:
+            Dictionary with objective parameters including image and calibration
+        """
+        return {
+            "name": "Microscope Objective",
+            "kind": "lens",
+            "efl_mm": 4.5,  # Typical short focal length for microscope objective
+            "object_height_mm": 40.0,  # Physical height of optical element
+            "image_path": _get_image_path("objective.png"),
+            "line_px": (500, 100, 500, 900),  # Vertical line in normalized 1000px space
+            "angle_deg": 90,  # Vertical orientation by default
         }
     
     @staticmethod
@@ -141,6 +159,50 @@ class ComponentRegistry:
         }
     
     @staticmethod
+    def get_quarter_waveplate() -> Dict[str, Any]:
+        """
+        Get quarter waveplate (QWP) definition.
+        
+        Quarter waveplates introduce a 90° phase shift between orthogonal polarizations.
+        Commonly used to convert linear → circular polarization (at 45° to fast axis).
+        
+        Returns:
+            Dictionary with waveplate parameters including image and calibration
+        """
+        return {
+            "name": "Quarter Waveplate (QWP)",
+            "kind": "waveplate",
+            "phase_shift_deg": 90.0,  # π/2 phase shift
+            "fast_axis_deg": 0.0,  # Horizontal fast axis by default
+             "object_height_mm": 30.5,  # Same as 1" lens
+            "image_path": _get_image_path("lens_1_inch_mounted.png"),
+            "line_px": (320, 83, 320, 916),  # Vertical line in normalized 1000px space
+            "angle_deg": 90,  # Vertical orientation by default
+        }
+    
+    @staticmethod
+    def get_half_waveplate() -> Dict[str, Any]:
+        """
+        Get half waveplate (HWP) definition.
+        
+        Half waveplates introduce a 180° phase shift between orthogonal polarizations.
+        Commonly used to rotate linear polarization or switch circular handedness.
+        
+        Returns:
+            Dictionary with waveplate parameters including image and calibration
+        """
+        return {
+            "name": "Half Waveplate (HWP)",
+            "kind": "waveplate",
+            "phase_shift_deg": 180.0,  # π phase shift
+            "fast_axis_deg": 0.0,  # Horizontal fast axis by default
+             "object_height_mm": 30.5,  # Same as 1" lens
+            "image_path": _get_image_path("lens_1_inch_mounted.png"),
+            "line_px": (320, 83, 320, 916),  # Vertical line in normalized 1000px space
+            "angle_deg": 90,  # Vertical orientation by default
+        }
+    
+    @staticmethod
     def get_standard_components() -> List[Dict[str, Any]]:
         """
         Get all standard components as a list.
@@ -154,6 +216,9 @@ class ComponentRegistry:
             ComponentRegistry.get_standard_mirror(),
             ComponentRegistry.get_standard_beamsplitter(),
             ComponentRegistry.get_standard_pbs(),
+            ComponentRegistry.get_standard_objective(),
+            ComponentRegistry.get_quarter_waveplate(),
+            ComponentRegistry.get_half_waveplate(),
             ComponentRegistry.get_standard_source(),
         ]
     
@@ -170,10 +235,15 @@ class ComponentRegistry:
                 ComponentRegistry.get_standard_lens(),
                 ComponentRegistry.get_standard_lens_2_inch(),
             ],
+            "Objectives": [ComponentRegistry.get_standard_objective()],
             "Mirrors": [ComponentRegistry.get_standard_mirror()],
             "Beamsplitters": [
                 ComponentRegistry.get_standard_beamsplitter(),
                 ComponentRegistry.get_standard_pbs(),
+            ],
+            "Waveplates": [
+                ComponentRegistry.get_quarter_waveplate(),
+                ComponentRegistry.get_half_waveplate(),
             ],
             "Sources": [ComponentRegistry.get_standard_source()],
         }
@@ -205,20 +275,26 @@ class ComponentRegistry:
         return kind_map[kind]()
     
     @staticmethod
-    def get_category_for_kind(kind: str) -> str:
+    def get_category_for_kind(kind: str, name: str = "") -> str:
         """
         Get the category name for a component kind.
         
         Args:
-            kind: Component kind ('lens', 'mirror', 'beamsplitter', 'source')
+            kind: Component kind ('lens', 'mirror', 'beamsplitter', 'waveplate', 'source')
+            name: Optional component name to distinguish special cases (e.g., objectives)
         
         Returns:
             Category name (e.g., 'Lenses', 'Mirrors')
         """
+        # Special case: Objectives are lenses but in their own category
+        if kind == "lens" and "objective" in name.lower():
+            return "Objectives"
+        
         kind_to_category = {
             "lens": "Lenses",
             "mirror": "Mirrors",
             "beamsplitter": "Beamsplitters",
+            "waveplate": "Waveplates",
             "source": "Sources",
         }
         return kind_to_category.get(kind, "Other")
