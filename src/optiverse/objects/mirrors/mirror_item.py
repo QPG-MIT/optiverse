@@ -20,6 +20,7 @@ class MirrorItem(BaseObj):
         super().__init__()
         self.params = params
         self._sprite: Optional[ComponentSprite] = None
+        self._actual_length_mm: Optional[float] = None  # Calculated from picked line
         self._update_geom()
         self.setPos(self.params.x_mm, self.params.y_mm)
         self.setRotation(self.params.angle_deg)
@@ -35,7 +36,8 @@ class MirrorItem(BaseObj):
     def _update_geom(self):
         """Update geometry based on length."""
         self.prepareGeometryChange()
-        L = max(1.0, self.params.length_mm)
+        # Use actual calculated length if available, otherwise use object_height_mm
+        L = max(1.0, self._actual_length_mm if self._actual_length_mm is not None else self.params.object_height_mm)
         self._p1 = QtCore.QPointF(-L / 2, 0)
         self._p2 = QtCore.QPointF(+L / 2, 0)
         self._len = L
@@ -53,21 +55,23 @@ class MirrorItem(BaseObj):
         if self.params.image_path and self.params.line_px:
             import math
             x1, y1, x2, y2 = self.params.line_px
+            # line_px is in normalized 1000px space
             picked_len_px = max(1.0, math.hypot(x2 - x1, y2 - y1))
-            picked_len_mm = picked_len_px * (
-                self.params.mm_per_pixel if self.params.mm_per_pixel > 0 else 1.0
-            )
+            # Compute mm_per_pixel from object_height_mm (normalized 1000px system)
+            # object_height_mm defines the physical size of the full 1000px image
+            mm_per_pixel = self.params.object_height_mm / 1000.0 if self.params.object_height_mm > 0 else 0.1
+            # Calculate what the picked line represents in mm
+            picked_len_mm = picked_len_px * mm_per_pixel
             
-            # Sync length from picked line
-            if abs(self.params.length_mm - picked_len_mm) > 1e-6:
-                self.params.length_mm = picked_len_mm
-                self._update_geom()
+            # Update element geometry to match picked line length
+            # This makes the line match the actual optical element size
+            self._actual_length_mm = picked_len_mm
+            self._update_geom()
             
             self._sprite = ComponentSprite(
                 self.params.image_path,
-                self.params.mm_per_pixel,
                 self.params.line_px,
-                self.params.length_mm,
+                self.params.object_height_mm,
                 self,
             )
         
@@ -124,7 +128,7 @@ class MirrorItem(BaseObj):
         length.setRange(1, 1e7)
         length.setDecimals(2)
         length.setSuffix(" mm")
-        length.setValue(self.params.length_mm)
+        length.setValue(self.params.object_height_mm)
         
         f.addRow("X Position", x)
         f.addRow("Y Position", y)
@@ -145,7 +149,7 @@ class MirrorItem(BaseObj):
             self.params.y_mm = y.value()
             self.setRotation(ang.value())
             self.params.angle_deg = ang.value()
-            self.params.length_mm = length.value()
+            self.params.object_height_mm = length.value()
             self._update_geom()
             self._maybe_attach_sprite()
             self.edited.emit()

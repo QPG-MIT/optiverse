@@ -10,20 +10,31 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
     """
     Image underlay for an optical element.
     
-    - Picked line's midpoint is aligned to the parent's local origin using setOffset.
-    - Uniform scale px→mm via mm_per_pixel (no Y-stretch).
-    - Pre-rotated so picked line lies on +X in local coords.
+    NORMALIZED 1000px SYSTEM:
+    - Images are normalized to 1000px height
+    - line_px coordinates are in normalized 1000px space
+    - object_height_mm represents the physical size of the full 1000px height
+    - mm_per_pixel is computed as: object_height_mm / 1000.0
+    - Picked line's midpoint is aligned to the parent's local origin using setOffset
+    - Pre-rotated so picked line lies on +X in local coords
     """
 
     def __init__(
         self,
         image_path: str,
-        mm_per_pixel: float,
         line_px: tuple[float, float, float, float],
-        element_length_mm: float,
+        object_height_mm: float,
         parent_item: QtWidgets.QGraphicsItem,
     ):
         super().__init__(parent_item)
+        
+        # Compute mm_per_pixel from object_height_mm (normalized 1000px system)
+        # object_height_mm represents the physical size corresponding to the full 1000px normalized image height
+        mm_per_pixel = object_height_mm / 1000.0
+        
+        # Extract line endpoints for alignment
+        x1, y1, x2, y2 = line_px
+        dx, dy = (x2 - x1), (y2 - y1)
 
         if not (image_path and os.path.exists(image_path)):
             self.setVisible(False)
@@ -35,10 +46,6 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
         img.setDevicePixelRatio(1.0)
         pix = QtGui.QPixmap.fromImage(img)
         self.setPixmap(pix)
-
-        # Extract line endpoints
-        x1, y1, x2, y2 = line_px
-        dx, dy = (x2 - x1), (y2 - y1)
 
         # Calculate angle of picked line
         angle_img_deg = math.degrees(math.atan2(dy, dx))
@@ -61,7 +68,8 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
         self.setZValue(-100)
         self.setOpacity(0.95)
         self.setTransformationMode(QtCore.Qt.TransformationMode.SmoothTransformation)
-        self.setCacheMode(QtWidgets.QGraphicsItem.CacheMode.DeviceCoordinateCache)
+        # Don't use caching because paint() depends on parent selection state
+        self.setCacheMode(QtWidgets.QGraphicsItem.CacheMode.NoCache)
 
     def paint(self, p: QtGui.QPainter, opt, widget=None):
         """

@@ -38,6 +38,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.setCentralWidget(self.canvas)
         self.canvas.imageDropped.connect(self._on_image_dropped)
         self.canvas.clickedPoint.connect(self._update_derived_labels)
+        self.canvas.pointsChanged.connect(self._update_derived_labels)
 
         self._build_side_dock()
         self._build_library_dock()
@@ -45,7 +46,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self._build_shortcuts()
         
         self.statusBar().showMessage(
-            "Load or paste an image, enter object height (mm), then click two points for the optical line."
+            "Load image, enter object height (mm), then click two points on the optical element."
         )
 
     # ---------- UI Building ----------
@@ -116,16 +117,43 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.kind_combo.addItems(["lens", "mirror", "beamsplitter"])
         self.kind_combo.currentTextChanged.connect(self._on_kind_changed)
 
-        # HEIGHT (mm) -> auto mm_per_pixel
-        self.height_mm = QtWidgets.QDoubleSpinBox()
-        self.height_mm.setRange(0.01, 1e7)
-        self.height_mm.setDecimals(3)
-        self.height_mm.setSuffix(" mm")
-        self.height_mm.setValue(50.0)
-        self.height_mm.valueChanged.connect(self._update_derived_labels)
+        # OBJECT HEIGHT (mm) -> physical size of the optical element
+        self.object_height_mm = QtWidgets.QDoubleSpinBox()
+        self.object_height_mm.setRange(0.01, 1e7)
+        self.object_height_mm.setDecimals(3)
+        self.object_height_mm.setSuffix(" mm")
+        self.object_height_mm.setValue(30.0)  # Default: ~1 inch
+        self.object_height_mm.setToolTip("Physical height of the optical element (e.g., 25.4mm for 1-inch optic)")
+        self.object_height_mm.valueChanged.connect(self._update_derived_labels)
 
         self.mm_per_px_lbl = QtWidgets.QLabel("— mm/px")
-        self.line_len_lbl = QtWidgets.QLabel("— px / — mm")
+        self.line_len_lbl = QtWidgets.QLabel("— px")
+        self.image_height_lbl = QtWidgets.QLabel("— mm")
+
+        # Line points manual edit (normalized 1000px space)
+        self.p1_x = QtWidgets.QDoubleSpinBox()
+        self.p1_x.setRange(0, 1000)
+        self.p1_x.setDecimals(2)
+        self.p1_x.setSuffix(" px")
+        self.p1_x.valueChanged.connect(self._on_manual_point_changed)
+        
+        self.p1_y = QtWidgets.QDoubleSpinBox()
+        self.p1_y.setRange(0, 1000)
+        self.p1_y.setDecimals(2)
+        self.p1_y.setSuffix(" px")
+        self.p1_y.valueChanged.connect(self._on_manual_point_changed)
+        
+        self.p2_x = QtWidgets.QDoubleSpinBox()
+        self.p2_x.setRange(0, 1000)
+        self.p2_x.setDecimals(2)
+        self.p2_x.setSuffix(" px")
+        self.p2_x.valueChanged.connect(self._on_manual_point_changed)
+        
+        self.p2_y = QtWidgets.QDoubleSpinBox()
+        self.p2_y.setRange(0, 1000)
+        self.p2_y.setDecimals(2)
+        self.p2_y.setSuffix(" px")
+        self.p2_y.valueChanged.connect(self._on_manual_point_changed)
 
         # Lens EFL
         self.efl_mm = QtWidgets.QDoubleSpinBox()
@@ -156,9 +184,28 @@ class ComponentEditor(QtWidgets.QMainWindow):
 
         f.addRow("Name", self.name_edit)
         f.addRow("Type", self.kind_combo)
-        f.addRow("Object height (Y)", self.height_mm)
-        f.addRow("mm per pixel", self.mm_per_px_lbl)
-        f.addRow("Picked line", self.line_len_lbl)
+        f.addRow("Object height", self.object_height_mm)
+        f.addRow("Line length", self.line_len_lbl)
+        f.addRow("→ mm/px", self.mm_per_px_lbl)
+        f.addRow("→ Image height", self.image_height_lbl)
+        
+        # Point coordinates section
+        f.addRow(QtWidgets.QLabel("─── Line Points (px) ───"))
+        p1_layout = QtWidgets.QHBoxLayout()
+        p1_layout.addWidget(QtWidgets.QLabel("X:"))
+        p1_layout.addWidget(self.p1_x)
+        p1_layout.addWidget(QtWidgets.QLabel("Y:"))
+        p1_layout.addWidget(self.p1_y)
+        f.addRow("Point 1", p1_layout)
+        
+        p2_layout = QtWidgets.QHBoxLayout()
+        p2_layout.addWidget(QtWidgets.QLabel("X:"))
+        p2_layout.addWidget(self.p2_x)
+        p2_layout.addWidget(QtWidgets.QLabel("Y:"))
+        p2_layout.addWidget(self.p2_y)
+        f.addRow("Point 2", p2_layout)
+        
+        f.addRow(QtWidgets.QLabel("─── Properties ───"))
         f.addRow("EFL (lens)", self.efl_mm)
         f.addRow("Split T (BS)", self.split_T)
         f.addRow("Split R (BS)", self.split_R)
@@ -206,44 +253,92 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.split_T.blockSignals(False)
 
     def _update_derived_labels(self, *args):
-        """Update mm_per_pixel and line length displays."""
-        h_mm = float(self.height_mm.value())
-        h_px = self.canvas.image_pixel_size()[1]
+        """Update computed values from object height and picked line."""
+        object_height = float(self.object_height_mm.value())
         
-        if h_px > 0:
-            mm_per_px = h_mm / float(h_px)
-            self.mm_per_px_lbl.setText(f"{mm_per_px:.6g} mm/px  (image h={h_px} px)")
-        else:
-            self.mm_per_px_lbl.setText("— mm/px")
-
-        # Picked line live length
+        # Picked line live length (canvas returns actual pixel coordinates)
         p1, p2 = self.canvas.get_points()
-        if self.canvas.has_image() and p1 and p2 and h_px > 0:
-            dx = p2[0] - p1[0]
-            dy = p2[1] - p1[1]
+        
+        # Normalize canvas points to 1000px space for display
+        _, h_px = self.canvas.image_pixel_size()
+        scale = 1000.0 / float(h_px) if h_px > 0 else 1.0
+        
+        # Update spinboxes with normalized coordinates (without triggering change events)
+        if p1:
+            self.p1_x.blockSignals(True)
+            self.p1_y.blockSignals(True)
+            self.p1_x.setValue(p1[0] * scale)
+            self.p1_y.setValue(p1[1] * scale)
+            self.p1_x.blockSignals(False)
+            self.p1_y.blockSignals(False)
+        
+        if p2:
+            self.p2_x.blockSignals(True)
+            self.p2_y.blockSignals(True)
+            self.p2_x.setValue(p2[0] * scale)
+            self.p2_y.setValue(p2[1] * scale)
+            self.p2_x.blockSignals(False)
+            self.p2_y.blockSignals(False)
+        
+        # Compute values based on normalized coordinates (spinbox values)
+        self._update_computed_values()
+    
+    def _update_computed_values(self):
+        """Update computed value labels from normalized coordinates."""
+        object_height = float(self.object_height_mm.value())
+        
+        # Get normalized coordinates from spinboxes
+        p1_norm = (float(self.p1_x.value()), float(self.p1_y.value()))
+        p2_norm = (float(self.p2_x.value()), float(self.p2_y.value()))
+        
+        if self.canvas.has_image() and p1_norm and p2_norm and object_height > 0:
+            dx = p2_norm[0] - p1_norm[0]
+            dy = p2_norm[1] - p1_norm[1]
             px_len = (dx*dx + dy*dy)**0.5
-            mm_per_px = h_mm / float(h_px) if h_px > 0 else 0.0
-            mm_len = px_len * mm_per_px
-            self.line_len_lbl.setText(f"{px_len:.2f} px / {mm_len:.3f} mm")
+            
+            if px_len > 0:
+                # Compute mm_per_pixel from object height and line length (in normalized space)
+                mm_per_px = object_height / px_len
+                # Compute full image height (normalized to 1000px)
+                image_height = mm_per_px * 1000.0
+                
+                self.line_len_lbl.setText(f"{px_len:.2f} px")
+                self.mm_per_px_lbl.setText(f"{mm_per_px:.6g} mm/px")
+                self.image_height_lbl.setText(f"{image_height:.2f} mm (normalized to 1000px)")
+            else:
+                self.line_len_lbl.setText("— px")
+                self.mm_per_px_lbl.setText("— mm/px")
+                self.image_height_lbl.setText("— mm")
         else:
-            self.line_len_lbl.setText("— px / — mm")
+            self.line_len_lbl.setText("— px")
+            self.mm_per_px_lbl.setText("— mm/px")
+            self.image_height_lbl.setText("— mm")
 
-    def _get_mm_per_pixel(self) -> float:
-        """Calculate current mm_per_pixel ratio."""
-        h_px = self.canvas.image_pixel_size()[1]
-        if h_px <= 0:
-            return 0.0
-        return float(self.height_mm.value()) / float(h_px)
+    def _on_manual_point_changed(self):
+        """Handle manual changes to point coordinates (normalized 1000px space)."""
+        # Get normalized coordinates from spinboxes
+        p1_norm = (float(self.p1_x.value()), float(self.p1_y.value()))
+        p2_norm = (float(self.p2_x.value()), float(self.p2_y.value()))
+        
+        # Denormalize to actual image space for canvas
+        _, h_px = self.canvas.image_pixel_size()
+        scale = float(h_px) / 1000.0 if h_px > 0 else 1.0
+        
+        p1 = (p1_norm[0] * scale, p1_norm[1] * scale)
+        p2 = (p2_norm[0] * scale, p2_norm[1] * scale)
+        
+        # Only update if both points have non-zero values
+        canvas_p1, canvas_p2 = self.canvas.get_points()
+        if canvas_p1 is not None or p1 != (0.0, 0.0):
+            if canvas_p2 is not None or p2 != (0.0, 0.0):
+                self.canvas.set_points(p1, p2)
+                # Don't call _update_derived_labels here to avoid recursion
+                # Just update the computed values
+                self._update_computed_values()
 
-    def _get_line_length_mm(self) -> float:
-        """Calculate optical line length in mm."""
-        p1, p2 = self.canvas.get_points()
-        if not (p1 and p2):
-            return 0.0
-        dx = p2[0] - p1[0]
-        dy = p2[1] - p1[1]
-        px_len = (dx*dx + dy*dy)**0.5
-        return px_len * self._get_mm_per_pixel()
+    def _get_object_height(self) -> float:
+        """Get the object height entered by user."""
+        return float(self.object_height_mm.value())
 
     def _set_image(self, pix: QtGui.QPixmap, source_path: str | None = None):
         """Set canvas image."""
@@ -253,7 +348,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.canvas.set_pixmap(pix, source_path)
         self.canvas.clear_points()
         self.statusBar().showMessage(
-            "Image ready. Enter object height (mm), then click two points to define the optical line."
+            "Image ready. Enter object height (mm), then click two points on the optical element."
         )
         self._update_derived_labels()
 
@@ -391,7 +486,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
 
     # ---------- JSON Copy/Paste ----------
     def _build_record_from_ui(self) -> Optional[ComponentRecord]:
-        """Build ComponentRecord from UI state."""
+        """Build ComponentRecord from UI state with normalized 1000px coordinates."""
         if not self.canvas.has_image():
             QtWidgets.QMessageBox.warning(self, "Missing image", "Load or paste an image first.")
             return None
@@ -411,17 +506,30 @@ class ComponentEditor(QtWidgets.QMainWindow):
             return None
 
         kind = self.kind_combo.currentText()
-        mm_per_px = self._get_mm_per_pixel()
-        if mm_per_px <= 0:
+        object_height = self._get_object_height()
+        
+        if object_height <= 0:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Missing height",
+                "Missing object height",
                 "Please set a positive object height (mm)."
             )
             return None
 
-        length_mm = self._get_line_length_mm()
-        asset_path = self._ensure_asset_file(name)
+        # Normalize line_px to 1000px coordinate space
+        _, h_px = self.canvas.image_pixel_size()
+        if h_px <= 0:
+            h_px = 1000  # Fallback
+        
+        scale = 1000.0 / float(h_px)
+        line_px_normalized = (
+            float(p1[0]) * scale,
+            float(p1[1]) * scale,
+            float(p2[0]) * scale,
+            float(p2[1]) * scale
+        )
+        
+        asset_path = self._ensure_asset_file_normalized(name)
 
         # Type-specific
         efl = float(self.efl_mm.value()) if kind == "lens" else 0.0
@@ -435,9 +543,8 @@ class ComponentEditor(QtWidgets.QMainWindow):
             name=name,
             kind=kind,
             image_path=asset_path,
-            mm_per_pixel=mm_per_px,
-            line_px=(float(p1[0]), float(p1[1]), float(p2[0]), float(p2[1])),
-            length_mm=length_mm,
+            line_px=line_px_normalized,
+            object_height_mm=object_height,
             efl_mm=efl,
             split_TR=TR,
             notes=self.notes.toPlainText().strip()
@@ -468,6 +575,32 @@ class ComponentEditor(QtWidgets.QMainWindow):
         
         dst = os.path.join(assets_folder, base + ".png")
         pix.save(dst, "PNG")
+        return dst
+    
+    def _ensure_asset_file_normalized(self, name: str) -> str:
+        """Save asset file normalized to 1000px height."""
+        assets_folder = assets_dir()
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        base = f"{slugify(name)}-{stamp}"
+        dst = os.path.join(assets_folder, base + ".png")
+        
+        pix = self.canvas.current_pixmap()
+        if pix is None or pix.isNull():
+            raise RuntimeError("No image available to save.")
+        
+        # Ensure device pixel ratio = 1.0 before scaling
+        img = pix.toImage()
+        img.setDevicePixelRatio(1.0)
+        pix = QtGui.QPixmap.fromImage(img)
+        
+        # Normalize to 1000px height while preserving aspect ratio
+        if pix.height() != 1000:
+            pix = pix.scaledToHeight(1000, QtCore.Qt.TransformationMode.SmoothTransformation)
+        
+        # Ensure saved image has device pixel ratio = 1.0
+        img = pix.toImage()
+        img.setDevicePixelRatio(1.0)
+        img.save(dst, "PNG")
         return dst
 
     def copy_component_json(self):
@@ -549,10 +682,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
             rec.kind if rec.kind in ("lens", "mirror", "beamsplitter") else "lens"
         )
         
-        # Derive height from mm_per_pixel if possible
-        h_px = self.canvas.image_pixel_size()[1]
-        if h_px > 0:
-            self.height_mm.setValue(rec.mm_per_pixel * h_px)
+        # Set object height directly from component record
+        if rec.object_height_mm > 0:
+            self.object_height_mm.setValue(rec.object_height_mm)
         
         self.efl_mm.setValue(rec.efl_mm if rec.kind == "lens" else 0.0)
         self.split_T.setValue(rec.split_TR[0] if rec.kind == "beamsplitter" else 50.0)
@@ -560,8 +692,12 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.notes.setPlainText(rec.notes)
         
         if rec.line_px:
-            p1 = (float(rec.line_px[0]), float(rec.line_px[1]))
-            p2 = (float(rec.line_px[2]), float(rec.line_px[3]))
+            # rec.line_px is in normalized 1000px space, denormalize for canvas
+            _, h_px = self.canvas.image_pixel_size()
+            scale = float(h_px) / 1000.0 if h_px > 0 else 1.0
+            
+            p1 = (float(rec.line_px[0]) * scale, float(rec.line_px[1]) * scale)
+            p2 = (float(rec.line_px[2]) * scale, float(rec.line_px[3]) * scale)
             self.canvas.set_points(p1, p2)
         
         self._update_derived_labels()

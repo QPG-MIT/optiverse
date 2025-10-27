@@ -112,3 +112,32 @@ class MoveItemCommand(Command):
         """Move the item back to the old position."""
         self.item.setPos(self.old_pos)
 
+
+class PasteItemsCommand(Command):
+    """Command to paste multiple items to the scene."""
+
+    def __init__(self, scene: QtWidgets.QGraphicsScene, items: list[QtWidgets.QGraphicsItem]):
+        """
+        Initialize PasteItemsCommand.
+
+        Args:
+            scene: The graphics scene to add items to
+            items: The list of graphics items to add
+        """
+        self.scene = scene
+        self.items = items
+        self._executed = False
+
+    def execute(self) -> None:
+        """Add all items to the scene."""
+        if not self._executed:
+            for item in self.items:
+                self.scene.addItem(item)
+            self._executed = True
+
+    def undo(self) -> None:
+        """Remove all items from the scene."""
+        if self._executed:
+            for item in self.items:
+                self.scene.removeItem(item)
+            self._executed = False

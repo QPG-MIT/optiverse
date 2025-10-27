@@ -15,6 +15,7 @@ except Exception:
 class ImageCanvas(QtWidgets.QLabel):
     clickedPoint = QtCore.pyqtSignal(float, float)
     imageDropped = QtCore.pyqtSignal(QtGui.QPixmap, str)
+    pointsChanged = QtCore.pyqtSignal()  # Emitted when points change
 
     def __init__(self):
         super().__init__()
@@ -27,8 +28,18 @@ class ImageCanvas(QtWidgets.QLabel):
         self._src_path: Optional[str] = None
         self.setAcceptDrops(True)
         self.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
+        # Drag state
+        self._dragging_point: Optional[int] = None  # 1 or 2 when dragging
+        self._hover_point: Optional[int] = None  # 1 or 2 when hovering
+        self.setMouseTracking(True)
 
     def set_pixmap(self, pix: QtGui.QPixmap, source_path: str | None = None):
+        # Normalize device pixel ratio to 1.0 for consistent size reporting
+        if pix and not pix.isNull():
+            img = pix.toImage()
+            img.setDevicePixelRatio(1.0)
+            pix = QtGui.QPixmap.fromImage(img)
+        
         self._pix = pix
         self._src_path = source_path
         self._pt1 = None
@@ -62,26 +73,112 @@ class ImageCanvas(QtWidgets.QLabel):
             return (0, 0)
         return (self._pix.width(), self._pix.height())
 
+    def _get_point_at_screen_pos(self, screen_pos: QtCore.QPoint, threshold: float = 8.0) -> Optional[int]:
+        """Check if screen position is near point 1 or 2. Returns 1, 2, or None."""
+        if not self._pix:
+            return None
+        pixrect = self._target_rect()
+        if not pixrect.contains(screen_pos):
+            return None
+        
+        # Check point 2 first (so it takes priority if overlapping)
+        if self._pt2:
+            x2, y2 = self._pt2
+            X2 = pixrect.x() + x2 * self._scale_fit
+            Y2 = pixrect.y() + y2 * self._scale_fit
+            dx = screen_pos.x() - X2
+            dy = screen_pos.y() - Y2
+            if (dx*dx + dy*dy) <= threshold*threshold:
+                return 2
+        
+        # Check point 1
+        if self._pt1:
+            x1, y1 = self._pt1
+            X1 = pixrect.x() + x1 * self._scale_fit
+            Y1 = pixrect.y() + y1 * self._scale_fit
+            dx = screen_pos.x() - X1
+            dy = screen_pos.y() - Y1
+            if (dx*dx + dy*dy) <= threshold*threshold:
+                return 1
+        
+        return None
+
+    def _screen_to_image_coords(self, screen_pos: QtCore.QPoint) -> Optional[Tuple[float, float]]:
+        """Convert screen position to image pixel coordinates."""
+        if not self._pix:
+            return None
+        pixrect = self._target_rect()
+        if not pixrect.contains(screen_pos):
+            return None
+        x = (screen_pos.x() - pixrect.x()) / self._scale_fit
+        y = (screen_pos.y() - pixrect.y()) / self._scale_fit
+        # Clamp to image bounds
+        x = max(0, min(x, self._pix.width()))
+        y = max(0, min(y, self._pix.height()))
+        return (x, y)
+
     def mousePressEvent(self, e: QtGui.QMouseEvent):
         if not self._pix:
             return
         if e.button() == QtCore.Qt.MouseButton.LeftButton:
-            pos = e.pos()
-            pixrect = self._target_rect()
-            if not pixrect.contains(pos):
+            # Check if clicking on existing point to drag
+            point_idx = self._get_point_at_screen_pos(e.pos())
+            if point_idx is not None:
+                self._dragging_point = point_idx
+                self.setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
                 return
-            x = (pos.x() - pixrect.x())
-            y = (pos.y() - pixrect.y())
-            px = x / self._scale_fit
-            py = y / self._scale_fit
+            
+            # Otherwise, place new point
+            coords = self._screen_to_image_coords(e.pos())
+            if coords is None:
+                return
+            px, py = coords
             if self._pt1 is None:
                 self._pt1 = (px, py)
             else:
                 self._pt2 = (px, py)
             self.clickedPoint.emit(px, py)
+            self.pointsChanged.emit()
             self.update()
         elif e.button() == QtCore.Qt.MouseButton.RightButton:
             self.clear_points()
+            self.pointsChanged.emit()
+
+    def mouseMoveEvent(self, e: QtGui.QMouseEvent):
+        if not self._pix:
+            return
+        
+        # Handle dragging
+        if self._dragging_point is not None:
+            coords = self._screen_to_image_coords(e.pos())
+            if coords is not None:
+                if self._dragging_point == 1:
+                    self._pt1 = coords
+                elif self._dragging_point == 2:
+                    self._pt2 = coords
+                self.pointsChanged.emit()
+                self.update()
+            return
+        
+        # Handle hover cursor
+        point_idx = self._get_point_at_screen_pos(e.pos())
+        if point_idx != self._hover_point:
+            self._hover_point = point_idx
+            if point_idx is not None:
+                self.setCursor(QtCore.Qt.CursorShape.OpenHandCursor)
+            else:
+                self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+
+    def mouseReleaseEvent(self, e: QtGui.QMouseEvent):
+        if e.button() == QtCore.Qt.MouseButton.LeftButton:
+            if self._dragging_point is not None:
+                self._dragging_point = None
+                # Update cursor based on current position
+                point_idx = self._get_point_at_screen_pos(e.pos())
+                if point_idx is not None:
+                    self.setCursor(QtCore.Qt.CursorShape.OpenHandCursor)
+                else:
+                    self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
 
     def dragEnterEvent(self, e: QtGui.QDragEnterEvent):
         md = e.mimeData()
@@ -149,18 +246,28 @@ class ImageCanvas(QtWidgets.QLabel):
                 x1, y1 = self._pt1
                 X1 = tgt.x() + x1 * self._scale_fit
                 Y1 = tgt.y() + y1 * self._scale_fit
-                pen = QtGui.QPen(QtGui.QColor(0, 180, 255), 2)
+                # Highlight if hovering or dragging
+                is_active = (self._hover_point == 1 or self._dragging_point == 1)
+                radius = 6 if is_active else 5
+                pen_width = 3 if is_active else 2
+                pen = QtGui.QPen(QtGui.QColor(0, 180, 255), pen_width)
                 p.setPen(pen)
-                p.setBrush(QtGui.QBrush(QtGui.QColor(0, 180, 255, 100)))
-                p.drawEllipse(QtCore.QPointF(X1, Y1), 4, 4)
+                alpha = 150 if is_active else 100
+                p.setBrush(QtGui.QBrush(QtGui.QColor(0, 180, 255, alpha)))
+                p.drawEllipse(QtCore.QPointF(X1, Y1), radius, radius)
             if self._pt2:
                 x2, y2 = self._pt2
                 X2 = tgt.x() + x2 * self._scale_fit
                 Y2 = tgt.y() + y2 * self._scale_fit
-                pen = QtGui.QPen(QtGui.QColor(255, 80, 0), 2)
+                # Highlight if hovering or dragging
+                is_active = (self._hover_point == 2 or self._dragging_point == 2)
+                radius = 6 if is_active else 5
+                pen_width = 3 if is_active else 2
+                pen = QtGui.QPen(QtGui.QColor(255, 80, 0), pen_width)
                 p.setPen(pen)
-                p.setBrush(QtGui.QBrush(QtGui.QColor(255, 80, 0, 100)))
-                p.drawEllipse(QtCore.QPointF(X2, Y2), 4, 4)
+                alpha = 150 if is_active else 100
+                p.setBrush(QtGui.QBrush(QtGui.QColor(255, 80, 0, alpha)))
+                p.drawEllipse(QtCore.QPointF(X2, Y2), radius, radius)
             if self._pt1 and self._pt2:
                 pen = QtGui.QPen(QtGui.QColor(0, 0, 0), 2, QtCore.Qt.PenStyle.DashLine)
                 p.setPen(pen)

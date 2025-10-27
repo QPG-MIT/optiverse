@@ -15,7 +15,7 @@ from ...core.models import (
     SourceParams,
 )
 from ...core.snap_helper import SnapHelper
-from ...core.undo_commands import AddItemCommand, MoveItemCommand, RemoveItemCommand
+from ...core.undo_commands import AddItemCommand, MoveItemCommand, RemoveItemCommand, PasteItemsCommand
 from ...core.undo_stack import UndoStack
 from ...core.use_cases import trace_rays
 from ...services.settings_service import SettingsService
@@ -75,12 +75,13 @@ class LibraryTree(QtWidgets.QTreeWidget):
         md.setData("application/x-optics-component", json.dumps(payload).encode("utf-8"))
         drag = QtGui.QDrag(self)
         drag.setMimeData(md)
-        drag.setHotSpot(QtCore.QPoint(10, 10))
         
-        # Use icon if available
-        icon = it.icon(0)
-        if not icon.isNull():
-            drag.setPixmap(icon.pixmap(64, 64))
+        # Set an empty 1x1 transparent pixmap to prevent Qt from creating a default drag cursor
+        # The ghost preview in GraphicsView provides the visual feedback
+        empty_pixmap = QtGui.QPixmap(1, 1)
+        empty_pixmap.fill(QtCore.Qt.GlobalColor.transparent)
+        drag.setPixmap(empty_pixmap)
+        drag.setHotSpot(QtCore.QPoint(0, 0))
         
         # Execute drag and clear selection afterwards
         result = drag.exec(QtCore.Qt.DropAction.CopyAction)
@@ -193,6 +194,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_delete = QtGui.QAction("Delete", self)
         self.act_delete.setShortcut(QtGui.QKeySequence.StandardKey.Delete)
         self.act_delete.triggered.connect(self.delete_selected)
+
+        self.act_copy = QtGui.QAction("Copy", self)
+        self.act_copy.setShortcut(QtGui.QKeySequence("Ctrl+C"))
+        self.act_copy.triggered.connect(self.copy_selected)
+
+        self.act_paste = QtGui.QAction("Paste", self)
+        self.act_paste.setShortcut(QtGui.QKeySequence("Ctrl+V"))
+        self.act_paste.triggered.connect(self.paste_items)
+        self.act_paste.setEnabled(False)
 
         # Connect undo stack signals to update action states
         self.undo_stack.canUndoChanged.connect(self.act_undo.setEnabled)
@@ -334,6 +344,9 @@ class MainWindow(QtWidgets.QMainWindow):
         mEdit.addAction(self.act_undo)
         mEdit.addAction(self.act_redo)
         mEdit.addSeparator()
+        mEdit.addAction(self.act_copy)
+        mEdit.addAction(self.act_paste)
+        mEdit.addSeparator()
         mEdit.addAction(self.act_delete)
 
         # Insert menu (Phase 3.2: Better menu organization)
@@ -438,24 +451,31 @@ class MainWindow(QtWidgets.QMainWindow):
         self.libraryTree.expandAll()
 
     def on_drop_component(self, rec: dict, scene_pos: QtCore.QPointF):
-        """Handle component drop from library."""
+        """Handle component drop from library with normalized 1000px system."""
         kind = rec.get("kind", "lens")
         name = rec.get("name")
         img = rec.get("image_path")
-        mm_per_px = float(rec.get("mm_per_pixel", 0.1))
         line_px = tuple(rec.get("line_px", (0, 0, 1, 0)))
-        length_mm = float(rec.get("length_mm", 60.0))
+        # Support new object_height_mm and legacy object_height/length_mm
+        object_height_mm = float(rec.get("object_height_mm", rec.get("object_height", rec.get("length_mm", 60.0))))
+        # mm_per_pixel computed from object_height_mm in normalized 1000px system
+        
+        # Get optical axis angle from library (with sensible defaults)
+        if "angle_deg" in rec:
+            angle_deg = float(rec.get("angle_deg"))
+        else:
+            # Fallback defaults if not specified
+            angle_deg = 90.0 if kind == "lens" else (45.0 if kind == "beamsplitter" else 0.0)
 
         if kind == "lens":
             efl_mm = float(rec.get("efl_mm", 100.0))
             params = LensParams(
                 x_mm=scene_pos.x(),
                 y_mm=scene_pos.y(),
-                angle_deg=90.0,
+                angle_deg=angle_deg,
                 efl_mm=efl_mm,
-                length_mm=length_mm,
+                object_height_mm=object_height_mm,
                 image_path=img,
-                mm_per_pixel=mm_per_px,
                 line_px=line_px,
                 name=name,
             )
@@ -468,12 +488,11 @@ class MainWindow(QtWidgets.QMainWindow):
             params = BeamsplitterParams(
                 x_mm=scene_pos.x(),
                 y_mm=scene_pos.y(),
-                angle_deg=45.0,
-                length_mm=length_mm,
+                angle_deg=angle_deg,
+                object_height_mm=object_height_mm,
                 split_T=T,
                 split_R=R,
                 image_path=img,
-                mm_per_pixel=mm_per_px,
                 line_px=line_px,
                 name=name,
             )
@@ -482,16 +501,15 @@ class MainWindow(QtWidgets.QMainWindow):
             params = MirrorParams(
                 x_mm=scene_pos.x(),
                 y_mm=scene_pos.y(),
-                angle_deg=0.0,
-                length_mm=length_mm,
+                angle_deg=angle_deg,
+                object_height_mm=object_height_mm,
                 image_path=img,
-                mm_per_pixel=mm_per_px,
                 line_px=line_px,
                 name=name,
             )
             item = MirrorItem(params)
 
-        item._maybe_attach_sprite()
+        # Sprite is automatically attached in constructor, no need to call again
         item.edited.connect(self._maybe_retrace)
         cmd = AddItemCommand(self.scene, item)
         self.undo_stack.push(cmd)
@@ -517,9 +535,8 @@ class MainWindow(QtWidgets.QMainWindow):
             std_comp = ComponentRegistry.get_standard_lens()
             params = LensParams(
                 efl_mm=std_comp["efl_mm"],
-                length_mm=std_comp["length_mm"],
+                object_height_mm=std_comp["object_height_mm"],
                 image_path=std_comp["image_path"],
-                mm_per_pixel=std_comp["mm_per_pixel"],
                 line_px=tuple(std_comp["line_px"]),
                 name=std_comp.get("name"),
             )
@@ -528,7 +545,7 @@ class MainWindow(QtWidgets.QMainWindow):
             params = LensParams()
         
         L = LensItem(params)
-        L._maybe_attach_sprite()
+        # Sprite is automatically attached in constructor
         L.edited.connect(self._maybe_retrace)
         cmd = AddItemCommand(self.scene, L)
         self.undo_stack.push(cmd)
@@ -542,9 +559,8 @@ class MainWindow(QtWidgets.QMainWindow):
             from ...objects.component_registry import ComponentRegistry
             std_comp = ComponentRegistry.get_standard_mirror()
             params = MirrorParams(
-                length_mm=std_comp["length_mm"],
+                object_height_mm=std_comp["object_height_mm"],
                 image_path=std_comp["image_path"],
-                mm_per_pixel=std_comp["mm_per_pixel"],
                 line_px=tuple(std_comp["line_px"]),
                 name=std_comp.get("name"),
             )
@@ -553,7 +569,7 @@ class MainWindow(QtWidgets.QMainWindow):
             params = MirrorParams()
         
         M = MirrorItem(params)
-        M._maybe_attach_sprite()
+        # Sprite is automatically attached in constructor
         M.edited.connect(self._maybe_retrace)
         cmd = AddItemCommand(self.scene, M)
         self.undo_stack.push(cmd)
@@ -569,9 +585,8 @@ class MainWindow(QtWidgets.QMainWindow):
             params = BeamsplitterParams(
                 split_T=std_comp["split_T"],
                 split_R=std_comp["split_R"],
-                length_mm=std_comp["length_mm"],
+                object_height_mm=std_comp["object_height_mm"],
                 image_path=std_comp["image_path"],
-                mm_per_pixel=std_comp["mm_per_pixel"],
                 line_px=tuple(std_comp["line_px"]),
                 name=std_comp.get("name"),
             )
@@ -580,7 +595,7 @@ class MainWindow(QtWidgets.QMainWindow):
             params = BeamsplitterParams()
         
         B = BeamsplitterItem(params)
-        B._maybe_attach_sprite()
+        # Sprite is automatically attached in constructor
         B.edited.connect(self._maybe_retrace)
         cmd = AddItemCommand(self.scene, B)
         self.undo_stack.push(cmd)
@@ -609,6 +624,114 @@ class MainWindow(QtWidgets.QMainWindow):
         
         if self.autotrace:
             self.retrace()
+
+    def copy_selected(self):
+        """Copy selected items to clipboard."""
+        from ...objects import BaseObj
+        
+        selected = self.scene.selectedItems()
+        self._clipboard = []
+        
+        for item in selected:
+            # Only copy optical components, rulers, and text notes
+            if isinstance(item, (BaseObj, RulerItem, TextNoteItem)):
+                try:
+                    # Serialize the item to dictionary
+                    item_data = item.to_dict()
+                    # Store the type of the item for reconstruction
+                    item_data['_item_type'] = type(item).__name__
+                    self._clipboard.append(item_data)
+                except Exception:
+                    # Skip items that can't be serialized
+                    pass
+        
+        # Enable paste action if we have items in clipboard
+        self.act_paste.setEnabled(len(self._clipboard) > 0)
+
+    def paste_items(self):
+        """Paste items from clipboard."""
+        if not self._clipboard:
+            return
+        
+        # Offset for pasted items so they're visible
+        paste_offset = QtCore.QPointF(20.0, 20.0)
+        pasted_items = []
+        
+        # Fields to exclude when pasting (these get recalculated)
+        excluded_fields = {'_item_type', 'mm_per_pixel'}
+        
+        for item_data in self._clipboard:
+            try:
+                item_type = item_data.get('_item_type')
+                
+                # Create new item based on type
+                if item_type == 'SourceItem':
+                    params = SourceParams(**{k: v for k, v in item_data.items() if k not in excluded_fields})
+                    params.x_mm += paste_offset.x()
+                    params.y_mm += paste_offset.y()
+                    item = SourceItem(params)
+                    item.edited.connect(self._maybe_retrace)
+                    pasted_items.append(item)
+                    
+                elif item_type == 'LensItem':
+                    params = LensParams(**{k: v for k, v in item_data.items() if k not in excluded_fields})
+                    params.x_mm += paste_offset.x()
+                    params.y_mm += paste_offset.y()
+                    item = LensItem(params)
+                    # Sprite is automatically attached in constructor
+                    item.edited.connect(self._maybe_retrace)
+                    pasted_items.append(item)
+                    
+                elif item_type == 'MirrorItem':
+                    params = MirrorParams(**{k: v for k, v in item_data.items() if k not in excluded_fields})
+                    params.x_mm += paste_offset.x()
+                    params.y_mm += paste_offset.y()
+                    item = MirrorItem(params)
+                    # Sprite is automatically attached in constructor
+                    item.edited.connect(self._maybe_retrace)
+                    pasted_items.append(item)
+                    
+                elif item_type == 'BeamsplitterItem':
+                    params = BeamsplitterParams(**{k: v for k, v in item_data.items() if k not in excluded_fields})
+                    params.x_mm += paste_offset.x()
+                    params.y_mm += paste_offset.y()
+                    item = BeamsplitterItem(params)
+                    # Sprite is automatically attached in constructor
+                    item.edited.connect(self._maybe_retrace)
+                    pasted_items.append(item)
+                    
+                elif item_type == 'RulerItem':
+                    # Remove _item_type and reconstruct ruler
+                    data = {k: v for k, v in item_data.items() if k != '_item_type'}
+                    item = RulerItem.from_dict(data)
+                    # Offset the ruler position
+                    item.setPos(item.pos() + paste_offset)
+                    pasted_items.append(item)
+                    
+                elif item_type == 'TextNoteItem':
+                    # Remove _item_type and reconstruct text note
+                    data = {k: v for k, v in item_data.items() if k != '_item_type'}
+                    item = TextNoteItem.from_dict(data)
+                    # Offset the text note position
+                    item.setPos(item.pos() + paste_offset)
+                    pasted_items.append(item)
+                    
+            except Exception:
+                # Skip items that can't be reconstructed
+                pass
+        
+        if pasted_items:
+            # Use undo command to add all pasted items at once
+            cmd = PasteItemsCommand(self.scene, pasted_items)
+            self.undo_stack.push(cmd)
+            
+            # Clear current selection and select pasted items
+            self.scene.clearSelection()
+            for item in pasted_items:
+                item.setSelected(True)
+            
+            if self.autotrace:
+                self.retrace()
 
     def _do_undo(self):
         """Undo last action and retrace rays."""
@@ -783,17 +906,17 @@ class MainWindow(QtWidgets.QMainWindow):
         for d in data.get("lenses", []):
             L = LensItem(LensParams(**d))
             self.scene.addItem(L)
-            L._maybe_attach_sprite()
+            # Sprite is automatically attached in constructor
             L.edited.connect(self._maybe_retrace)
         for d in data.get("mirrors", []):
             M = MirrorItem(MirrorParams(**d))
             self.scene.addItem(M)
-            M._maybe_attach_sprite()
+            # Sprite is automatically attached in constructor
             M.edited.connect(self._maybe_retrace)
         for d in data.get("beamsplitters", []):
             B = BeamsplitterItem(BeamsplitterParams(**d))
             self.scene.addItem(B)
-            B._maybe_attach_sprite()
+            # Sprite is automatically attached in constructor
             B.edited.connect(self._maybe_retrace)
         for d in data.get("rulers", []):
             R = RulerItem.from_dict(d)

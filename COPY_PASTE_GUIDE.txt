@@ -1,0 +1,93 @@
+===============================================================================
+                    COPY/PASTE FEATURE - USER GUIDE
+===============================================================================
+
+QUICK START
+-----------
+Copy:  Select objects → Press Ctrl+C
+Paste: Press Ctrl+V
+
+Objects will appear 20mm offset from the original position.
+
+
+KEYBOARD SHORTCUTS
+------------------
+Ctrl+C  Copy selected objects
+Ctrl+V  Paste copied objects
+Ctrl+Z  Undo paste
+Ctrl+Y  Redo paste
+
+
+MENU COMMANDS
+-------------
+Edit > Copy   (Ctrl+C)
+Edit > Paste  (Ctrl+V)
+
+
+SUPPORTED OBJECTS
+-----------------
+✓ Sources (optical light sources)
+✓ Lenses (all types)
+✓ Mirrors (all types)
+✓ Beamsplitters (including PBS)
+✓ Rulers (measurement annotations)
+✓ Text Notes
+
+
+FEATURES
+--------
+• Copy multiple objects at once
+• Paste multiple times from one copy
+• All properties preserved (angles, colors, optical parameters, etc.)
+• Full undo/redo support
+• Automatic ray tracing update
+• Pasted objects are automatically selected
+
+
+TIPS
+----
+• Hold Ctrl and click to select multiple objects
+• Drag to create a selection rectangle
+• Press Ctrl+V multiple times to create multiple copies
+• Use Ctrl+Z to undo if you paste in the wrong place
+• Pasted objects appear offset so you can see them immediately
+
+
+EXAMPLES
+--------
+Example 1: Duplicate a Mirror
+  1. Click the mirror to select it
+  2. Press Ctrl+C
+  3. Press Ctrl+V
+  4. Drag the new mirror to position
+
+Example 2: Copy an Optical Setup
+  1. Select source + lens + mirror (Ctrl+Click each)
+  2. Press Ctrl+C
+  3. Press Ctrl+V
+  4. Adjust the pasted setup as needed
+
+Example 3: Create Multiple Rulers
+  1. Create and position a ruler
+  2. Press Ctrl+C
+  3. Press Ctrl+V several times
+  4. Position each ruler for measurements
+
+
+TECHNICAL NOTES
+---------------
+• 20mm offset applied to X and Y coordinates
+• Clipboard is internal to the application
+• Grid lines and ray paths cannot be copied
+• Properties fully preserved including:
+  - Position (with offset)
+  - Rotation angle
+  - Optical parameters (focal length, split ratios, etc.)
+  - Colors and polarization
+  - Images and calibration data
+
+
+===============================================================================
+                              ENJOY!
+===============================================================================
+

@@ -167,14 +167,16 @@ class GraphicsView(QtWidgets.QGraphicsView):
             else:
                 angle = 0.0
 
-        # Extract common parameters
+        # Extract common parameters (normalized 1000px system)
         name = rec.get("name")
         img = rec.get("image_path")
-        mm_per_px = float(rec.get("mm_per_pixel", 0.1))
         line_px = tuple(rec.get("line_px", (0, 0, 1, 0)))
-        length_mm = float(rec.get("length_mm", 60.0))
+        # Support new object_height_mm and legacy object_height/length_mm
+        object_height_mm = float(rec.get("object_height_mm", rec.get("object_height", rec.get("length_mm", 60.0))))
+        # mm_per_pixel computed from object_height_mm in normalized 1000px system
 
         # Create the appropriate item type
+        # Don't include image for ghost preview to avoid visual clutter
         if kind == "lens":
             efl_mm = float(rec.get("efl_mm", 100.0))
             params = LensParams(
@@ -182,10 +184,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 y_mm=scene_pos.y(),
                 angle_deg=angle,
                 efl_mm=efl_mm,
-                length_mm=length_mm,
-                image_path=img,
-                mm_per_pixel=mm_per_px,
-                line_px=line_px,
+                object_height_mm=object_height_mm,
+                image_path=None,  # No sprite for ghost
+                line_px=None,
                 name=name
             )
             item = LensItem(params)
@@ -198,12 +199,11 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 x_mm=scene_pos.x(),
                 y_mm=scene_pos.y(),
                 angle_deg=angle,
-                length_mm=length_mm,
+                object_height_mm=object_height_mm,
                 split_T=T,
                 split_R=R,
-                image_path=img,
-                mm_per_pixel=mm_per_px,
-                line_px=line_px,
+                image_path=None,  # No sprite for ghost
+                line_px=None,
                 name=name
             )
             item = BeamsplitterItem(params)
@@ -212,10 +212,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 x_mm=scene_pos.x(),
                 y_mm=scene_pos.y(),
                 angle_deg=angle,
-                length_mm=length_mm,
-                image_path=img,
-                mm_per_pixel=mm_per_px,
-                line_px=line_px,
+                object_height_mm=object_height_mm,
+                image_path=None,  # No sprite for ghost
+                line_px=None,
                 name=name
             )
             item = MirrorItem(params)
@@ -224,14 +223,8 @@ class GraphicsView(QtWidgets.QGraphicsView):
         item.setAcceptedMouseButtons(QtCore.Qt.MouseButton.NoButton)
         item.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
         item.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
-        item.setOpacity(0.7)  # Semi-transparent
+        item.setOpacity(0.6)  # Semi-transparent ghost
         item.setZValue(9999)  # Render on top
-
-        # Ensure the decorative sprite is visible on the ghost
-        try:
-            item._maybe_attach_sprite()
-        except Exception:
-            pass
 
         # Add to scene
         self.scene().addItem(item)

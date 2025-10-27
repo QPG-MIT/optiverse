@@ -34,10 +34,28 @@ class ComponentRegistry:
             "name": "Standard Lens (1\" mounted)",
             "kind": "lens",
             "efl_mm": 100.0,
-            "length_mm": 25.4,  # 1 inch
+            "object_height_mm": 30.5,  # 1 inch (25.4 mm) diameter
             "image_path": _get_image_path("lens_1_inch_mounted.png"),
-            "mm_per_pixel": 0.1,
-            "line_px": (100, 150, 300, 150),  # Horizontal line across center
+            "line_px": (320, 83, 320, 916),  # Vertical line in normalized 1000px space
+            "angle_deg": 90,  # Vertical orientation by default
+        }
+    
+    @staticmethod
+    def get_standard_lens_2_inch() -> Dict[str, Any]:
+        """
+        Get standard 2-inch mounted lens definition.
+        
+        Returns:
+            Dictionary with lens parameters including image and calibration
+        """
+        return {
+            "name": "Standard Lens (2\" mounted)",
+            "kind": "lens",
+            "efl_mm": 100.0,
+            "object_height_mm": 55.9,  # 2 inch mounted
+            "image_path": _get_image_path("lens_1_inch_mounted.png"),
+            "line_px": (320, 83, 320, 916),  # Vertical line in normalized 1000px space
+            "angle_deg": 90,  # Vertical orientation by default
         }
     
     @staticmethod
@@ -51,10 +69,10 @@ class ComponentRegistry:
         return {
             "name": "Standard Mirror (1\")",
             "kind": "mirror",
-            "length_mm": 25.4,  # 1 inch
+            "object_height_mm": 49.4,  # 1 inch (25.4 mm) diameter with mount
             "image_path": _get_image_path("standard_mirror_1_inch.png"),
-            "mm_per_pixel": 0.1,
-            "line_px": (100, 150, 300, 150),  # Horizontal line across center
+            "line_px": (5, 220, 5, 780),  # Vertical line in normalized 1000px space
+            "angle_deg": 0.0,  # Horizontal orientation by default
         }
     
     @staticmethod
@@ -71,10 +89,32 @@ class ComponentRegistry:
             "split_T": 50.0,
             "split_R": 50.0,
             "split_TR": [50.0, 50.0],  # Alternative format for compatibility
-            "length_mm": 25.4,  # 1 inch
+            "object_height_mm": 25.4,  # 1 inch (25.4 mm)
             "image_path": _get_image_path("beamsplitter_50_50_1_inch.png"),
-            "mm_per_pixel": 0.1,
-            "line_px": (100, 150, 300, 150),  # Horizontal line across center
+            "line_px": (0, 0, 1000, 1000),  # Diagonal line in normalized 1000px space
+            "angle_deg": 0,  # 0° orientation by default
+        }
+    
+    @staticmethod
+    def get_standard_pbs() -> Dict[str, Any]:
+        """
+        Get standard 2-inch PBS (Polarizing Beam Splitter) definition.
+        
+        Returns:
+            Dictionary with PBS parameters including image and calibration
+        """
+        return {
+            "name": "PBS (2\" Polarizing)",
+            "kind": "beamsplitter",
+            "split_T": 0.0,  # s-polarization reflects, p-polarization transmits
+            "split_R": 0.0,
+            "split_TR": [0.0, 0.0],  # Not used for PBS
+            "object_height_mm": 50.8,  # 2 inch (50.8 mm)
+            "image_path": _get_image_path("pbs_2_inch.png"),
+            "line_px": (0, 0, 1000, 1000),  # Diagonal line in normalized 1000px space
+            "angle_deg": 0,  # 0° orientation by default
+            "is_polarizing": True,  # This is a PBS
+            "pbs_transmission_axis_deg": 0.0,  # Horizontal transmission axis (p-pol transmits)
         }
     
     @staticmethod
@@ -110,8 +150,10 @@ class ComponentRegistry:
         """
         return [
             ComponentRegistry.get_standard_lens(),
+            ComponentRegistry.get_standard_lens_2_inch(),
             ComponentRegistry.get_standard_mirror(),
             ComponentRegistry.get_standard_beamsplitter(),
+            ComponentRegistry.get_standard_pbs(),
             ComponentRegistry.get_standard_source(),
         ]
     
@@ -124,9 +166,15 @@ class ComponentRegistry:
             Dictionary mapping category names to lists of components
         """
         return {
-            "Lenses": [ComponentRegistry.get_standard_lens()],
+            "Lenses": [
+                ComponentRegistry.get_standard_lens(),
+                ComponentRegistry.get_standard_lens_2_inch(),
+            ],
             "Mirrors": [ComponentRegistry.get_standard_mirror()],
-            "Beamsplitters": [ComponentRegistry.get_standard_beamsplitter()],
+            "Beamsplitters": [
+                ComponentRegistry.get_standard_beamsplitter(),
+                ComponentRegistry.get_standard_pbs(),
+            ],
             "Sources": [ComponentRegistry.get_standard_source()],
         }
     

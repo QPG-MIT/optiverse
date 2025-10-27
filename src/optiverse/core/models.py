@@ -98,17 +98,26 @@ class ComponentRecord:
     """
     Persistent component data for library storage.
     Represents a physical optical component with calibrated dimensions.
+    
+    NORMALIZED IMAGE SYSTEM:
+    - All component images are stored at 1000px height
+    - line_px coordinates are in normalized 1000px space
+    - object_height_mm represents the physical size of the full 1000px image height
+    - mm_per_pixel is computed as: object_height_mm / 1000.0
+    - The picked line defines which feature to align (not used for scaling)
     """
     name: str
     kind: str  # 'lens' | 'mirror' | 'beamsplitter'
     image_path: str
-    mm_per_pixel: float
-    line_px: Tuple[float, float, float, float]  # x1,y1,x2,y2 (logical px)
-    length_mm: float
+    line_px: Tuple[float, float, float, float]  # x1,y1,x2,y2 in normalized 1000px coordinate space
+    object_height_mm: float  # Physical size (mm) of the full 1000px image height
+    # mm_per_pixel is computed: object_height_mm / 1000.0 (not stored)
     # lens only
     efl_mm: float = 0.0
     # beamsplitter only
     split_TR: Tuple[float, float] = (50.0, 50.0)
+    # optical axis angle (degrees) - default orientation when placed
+    angle_deg: float = 0.0
     # misc
     notes: str = ""
 
@@ -129,13 +138,14 @@ def serialize_component(rec: ComponentRecord) -> Dict[str, Any]:
     Only includes fields relevant to component kind.
     For beamsplitter, also writes legacy split_T/split_R for backward compatibility.
     """
+    # mm_per_pixel not stored - computed as object_height_mm / 1000.0
     base = {
         "name": rec.name,
         "kind": rec.kind,
         "image_path": rec.image_path,
-        "mm_per_pixel": float(rec.mm_per_pixel),
         "line_px": [float(x) for x in rec.line_px],
-        "length_mm": float(rec.length_mm),
+        "object_height_mm": float(rec.object_height_mm),
+        "angle_deg": float(rec.angle_deg),  # Optical axis angle
         "notes": rec.notes or ""
     }
     if rec.kind == "lens":
@@ -154,6 +164,7 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
     """
     Deserialize dict to ComponentRecord.
     Handles both new split_TR and legacy split_T/split_R formats.
+    Handles both object_height_mm and legacy object_height/length_mm.
     Ignores unknown keys. Returns None if core fields are malformed.
     """
     if not isinstance(data, dict):
@@ -163,20 +174,24 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
     kind = str(data.get("kind", "lens"))
     image_path = str(data.get("image_path", ""))
     
-    try:
-        mm_per_pixel = float(data.get("mm_per_pixel", 0.1))
-    except Exception:
-        mm_per_pixel = 0.1
+    # Legacy: mm_per_pixel is no longer used - computed as object_height_mm / 1000.0
+    # Old JSON files with mm_per_pixel are ignored
 
     line_px = _coerce_line_px(data.get("line_px", (0, 0, 1, 0)))
     if not line_px:
         # Core geometry missing → invalid
         return None
 
+    # Support legacy field names: object_height_mm (new) or object_height or length_mm (legacy)
     try:
-        length_mm = float(data.get("length_mm", 60.0))
+        object_height_mm = float(data.get("object_height_mm", data.get("object_height", data.get("length_mm", 60.0))))
     except Exception:
-        length_mm = 60.0
+        object_height_mm = 60.0
+    
+    try:
+        angle_deg = float(data.get("angle_deg", 0.0))
+    except Exception:
+        angle_deg = 0.0
     
     notes = str(data.get("notes", ""))
 
@@ -208,11 +223,11 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
         name=name,
         kind=kind,
         image_path=image_path,
-        mm_per_pixel=mm_per_pixel,
         line_px=line_px,
-        length_mm=length_mm,
+        object_height_mm=object_height_mm,
         efl_mm=efl_mm,
         split_TR=split_TR,
+        angle_deg=angle_deg,
         notes=notes
     )
 
@@ -269,7 +284,7 @@ class LensParams:
     y_mm: float = 0.0
     angle_deg: float = 90.0
     efl_mm: float = 100.0
-    length_mm: float = 60.0
+    object_height_mm: float = 60.0
     image_path: Optional[str] = None
     mm_per_pixel: float = 0.1
     line_px: Optional[Tuple[float, float, float, float]] = None
@@ -281,7 +296,7 @@ class MirrorParams:
     x_mm: float = 150.0
     y_mm: float = 0.0
     angle_deg: float = 45.0
-    length_mm: float = 80.0
+    object_height_mm: float = 80.0
     image_path: Optional[str] = None
     mm_per_pixel: float = 0.1
     line_px: Optional[Tuple[float, float, float, float]] = None
@@ -293,7 +308,7 @@ class BeamsplitterParams:
     x_mm: float = 0.0
     y_mm: float = 0.0
     angle_deg: float = 45.0
-    length_mm: float = 80.0
+    object_height_mm: float = 80.0
     split_T: float = 50.0
     split_R: float = 50.0
     image_path: Optional[str] = None

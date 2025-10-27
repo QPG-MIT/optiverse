@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -31,6 +32,11 @@ class BaseObj(QtWidgets.QGraphicsObject):
         self.setCursor(QtCore.Qt.CursorShape.OpenHandCursor)
         self.setTransformOriginPoint(0.0, 0.0)
         self._ready = False  # Set to True after full initialization
+        
+        # Rotation mode state (Ctrl + drag to rotate)
+        self._rotating = False
+        self._rotation_start_angle = 0.0
+        self._rotation_initial = 0.0
 
     def itemChange(self, change, value):
         """Sync params when position or rotation changes, and apply magnetic snap."""
@@ -85,6 +91,12 @@ class BaseObj(QtWidgets.QGraphicsObject):
             sp = getattr(self, "_sprite", None)
             if sp is not None:
                 sp.update()
+            
+            # Force viewport repaint to clear any cached rendering
+            if self.scene() is not None:
+                views = self.scene().views()
+                if views:
+                    views[0].viewport().update()
 
         return super().itemChange(change, value)
 
@@ -146,6 +158,62 @@ class BaseObj(QtWidgets.QGraphicsObject):
             if views:
                 return views[0].window()
         return QtWidgets.QApplication.activeWindow()
+
+    def mousePressEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
+        """Handle mouse press for rotation mode (Ctrl+drag) or normal drag."""
+        if self.isSelected() and (ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
+            # Enter rotation mode
+            self._rotating = True
+            self._rotation_initial = self.rotation()
+            
+            # Calculate initial angle from item center to mouse position
+            center = self.mapToScene(self.transformOriginPoint())
+            mouse_pos = ev.scenePos()
+            dx = mouse_pos.x() - center.x()
+            dy = mouse_pos.y() - center.y()
+            self._rotation_start_angle = math.degrees(math.atan2(dy, dx))
+            
+            # Change cursor to indicate rotation mode
+            self.setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
+            ev.accept()
+        else:
+            # Normal drag behavior
+            super().mousePressEvent(ev)
+
+    def mouseMoveEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
+        """Handle mouse move for rotation or normal drag."""
+        if self._rotating:
+            # Calculate current angle from item center to mouse position
+            center = self.mapToScene(self.transformOriginPoint())
+            mouse_pos = ev.scenePos()
+            dx = mouse_pos.x() - center.x()
+            dy = mouse_pos.y() - center.y()
+            current_angle = math.degrees(math.atan2(dy, dx))
+            
+            # Calculate rotation delta and apply
+            angle_delta = current_angle - self._rotation_start_angle
+            new_rotation = self._rotation_initial + angle_delta
+            
+            # Shift+Ctrl: snap to 45-degree increments (0, 45, 90, 135, 180, etc.)
+            if ev.modifiers() & QtCore.Qt.KeyboardModifier.ShiftModifier:
+                new_rotation = round(new_rotation / 45.0) * 45.0
+            
+            self.setRotation(new_rotation)
+            
+            ev.accept()
+        else:
+            # Normal drag behavior
+            super().mouseMoveEvent(ev)
+
+    def mouseReleaseEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
+        """Handle mouse release to exit rotation mode."""
+        if self._rotating:
+            self._rotating = False
+            self.setCursor(QtCore.Qt.CursorShape.OpenHandCursor)
+            self.edited.emit()
+            ev.accept()
+        else:
+            super().mouseReleaseEvent(ev)
 
     def wheelEvent(self, ev: QtWidgets.QGraphicsSceneWheelEvent):
         """Ctrl + wheel → rotate element."""
