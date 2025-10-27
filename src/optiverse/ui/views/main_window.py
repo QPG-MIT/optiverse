@@ -14,15 +14,21 @@ from ...core.models import (
     OpticalElement,
     SourceParams,
 )
+from ...core.snap_helper import SnapHelper
+from ...core.undo_commands import AddItemCommand, MoveItemCommand, RemoveItemCommand
+from ...core.undo_stack import UndoStack
 from ...core.use_cases import trace_rays
+from ...services.settings_service import SettingsService
 from ...services.storage_service import StorageService
-from ...widgets.beamsplitter_item import BeamsplitterItem
-from ...widgets.graphics_view import GraphicsView
-from ...widgets.lens_item import LensItem
-from ...widgets.mirror_item import MirrorItem
-from ...widgets.ruler_item import RulerItem
-from ...widgets.source_item import SourceItem
-from ...widgets.text_note_item import TextNoteItem
+from ...objects import (
+    BeamsplitterItem,
+    GraphicsView,
+    LensItem,
+    MirrorItem,
+    RulerItem,
+    SourceItem,
+    TextNoteItem,
+)
 
 
 def _get_icon_path(icon_name: str) -> str:
@@ -90,14 +96,25 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ray_items: list[QtWidgets.QGraphicsPathItem] = []
         self.autotrace = True
         self._grid_items: list[QtWidgets.QGraphicsLineItem] = []
+        
+        # Snap helper for magnetic alignment
+        self._snap_helper = SnapHelper(tolerance_px=10.0)
 
         # Ruler placement mode
         self._placing_ruler = False
         self._ruler_p1_scene: QtCore.QPointF | None = None
         self._prev_cursor = None
 
+        # Undo/Redo tracking
+        self._item_positions: dict[QtWidgets.QGraphicsItem, QtCore.QPointF] = {}
+
         # Services
         self.storage_service = StorageService()
+        self.settings_service = SettingsService()
+        self.undo_stack = UndoStack()
+        
+        # Load saved preferences
+        self.magnetic_snap = self.settings_service.get_value("magnetic_snap", True, bool)
 
         # Build UI
         self._draw_grid()
@@ -151,6 +168,25 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_save.setShortcut(QtGui.QKeySequence.StandardKey.Save)
         self.act_save.triggered.connect(self.save_assembly)
 
+        # --- Edit ---
+        self.act_undo = QtGui.QAction("Undo", self)
+        self.act_undo.setShortcut(QtGui.QKeySequence("Ctrl+Z"))
+        self.act_undo.triggered.connect(self._do_undo)
+        self.act_undo.setEnabled(False)
+
+        self.act_redo = QtGui.QAction("Redo", self)
+        self.act_redo.setShortcut(QtGui.QKeySequence("Ctrl+Y"))
+        self.act_redo.triggered.connect(self._do_redo)
+        self.act_redo.setEnabled(False)
+
+        self.act_delete = QtGui.QAction("Delete", self)
+        self.act_delete.setShortcut(QtGui.QKeySequence.StandardKey.Delete)
+        self.act_delete.triggered.connect(self.delete_selected)
+
+        # Connect undo stack signals to update action states
+        self.undo_stack.canUndoChanged.connect(self.act_undo.setEnabled)
+        self.undo_stack.canRedoChanged.connect(self.act_redo.setEnabled)
+
         # --- Insert ---
         self.act_add_source = QtGui.QAction("Source", self)
         self.act_add_source.triggered.connect(self.add_source)
@@ -198,6 +234,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_snap = QtGui.QAction("Snap to mm grid", self, checkable=True)
         self.act_snap.setChecked(True)
         self.act_snap.toggled.connect(self._toggle_snap)
+
+        self.act_magnetic_snap = QtGui.QAction("Magnetic snap", self, checkable=True)
+        self.act_magnetic_snap.setChecked(self.magnetic_snap)
+        self.act_magnetic_snap.toggled.connect(self._toggle_magnetic_snap)
 
         # Ray width submenu with presets + Custom…
         self.menu_raywidth = QtWidgets.QMenu("Ray width", self)
@@ -278,6 +318,13 @@ class MainWindow(QtWidgets.QMainWindow):
         mFile.addAction(self.act_open)
         mFile.addAction(self.act_save)
 
+        # Edit menu
+        mEdit = mb.addMenu("&Edit")
+        mEdit.addAction(self.act_undo)
+        mEdit.addAction(self.act_redo)
+        mEdit.addSeparator()
+        mEdit.addAction(self.act_delete)
+
         # Insert menu (Phase 3.2: Better menu organization)
         mInsert = mb.addMenu("&Insert")
         mInsert.addAction(self.act_add_source)
@@ -296,6 +343,7 @@ class MainWindow(QtWidgets.QMainWindow):
         mView.addSeparator()
         mView.addAction(self.act_autotrace)
         mView.addAction(self.act_snap)
+        mView.addAction(self.act_magnetic_snap)
         mView.addMenu(self.menu_raywidth)
 
         # Tools menu
@@ -386,9 +434,10 @@ class MainWindow(QtWidgets.QMainWindow):
             )
             item = MirrorItem(params)
 
-        self.scene.addItem(item)
         item._maybe_attach_sprite()
         item.edited.connect(self._maybe_retrace)
+        cmd = AddItemCommand(self.scene, item)
+        self.undo_stack.push(cmd)
         item.setSelected(True)
         if self.autotrace:
             self.retrace()
@@ -397,38 +446,87 @@ class MainWindow(QtWidgets.QMainWindow):
     def add_source(self):
         """Add source with default params."""
         s = SourceItem(SourceParams())
-        self.scene.addItem(s)
         s.edited.connect(self._maybe_retrace)
+        cmd = AddItemCommand(self.scene, s)
+        self.undo_stack.push(cmd)
         s.setSelected(True)
         if self.autotrace:
             self.retrace()
 
     def add_lens(self):
-        """Add lens with default params."""
-        L = LensItem(LensParams())
-        self.scene.addItem(L)
+        """Add lens with standard params from component registry."""
+        try:
+            from ...objects.component_registry import ComponentRegistry
+            std_comp = ComponentRegistry.get_standard_lens()
+            params = LensParams(
+                efl_mm=std_comp["efl_mm"],
+                length_mm=std_comp["length_mm"],
+                image_path=std_comp["image_path"],
+                mm_per_pixel=std_comp["mm_per_pixel"],
+                line_px=tuple(std_comp["line_px"]),
+                name=std_comp.get("name"),
+            )
+        except Exception:
+            # Fallback to basic params if registry fails
+            params = LensParams()
+        
+        L = LensItem(params)
         L._maybe_attach_sprite()
         L.edited.connect(self._maybe_retrace)
+        cmd = AddItemCommand(self.scene, L)
+        self.undo_stack.push(cmd)
         L.setSelected(True)
         if self.autotrace:
             self.retrace()
 
     def add_mirror(self):
-        """Add mirror with default params."""
-        M = MirrorItem(MirrorParams())
-        self.scene.addItem(M)
+        """Add mirror with standard params from component registry."""
+        try:
+            from ...objects.component_registry import ComponentRegistry
+            std_comp = ComponentRegistry.get_standard_mirror()
+            params = MirrorParams(
+                length_mm=std_comp["length_mm"],
+                image_path=std_comp["image_path"],
+                mm_per_pixel=std_comp["mm_per_pixel"],
+                line_px=tuple(std_comp["line_px"]),
+                name=std_comp.get("name"),
+            )
+        except Exception:
+            # Fallback to basic params if registry fails
+            params = MirrorParams()
+        
+        M = MirrorItem(params)
         M._maybe_attach_sprite()
         M.edited.connect(self._maybe_retrace)
+        cmd = AddItemCommand(self.scene, M)
+        self.undo_stack.push(cmd)
         M.setSelected(True)
         if self.autotrace:
             self.retrace()
 
     def add_bs(self):
-        """Add beamsplitter with default params."""
-        B = BeamsplitterItem(BeamsplitterParams())
-        self.scene.addItem(B)
+        """Add beamsplitter with standard params from component registry."""
+        try:
+            from ...objects.component_registry import ComponentRegistry
+            std_comp = ComponentRegistry.get_standard_beamsplitter()
+            params = BeamsplitterParams(
+                split_T=std_comp["split_T"],
+                split_R=std_comp["split_R"],
+                length_mm=std_comp["length_mm"],
+                image_path=std_comp["image_path"],
+                mm_per_pixel=std_comp["mm_per_pixel"],
+                line_px=tuple(std_comp["line_px"]),
+                name=std_comp.get("name"),
+            )
+        except Exception:
+            # Fallback to basic params if registry fails
+            params = BeamsplitterParams()
+        
+        B = BeamsplitterItem(params)
         B._maybe_attach_sprite()
         B.edited.connect(self._maybe_retrace)
+        cmd = AddItemCommand(self.scene, B)
+        self.undo_stack.push(cmd)
         B.setSelected(True)
         if self.autotrace:
             self.retrace()
@@ -438,7 +536,34 @@ class MainWindow(QtWidgets.QMainWindow):
         center = self.view.mapToScene(self.view.viewport().rect().center())
         T = TextNoteItem("Text")
         T.setPos(center)
-        self.scene.addItem(T)
+        cmd = AddItemCommand(self.scene, T)
+        self.undo_stack.push(cmd)
+
+    def delete_selected(self):
+        """Delete selected items using undo stack."""
+        from ...objects import BaseObj
+        
+        selected = self.scene.selectedItems()
+        for item in selected:
+            # Only delete optical components, rulers, and text notes (not grid lines or rays)
+            if isinstance(item, (BaseObj, RulerItem, TextNoteItem)):
+                cmd = RemoveItemCommand(self.scene, item)
+                self.undo_stack.push(cmd)
+        
+        if self.autotrace:
+            self.retrace()
+
+    def _do_undo(self):
+        """Undo last action and retrace rays."""
+        self.undo_stack.undo()
+        if self.autotrace:
+            self.retrace()
+
+    def _do_redo(self):
+        """Redo last undone action and retrace rays."""
+        self.undo_stack.redo()
+        if self.autotrace:
+            self.retrace()
 
     def start_place_ruler(self):
         """Enter ruler placement mode (two-click)."""
@@ -503,6 +628,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     p2=p2,
                     split_T=B.params.split_T,
                     split_R=B.params.split_R,
+                    is_polarizing=B.params.is_polarizing,
+                    pbs_transmission_axis_deg=B.params.pbs_transmission_axis_deg,
                 )
             )
 
@@ -618,6 +745,8 @@ class MainWindow(QtWidgets.QMainWindow):
             T = TextNoteItem.from_dict(d)
             self.scene.addItem(T)
 
+        # Clear undo history after loading
+        self.undo_stack.clear()
         self.retrace()
 
     # ----- Settings -----
@@ -630,6 +759,14 @@ class MainWindow(QtWidgets.QMainWindow):
     def _toggle_snap(self, on: bool):
         """Toggle snap to grid."""
         self.snap_to_grid = on
+    
+    def _toggle_magnetic_snap(self, on: bool):
+        """Toggle magnetic snap."""
+        self.magnetic_snap = on
+        self.settings_service.set_value("magnetic_snap", on)
+        # Clear guides if turning off
+        if not on:
+            self.view.clear_snap_guides()
 
     def _set_ray_width(self, v: float):
         """Set ray width and retrace."""
@@ -682,7 +819,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     p2 = QtCore.QPointF(scene_pt)
                     R = RulerItem(p1, p2)
                     R.setPos(0, 0)
-                    self.scene.addItem(R)
+                    cmd = AddItemCommand(self.scene, R)
+                    self.undo_stack.push(cmd)
                     R.setSelected(True)
                     self._finish_place_ruler()
                     return True  # consume
@@ -691,14 +829,37 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._finish_place_ruler()
                 return True
 
-        # --- Snap to grid on mouse release ---
-        if et == QtCore.QEvent.Type.GraphicsSceneMouseRelease:
-            from ...widgets.base_obj import BaseObj
+        # --- Track item positions on mouse press ---
+        if et == QtCore.QEvent.Type.GraphicsSceneMousePress:
+            from ...objects import BaseObj
+            # Store initial positions of selected items
+            self._item_positions.clear()
+            for it in self.scene.selectedItems():
+                if isinstance(it, (BaseObj, RulerItem, TextNoteItem)):
+                    self._item_positions[it] = QtCore.QPointF(it.pos())
 
+        # --- Snap to grid and create move commands on mouse release ---
+        if et == QtCore.QEvent.Type.GraphicsSceneMouseRelease:
+            from ...objects import BaseObj
+
+            # Clear snap guides
+            self.view.clear_snap_guides()
+            
             for it in self.scene.selectedItems():
                 if isinstance(it, BaseObj) and self.snap_to_grid:
                     p = it.pos()
                     it.setPos(round(p.x()), round(p.y()))
+                
+                # Create move command if item was moved
+                if it in self._item_positions:
+                    old_pos = self._item_positions[it]
+                    new_pos = it.pos()
+                    # Only create command if position actually changed
+                    if old_pos != new_pos:
+                        cmd = MoveItemCommand(it, old_pos, new_pos)
+                        self.undo_stack.push(cmd)
+            
+            self._item_positions.clear()
             if self.autotrace:
                 QtCore.QTimer.singleShot(0, self.retrace)
         elif et in (

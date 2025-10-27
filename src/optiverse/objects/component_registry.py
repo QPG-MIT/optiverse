@@ -1,0 +1,177 @@
+"""
+Component Registry - Standard component definitions.
+
+This module provides centralized definitions for all standard optical components
+that should be available in the component library by default.
+"""
+from pathlib import Path
+from typing import Dict, List, Any
+
+
+def _get_image_path(filename: str) -> str:
+    """Get full path to an image in the objects/images folder."""
+    images_dir = Path(__file__).parent / "images"
+    return str(images_dir / filename)
+
+
+class ComponentRegistry:
+    """
+    Central registry for standard optical components.
+    
+    Provides default components that are auto-populated in the component library.
+    All standard components include proper calibration and images.
+    """
+    
+    @staticmethod
+    def get_standard_lens() -> Dict[str, Any]:
+        """
+        Get standard 1-inch mounted lens definition.
+        
+        Returns:
+            Dictionary with lens parameters including image and calibration
+        """
+        return {
+            "name": "Standard Lens (1\" mounted)",
+            "kind": "lens",
+            "efl_mm": 100.0,
+            "length_mm": 25.4,  # 1 inch
+            "image_path": _get_image_path("lens_1_inch_mounted.png"),
+            "mm_per_pixel": 0.1,
+            "line_px": (100, 150, 300, 150),  # Horizontal line across center
+        }
+    
+    @staticmethod
+    def get_standard_mirror() -> Dict[str, Any]:
+        """
+        Get standard 1-inch mirror definition.
+        
+        Returns:
+            Dictionary with mirror parameters including image and calibration
+        """
+        return {
+            "name": "Standard Mirror (1\")",
+            "kind": "mirror",
+            "length_mm": 25.4,  # 1 inch
+            "image_path": _get_image_path("standard_mirror_1_inch.png"),
+            "mm_per_pixel": 0.1,
+            "line_px": (100, 150, 300, 150),  # Horizontal line across center
+        }
+    
+    @staticmethod
+    def get_standard_beamsplitter() -> Dict[str, Any]:
+        """
+        Get standard 50/50 1-inch beamsplitter definition.
+        
+        Returns:
+            Dictionary with beamsplitter parameters including image and calibration
+        """
+        return {
+            "name": "Standard Beamsplitter (50/50 1\")",
+            "kind": "beamsplitter",
+            "split_T": 50.0,
+            "split_R": 50.0,
+            "split_TR": [50.0, 50.0],  # Alternative format for compatibility
+            "length_mm": 25.4,  # 1 inch
+            "image_path": _get_image_path("beamsplitter_50_50_1_inch.png"),
+            "mm_per_pixel": 0.1,
+            "line_px": (100, 150, 300, 150),  # Horizontal line across center
+        }
+    
+    @staticmethod
+    def get_standard_source() -> Dict[str, Any]:
+        """
+        Get standard optical source definition.
+        
+        Returns:
+            Dictionary with source parameters
+        """
+        return {
+            "name": "Standard Source",
+            "kind": "source",
+            "n_rays": 5,
+            "spread_deg": 5.0,
+            "size_mm": 10.0,
+            "ray_length_mm": 500.0,
+            "color_hex": "#FF0000",  # Red
+            "x_mm": 0.0,
+            "y_mm": 0.0,
+            "angle_deg": 0.0,
+            "polarization_type": "horizontal",
+            "polarization_angle_deg": 0.0,
+        }
+    
+    @staticmethod
+    def get_standard_components() -> List[Dict[str, Any]]:
+        """
+        Get all standard components as a list.
+        
+        Returns:
+            List of component dictionaries, one for each category
+        """
+        return [
+            ComponentRegistry.get_standard_lens(),
+            ComponentRegistry.get_standard_mirror(),
+            ComponentRegistry.get_standard_beamsplitter(),
+            ComponentRegistry.get_standard_source(),
+        ]
+    
+    @staticmethod
+    def get_components_by_category() -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Get standard components organized by category.
+        
+        Returns:
+            Dictionary mapping category names to lists of components
+        """
+        return {
+            "Lenses": [ComponentRegistry.get_standard_lens()],
+            "Mirrors": [ComponentRegistry.get_standard_mirror()],
+            "Beamsplitters": [ComponentRegistry.get_standard_beamsplitter()],
+            "Sources": [ComponentRegistry.get_standard_source()],
+        }
+    
+    @staticmethod
+    def get_component_by_kind(kind: str) -> Dict[str, Any]:
+        """
+        Get the standard component for a specific kind.
+        
+        Args:
+            kind: Component kind ('lens', 'mirror', 'beamsplitter', 'source')
+        
+        Returns:
+            Component dictionary
+        
+        Raises:
+            ValueError: If kind is not recognized
+        """
+        kind_map = {
+            "lens": ComponentRegistry.get_standard_lens,
+            "mirror": ComponentRegistry.get_standard_mirror,
+            "beamsplitter": ComponentRegistry.get_standard_beamsplitter,
+            "source": ComponentRegistry.get_standard_source,
+        }
+        
+        if kind not in kind_map:
+            raise ValueError(f"Unknown component kind: {kind}")
+        
+        return kind_map[kind]()
+    
+    @staticmethod
+    def get_category_for_kind(kind: str) -> str:
+        """
+        Get the category name for a component kind.
+        
+        Args:
+            kind: Component kind ('lens', 'mirror', 'beamsplitter', 'source')
+        
+        Returns:
+            Category name (e.g., 'Lenses', 'Mirrors')
+        """
+        kind_to_category = {
+            "lens": "Lenses",
+            "mirror": "Mirrors",
+            "beamsplitter": "Beamsplitters",
+            "source": "Sources",
+        }
+        return kind_to_category.get(kind, "Other")
+

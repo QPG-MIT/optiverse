@@ -7,6 +7,93 @@ import numpy as np
 
 
 @dataclass
+class Polarization:
+    """
+    Represents polarization state using Jones vector formalism.
+    Jones vector: [Ex, Ey] complex amplitudes in horizontal and vertical directions.
+    
+    Common polarization states:
+    - Horizontal: (1, 0)
+    - Vertical: (0, 1)
+    - +45°: (1, 1)/√2
+    - -45°: (1, -1)/√2
+    - Right circular: (1, 1j)/√2
+    - Left circular: (1, -1j)/√2
+    """
+    jones_vector: np.ndarray  # 2-element complex array [Ex, Ey]
+    
+    def __post_init__(self):
+        """Ensure jones_vector is a proper complex numpy array."""
+        if not isinstance(self.jones_vector, np.ndarray):
+            self.jones_vector = np.array(self.jones_vector, dtype=complex)
+        if self.jones_vector.shape != (2,):
+            raise ValueError(f"Jones vector must be 2-element array, got shape {self.jones_vector.shape}")
+    
+    @classmethod
+    def horizontal(cls) -> 'Polarization':
+        """Create horizontal linear polarization."""
+        return cls(np.array([1.0, 0.0], dtype=complex))
+    
+    @classmethod
+    def vertical(cls) -> 'Polarization':
+        """Create vertical linear polarization."""
+        return cls(np.array([0.0, 1.0], dtype=complex))
+    
+    @classmethod
+    def diagonal_plus_45(cls) -> 'Polarization':
+        """Create +45° linear polarization."""
+        return cls(np.array([1.0, 1.0], dtype=complex) / np.sqrt(2))
+    
+    @classmethod
+    def diagonal_minus_45(cls) -> 'Polarization':
+        """Create -45° linear polarization."""
+        return cls(np.array([1.0, -1.0], dtype=complex) / np.sqrt(2))
+    
+    @classmethod
+    def circular_right(cls) -> 'Polarization':
+        """Create right circular polarization."""
+        return cls(np.array([1.0, 1j], dtype=complex) / np.sqrt(2))
+    
+    @classmethod
+    def circular_left(cls) -> 'Polarization':
+        """Create left circular polarization."""
+        return cls(np.array([1.0, -1j], dtype=complex) / np.sqrt(2))
+    
+    @classmethod
+    def linear(cls, angle_deg: float) -> 'Polarization':
+        """Create linear polarization at specified angle (degrees from horizontal)."""
+        angle_rad = np.deg2rad(angle_deg)
+        return cls(np.array([np.cos(angle_rad), np.sin(angle_rad)], dtype=complex))
+    
+    def normalize(self) -> 'Polarization':
+        """Return normalized polarization state."""
+        norm = np.linalg.norm(self.jones_vector)
+        if norm > 0:
+            return Polarization(self.jones_vector / norm)
+        return self
+    
+    def intensity(self) -> float:
+        """Calculate total intensity (squared magnitude)."""
+        return float(np.abs(np.vdot(self.jones_vector, self.jones_vector)))
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dictionary."""
+        return {
+            "Ex_real": float(self.jones_vector[0].real),
+            "Ex_imag": float(self.jones_vector[0].imag),
+            "Ey_real": float(self.jones_vector[1].real),
+            "Ey_imag": float(self.jones_vector[1].imag),
+        }
+    
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> 'Polarization':
+        """Deserialize from dictionary."""
+        ex = complex(d.get("Ex_real", 1.0), d.get("Ex_imag", 0.0))
+        ey = complex(d.get("Ey_real", 0.0), d.get("Ey_imag", 0.0))
+        return cls(np.array([ex, ey], dtype=complex))
+
+
+@dataclass
 class ComponentRecord:
     """
     Persistent component data for library storage.
@@ -140,6 +227,40 @@ class SourceParams:
     ray_length_mm: float = 1000.0
     spread_deg: float = 0.0
     color_hex: str = "#DC143C"  # crimson default
+    # Polarization parameters
+    polarization_type: str = "horizontal"  # horizontal, vertical, +45, -45, circular_right, circular_left, linear
+    polarization_angle_deg: float = 0.0  # Used when polarization_type is "linear"
+    # Custom Jones vector (optional override)
+    custom_jones_ex_real: float = 1.0
+    custom_jones_ex_imag: float = 0.0
+    custom_jones_ey_real: float = 0.0
+    custom_jones_ey_imag: float = 0.0
+    use_custom_jones: bool = False
+    
+    def get_polarization(self) -> Polarization:
+        """Get Polarization object based on current parameters."""
+        if self.use_custom_jones:
+            ex = complex(self.custom_jones_ex_real, self.custom_jones_ex_imag)
+            ey = complex(self.custom_jones_ey_real, self.custom_jones_ey_imag)
+            return Polarization(np.array([ex, ey], dtype=complex))
+        
+        pol_type = self.polarization_type.lower()
+        if pol_type == "horizontal":
+            return Polarization.horizontal()
+        elif pol_type == "vertical":
+            return Polarization.vertical()
+        elif pol_type == "+45":
+            return Polarization.diagonal_plus_45()
+        elif pol_type == "-45":
+            return Polarization.diagonal_minus_45()
+        elif pol_type == "circular_right":
+            return Polarization.circular_right()
+        elif pol_type == "circular_left":
+            return Polarization.circular_left()
+        elif pol_type == "linear":
+            return Polarization.linear(self.polarization_angle_deg)
+        else:
+            return Polarization.horizontal()  # Default fallback
 
 
 @dataclass
@@ -179,6 +300,10 @@ class BeamsplitterParams:
     mm_per_pixel: float = 0.1
     line_px: Optional[Tuple[float, float, float, float]] = None
     name: Optional[str] = None
+    # Polarization properties
+    is_polarizing: bool = False  # True for PBS (Polarizing Beam Splitter)
+    # For PBS: s-polarization (perpendicular) reflects, p-polarization (parallel) transmits
+    pbs_transmission_axis_deg: float = 0.0  # Angle of transmission axis relative to element
 
 
 @dataclass
@@ -189,11 +314,15 @@ class OpticalElement:
     efl_mm: float = 0.0
     split_T: float = 50.0
     split_R: float = 50.0
+    # Polarization properties
+    is_polarizing: bool = False  # For PBS mode
+    pbs_transmission_axis_deg: float = 0.0  # PBS transmission axis angle
 
 
 @dataclass
 class RayPath:
     points: List[np.ndarray]
     rgba: Tuple[int, int, int, int]  # color with alpha
+    polarization: Optional[Polarization] = None  # Polarization state of this ray
 
 

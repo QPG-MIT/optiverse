@@ -10,10 +10,7 @@ from unittest.mock import Mock, MagicMock
 import pytest
 from PyQt6 import QtCore, QtWidgets, QtGui
 
-from optiverse.widgets.graphics_view import GraphicsView
-from optiverse.widgets.lens_item import LensItem
-from optiverse.widgets.mirror_item import MirrorItem
-from optiverse.widgets.beamsplitter_item import BeamsplitterItem
+from optiverse.objects import GraphicsView, LensItem, MirrorItem, BeamsplitterItem
 
 
 @pytest.fixture

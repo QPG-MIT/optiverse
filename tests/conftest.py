@@ -12,3 +12,23 @@ def _ensure_src_on_path():
     yield
 
 
+@pytest.fixture(scope="session")
+def qapp():
+    """Create a QApplication instance for tests."""
+    # Import here to avoid issues if PyQt6 is not installed
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication([])
+    yield app
+
+
+@pytest.fixture
+def qtbot():
+    """Provides a QtBot object for tests."""
+    from pytestqt.qtbot import QtBot
+    from PyQt6.QtWidgets import QApplication
+    bot = QtBot(QApplication.instance())
+    yield bot
+
+

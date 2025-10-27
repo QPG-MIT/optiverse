@@ -10,25 +10,100 @@ from ..platform.paths import get_library_path
 class StorageService:
     def __init__(self):
         self._lib_path = get_library_path()
+        self._initialized = False
 
     def load_library(self) -> List[Dict[str, Any]]:
+        """
+        Load component library from disk.
+        
+        If the library file doesn't exist or is empty, it will be initialized
+        with standard components from the ComponentRegistry.
+        """
         path = self._lib_path
-        if not os.path.exists(path):
-            return []
+        
+        # If library doesn't exist or is empty, initialize with standard components
+        if not os.path.exists(path) or os.path.getsize(path) == 0:
+            return self._initialize_library()
+        
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             if not isinstance(data, list):
-                return []
+                return self._initialize_library()
+            
+            # If library is empty, populate with standard components
+            if len(data) == 0:
+                return self._initialize_library()
+            
             return data
         except Exception:
+            # On error, initialize with standard components
+            return self._initialize_library()
+
+    def _initialize_library(self) -> List[Dict[str, Any]]:
+        """
+        Initialize library with standard components from ComponentRegistry.
+        
+        Returns:
+            List of standard components
+        """
+        try:
+            from ..objects.component_registry import ComponentRegistry
+            standard_components = ComponentRegistry.get_standard_components()
+            
+            # Save the initialized library to disk
+            self.save_library(standard_components)
+            self._initialized = True
+            
+            return standard_components
+        except Exception as e:
+            # If we can't import ComponentRegistry, return empty list
+            print(f"Warning: Could not initialize library with standard components: {e}")
             return []
 
     def save_library(self, rows: List[Dict[str, Any]]) -> None:
+        """
+        Save component library to disk.
+        
+        Args:
+            rows: List of component dictionaries to save
+        """
         tmp = self._lib_path + ".tmp"
         os.makedirs(os.path.dirname(self._lib_path), exist_ok=True)
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(rows, f, indent=2)
         os.replace(tmp, self._lib_path)
+    
+    def ensure_standard_components(self) -> None:
+        """
+        Ensure standard components are present in the library.
+        
+        If the library exists but is missing standard components,
+        they will be added.
+        """
+        try:
+            from ..objects.component_registry import ComponentRegistry
+            
+            # Load existing library
+            existing = self.load_library()
+            
+            # Get standard components
+            standard = ComponentRegistry.get_standard_components()
+            
+            # Track which standard components are already present
+            existing_names = {comp.get("name") for comp in existing}
+            
+            # Add missing standard components
+            added = False
+            for std_comp in standard:
+                if std_comp.get("name") not in existing_names:
+                    existing.append(std_comp)
+                    added = True
+            
+            # Save if we added anything
+            if added:
+                self.save_library(existing)
+        except Exception as e:
+            print(f"Warning: Could not ensure standard components: {e}")
 
 

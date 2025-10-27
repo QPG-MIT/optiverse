@@ -11,7 +11,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from ...core.models import ComponentRecord, serialize_component, deserialize_component
 from ...services.storage_service import StorageService
 from ...platform.paths import assets_dir, get_library_path
-from ...widgets.image_canvas import ImageCanvas
+from ...objects import ImageCanvas
 
 
 def slugify(name: str) -> str:

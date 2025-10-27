@@ -7,9 +7,7 @@ When a component is selected, its sprite should show visual feedback
 import pytest
 from PyQt6 import QtCore, QtWidgets, QtGui
 
-from optiverse.widgets.lens_item import LensItem
-from optiverse.widgets.mirror_item import MirrorItem  
-from optiverse.widgets.beamsplitter_item import BeamsplitterItem
+from optiverse.objects import LensItem, MirrorItem, BeamsplitterItem
 from optiverse.core.models import LensParams, MirrorParams, BeamsplitterParams
 
 

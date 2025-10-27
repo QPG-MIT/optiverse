@@ -5,8 +5,12 @@ from typing import List, Tuple
 
 import numpy as np
 
-from .geometry import deg2rad, normalize, reflect_vec, ray_hit_element
-from .models import OpticalElement, SourceParams, RayPath
+from .geometry import (
+    deg2rad, normalize, reflect_vec, ray_hit_element,
+    transform_polarization_mirror, transform_polarization_lens,
+    transform_polarization_beamsplitter
+)
+from .models import OpticalElement, SourceParams, RayPath, Polarization
 from .color_utils import qcolor_from_hex
 
 
@@ -42,20 +46,24 @@ def trace_rays(
             fan = np.linspace(-spread, +spread, len(ys))
             angles = [base + a for a in fan]
 
+        # Get initial polarization for this source
+        initial_pol = S.get_polarization()
+        
         for i, y0 in enumerate(ys):
             P = np.array([S.x_mm, S.y_mm + y0], float)
             th = angles[i]
             V = np.array([math.cos(th), math.sin(th)], float)
 
-            stack: List[Tuple[List[np.ndarray], np.ndarray, np.ndarray, float, object, int, float]] = []
-            stack.append(([P.copy()], P.copy(), V.copy(), S.ray_length_mm, None, 0, 1.0))
+            # Stack now includes polarization: (points, position, velocity, remaining, last_obj, events, intensity, polarization)
+            stack: List[Tuple[List[np.ndarray], np.ndarray, np.ndarray, float, object, int, float, Polarization]] = []
+            stack.append(([P.copy()], P.copy(), V.copy(), S.ray_length_mm, None, 0, 1.0, initial_pol))
 
             while stack:
-                pts, P, V, remaining, last_obj, events, I = stack.pop()
+                pts, P, V, remaining, last_obj, events, I, pol = stack.pop()
                 if remaining <= 0 or events >= max_events or I < MIN_I:
                     if len(pts) >= 2:
                         a = int(255 * max(0.0, min(1.0, I)))
-                        paths.append(RayPath(pts, (base_rgb[0], base_rgb[1], base_rgb[2], a)))
+                        paths.append(RayPath(pts, (base_rgb[0], base_rgb[1], base_rgb[2], a), pol))
                     continue
 
                 nearest = (None, None, None, None, None, None, None, None)  # t,X,kind,obj,t_hat,n_hat,C,L
@@ -102,7 +110,7 @@ def trace_rays(
                     P2 = P + V * (remaining / max(1e-12, vnorm))
                     pts2 = pts + [P2.copy()]
                     a = int(255 * max(0.0, min(1.0, I)))
-                    paths.append(RayPath(pts2, (base_rgb[0], base_rgb[1], base_rgb[2], a)))
+                    paths.append(RayPath(pts2, (base_rgb[0], base_rgb[1], base_rgb[2], a), pol))
                     continue
 
                 step = float(t) * vnorm
@@ -117,7 +125,9 @@ def trace_rays(
                 if kind == "mirror":
                     V2 = normalize(reflect_vec(V, n_hat))
                     P2 = P + V2 * EPS_ADV
-                    stack.append((pts + [P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I))
+                    # Transform polarization upon reflection
+                    pol2 = transform_polarization_mirror(pol, V, n_hat)
+                    stack.append((pts + [P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I, pol2))
                     continue
 
                 if kind == "lens":
@@ -130,24 +140,46 @@ def trace_rays(
                     Vloc = np.array([math.cos(theta_out), math.sin(theta_out)])
                     V2 = normalize(Vloc[0] * n_hat + Vloc[1] * t_hat)
                     P2 = P + V2 * EPS_ADV
-                    stack.append((pts + [P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I))
+                    # Transform polarization through lens (preserved for ideal lens)
+                    pol2 = transform_polarization_lens(pol)
+                    stack.append((pts + [P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I, pol2))
                     continue
 
                 if kind == "bs":
-                    T = max(0.0, min(1.0, float(obj.split_T) / 100.0))
-                    R = max(0.0, min(1.0, float(obj.split_R) / 100.0))
+                    # Get polarization properties
+                    is_polarizing = getattr(obj, 'is_polarizing', False)
+                    pbs_axis_deg = getattr(obj, 'pbs_transmission_axis_deg', 0.0)
+                    
+                    # Transform polarization for transmitted ray
+                    pol_t, intensity_factor_t = transform_polarization_beamsplitter(
+                        pol, V, n_hat, t_hat, is_polarizing, pbs_axis_deg, is_transmitted=True
+                    )
+                    
+                    # Transform polarization for reflected ray
+                    pol_r, intensity_factor_r = transform_polarization_beamsplitter(
+                        pol, V, n_hat, t_hat, is_polarizing, pbs_axis_deg, is_transmitted=False
+                    )
+                    
+                    if is_polarizing:
+                        # PBS mode: intensity modulated by polarization
+                        T = intensity_factor_t
+                        R = intensity_factor_r
+                    else:
+                        # Non-polarizing mode: use split ratios
+                        T = max(0.0, min(1.0, float(obj.split_T) / 100.0))
+                        R = max(0.0, min(1.0, float(obj.split_R) / 100.0))
 
                     Vt = normalize(V)
                     Pt = P + Vt * EPS_ADV
                     It = I * T
                     if It >= MIN_I:
-                        stack.append((pts + [Pt.copy()], Pt.copy(), Vt, remaining - EPS_ADV, obj, events + 1, It))
+                        stack.append((pts + [Pt.copy()], Pt.copy(), Vt, remaining - EPS_ADV, obj, events + 1, It, pol_t))
 
                     Vr = normalize(reflect_vec(V, n_hat))
                     Pr = P + Vr * EPS_ADV
                     Ir = I * R
                     if Ir >= MIN_I:
-                        stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, obj, events + 1, Ir))
+                        stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, obj, events + 1, Ir, pol_r))
                     continue
 
     return paths

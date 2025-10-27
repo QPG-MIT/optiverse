@@ -151,12 +151,38 @@ class BeamsplitterItem(BaseObj):
         t.valueChanged.connect(sync_from_t)
         r.valueChanged.connect(sync_from_r)
         
+        # Polarization controls
+        is_pbs = QtWidgets.QCheckBox("Polarizing Beam Splitter (PBS)")
+        is_pbs.setChecked(self.params.is_polarizing)
+        
+        pbs_axis = QtWidgets.QDoubleSpinBox()
+        pbs_axis.setRange(-180, 180)
+        pbs_axis.setDecimals(1)
+        pbs_axis.setSuffix(" °")
+        pbs_axis.setValue(self.params.pbs_transmission_axis_deg)
+        pbs_axis.setEnabled(self.params.is_polarizing)
+        pbs_axis.setToolTip("Angle of transmission axis (p-polarization passes, s-polarization reflects)")
+        
+        # Enable/disable T/R controls and PBS axis based on PBS mode
+        def on_pbs_toggled(checked):
+            t.setEnabled(not checked)
+            r.setEnabled(not checked)
+            pbs_axis.setEnabled(checked)
+        is_pbs.toggled.connect(on_pbs_toggled)
+        
+        # Disable T/R controls if PBS mode is active
+        if self.params.is_polarizing:
+            t.setEnabled(False)
+            r.setEnabled(False)
+        
         f.addRow("X", x)
         f.addRow("Y", y)
         f.addRow("Angle", ang)
         f.addRow("Length", length)
         f.addRow("Split T", t)
         f.addRow("Split R", r)
+        f.addRow("", is_pbs)
+        f.addRow("PBS transmission axis", pbs_axis)
         
         btn = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.StandardButton.Ok
@@ -175,6 +201,9 @@ class BeamsplitterItem(BaseObj):
             self.params.length_mm = length.value()
             self.params.split_T = t.value()
             self.params.split_R = r.value()
+            # Polarization parameters
+            self.params.is_polarizing = is_pbs.isChecked()
+            self.params.pbs_transmission_axis_deg = pbs_axis.value()
             self._update_geom()
             self._maybe_attach_sprite()
             self.edited.emit()

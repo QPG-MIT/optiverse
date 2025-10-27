@@ -6,7 +6,7 @@ Space key + drag and middle mouse button + drag should pan the view.
 import pytest
 from PyQt6 import QtCore, QtWidgets
 
-from optiverse.widgets.graphics_view import GraphicsView
+from optiverse.objects import GraphicsView
 
 
 class TestPanControlsState:

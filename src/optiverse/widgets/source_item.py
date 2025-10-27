@@ -152,6 +152,37 @@ class SourceItem(BaseObj):
         row_color.addStretch(1)
         color_btn.clicked.connect(pick_color)
         
+        # Polarization controls
+        pol_type = QtWidgets.QComboBox()
+        pol_type.addItems([
+            "horizontal",
+            "vertical",
+            "+45",
+            "-45",
+            "circular_right",
+            "circular_left",
+            "linear",
+        ])
+        # Set current value
+        try:
+            idx = pol_type.findText(self.params.polarization_type)
+            if idx >= 0:
+                pol_type.setCurrentIndex(idx)
+        except:
+            pass
+        
+        pol_angle = QtWidgets.QDoubleSpinBox()
+        pol_angle.setRange(-180, 180)
+        pol_angle.setDecimals(1)
+        pol_angle.setSuffix(" °")
+        pol_angle.setValue(self.params.polarization_angle_deg)
+        pol_angle.setEnabled(self.params.polarization_type == "linear")
+        
+        # Enable angle control only when "linear" is selected
+        def on_pol_type_changed(text):
+            pol_angle.setEnabled(text == "linear")
+        pol_type.currentTextChanged.connect(on_pol_type_changed)
+        
         # Add all fields to form
         f.addRow("X", x)
         f.addRow("Y", y)
@@ -161,6 +192,8 @@ class SourceItem(BaseObj):
         f.addRow("Ray length", rlen)
         f.addRow("Angular spread (±)", spr)
         f.addRow("Ray color", row_color)
+        f.addRow("Polarization", pol_type)
+        f.addRow("Polarization angle", pol_angle)
         
         # Buttons
         btn = QtWidgets.QDialogButtonBox(
@@ -183,6 +216,9 @@ class SourceItem(BaseObj):
             self.params.ray_length_mm = rlen.value()
             self.params.spread_deg = spr.value()
             self.params.color_hex = hex_from_qcolor(self._color)
+            # Polarization parameters
+            self.params.polarization_type = pol_type.currentText()
+            self.params.polarization_angle_deg = pol_angle.value()
             self._update_shape()
             self.edited.emit()
     

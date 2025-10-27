@@ -1,0 +1,2 @@
+[console_scripts]
+optiverse = optiverse.app.main:main
