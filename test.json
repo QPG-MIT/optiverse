@@ -1,0 +1,58 @@
+{
+  "sources": [
+    {
+      "x_mm": -400.0,
+      "y_mm": 0.0,
+      "angle_deg": 0.0,
+      "size_mm": 10.0,
+      "n_rays": 9,
+      "ray_length_mm": 1000.0,
+      "spread_deg": 0.0,
+      "color_hex": "#dc143c",
+      "polarization_type": "vertical",
+      "polarization_angle_deg": 0.0,
+      "custom_jones_ex_real": 1.0,
+      "custom_jones_ex_imag": 0.0,
+      "custom_jones_ey_real": 0.0,
+      "custom_jones_ey_imag": 0.0,
+      "use_custom_jones": false
+    }
+  ],
+  "lenses": [],
+  "mirrors": [],
+  "beamsplitters": [
+    {
+      "x_mm": 75.0,
+      "y_mm": 0.0,
+      "angle_deg": 45.0,
+      "length_mm": 143.8958294109981,
+      "split_T": 50.0,
+      "split_R": 50.0,
+      "image_path": "C:\\Users\\cohasset\\AppData\\Roaming\\python\\Optiverse\\library\\assets\\standard-beamsplitter-50-50-1-20251027-133349.png",
+      "mm_per_pixel": 0.09999999999999999,
+      "line_px": [
+        6.527646129541865,
+        4.895734597156398,
+        1024.8404423380728,
+        1021.5766192733018
+      ],
+      "name": "Standard Beamsplitter (50/50 1\")",
+      "is_polarizing": true,
+      "pbs_transmission_axis_deg": 0.0
+    }
+  ],
+  "rulers": [
+    {
+      "type": "ruler",
+      "p1": [
+        -148.59866852962935,
+        -16.43790581079971
+      ],
+      "p2": [
+        -48.656201199967136,
+        -15.78038957836772
+      ]
+    }
+  ],
+  "texts": []
+}

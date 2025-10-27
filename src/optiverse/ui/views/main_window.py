@@ -42,37 +42,48 @@ def to_np(p: QtCore.QPointF) -> np.ndarray:
     return np.array([p.x(), p.y()], float)
 
 
-class LibraryList(QtWidgets.QListWidget):
-    """Drag-enabled library list for component templates."""
+class LibraryTree(QtWidgets.QTreeWidget):
+    """Drag-enabled library tree for component templates organized by category."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setViewMode(QtWidgets.QListView.ViewMode.IconMode)
-        self.setIconSize(QtCore.QSize(80, 80))
-        self.setResizeMode(QtWidgets.QListView.ResizeMode.Adjust)
-        self.setMovement(QtWidgets.QListView.Movement.Static)
-        self.setSpacing(8)
+        self.setHeaderHidden(True)
+        self.setIconSize(QtCore.QSize(64, 64))
         self.setDragEnabled(True)
-        self.setSelectionMode(QtWidgets.QListWidget.SelectionMode.SingleSelection)
-        self.setWordWrap(True)
-        # Ensure we're in drag-only mode (not internal move)
+        self.setSelectionMode(QtWidgets.QTreeWidget.SelectionMode.SingleSelection)
         self.setDragDropMode(QtWidgets.QAbstractItemView.DragDropMode.DragOnly)
         self.setDefaultDropAction(QtCore.Qt.DropAction.CopyAction)
+        self.setIndentation(20)
+        
+        # Expand all categories by default
+        self.expandAll()
 
     def startDrag(self, actions):
         it = self.currentItem()
         if not it:
             return
-        payload = it.data(QtCore.Qt.ItemDataRole.UserRole)
+        
+        # Only allow dragging leaf items (components), not category headers
+        if it.childCount() > 0:
+            return
+            
+        payload = it.data(0, QtCore.Qt.ItemDataRole.UserRole)
+        if not payload:
+            return
+            
         md = QtCore.QMimeData()
         md.setData("application/x-optics-component", json.dumps(payload).encode("utf-8"))
         drag = QtGui.QDrag(self)
         drag.setMimeData(md)
         drag.setHotSpot(QtCore.QPoint(10, 10))
-        drag.setPixmap(it.icon().pixmap(64, 64))
-        # Execute drag and clear selection afterwards to prevent multiple drags
+        
+        # Use icon if available
+        icon = it.icon(0)
+        if not icon.isNull():
+            drag.setPixmap(icon.pixmap(64, 64))
+        
+        # Execute drag and clear selection afterwards
         result = drag.exec(QtCore.Qt.DropAction.CopyAction)
-        # Clear selection after drag to avoid confusion
         if result == QtCore.Qt.DropAction.CopyAction:
             self.clearSelection()
 
@@ -355,30 +366,76 @@ class MainWindow(QtWidgets.QMainWindow):
         mTools.addAction(self.act_reload)
 
     def _build_library_dock(self):
-        """Build component library dock."""
+        """Build component library dock with categorized tree view."""
         self.libDock = QtWidgets.QDockWidget("Component Library", self)
         self.libDock.setObjectName("libDock")
-        self.libraryList = LibraryList(self)
-        self.libDock.setWidget(self.libraryList)
+        self.libraryTree = LibraryTree(self)
+        self.libDock.setWidget(self.libraryTree)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.libDock)
         self.populate_library()
 
     def populate_library(self):
-        """Load and populate component library from storage."""
-        self.libraryList.clear()
+        """Load and populate component library organized by category."""
+        self.libraryTree.clear()
+        
+        # Ensure standard components are loaded
+        self.storage_service.ensure_standard_components()
+        
+        # Load components from storage
         records = self.storage_service.load_library()
+        
+        # Organize by category
+        from ...objects.component_registry import ComponentRegistry
+        categories = {
+            "Lenses": [],
+            "Mirrors": [],
+            "Beamsplitters": [],
+            "Sources": [],
+            "Other": []
+        }
+        
         for rec in records:
-            name = rec.get("name", "(unnamed)")
-            img = rec.get("image_path")
-            kind = rec.get("kind", "lens")
-            icon = (
-                QtGui.QIcon(img)
-                if img and os.path.exists(img)
-                else self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileIcon)
-            )
-            item = QtWidgets.QListWidgetItem(icon, f"{name}\n({kind})")
-            item.setData(QtCore.Qt.ItemDataRole.UserRole, rec)
-            self.libraryList.addItem(item)
+            kind = rec.get("kind", "other")
+            category = ComponentRegistry.get_category_for_kind(kind)
+            categories[category].append(rec)
+        
+        # Create category nodes with components
+        for category_name in ["Lenses", "Mirrors", "Beamsplitters", "Sources", "Other"]:
+            comps = categories[category_name]
+            if not comps:
+                continue
+                
+            # Create category header
+            category_item = QtWidgets.QTreeWidgetItem([category_name])
+            category_item.setFlags(category_item.flags() & ~QtCore.Qt.ItemFlag.ItemIsDragEnabled)
+            
+            # Style category header
+            font = category_item.font(0)
+            font.setBold(True)
+            font.setPointSize(10)
+            category_item.setFont(0, font)
+            category_item.setForeground(0, QtGui.QColor(60, 60, 100))
+            
+            self.libraryTree.addTopLevelItem(category_item)
+            
+            # Add components under category
+            for rec in comps:
+                name = rec.get("name", "(unnamed)")
+                img = rec.get("image_path")
+                
+                icon = QtGui.QIcon()
+                if img and os.path.exists(img):
+                    icon = QtGui.QIcon(img)
+                else:
+                    icon = self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileIcon)
+                
+                comp_item = QtWidgets.QTreeWidgetItem([name])
+                comp_item.setIcon(0, icon)
+                comp_item.setData(0, QtCore.Qt.ItemDataRole.UserRole, rec)
+                category_item.addChild(comp_item)
+        
+        # Expand all categories
+        self.libraryTree.expandAll()
 
     def on_drop_component(self, rec: dict, scene_pos: QtCore.QPointF):
         """Handle component drop from library."""

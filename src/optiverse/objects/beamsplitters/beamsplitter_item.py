@@ -118,6 +118,7 @@ class BeamsplitterItem(BaseObj):
         ang.setDecimals(2)
         ang.setSuffix(" °")
         ang.setValue(self.rotation())
+        ang.setToolTip("Optical axis angle (0° = horizontal →, 90° = vertical ↑)")
         
         length = QtWidgets.QDoubleSpinBox()
         length.setRange(1, 1e7)
@@ -175,9 +176,9 @@ class BeamsplitterItem(BaseObj):
             t.setEnabled(False)
             r.setEnabled(False)
         
-        f.addRow("X", x)
-        f.addRow("Y", y)
-        f.addRow("Angle", ang)
+        f.addRow("X Position", x)
+        f.addRow("Y Position", y)
+        f.addRow("Optical Axis Angle", ang)
         f.addRow("Length", length)
         f.addRow("Split T", t)
         f.addRow("Split R", r)

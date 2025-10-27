@@ -93,6 +93,7 @@ class SourceItem(BaseObj):
         ang.setDecimals(2)
         ang.setSuffix(" °")
         ang.setValue(self.rotation())
+        ang.setToolTip("Optical axis angle - direction rays emit (0° = horizontal →, 90° = vertical ↑)")
         
         # Source parameters
         size = QtWidgets.QDoubleSpinBox()
@@ -184,9 +185,9 @@ class SourceItem(BaseObj):
         pol_type.currentTextChanged.connect(on_pol_type_changed)
         
         # Add all fields to form
-        f.addRow("X", x)
-        f.addRow("Y", y)
-        f.addRow("Angle", ang)
+        f.addRow("X Position", x)
+        f.addRow("Y Position", y)
+        f.addRow("Optical Axis Angle", ang)
         f.addRow("Aperture size", size)
         f.addRow("# Rays", nr)
         f.addRow("Ray length", rlen)
