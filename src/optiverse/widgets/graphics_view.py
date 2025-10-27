@@ -24,6 +24,13 @@ class GraphicsView(QtWidgets.QGraphicsView):
         self._sb_font = QtGui.QFont()
         self._sb_font.setPointSize(9)
 
+        # Ghost preview during drag (Phase 1.1: Ghost Preview System)
+        self._ghost_item: QtWidgets.QGraphicsItem | None = None
+        self._ghost_rec: dict | None = None
+
+        # Pan control state (Phase 3.1: Pan Controls)
+        self._hand = False  # Track space key state for pan mode
+
     def wheelEvent(self, e: QtGui.QWheelEvent):
         delta_y = e.angleDelta().y()
         factor = 1.15 if delta_y > 0 else 1 / 1.15
@@ -67,16 +74,158 @@ class GraphicsView(QtWidgets.QGraphicsView):
 
         painter.restore()
 
+    # ----- Ghost Preview Methods (Phase 1.1) -----
+    def _clear_ghost(self):
+        """Remove ghost preview item from scene."""
+        if self._ghost_item is not None:
+            try:
+                # The ghost is owned by the scene; remove it safely
+                if self._ghost_item.scene() is not None:
+                    self.scene().removeItem(self._ghost_item)
+            except Exception:
+                pass
+        self._ghost_item = None
+        self._ghost_rec = None
+
+    def _make_ghost(self, rec: dict, scene_pos: QtCore.QPointF):
+        """
+        Build a semi-transparent ghost preview item for drag operation.
+        
+        The ghost shows exactly what will be dropped and where.
+        """
+        # Clear any existing ghost first
+        if self._ghost_item is not None:
+            self._clear_ghost()
+
+        # Import here to avoid circular imports
+        from ...core.models import BeamsplitterParams, LensParams, MirrorParams
+        from ..beamsplitter_item import BeamsplitterItem
+        from ..lens_item import LensItem
+        from ..mirror_item import MirrorItem
+
+        # Determine default angle for this component type
+        kind = (rec.get("kind") or "lens").lower()
+        if "angle_deg" in rec:
+            angle = float(rec["angle_deg"])
+        else:
+            # Default angles per component type
+            if kind == "lens":
+                angle = 90.0
+            elif kind == "beamsplitter":
+                angle = 45.0
+            elif kind == "mirror":
+                angle = 0.0
+            else:
+                angle = 0.0
+
+        # Extract common parameters
+        name = rec.get("name")
+        img = rec.get("image_path")
+        mm_per_px = float(rec.get("mm_per_pixel", 0.1))
+        line_px = tuple(rec.get("line_px", (0, 0, 1, 0)))
+        length_mm = float(rec.get("length_mm", 60.0))
+
+        # Create the appropriate item type
+        if kind == "lens":
+            efl_mm = float(rec.get("efl_mm", 100.0))
+            params = LensParams(
+                x_mm=scene_pos.x(),
+                y_mm=scene_pos.y(),
+                angle_deg=angle,
+                efl_mm=efl_mm,
+                length_mm=length_mm,
+                image_path=img,
+                mm_per_pixel=mm_per_px,
+                line_px=line_px,
+                name=name
+            )
+            item = LensItem(params)
+        elif kind == "beamsplitter":
+            if "split_TR" in rec and isinstance(rec["split_TR"], (list, tuple)) and len(rec["split_TR"]) == 2:
+                T, R = float(rec["split_TR"][0]), float(rec["split_TR"][1])
+            else:
+                T, R = float(rec.get("split_T", 50.0)), float(rec.get("split_R", 50.0))
+            params = BeamsplitterParams(
+                x_mm=scene_pos.x(),
+                y_mm=scene_pos.y(),
+                angle_deg=angle,
+                length_mm=length_mm,
+                split_T=T,
+                split_R=R,
+                image_path=img,
+                mm_per_pixel=mm_per_px,
+                line_px=line_px,
+                name=name
+            )
+            item = BeamsplitterItem(params)
+        else:  # mirror (default)
+            params = MirrorParams(
+                x_mm=scene_pos.x(),
+                y_mm=scene_pos.y(),
+                angle_deg=angle,
+                length_mm=length_mm,
+                image_path=img,
+                mm_per_pixel=mm_per_px,
+                line_px=line_px,
+                name=name
+            )
+            item = MirrorItem(params)
+
+        # Make it a non-interactive "ghost"
+        item.setAcceptedMouseButtons(QtCore.Qt.MouseButton.NoButton)
+        item.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+        item.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
+        item.setOpacity(0.7)  # Semi-transparent
+        item.setZValue(9999)  # Render on top
+
+        # Ensure the decorative sprite is visible on the ghost
+        try:
+            item._maybe_attach_sprite()
+        except Exception:
+            pass
+
+        # Add to scene
+        self.scene().addItem(item)
+        self._ghost_item = item
+        self._ghost_rec = dict(rec)  # Keep a copy for later use
+
     # ----- drag & drop (images and components) -----
     def dragEnterEvent(self, e: QtGui.QDragEnterEvent):
         md = e.mimeData()
-        if md.hasFormat("application/x-optics-component") or md.hasImage() or md.hasUrls():
+        if md.hasFormat("application/x-optics-component"):
+            # Build ghost right away so the moment you cross into the canvas you see it
+            try:
+                import json
+                rec = json.loads(bytes(md.data("application/x-optics-component")).decode("utf-8"))
+                self._clear_ghost()
+                self._make_ghost(rec, self.mapToScene(e.position().toPoint()))
+            except Exception:
+                pass
             e.acceptProposedAction()
-    
+        elif md.hasImage() or md.hasUrls():
+            e.acceptProposedAction()
+
     def dragMoveEvent(self, e: QtGui.QDragMoveEvent):
         md = e.mimeData()
-        if md.hasFormat("application/x-optics-component") or md.hasImage() or md.hasUrls():
+        if md.hasFormat("application/x-optics-component"):
+            # Move the ghost with the pointer; if it doesn't exist yet, (re)create it
+            try:
+                if self._ghost_item is None:
+                    import json
+                    rec = json.loads(bytes(md.data("application/x-optics-component")).decode("utf-8"))
+                    self._make_ghost(rec, self.mapToScene(e.position().toPoint()))
+                else:
+                    self._ghost_item.setPos(self.mapToScene(e.position().toPoint()))
+            except Exception:
+                pass
             e.acceptProposedAction()
+        elif md.hasImage() or md.hasUrls():
+            e.acceptProposedAction()
+
+    def dragLeaveEvent(self, e: QtGui.QDragLeaveEvent):
+        """Clear ghost when drag leaves the view."""
+        self._clear_ghost()
+        e.accept()
 
     def dropEvent(self, e: QtGui.QDropEvent):
         scene = self.scene()
@@ -86,7 +235,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
         md = e.mimeData()
         pos_view = e.position().toPoint()
         scene_pos = self.mapToScene(pos_view)
-        
+
         # Component from library
         if md.hasFormat("application/x-optics-component"):
             import json
@@ -96,6 +245,22 @@ class GraphicsView(QtWidgets.QGraphicsView):
             except Exception:
                 e.ignore()
                 return
+
+            # Finalize: remove ghost and create the real object
+            self._clear_ghost()
+
+            # Ensure we drop with the same default angle we previewed
+            if "angle_deg" not in rec:
+                kind = (rec.get("kind") or "lens").lower()
+                if kind == "lens":
+                    rec["angle_deg"] = 90.0
+                elif kind == "beamsplitter":
+                    rec["angle_deg"] = 45.0
+                elif kind == "mirror":
+                    rec["angle_deg"] = 0.0
+                else:
+                    rec["angle_deg"] = 0.0
+
             self.parent().on_drop_component(rec, scene_pos)
             e.acceptProposedAction()
             return
@@ -130,5 +295,70 @@ class GraphicsView(QtWidgets.QGraphicsView):
                             e.acceptProposedAction()
                             return
         e.ignore()
+
+    # ----- Pan Controls (Phase 3.1: Space + Middle Button) -----
+    def keyPressEvent(self, e: QtGui.QKeyEvent):
+        """Handle key press for pan mode (Space key)."""
+        if e.key() in (QtCore.Qt.Key.Key_Plus, QtCore.Qt.Key.Key_Equal):
+            # Zoom in
+            self.scale(1.15, 1.15)
+            self.zoomChanged.emit()
+            self.viewport().update()
+            return
+        if e.key() in (QtCore.Qt.Key.Key_Minus, QtCore.Qt.Key.Key_Underscore):
+            # Zoom out
+            self.scale(1 / 1.15, 1 / 1.15)
+            self.zoomChanged.emit()
+            self.viewport().update()
+            return
+        if e.key() == QtCore.Qt.Key.Key_Space:
+            # Hold space → drag to pan
+            self._hand = True
+            self.setDragMode(self.DragMode.ScrollHandDrag)
+            return
+        super().keyPressEvent(e)
+
+    def keyReleaseEvent(self, e: QtGui.QKeyEvent):
+        """Handle key release to exit pan mode."""
+        if e.key() == QtCore.Qt.Key.Key_Space and self._hand:
+            # Release space → back to select mode
+            self._hand = False
+            self.setDragMode(self.DragMode.RubberBandDrag)
+            return
+        super().keyReleaseEvent(e)
+
+    def mousePressEvent(self, e: QtGui.QMouseEvent):
+        """Handle middle button press for pan mode."""
+        if e.button() == QtCore.Qt.MouseButton.MiddleButton:
+            # Middle button → drag to pan
+            self.setDragMode(self.DragMode.ScrollHandDrag)
+            # Create fake left button event for pan mode
+            fake = QtGui.QMouseEvent(
+                QtCore.QEvent.Type.MouseButtonPress,
+                e.position(),
+                QtCore.Qt.MouseButton.LeftButton,
+                QtCore.Qt.MouseButton.LeftButton,
+                e.modifiers()
+            )
+            super().mousePressEvent(fake)
+        else:
+            super().mousePressEvent(e)
+
+    def mouseReleaseEvent(self, e: QtGui.QMouseEvent):
+        """Handle middle button release to exit pan mode."""
+        if e.button() == QtCore.Qt.MouseButton.MiddleButton:
+            # Create fake left button release
+            fake = QtGui.QMouseEvent(
+                QtCore.QEvent.Type.MouseButtonRelease,
+                e.position(),
+                QtCore.Qt.MouseButton.LeftButton,
+                QtCore.Qt.MouseButton.NoButton,
+                e.modifiers()
+            )
+            super().mouseReleaseEvent(fake)
+            # Back to select mode
+            self.setDragMode(self.DragMode.RubberBandDrag)
+        else:
+            super().mouseReleaseEvent(e)
 
 

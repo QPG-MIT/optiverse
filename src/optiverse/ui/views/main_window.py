@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -16,7 +15,6 @@ from ...core.models import (
     SourceParams,
 )
 from ...core.use_cases import trace_rays
-from ...core.color_utils import qcolor_from_hex
 from ...services.storage_service import StorageService
 from ...widgets.beamsplitter_item import BeamsplitterItem
 from ...widgets.graphics_view import GraphicsView
@@ -40,7 +38,7 @@ def to_np(p: QtCore.QPointF) -> np.ndarray:
 
 class LibraryList(QtWidgets.QListWidget):
     """Drag-enabled library list for component templates."""
-    
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setViewMode(QtWidgets.QListView.ViewMode.IconMode)
@@ -54,7 +52,7 @@ class LibraryList(QtWidgets.QListWidget):
         # Ensure we're in drag-only mode (not internal move)
         self.setDragDropMode(QtWidgets.QAbstractItemView.DragDropMode.DragOnly)
         self.setDefaultDropAction(QtCore.Qt.DropAction.CopyAction)
-    
+
     def startDrag(self, actions):
         it = self.currentItem()
         if not it:
@@ -85,29 +83,29 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view = GraphicsView(self.scene)
         self.view.parent = lambda: self  # For dropEvent callback
         self.setCentralWidget(self.view)
-        
+
         # State variables
         self.snap_to_grid = True
         self._ray_width_px = 2.0
         self.ray_items: list[QtWidgets.QGraphicsPathItem] = []
         self.autotrace = True
         self._grid_items: list[QtWidgets.QGraphicsLineItem] = []
-        
+
         # Ruler placement mode
         self._placing_ruler = False
-        self._ruler_p1_scene: Optional[QtCore.QPointF] = None
+        self._ruler_p1_scene: QtCore.QPointF | None = None
         self._prev_cursor = None
-        
+
         # Services
         self.storage_service = StorageService()
-        
+
         # Build UI
         self._draw_grid()
         self._build_actions()
         self._build_toolbar()
         self._build_menubar()
         self._build_library_dock()
-        
+
         # Install event filter for snap and ruler placement
         self.scene.installEventFilter(self)
 
@@ -131,14 +129,14 @@ class MainWindow(QtWidgets.QMainWindow):
         rect = self.scene.sceneRect()
         xmin, xmax = int(rect.left()) - 1000, int(rect.right()) + 1000
         ymin, ymax = int(rect.top()) - 1000, int(rect.bottom()) + 1000
-        
+
         for x in range(xmin, xmax + 1, 1):
             line = self.scene.addLine(x, ymin, x, ymax, major_pen if x % 10 == 0 else minor_pen)
             self._grid_items.append(line)
         for y in range(ymin, ymax + 1, 1):
             line = self.scene.addLine(xmin, y, xmax, y, major_pen if y % 10 == 0 else minor_pen)
             self._grid_items.append(line)
-        
+
         self._grid_items.append(self.scene.addLine(-10000, 0, 10000, 0, axis_pen))
         self._grid_items.append(self.scene.addLine(0, -10000, 0, 10000, axis_pen))
 
@@ -148,39 +146,39 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_open = QtGui.QAction("Open Assembly…", self)
         self.act_open.setShortcut(QtGui.QKeySequence.StandardKey.Open)
         self.act_open.triggered.connect(self.open_assembly)
-        
+
         self.act_save = QtGui.QAction("Save Assembly…", self)
         self.act_save.setShortcut(QtGui.QKeySequence.StandardKey.Save)
         self.act_save.triggered.connect(self.save_assembly)
-        
+
         # --- Insert ---
         self.act_add_source = QtGui.QAction("Source", self)
         self.act_add_source.triggered.connect(self.add_source)
-        
+
         self.act_add_lens = QtGui.QAction("Lens", self)
         self.act_add_lens.triggered.connect(self.add_lens)
-        
+
         self.act_add_mirror = QtGui.QAction("Mirror", self)
         self.act_add_mirror.triggered.connect(self.add_mirror)
-        
+
         self.act_add_bs = QtGui.QAction("Beamsplitter", self)
         self.act_add_bs.triggered.connect(self.add_bs)
-        
+
         self.act_add_ruler = QtGui.QAction("Ruler", self)
         self.act_add_ruler.triggered.connect(self.start_place_ruler)
-        
+
         self.act_add_text = QtGui.QAction("Text", self)
         self.act_add_text.triggered.connect(self.add_text)
-        
+
         # --- View ---
         self.act_zoom_in = QtGui.QAction("Zoom In", self)
         self.act_zoom_in.setShortcut(QtGui.QKeySequence.StandardKey.ZoomIn)
         self.act_zoom_in.triggered.connect(lambda: (self.view.scale(1.15, 1.15), self.view.zoomChanged.emit()))
-        
+
         self.act_zoom_out = QtGui.QAction("Zoom Out", self)
         self.act_zoom_out.setShortcut(QtGui.QKeySequence.StandardKey.ZoomOut)
         self.act_zoom_out.triggered.connect(lambda: (self.view.scale(1 / 1.15, 1 / 1.15), self.view.zoomChanged.emit()))
-        
+
         self.act_fit = QtGui.QAction("Fit Scene", self)
         self.act_fit.setShortcut("Ctrl+0")
         self.act_fit.triggered.connect(
@@ -191,16 +189,16 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.view.zoomChanged.emit(),
             )
         )
-        
+
         # Checkable options
         self.act_autotrace = QtGui.QAction("Auto-trace", self, checkable=True)
         self.act_autotrace.setChecked(True)
         self.act_autotrace.toggled.connect(self._toggle_autotrace)
-        
+
         self.act_snap = QtGui.QAction("Snap to mm grid", self, checkable=True)
         self.act_snap.setChecked(True)
         self.act_snap.toggled.connect(self._toggle_snap)
-        
+
         # Ray width submenu with presets + Custom…
         self.menu_raywidth = QtWidgets.QMenu("Ray width", self)
         self._raywidth_group = QtGui.QActionGroup(self)
@@ -215,22 +213,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.menu_raywidth.addSeparator()
         a_custom = self.menu_raywidth.addAction("Custom…")
         a_custom.triggered.connect(self._choose_ray_width)
-        
+
         # --- Tools ---
         self.act_retrace = QtGui.QAction("Retrace", self)
         self.act_retrace.setShortcut("Space")
         self.act_retrace.triggered.connect(self.retrace)
-        
+
         self.act_clear = QtGui.QAction("Clear Rays", self)
         self.act_clear.triggered.connect(self.clear_rays)
-        
+
         self.act_editor = QtGui.QAction("Component Editor…", self)
         self.act_editor.setShortcut("Ctrl+E")
         self.act_editor.triggered.connect(self.open_component_editor)
-        
+
         self.act_reload = QtGui.QAction("Reload Library", self)
         self.act_reload.triggered.connect(self.populate_library)
-    
+
     def _build_toolbar(self):
         """Build component toolbar with custom PNG icons."""
         toolbar = QtWidgets.QToolBar("Components")
@@ -238,48 +236,58 @@ class MainWindow(QtWidgets.QMainWindow):
         toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         toolbar.setIconSize(QtCore.QSize(32, 32))
         self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, toolbar)
-        
+
         # Source button
         source_icon = QtGui.QIcon(_get_icon_path("source.png"))
         self.act_add_source.setIcon(source_icon)
         toolbar.addAction(self.act_add_source)
-        
+
         # Lens button
         lens_icon = QtGui.QIcon(_get_icon_path("lens.png"))
         self.act_add_lens.setIcon(lens_icon)
         toolbar.addAction(self.act_add_lens)
-        
+
         # Mirror button
         mirror_icon = QtGui.QIcon(_get_icon_path("mirror.png"))
         self.act_add_mirror.setIcon(mirror_icon)
         toolbar.addAction(self.act_add_mirror)
-        
+
         # Beamsplitter button
         bs_icon = QtGui.QIcon(_get_icon_path("beamsplitter.png"))
         self.act_add_bs.setIcon(bs_icon)
         toolbar.addAction(self.act_add_bs)
-        
+
         toolbar.addSeparator()
-        
+
         # Ruler button
         ruler_icon = QtGui.QIcon(_get_icon_path("ruler.png"))
         self.act_add_ruler.setIcon(ruler_icon)
         toolbar.addAction(self.act_add_ruler)
-        
+
         # Text button
         text_icon = QtGui.QIcon(_get_icon_path("text.png"))
         self.act_add_text.setIcon(text_icon)
         toolbar.addAction(self.act_add_text)
-    
+
     def _build_menubar(self):
         """Build menu bar."""
         mb = self.menuBar()
-        
+
         # File menu
         mFile = mb.addMenu("&File")
         mFile.addAction(self.act_open)
         mFile.addAction(self.act_save)
-        
+
+        # Insert menu (Phase 3.2: Better menu organization)
+        mInsert = mb.addMenu("&Insert")
+        mInsert.addAction(self.act_add_source)
+        mInsert.addAction(self.act_add_lens)
+        mInsert.addAction(self.act_add_mirror)
+        mInsert.addAction(self.act_add_bs)
+        mInsert.addSeparator()
+        mInsert.addAction(self.act_add_ruler)
+        mInsert.addAction(self.act_add_text)
+
         # View menu
         mView = mb.addMenu("&View")
         mView.addAction(self.act_zoom_in)
@@ -289,7 +297,7 @@ class MainWindow(QtWidgets.QMainWindow):
         mView.addAction(self.act_autotrace)
         mView.addAction(self.act_snap)
         mView.addMenu(self.menu_raywidth)
-        
+
         # Tools menu
         mTools = mb.addMenu("&Tools")
         mTools.addAction(self.act_retrace)
@@ -297,7 +305,7 @@ class MainWindow(QtWidgets.QMainWindow):
         mTools.addSeparator()
         mTools.addAction(self.act_editor)
         mTools.addAction(self.act_reload)
-    
+
     def _build_library_dock(self):
         """Build component library dock."""
         self.libDock = QtWidgets.QDockWidget("Component Library", self)
@@ -306,7 +314,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.libDock.setWidget(self.libraryList)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.libDock)
         self.populate_library()
-    
+
     def populate_library(self):
         """Load and populate component library from storage."""
         self.libraryList.clear()
@@ -323,7 +331,7 @@ class MainWindow(QtWidgets.QMainWindow):
             item = QtWidgets.QListWidgetItem(icon, f"{name}\n({kind})")
             item.setData(QtCore.Qt.ItemDataRole.UserRole, rec)
             self.libraryList.addItem(item)
-    
+
     def on_drop_component(self, rec: dict, scene_pos: QtCore.QPointF):
         """Handle component drop from library."""
         kind = rec.get("kind", "lens")
@@ -332,7 +340,7 @@ class MainWindow(QtWidgets.QMainWindow):
         mm_per_px = float(rec.get("mm_per_pixel", 0.1))
         line_px = tuple(rec.get("line_px", (0, 0, 1, 0)))
         length_mm = float(rec.get("length_mm", 60.0))
-        
+
         if kind == "lens":
             efl_mm = float(rec.get("efl_mm", 100.0))
             params = LensParams(
@@ -377,14 +385,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 name=name,
             )
             item = MirrorItem(params)
-        
+
         self.scene.addItem(item)
         item._maybe_attach_sprite()
         item.edited.connect(self._maybe_retrace)
         item.setSelected(True)
         if self.autotrace:
             self.retrace()
-    
+
     # ----- Insert elements -----
     def add_source(self):
         """Add source with default params."""
@@ -394,7 +402,7 @@ class MainWindow(QtWidgets.QMainWindow):
         s.setSelected(True)
         if self.autotrace:
             self.retrace()
-    
+
     def add_lens(self):
         """Add lens with default params."""
         L = LensItem(LensParams())
@@ -404,7 +412,7 @@ class MainWindow(QtWidgets.QMainWindow):
         L.setSelected(True)
         if self.autotrace:
             self.retrace()
-    
+
     def add_mirror(self):
         """Add mirror with default params."""
         M = MirrorItem(MirrorParams())
@@ -414,7 +422,7 @@ class MainWindow(QtWidgets.QMainWindow):
         M.setSelected(True)
         if self.autotrace:
             self.retrace()
-    
+
     def add_bs(self):
         """Add beamsplitter with default params."""
         B = BeamsplitterItem(BeamsplitterParams())
@@ -424,14 +432,14 @@ class MainWindow(QtWidgets.QMainWindow):
         B.setSelected(True)
         if self.autotrace:
             self.retrace()
-    
+
     def add_text(self):
         """Add text note at viewport center."""
         center = self.view.mapToScene(self.view.viewport().rect().center())
         T = TextNoteItem("Text")
         T.setPos(center)
         self.scene.addItem(T)
-    
+
     def start_place_ruler(self):
         """Enter ruler placement mode (two-click)."""
         self._placing_ruler = True
@@ -439,7 +447,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._prev_cursor = self.view.cursor()
         self.view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
         QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), "Click start point, then end point")
-    
+
     def _finish_place_ruler(self):
         """Exit ruler placement mode."""
         self._placing_ruler = False
@@ -447,24 +455,24 @@ class MainWindow(QtWidgets.QMainWindow):
         if self._prev_cursor is not None:
             self.view.setCursor(self._prev_cursor)
             self._prev_cursor = None
-    
+
     # ----- Ray tracing -----
     def clear_rays(self):
         """Remove all ray graphics from scene."""
         for it in self.ray_items:
             self.scene.removeItem(it)
         self.ray_items.clear()
-    
+
     def retrace(self):
         """Trace all rays from sources through optical elements."""
         self.clear_rays()
-        
+
         # Collect elements
         sources: list[SourceItem] = []
         lenses: list[LensItem] = []
         mirrors: list[MirrorItem] = []
         beamsplitters: list[BeamsplitterItem] = []
-        
+
         for it in self.scene.items():
             if isinstance(it, SourceItem):
                 sources.append(it)
@@ -474,7 +482,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 mirrors.append(it)
             elif isinstance(it, BeamsplitterItem):
                 beamsplitters.append(it)
-        
+
         if not sources:
             return
 
@@ -497,7 +505,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     split_R=B.params.split_R,
                 )
             )
-        
+
         # Build source params (use actual params from items)
         srcs: list[SourceParams] = []
         for S in sources:
@@ -520,12 +528,12 @@ class MainWindow(QtWidgets.QMainWindow):
             item.setZValue(10)
             self.scene.addItem(item)
             self.ray_items.append(item)
-    
+
     def _maybe_retrace(self):
         """Retrace if autotrace is enabled."""
         if self.autotrace:
             self.retrace()
-    
+
     # ----- Save / Load -----
     def save_assembly(self):
         """Save all elements to JSON file."""
@@ -534,7 +542,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         if not path:
             return
-        
+
         data = {
             "sources": [],
             "lenses": [],
@@ -543,7 +551,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "rulers": [],
             "texts": [],
         }
-        
+
         for it in self.scene.items():
             if isinstance(it, SourceItem):
                 data["sources"].append(it.to_dict())
@@ -557,13 +565,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 data["rulers"].append(it.to_dict())
             elif isinstance(it, TextNoteItem):
                 data["texts"].append(it.to_dict())
-        
+
         try:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Save error", str(e))
-    
+
     def open_assembly(self):
         """Load all elements from JSON file."""
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -572,17 +580,17 @@ class MainWindow(QtWidgets.QMainWindow):
         if not path:
             return
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Open error", str(e))
             return
-        
+
         # Remove existing optical objects (keep grid lines)
         for it in list(self.scene.items()):
             if isinstance(it, (SourceItem, LensItem, MirrorItem, BeamsplitterItem, RulerItem, TextNoteItem)):
                 self.scene.removeItem(it)
-        
+
         # Re-create everything
         for d in data.get("sources", []):
             s = SourceItem(SourceParams(**d))
@@ -609,26 +617,26 @@ class MainWindow(QtWidgets.QMainWindow):
         for d in data.get("texts", []):
             T = TextNoteItem.from_dict(d)
             self.scene.addItem(T)
-        
+
         self.retrace()
-    
+
     # ----- Settings -----
     def _toggle_autotrace(self, on: bool):
         """Toggle auto-trace."""
         self.autotrace = on
         if on:
             self.retrace()
-    
+
     def _toggle_snap(self, on: bool):
         """Toggle snap to grid."""
         self.snap_to_grid = on
-    
+
     def _set_ray_width(self, v: float):
         """Set ray width and retrace."""
         self._ray_width_px = float(v)
         if self.autotrace:
             self.retrace()
-    
+
     def _choose_ray_width(self):
         """Show custom ray width dialog."""
         v, ok = QtWidgets.QInputDialog.getDouble(
@@ -639,7 +647,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # update checked state in presets if it matches one
             for act in self._raywidth_group.actions():
                 act.setChecked(abs(float(act.text().split()[0]) - v) < 1e-9)
-    
+
     def open_component_editor(self):
         """Open component editor dialog."""
         try:
@@ -653,12 +661,12 @@ class MainWindow(QtWidgets.QMainWindow):
         if hasattr(self._comp_editor, "saved"):
             self._comp_editor.saved.connect(self.populate_library)
         self._comp_editor.show()
-    
+
     # ----- Event filter for snap and ruler placement -----
     def eventFilter(self, obj, ev):
         """Handle scene events for snap and ruler placement."""
         et = ev.type()
-        
+
         # --- Ruler 2-click placement ---
         if self._placing_ruler and et == QtCore.QEvent.Type.GraphicsSceneMousePress:
             mev = ev  # QGraphicsSceneMouseEvent
@@ -682,11 +690,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 # cancel placement on right-click
                 self._finish_place_ruler()
                 return True
-        
+
         # --- Snap to grid on mouse release ---
         if et == QtCore.QEvent.Type.GraphicsSceneMouseRelease:
             from ...widgets.base_obj import BaseObj
-            
+
             for it in self.scene.selectedItems():
                 if isinstance(it, BaseObj) and self.snap_to_grid:
                     p = it.pos()
@@ -701,9 +709,9 @@ class MainWindow(QtWidgets.QMainWindow):
         ):
             if self.autotrace:
                 QtCore.QTimer.singleShot(0, self.retrace)
-        
+
         return super().eventFilter(obj, ev)
-    
+
     # ensure clean shutdown
     def closeEvent(self, e: QtGui.QCloseEvent):
         try:

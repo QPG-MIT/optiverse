@@ -75,7 +75,9 @@ class MirrorItem(BaseObj):
     
     def boundingRect(self) -> QtCore.QRectF:
         pad = 8
-        return QtCore.QRectF(-self._len / 2 - pad, -pad, self._len + 2 * pad, 2 * pad)
+        rect = QtCore.QRectF(-self._len / 2 - pad, -pad, self._len + 2 * pad, 2 * pad)
+        # Include sprite in bounds (Phase 1.2: Clickable Sprites)
+        return self._bounds_union_sprite(rect)
     
     def shape(self) -> QtGui.QPainterPath:
         path = QtGui.QPainterPath()
@@ -83,7 +85,9 @@ class MirrorItem(BaseObj):
         path.lineTo(self._p2)
         s = QtGui.QPainterPathStroker()
         s.setWidth(10)
-        return s.createStroke(path)
+        shp = s.createStroke(path)
+        # Include sprite in shape for hit testing (Phase 1.2: Clickable Sprites)
+        return self._shape_union_sprite(shp)
     
     def paint(self, p: QtGui.QPainter, opt, widget=None):
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
