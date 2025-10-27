@@ -3,7 +3,7 @@ Optical objects module.
 
 This module contains all graphical components for the optics simulation:
 - Base classes (BaseObj, ComponentSprite)
-- Optical elements (lenses, mirrors, beamsplitters, waveplates, sources)
+- Optical elements (lenses, mirrors, beamsplitters, dichroics, waveplates, sources)
 - Annotations (rulers, text notes)
 - Views (graphics view, image canvas)
 """
@@ -16,6 +16,7 @@ from .component_sprite import ComponentSprite
 from .lenses import LensItem
 from .mirrors import MirrorItem
 from .beamsplitters import BeamsplitterItem
+from .dichroics import DichroicItem
 from .waveplates import WaveplateItem
 from .sources import SourceItem
 
@@ -33,6 +34,7 @@ __all__ = [
     "LensItem",
     "MirrorItem",
     "BeamsplitterItem",
+    "DichroicItem",
     "WaveplateItem",
     "SourceItem",
     # Annotations

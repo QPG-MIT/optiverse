@@ -9,6 +9,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import (
     BeamsplitterParams,
+    DichroicParams,
     LensParams,
     MirrorParams,
     WaveplateParams,
@@ -23,6 +24,7 @@ from ...services.settings_service import SettingsService
 from ...services.storage_service import StorageService
 from ...objects import (
     BeamsplitterItem,
+    DichroicItem,
     GraphicsView,
     LensItem,
     MirrorItem,
@@ -381,6 +383,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "Objectives": [],
             "Mirrors": [],
             "Beamsplitters": [],
+            "Dichroics": [],
             "Waveplates": [],
             "Sources": [],
             "Other": []
@@ -393,7 +396,7 @@ class MainWindow(QtWidgets.QMainWindow):
             categories[category].append(rec)
         
         # Create category nodes with components
-        for category_name in ["Lenses", "Objectives", "Mirrors", "Beamsplitters", "Waveplates", "Sources", "Other"]:
+        for category_name in ["Lenses", "Objectives", "Mirrors", "Beamsplitters", "Dichroics", "Waveplates", "Sources", "Other"]:
             comps = categories[category_name]
             if not comps:
                 continue
@@ -449,6 +452,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 angle_deg = 90.0
             elif kind == "beamsplitter":
                 angle_deg = 45.0
+            elif kind == "dichroic":
+                angle_deg = 45.0
             elif kind == "waveplate":
                 angle_deg = 90.0
             else:
@@ -501,6 +506,21 @@ class MainWindow(QtWidgets.QMainWindow):
                 name=name,
             )
             item = WaveplateItem(params)
+        elif kind == "dichroic":
+            cutoff_wavelength_nm = float(rec.get("cutoff_wavelength_nm", 550.0))
+            transition_width_nm = float(rec.get("transition_width_nm", 50.0))
+            params = DichroicParams(
+                x_mm=scene_pos.x(),
+                y_mm=scene_pos.y(),
+                angle_deg=angle_deg,
+                object_height_mm=object_height_mm,
+                cutoff_wavelength_nm=cutoff_wavelength_nm,
+                transition_width_nm=transition_width_nm,
+                image_path=img,
+                line_px=line_px,
+                name=name,
+            )
+            item = DichroicItem(params)
         else:  # mirror
             params = MirrorParams(
                 x_mm=scene_pos.x(),
@@ -783,6 +803,7 @@ class MainWindow(QtWidgets.QMainWindow):
         lenses: list[LensItem] = []
         mirrors: list[MirrorItem] = []
         beamsplitters: list[BeamsplitterItem] = []
+        dichroics: list[DichroicItem] = []
         waveplates: list[WaveplateItem] = []
 
         for it in self.scene.items():
@@ -794,6 +815,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 mirrors.append(it)
             elif isinstance(it, BeamsplitterItem):
                 beamsplitters.append(it)
+            elif isinstance(it, DichroicItem):
+                dichroics.append(it)
             elif isinstance(it, WaveplateItem):
                 waveplates.append(it)
 
@@ -835,6 +858,18 @@ class MainWindow(QtWidgets.QMainWindow):
                     p2=p2,
                     phase_shift_deg=W.params.phase_shift_deg,
                     fast_axis_deg=W.params.fast_axis_deg,
+                )
+            )
+        for D in dichroics:
+            p1, p2 = D.endpoints_scene()
+            # Dichroic mirrors have wavelength-dependent reflection/transmission
+            elems.append(
+                OpticalElement(
+                    kind="dichroic",
+                    p1=p1,
+                    p2=p2,
+                    cutoff_wavelength_nm=D.params.cutoff_wavelength_nm,
+                    transition_width_nm=D.params.transition_width_nm,
                 )
             )
 
@@ -880,6 +915,8 @@ class MainWindow(QtWidgets.QMainWindow):
             "lenses": [],
             "mirrors": [],
             "beamsplitters": [],
+            "dichroics": [],
+            "waveplates": [],
             "rulers": [],
             "texts": [],
         }
@@ -893,6 +930,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 data["mirrors"].append(it.to_dict())
             elif isinstance(it, BeamsplitterItem):
                 data["beamsplitters"].append(it.to_dict())
+            elif isinstance(it, DichroicItem):
+                data["dichroics"].append(it.to_dict())
+            elif isinstance(it, WaveplateItem):
+                data["waveplates"].append(it.to_dict())
             elif isinstance(it, RulerItem):
                 data["rulers"].append(it.to_dict())
             elif isinstance(it, TextNoteItem):
@@ -920,7 +961,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Remove existing optical objects (keep grid lines)
         for it in list(self.scene.items()):
-            if isinstance(it, (SourceItem, LensItem, MirrorItem, BeamsplitterItem, RulerItem, TextNoteItem)):
+            if isinstance(it, (SourceItem, LensItem, MirrorItem, BeamsplitterItem, DichroicItem, WaveplateItem, RulerItem, TextNoteItem)):
                 self.scene.removeItem(it)
 
         # Re-create everything
@@ -943,6 +984,16 @@ class MainWindow(QtWidgets.QMainWindow):
             self.scene.addItem(B)
             # Sprite is automatically attached in constructor
             B.edited.connect(self._maybe_retrace)
+        for d in data.get("dichroics", []):
+            D = DichroicItem(DichroicParams(**d))
+            self.scene.addItem(D)
+            # Sprite is automatically attached in constructor
+            D.edited.connect(self._maybe_retrace)
+        for d in data.get("waveplates", []):
+            W = WaveplateItem(WaveplateParams(**d))
+            self.scene.addItem(W)
+            # Sprite is automatically attached in constructor
+            W.edited.connect(self._maybe_retrace)
         for d in data.get("rulers", []):
             R = RulerItem.from_dict(d)
             self.scene.addItem(R)

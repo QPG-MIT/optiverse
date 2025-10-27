@@ -6,7 +6,7 @@ from typing import Dict, Any
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import SourceParams
-from ...core.color_utils import qcolor_from_hex, hex_from_qcolor
+from ...core.color_utils import qcolor_from_hex, hex_from_qcolor, wavelength_to_hex, LASER_WAVELENGTHS
 from ..base_obj import BaseObj
 
 
@@ -118,10 +118,38 @@ class SourceItem(BaseObj):
         spr.setSuffix(" °")
         spr.setValue(self.params.spread_deg)
         
+        # Wavelength controls
+        wl_mode = QtWidgets.QComboBox()
+        wl_mode.addItems(["Custom Color", "Wavelength"])
+        wl_mode.setCurrentIndex(1 if self.params.wavelength_nm > 0 else 0)
+        
+        # Wavelength preset dropdown
+        wl_preset = QtWidgets.QComboBox()
+        wl_preset.addItem("Custom...", 0.0)
+        for name, wl in LASER_WAVELENGTHS.items():
+            wl_preset.addItem(name, wl)
+        
+        # Find current wavelength in presets
+        if self.params.wavelength_nm > 0:
+            for i in range(wl_preset.count()):
+                if abs(wl_preset.itemData(i) - self.params.wavelength_nm) < 0.1:
+                    wl_preset.setCurrentIndex(i)
+                    break
+        
+        # Wavelength spinbox
+        wl_spin = QtWidgets.QDoubleSpinBox()
+        wl_spin.setRange(200, 2000)
+        wl_spin.setDecimals(1)
+        wl_spin.setSuffix(" nm")
+        wl_spin.setValue(self.params.wavelength_nm if self.params.wavelength_nm > 0 else 633.0)
+        wl_spin.setEnabled(self.params.wavelength_nm > 0)
+        
         # Color picker
         color_btn = QtWidgets.QToolButton()
         color_btn.setText("Pick…")
         color_disp = QtWidgets.QLabel(self.params.color_hex)
+        color_btn.setEnabled(self.params.wavelength_nm == 0)
+        color_disp.setEnabled(self.params.wavelength_nm == 0)
         
         def paint_chip(lbl: QtWidgets.QLabel, hexstr: str):
             pm = QtGui.QPixmap(40, 16)
@@ -132,7 +160,10 @@ class SourceItem(BaseObj):
             lbl.setPixmap(pm)
         
         chip = QtWidgets.QLabel()
-        paint_chip(chip, self.params.color_hex)
+        if self.params.wavelength_nm > 0:
+            paint_chip(chip, wavelength_to_hex(self.params.wavelength_nm))
+        else:
+            paint_chip(chip, self.params.color_hex)
         
         def pick_color():
             c = QtWidgets.QColorDialog.getColor(
@@ -145,6 +176,34 @@ class SourceItem(BaseObj):
                 self._color = c
                 color_disp.setText(c.name())
                 paint_chip(chip, c.name())
+        
+        def update_from_wavelength():
+            """Update color chip from wavelength."""
+            wl = wl_spin.value()
+            paint_chip(chip, wavelength_to_hex(wl))
+        
+        def on_mode_changed(mode: str):
+            """Handle wavelength mode change."""
+            use_wl = (mode == "Wavelength")
+            wl_preset.setEnabled(use_wl)
+            wl_spin.setEnabled(use_wl)
+            color_btn.setEnabled(not use_wl)
+            color_disp.setEnabled(not use_wl)
+            if use_wl:
+                update_from_wavelength()
+            else:
+                paint_chip(chip, color_disp.text())
+        
+        def on_preset_changed(idx: int):
+            """Handle wavelength preset selection."""
+            wl = wl_preset.itemData(idx)
+            if wl > 0:
+                wl_spin.setValue(wl)
+                update_from_wavelength()
+        
+        wl_mode.currentTextChanged.connect(on_mode_changed)
+        wl_preset.currentIndexChanged.connect(on_preset_changed)
+        wl_spin.valueChanged.connect(lambda: update_from_wavelength())
         
         row_color = QtWidgets.QHBoxLayout()
         row_color.addWidget(color_btn)
@@ -192,7 +251,10 @@ class SourceItem(BaseObj):
         f.addRow("# Rays", nr)
         f.addRow("Ray length", rlen)
         f.addRow("Angular spread (±)", spr)
-        f.addRow("Ray color", row_color)
+        f.addRow("Color Mode", wl_mode)
+        f.addRow("Wavelength Preset", wl_preset)
+        f.addRow("Wavelength", wl_spin)
+        f.addRow("Custom Color", row_color)
         f.addRow("Polarization", pol_type)
         f.addRow("Polarization angle", pol_angle)
         
@@ -216,7 +278,16 @@ class SourceItem(BaseObj):
             self.params.n_rays = nr.value()
             self.params.ray_length_mm = rlen.value()
             self.params.spread_deg = spr.value()
-            self.params.color_hex = hex_from_qcolor(self._color)
+            
+            # Save wavelength or custom color based on mode
+            if wl_mode.currentText() == "Wavelength":
+                self.params.wavelength_nm = wl_spin.value()
+                self.params.color_hex = wavelength_to_hex(self.params.wavelength_nm)
+                self._color = qcolor_from_hex(self.params.color_hex)
+            else:
+                self.params.wavelength_nm = 0.0
+                self.params.color_hex = hex_from_qcolor(self._color)
+            
             # Polarization parameters
             self.params.polarization_type = pol_type.currentText()
             self.params.polarization_angle_deg = pol_angle.value()

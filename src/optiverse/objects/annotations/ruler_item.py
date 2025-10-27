@@ -31,7 +31,7 @@ class RulerItem(QtWidgets.QGraphicsObject):
         # Appearance
         self._line_w = 2.0
         self._bar_w = 2.0      # bar thickness along the line
-        self._bar_h = 18.0     # bar height perpendicular to the line
+        self._bar_h = 10.0     # bar height perpendicular to the line
         self._hit_radius = 10.0
         self._pad = 90.0       # padding to fully cover label area when moving
 

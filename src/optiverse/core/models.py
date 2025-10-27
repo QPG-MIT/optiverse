@@ -107,7 +107,7 @@ class ComponentRecord:
     - Images saved by the component editor are normalized to 1000px height, but legacy images may vary
     """
     name: str
-    kind: str  # 'lens' | 'mirror' | 'beamsplitter' | 'waveplate'
+    kind: str  # 'lens' | 'mirror' | 'beamsplitter' | 'waveplate' | 'dichroic'
     image_path: str
     line_px: Tuple[float, float, float, float]  # x1,y1,x2,y2 in normalized 1000px coordinate space
     object_height_mm: float  # Physical size (mm) of the optical element (picked line length in mm)
@@ -119,6 +119,9 @@ class ComponentRecord:
     # waveplate only
     phase_shift_deg: float = 90.0  # Phase shift in degrees (90° for QWP, 180° for HWP)
     fast_axis_deg: float = 0.0  # Fast axis angle in lab frame (degrees)
+    # dichroic only
+    cutoff_wavelength_nm: float = 550.0  # Cutoff wavelength for dichroic mirrors
+    transition_width_nm: float = 50.0  # Width of transition region
     # optical axis angle (degrees) - default orientation when placed
     angle_deg: float = 0.0
     # misc
@@ -162,6 +165,9 @@ def serialize_component(rec: ComponentRecord) -> Dict[str, Any]:
     elif rec.kind == "waveplate":
         base["phase_shift_deg"] = float(rec.phase_shift_deg)
         base["fast_axis_deg"] = float(rec.fast_axis_deg)
+    elif rec.kind == "dichroic":
+        base["cutoff_wavelength_nm"] = float(rec.cutoff_wavelength_nm)
+        base["transition_width_nm"] = float(rec.transition_width_nm)
     # mirror: no extra fields
     return base
 
@@ -206,6 +212,8 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
     split_TR = (50.0, 50.0)
     phase_shift_deg = 90.0
     fast_axis_deg = 0.0
+    cutoff_wavelength_nm = 550.0
+    transition_width_nm = 50.0
 
     if kind == "lens":
         try:
@@ -235,6 +243,15 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
             fast_axis_deg = float(data.get("fast_axis_deg", 0.0))
         except Exception:
             fast_axis_deg = 0.0
+    elif kind == "dichroic":
+        try:
+            cutoff_wavelength_nm = float(data.get("cutoff_wavelength_nm", 550.0))
+        except Exception:
+            cutoff_wavelength_nm = 550.0
+        try:
+            transition_width_nm = float(data.get("transition_width_nm", 50.0))
+        except Exception:
+            transition_width_nm = 50.0
 
     return ComponentRecord(
         name=name,
@@ -246,6 +263,8 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
         split_TR=split_TR,
         phase_shift_deg=phase_shift_deg,
         fast_axis_deg=fast_axis_deg,
+        cutoff_wavelength_nm=cutoff_wavelength_nm,
+        transition_width_nm=transition_width_nm,
         angle_deg=angle_deg,
         notes=notes
     )
@@ -261,6 +280,8 @@ class SourceParams:
     ray_length_mm: float = 1000.0
     spread_deg: float = 0.0
     color_hex: str = "#DC143C"  # crimson default
+    # Wavelength (in nanometers) - if 0, use color_hex directly
+    wavelength_nm: float = 0.0  # 0 = use color_hex, >0 = compute color from wavelength
     # Polarization parameters
     polarization_type: str = "horizontal"  # horizontal, vertical, +45, -45, circular_right, circular_left, linear
     polarization_angle_deg: float = 0.0  # Used when polarization_type is "linear"
@@ -365,8 +386,32 @@ class WaveplateParams:
 
 
 @dataclass
+class DichroicParams:
+    """
+    Dichroic mirror component parameters.
+    
+    Dichroic mirrors selectively reflect or transmit light based on wavelength.
+    Typically:
+    - Short wavelengths (< cutoff) reflect
+    - Long wavelengths (> cutoff) transmit
+    
+    The transition is smooth with a characteristic width.
+    """
+    x_mm: float = 0.0
+    y_mm: float = 0.0
+    angle_deg: float = 45.0  # Typically 45° for beam combining/splitting
+    object_height_mm: float = 80.0  # Physical size of optical element
+    cutoff_wavelength_nm: float = 550.0  # Cutoff wavelength (nm) - green
+    transition_width_nm: float = 50.0  # Width of transition region (nm)
+    image_path: Optional[str] = None
+    mm_per_pixel: float = 0.1
+    line_px: Optional[Tuple[float, float, float, float]] = None
+    name: Optional[str] = None
+
+
+@dataclass
 class OpticalElement:
-    kind: str  # 'lens' | 'mirror' | 'bs' | 'waveplate'
+    kind: str  # 'lens' | 'mirror' | 'bs' | 'waveplate' | 'dichroic'
     p1: np.ndarray
     p2: np.ndarray
     efl_mm: float = 0.0
@@ -378,6 +423,9 @@ class OpticalElement:
     # Waveplate properties
     phase_shift_deg: float = 90.0  # Phase shift for waveplates
     fast_axis_deg: float = 0.0  # Fast axis angle for waveplates
+    # Dichroic properties
+    cutoff_wavelength_nm: float = 550.0  # Cutoff wavelength for dichroic mirrors
+    transition_width_nm: float = 50.0  # Width of transition region
 
 
 @dataclass
@@ -385,5 +433,6 @@ class RayPath:
     points: List[np.ndarray]
     rgba: Tuple[int, int, int, int]  # color with alpha
     polarization: Optional[Polarization] = None  # Polarization state of this ray
+    wavelength_nm: float = 0.0  # Wavelength in nanometers (0 = not specified)
 
 

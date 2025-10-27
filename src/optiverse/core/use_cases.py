@@ -8,10 +8,11 @@ import numpy as np
 from .geometry import (
     deg2rad, normalize, reflect_vec, ray_hit_element,
     transform_polarization_mirror, transform_polarization_lens,
-    transform_polarization_beamsplitter, transform_polarization_waveplate
+    transform_polarization_beamsplitter, transform_polarization_waveplate,
+    compute_dichroic_reflectance
 )
 from .models import OpticalElement, SourceParams, RayPath, Polarization
-from .color_utils import qcolor_from_hex
+from .color_utils import qcolor_from_hex, wavelength_to_rgb
 
 
 def _endpoints(elements: List[OpticalElement]):
@@ -28,6 +29,7 @@ def trace_rays(
     lenses = [(e, e.p1, e.p2) for e in elements if e.kind == "lens"]
     bss = [(e, e.p1, e.p2) for e in elements if e.kind == "bs"]
     waveplates = [(e, e.p1, e.p2) for e in elements if e.kind == "waveplate"]
+    dichroics = [(e, e.p1, e.p2) for e in elements if e.kind == "dichroic"]
 
     EPS_ADV = 1e-3
     MIN_I = 0.02
@@ -36,9 +38,17 @@ def trace_rays(
         base = deg2rad(S.angle_deg)
         spread = deg2rad(S.spread_deg)
         
-        # Get source color from hex
-        src_col = qcolor_from_hex(S.color_hex)
-        base_rgb = (src_col.red(), src_col.green(), src_col.blue())
+        # Determine wavelength and color
+        # If wavelength is specified (> 0), use it; otherwise use color_hex
+        source_wavelength = S.wavelength_nm if S.wavelength_nm > 0 else 0.0
+        
+        if source_wavelength > 0:
+            # Compute color from wavelength
+            base_rgb = wavelength_to_rgb(source_wavelength)
+        else:
+            # Use color from hex
+            src_col = qcolor_from_hex(S.color_hex)
+            base_rgb = (src_col.red(), src_col.green(), src_col.blue())
 
         ys = [0.0] if (S.n_rays <= 1 or S.size_mm == 0) else list(np.linspace(-S.size_mm/2, S.size_mm/2, S.n_rays))
         if spread == 0 or S.n_rays <= 1:
@@ -55,16 +65,16 @@ def trace_rays(
             th = angles[i]
             V = np.array([math.cos(th), math.sin(th)], float)
 
-            # Stack now includes polarization: (points, position, velocity, remaining, last_obj, events, intensity, polarization)
-            stack: List[Tuple[List[np.ndarray], np.ndarray, np.ndarray, float, object, int, float, Polarization]] = []
-            stack.append(([P.copy()], P.copy(), V.copy(), S.ray_length_mm, None, 0, 1.0, initial_pol))
+            # Stack now includes polarization and wavelength: (points, position, velocity, remaining, last_obj, events, intensity, polarization, wavelength)
+            stack: List[Tuple[List[np.ndarray], np.ndarray, np.ndarray, float, object, int, float, Polarization, float]] = []
+            stack.append(([P.copy()], P.copy(), V.copy(), S.ray_length_mm, None, 0, 1.0, initial_pol, source_wavelength))
 
             while stack:
-                pts, P, V, remaining, last_obj, events, I, pol = stack.pop()
+                pts, P, V, remaining, last_obj, events, I, pol, wl = stack.pop()
                 if remaining <= 0 or events >= max_events or I < MIN_I:
                     if len(pts) >= 2:
                         a = int(255 * max(0.0, min(1.0, I)))
-                        paths.append(RayPath(pts, (base_rgb[0], base_rgb[1], base_rgb[2], a), pol))
+                        paths.append(RayPath(pts, (base_rgb[0], base_rgb[1], base_rgb[2], a), pol, wl))
                     continue
 
                 nearest = (None, None, None, None, None, None, None, None)  # t,X,kind,obj,t_hat,n_hat,C,L
@@ -118,12 +128,24 @@ def trace_rays(
                     if nearest[0] is None or t < nearest[0]:
                         nearest = (t, X, "waveplate", obj, t_hat, n_hat, C, L)
 
+                for obj, A, B in dichroics:
+                    if last_obj is obj:
+                        continue
+                    res = ray_hit_element(P, V, A, B)
+                    if res is None:
+                        continue
+                    t, X, t_hat, n_hat, C, L = res
+                    if t * vnorm > remaining:
+                        continue
+                    if nearest[0] is None or t < nearest[0]:
+                        nearest = (t, X, "dichroic", obj, t_hat, n_hat, C, L)
+
                 t, X, kind, obj, t_hat, n_hat, C, L = nearest
                 if X is None:
                     P2 = P + V * (remaining / max(1e-12, vnorm))
                     pts2 = pts + [P2.copy()]
                     a = int(255 * max(0.0, min(1.0, I)))
-                    paths.append(RayPath(pts2, (base_rgb[0], base_rgb[1], base_rgb[2], a), pol))
+                    paths.append(RayPath(pts2, (base_rgb[0], base_rgb[1], base_rgb[2], a), pol, wl))
                     continue
 
                 step = float(t) * vnorm
@@ -140,7 +162,7 @@ def trace_rays(
                     P2 = P + V2 * EPS_ADV
                     # Transform polarization upon reflection
                     pol2 = transform_polarization_mirror(pol, V, n_hat)
-                    stack.append((pts + [P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I, pol2))
+                    stack.append((pts + [P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I, pol2, wl))
                     continue
 
                 if kind == "lens":
@@ -155,7 +177,7 @@ def trace_rays(
                     P2 = P + V2 * EPS_ADV
                     # Transform polarization through lens (preserved for ideal lens)
                     pol2 = transform_polarization_lens(pol)
-                    stack.append((pts + [P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I, pol2))
+                    stack.append((pts + [P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I, pol2, wl))
                     continue
 
                 if kind == "bs":
@@ -186,13 +208,13 @@ def trace_rays(
                     Pt = P + Vt * EPS_ADV
                     It = I * T
                     if It >= MIN_I:
-                        stack.append((pts + [Pt.copy()], Pt.copy(), Vt, remaining - EPS_ADV, obj, events + 1, It, pol_t))
+                        stack.append((pts + [Pt.copy()], Pt.copy(), Vt, remaining - EPS_ADV, obj, events + 1, It, pol_t, wl))
 
                     Vr = normalize(reflect_vec(V, n_hat))
                     Pr = P + Vr * EPS_ADV
                     Ir = I * R
                     if Ir >= MIN_I:
-                        stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, obj, events + 1, Ir, pol_r))
+                        stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, obj, events + 1, Ir, pol_r, wl))
                     continue
 
                 if kind == "waveplate":
@@ -206,7 +228,38 @@ def trace_rays(
                     # Ray continues straight through (no refraction or reflection)
                     V2 = normalize(V)
                     P2 = P + V2 * EPS_ADV
-                    stack.append((pts + [P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I, pol2))
+                    stack.append((pts + [P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I, pol2, wl))
+                    continue
+                
+                if kind == "dichroic":
+                    # Get dichroic properties
+                    cutoff_wl = getattr(obj, 'cutoff_wavelength_nm', 550.0)
+                    transition_width = getattr(obj, 'transition_width_nm', 50.0)
+                    
+                    # Compute wavelength-dependent reflectance and transmittance
+                    # If wavelength not specified (wl == 0), assume 50/50 split
+                    if wl > 0:
+                        R, T = compute_dichroic_reflectance(wl, cutoff_wl, transition_width)
+                    else:
+                        # No wavelength specified, treat as 50/50 beamsplitter
+                        R, T = 0.5, 0.5
+                    
+                    # Transmitted ray (straight through)
+                    Vt = normalize(V)
+                    Pt = P + Vt * EPS_ADV
+                    It = I * T
+                    if It >= MIN_I:
+                        # Polarization preserved for ideal dichroic (no birefringence)
+                        stack.append((pts + [Pt.copy()], Pt.copy(), Vt, remaining - EPS_ADV, obj, events + 1, It, pol, wl))
+                    
+                    # Reflected ray
+                    Vr = normalize(reflect_vec(V, n_hat))
+                    Pr = P + Vr * EPS_ADV
+                    Ir = I * R
+                    if Ir >= MIN_I:
+                        # Transform polarization upon reflection (like a mirror)
+                        pol_r = transform_polarization_mirror(pol, V, n_hat)
+                        stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, obj, events + 1, Ir, pol_r, wl))
                     continue
 
     return paths

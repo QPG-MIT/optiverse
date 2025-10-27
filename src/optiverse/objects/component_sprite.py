@@ -11,10 +11,11 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
     Image underlay for an optical element.
     
     NORMALIZED 1000px SYSTEM:
-    - Images are normalized to 1000px height
+    - Images are normalized to 1000px height coordinate space
     - line_px coordinates are in normalized 1000px space
-    - object_height_mm represents the physical size of the optical element (picked line)
-    - mm_per_pixel is computed as: object_height_mm / picked_line_length
+    - object_height_mm represents the physical size of the FULL IMAGE HEIGHT
+    - mm_per_pixel is computed as: object_height_mm / actual_image_height
+    - The picked line defines the OPTICAL AXIS only (position and orientation)
     - Picked line's midpoint is aligned to the parent's local origin using setOffset
     - Pre-rotated so picked line lies on +X in local coords
     """
@@ -58,11 +59,11 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
         dy = y2_actual - y1_actual
         
         # Compute mm_per_pixel from object_height_mm
-        # Scale image so that the picked line is exactly object_height_mm long
-        picked_line_length = math.hypot(dx, dy)
-        mm_per_pixel = object_height_mm / picked_line_length if picked_line_length > 0 else 1.0
+        # Scale image so that the FULL IMAGE HEIGHT is exactly object_height_mm
+        # The picked line is ONLY used for optical axis (position and angle), NOT for scaling
+        mm_per_pixel = object_height_mm / actual_height
 
-        # Calculate angle of picked line
+        # Calculate angle of picked line (defines optical axis orientation)
         angle_img_deg = math.degrees(math.atan2(dy, dx))
 
         # Center point of picked line (in actual image coordinates)

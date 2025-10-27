@@ -293,6 +293,49 @@ def transform_polarization_beamsplitter(
     return Polarization(jones_out), intensity
 
 
+def compute_dichroic_reflectance(
+    wavelength_nm: float,
+    cutoff_wavelength_nm: float,
+    transition_width_nm: float
+) -> Tuple[float, float]:
+    """
+    Compute reflection and transmission coefficients for a dichroic mirror.
+    
+    Dichroic mirrors selectively reflect short wavelengths and transmit long wavelengths.
+    The transition is modeled with a smooth sigmoid function.
+    
+    Physical model:
+    - R(λ) = 1 / (1 + exp((λ - λ_cutoff) / Δλ))
+    - T(λ) = 1 - R(λ)
+    
+    Args:
+        wavelength_nm: Incident light wavelength in nanometers
+        cutoff_wavelength_nm: Cutoff wavelength (50% point)
+        transition_width_nm: Characteristic width of transition region
+        
+    Returns:
+        Tuple of (reflectance, transmittance) both in range [0, 1]
+        
+    Notes:
+        - Short wavelengths (< cutoff): high reflectance
+        - Long wavelengths (> cutoff): high transmittance
+        - Smooth transition preserves energy (R + T ≈ 1)
+    """
+    # Normalized deviation from cutoff
+    delta = (wavelength_nm - cutoff_wavelength_nm) / max(1.0, transition_width_nm)
+    
+    # Sigmoid function for smooth transition
+    # R decreases from 1 to 0 as wavelength increases
+    reflectance = 1.0 / (1.0 + np.exp(delta))
+    transmittance = 1.0 - reflectance
+    
+    # Clamp to physical range
+    reflectance = float(np.clip(reflectance, 0.0, 1.0))
+    transmittance = float(np.clip(transmittance, 0.0, 1.0))
+    
+    return reflectance, transmittance
+
+
 def ray_hit_element(
     P: np.ndarray,
     V: np.ndarray,

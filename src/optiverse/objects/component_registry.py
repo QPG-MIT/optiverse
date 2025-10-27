@@ -36,7 +36,7 @@ class ComponentRegistry:
             "efl_mm": 100.0,
             "object_height_mm": 30.5,  # Physical height of optical element (1 inch = 25.4 mm diameter + mount)
             "image_path": _get_image_path("lens_1_inch_mounted.png"),
-            "line_px": (320, 83, 320, 916),  # Vertical line in normalized 1000px space
+            "line_px": (320, 83, 320, 916),  # Vertical line defining optical axis in normalized 1000px space
             "angle_deg": 90,  # Vertical orientation by default
         }
     
@@ -54,7 +54,7 @@ class ComponentRegistry:
             "efl_mm": 100.0,
             "object_height_mm": 55.9,  # Physical height of optical element (2 inch mounted)
             "image_path": _get_image_path("lens_1_inch_mounted.png"),
-            "line_px": (320, 83, 320, 916),  # Vertical line in normalized 1000px space
+            "line_px": (320, 83, 320, 916),  # Vertical line defining optical axis in normalized 1000px space
             "angle_deg": 90,  # Vertical orientation by default
         }
     
@@ -71,7 +71,7 @@ class ComponentRegistry:
             "kind": "mirror",
             "object_height_mm": 49.4,  # Physical height of optical element (1 inch with mount)
             "image_path": _get_image_path("standard_mirror_1_inch.png"),
-            "line_px": (5, 220, 5, 780),  # Vertical line in normalized 1000px space
+            "line_px": (5, 220, 5, 780),  # Vertical line defining optical axis in normalized 1000px space
             "angle_deg": 0.0,  # Horizontal orientation by default
         }
     
@@ -91,7 +91,7 @@ class ComponentRegistry:
             "split_TR": [50.0, 50.0],  # Alternative format for compatibility
             "object_height_mm": 25.4,  # Physical height of optical element (1 inch = 25.4 mm)
             "image_path": _get_image_path("beamsplitter_50_50_1_inch.png"),
-            "line_px": (0, 0, 1000, 1000),  # Diagonal line in normalized 1000px space
+            "line_px": (0, 0, 1000, 1000),  # Diagonal line defining optical axis in normalized 1000px space
             "angle_deg": 45,  # 45° orientation for proper beam splitting
         }
     
@@ -111,7 +111,7 @@ class ComponentRegistry:
             "split_TR": [0.0, 0.0],  # Not used for PBS
             "object_height_mm": 50.8,  # Physical height of optical element (2 inch = 50.8 mm)
             "image_path": _get_image_path("pbs_2_inch.png"),
-            "line_px": (0, 0, 1000, 1000),  # Diagonal line in normalized 1000px space
+            "line_px": (0, 0, 1000, 1000),  # Diagonal line defining optical axis in normalized 1000px space
             "angle_deg": 45,  # 45° orientation for proper beam splitting
             "is_polarizing": True,  # This is a PBS
             "pbs_transmission_axis_deg": 0.0,  # Horizontal transmission axis in lab frame (ABSOLUTE angle)
@@ -131,8 +131,27 @@ class ComponentRegistry:
             "efl_mm": 4.5,  # Typical short focal length for microscope objective
             "object_height_mm": 40.0,  # Physical height of optical element
             "image_path": _get_image_path("objective.png"),
-            "line_px": (500, 100, 500, 900),  # Vertical line in normalized 1000px space
+            "line_px": (500, 100, 500, 900),  # Vertical line defining optical axis in normalized 1000px space
             "angle_deg": 90,  # Vertical orientation by default
+        }
+    
+    @staticmethod
+    def get_standard_dichroic_550nm() -> Dict[str, Any]:
+        """
+        Get standard dichroic mirror (550nm cutoff) definition.
+        
+        Returns:
+            Dictionary with dichroic parameters including image and calibration
+        """
+        return {
+            "name": "Dichroic Mirror (550nm cutoff)",
+            "kind": "dichroic",
+            "cutoff_wavelength_nm": 550.0,
+            "transition_width_nm": 50.0,
+            "object_height_mm": 25.4,  # Physical height of optical element (1 inch)
+            "image_path": _get_image_path("beamsplitter_50_50_1_inch.png"),
+            "line_px": (0, 0, 1000, 1000),  # Diagonal line in normalized 1000px space
+            "angle_deg": 45,  # 45° orientation for proper beam combining/splitting
         }
     
     @staticmethod
@@ -151,6 +170,7 @@ class ComponentRegistry:
             "size_mm": 10.0,
             "ray_length_mm": 500.0,
             "color_hex": "#FF0000",  # Red
+            "wavelength_nm": 0.0,  # 0 = use color_hex
             "x_mm": 0.0,
             "y_mm": 0.0,
             "angle_deg": 0.0,
@@ -176,7 +196,7 @@ class ComponentRegistry:
             "fast_axis_deg": 0.0,  # Horizontal fast axis by default
              "object_height_mm": 30.5,  # Same as 1" lens
             "image_path": _get_image_path("lens_1_inch_mounted.png"),
-            "line_px": (320, 83, 320, 916),  # Vertical line in normalized 1000px space
+            "line_px": (320, 83, 320, 916),  # Vertical line defining optical axis in normalized 1000px space
             "angle_deg": 90,  # Vertical orientation by default
         }
     
@@ -198,7 +218,7 @@ class ComponentRegistry:
             "fast_axis_deg": 0.0,  # Horizontal fast axis by default
              "object_height_mm": 30.5,  # Same as 1" lens
             "image_path": _get_image_path("lens_1_inch_mounted.png"),
-            "line_px": (320, 83, 320, 916),  # Vertical line in normalized 1000px space
+            "line_px": (320, 83, 320, 916),  # Vertical line defining optical axis in normalized 1000px space
             "angle_deg": 90,  # Vertical orientation by default
         }
     
@@ -216,6 +236,7 @@ class ComponentRegistry:
             ComponentRegistry.get_standard_mirror(),
             ComponentRegistry.get_standard_beamsplitter(),
             ComponentRegistry.get_standard_pbs(),
+            ComponentRegistry.get_standard_dichroic_550nm(),
             ComponentRegistry.get_standard_objective(),
             ComponentRegistry.get_quarter_waveplate(),
             ComponentRegistry.get_half_waveplate(),
@@ -240,6 +261,9 @@ class ComponentRegistry:
             "Beamsplitters": [
                 ComponentRegistry.get_standard_beamsplitter(),
                 ComponentRegistry.get_standard_pbs(),
+            ],
+            "Dichroics": [
+                ComponentRegistry.get_standard_dichroic_550nm(),
             ],
             "Waveplates": [
                 ComponentRegistry.get_quarter_waveplate(),
@@ -280,11 +304,11 @@ class ComponentRegistry:
         Get the category name for a component kind.
         
         Args:
-            kind: Component kind ('lens', 'mirror', 'beamsplitter', 'waveplate', 'source')
+            kind: Component kind ('lens', 'mirror', 'beamsplitter', 'dichroic', 'waveplate', 'source')
             name: Optional component name to distinguish special cases (e.g., objectives)
         
         Returns:
-            Category name (e.g., 'Lenses', 'Mirrors')
+            Category name (e.g., 'Lenses', 'Mirrors', 'Dichroics')
         """
         # Special case: Objectives are lenses but in their own category
         if kind == "lens" and "objective" in name.lower():
@@ -294,6 +318,7 @@ class ComponentRegistry:
             "lens": "Lenses",
             "mirror": "Mirrors",
             "beamsplitter": "Beamsplitters",
+            "dichroic": "Dichroics",
             "waveplate": "Waveplates",
             "source": "Sources",
         }
