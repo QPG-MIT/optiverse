@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -24,6 +25,12 @@ from ...widgets.mirror_item import MirrorItem
 from ...widgets.ruler_item import RulerItem
 from ...widgets.source_item import SourceItem
 from ...widgets.text_note_item import TextNoteItem
+
+
+def _get_icon_path(icon_name: str) -> str:
+    """Get the full path to an icon file."""
+    icons_dir = Path(__file__).parent.parent / "icons"
+    return str(icons_dir / icon_name)
 
 
 def to_np(p: QtCore.QPointF) -> np.ndarray:
@@ -225,59 +232,42 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_reload.triggered.connect(self.populate_library)
     
     def _build_toolbar(self):
-        """Build component toolbar with icons.
-        
-        To use custom PNG icons:
-        1. Place your PNG files in a folder (e.g., 'icons/')
-        2. Replace the icon creation lines below with:
-           icon = QtGui.QIcon("icons/your_icon.png")
-        3. Recommended icon size: 32x32 or 64x64 pixels
-        """
+        """Build component toolbar with custom PNG icons."""
         toolbar = QtWidgets.QToolBar("Components")
         toolbar.setObjectName("component_toolbar")
         toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         toolbar.setIconSize(QtCore.QSize(32, 32))
         self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, toolbar)
         
-        # Use Qt standard icons as placeholders
-        # Replace these with custom PNG icons if desired
-        style = self.style()
-        
         # Source button
-        source_icon = QtGui.QIcon.fromTheme("weather-clear", 
-                                           style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DialogYesButton))
+        source_icon = QtGui.QIcon(_get_icon_path("source.png"))
         self.act_add_source.setIcon(source_icon)
         toolbar.addAction(self.act_add_source)
         
         # Lens button
-        lens_icon = QtGui.QIcon.fromTheme("lens", 
-                                         style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileDialogContentsView))
+        lens_icon = QtGui.QIcon(_get_icon_path("lens.png"))
         self.act_add_lens.setIcon(lens_icon)
         toolbar.addAction(self.act_add_lens)
         
         # Mirror button
-        mirror_icon = QtGui.QIcon.fromTheme("object-flip-horizontal", 
-                                           style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DialogApplyButton))
+        mirror_icon = QtGui.QIcon(_get_icon_path("mirror.png"))
         self.act_add_mirror.setIcon(mirror_icon)
         toolbar.addAction(self.act_add_mirror)
         
         # Beamsplitter button
-        bs_icon = QtGui.QIcon.fromTheme("split", 
-                                       style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileDialogDetailedView))
+        bs_icon = QtGui.QIcon(_get_icon_path("beamsplitter.png"))
         self.act_add_bs.setIcon(bs_icon)
         toolbar.addAction(self.act_add_bs)
         
         toolbar.addSeparator()
         
         # Ruler button
-        ruler_icon = QtGui.QIcon.fromTheme("tool-measure", 
-                                          style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileDialogListView))
+        ruler_icon = QtGui.QIcon(_get_icon_path("ruler.png"))
         self.act_add_ruler.setIcon(ruler_icon)
         toolbar.addAction(self.act_add_ruler)
         
         # Text button
-        text_icon = QtGui.QIcon.fromTheme("draw-text", 
-                                         style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileDialogInfoView))
+        text_icon = QtGui.QIcon(_get_icon_path("text.png"))
         self.act_add_text.setIcon(text_icon)
         toolbar.addAction(self.act_add_text)
     

@@ -4,6 +4,13 @@ from typing import Optional, Tuple
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
+# Optional QtSvg for SVG clipboard/loads
+try:
+    from PyQt6 import QtSvg
+    HAVE_QTSVG = True
+except Exception:
+    HAVE_QTSVG = False
+
 
 class ImageCanvas(QtWidgets.QLabel):
     clickedPoint = QtCore.pyqtSignal(float, float)
@@ -83,6 +90,7 @@ class ImageCanvas(QtWidgets.QLabel):
 
     def dropEvent(self, e: QtGui.QDropEvent):
         md = e.mimeData()
+        # Direct bitmap drop
         if md.hasImage():
             img = md.imageData()
             if isinstance(img, QtGui.QImage):
@@ -95,17 +103,26 @@ class ImageCanvas(QtWidgets.QLabel):
                 self.imageDropped.emit(pix, "")
                 e.acceptProposedAction()
                 return
+
+        # File URL(s)
         if md.hasUrls():
             for url in md.urls():
                 if url.isLocalFile():
                     path = url.toLocalFile()
                     low = path.lower()
-                    if low.endswith((".png", ".jpg", ".jpeg", ".tif", ".tiff")):
-                        pix = QtGui.QPixmap(path)
-                        if not pix.isNull():
-                            self.imageDropped.emit(pix, path)
-                            e.acceptProposedAction()
-                            return
+                    if low.endswith((".png", ".jpg", ".jpeg", ".tif", ".tiff", ".svg")):
+                        if low.endswith(".svg") and HAVE_QTSVG:
+                            pix = self._render_svg_to_pixmap(path)
+                            if pix:
+                                self.imageDropped.emit(pix, path)
+                                e.acceptProposedAction()
+                                return
+                        else:
+                            pix = QtGui.QPixmap(path)
+                            if not pix.isNull():
+                                self.imageDropped.emit(pix, path)
+                                e.acceptProposedAction()
+                                return
         e.ignore()
 
     def _target_rect(self) -> QtCore.QRect:
@@ -155,5 +172,29 @@ class ImageCanvas(QtWidgets.QLabel):
                         tgt.y() + self._pt2[1] * self._scale_fit,
                     )
                 )
+
+    @staticmethod
+    def _render_svg_to_pixmap(path_or_bytes) -> Optional[QtGui.QPixmap]:
+        """Render SVG file or bytes to QPixmap."""
+        if not HAVE_QTSVG:
+            return None
+        try:
+            if isinstance(path_or_bytes, (bytes, bytearray)):
+                renderer = QtSvg.QSvgRenderer(path_or_bytes)
+            else:
+                renderer = QtSvg.QSvgRenderer(str(path_or_bytes))
+            if not renderer.isValid():
+                return None
+            size = renderer.defaultSize()
+            if not size.isValid() or size.isEmpty():
+                size = QtCore.QSize(1200, 800)
+            img = QtGui.QImage(size, QtGui.QImage.Format.Format_ARGB32_Premultiplied)
+            img.fill(0)
+            painter = QtGui.QPainter(img)
+            renderer.render(painter)
+            painter.end()
+            return QtGui.QPixmap.fromImage(img)
+        except Exception:
+            return None
 
 
