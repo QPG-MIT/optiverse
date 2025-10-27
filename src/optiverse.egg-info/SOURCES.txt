@@ -1,9 +1,0 @@
-README.md
-pyproject.toml
-src/optiverse/__init__.py
-src/optiverse.egg-info/PKG-INFO
-src/optiverse.egg-info/SOURCES.txt
-src/optiverse.egg-info/dependency_links.txt
-src/optiverse.egg-info/entry_points.txt
-src/optiverse.egg-info/requires.txt
-src/optiverse.egg-info/top_level.txt
