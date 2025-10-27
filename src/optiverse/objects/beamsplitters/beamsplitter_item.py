@@ -62,8 +62,8 @@ class BeamsplitterItem(BaseObj):
                 self,
             )
             
-            # Update element geometry to match the object height
-            self._actual_length_mm = self.params.object_height_mm
+            # Update element geometry to match the picked line length (not full image height)
+            self._actual_length_mm = self._sprite.picked_line_length_mm
             self._update_geom()
         
         self.setZValue(0)

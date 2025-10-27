@@ -29,6 +29,9 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
     ):
         super().__init__(parent_item)
         
+        # Store the actual picked line length in mm (for parent to use)
+        self.picked_line_length_mm = 0.0
+        
         if not (image_path and os.path.exists(image_path)):
             self.setVisible(False)
             return
@@ -62,6 +65,10 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
         # Scale image so that the FULL IMAGE HEIGHT is exactly object_height_mm
         # The picked line is ONLY used for optical axis (position and angle), NOT for scaling
         mm_per_pixel = object_height_mm / actual_height
+
+        # Calculate the actual length of the picked line in mm
+        picked_line_length_px = math.hypot(dx, dy)
+        self.picked_line_length_mm = picked_line_length_px * mm_per_pixel
 
         # Calculate angle of picked line (defines optical axis orientation)
         angle_img_deg = math.degrees(math.atan2(dy, dx))

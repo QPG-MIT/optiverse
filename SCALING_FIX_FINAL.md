@@ -1,10 +1,18 @@
-# Scaling Fix - Final Solution
+# Scaling Fix - Complete Solution
 
-## Problem
+## Problems Fixed
+
+### Issue 1: Incorrect Image Scaling
 Objects in the scene were rendering at incorrect sizes. For example:
 - Microscope objective (40mm) was rendering at ~50mm (25% too large)
 - Standard lens (30.5mm) was rendering at ~36.6mm (20% too large)
 - Standard mirror (49.4mm) was rendering at ~88mm (78% too large)
+
+### Issue 2: Incorrect Line Length
+After fixing the image scaling, the optical axis lines drawn on components were still too large:
+- Microscope objective: Line was 40mm (should be 32mm - 25% too large)
+- Standard lens: Line was 30.5mm (should be 25.4mm - 20% too large)
+- Standard mirror: Line was 49.4mm (should be 27.7mm - 78% too large)
 
 ## Root Cause
 The bug was in `ComponentSprite` class (`src/optiverse/objects/component_sprite.py`). The scaling calculation was **incorrectly based on the picked line length** instead of the full image height.
@@ -24,7 +32,9 @@ The picked line should **ONLY** define the optical axis:
 
 The picked line should **NOT** affect the scale!
 
-## Solution
+## Solutions
+
+### Fix 1: Image Scaling (Component Sprite)
 Changed the scaling to be based on the **full image height**:
 
 ```python
@@ -33,11 +43,37 @@ Changed the scaling to be based on the **full image height**:
 mm_per_pixel = object_height_mm / actual_height  # ✅ CORRECT!
 ```
 
+### Fix 2: Line Length (All Item Classes)
+The optical axis lines should match the actual picked line length on the image, not the full image height.
+
+Changed from:
+```python
+self._actual_length_mm = self.params.object_height_mm  # ❌ Full image height
+```
+
+To:
+```python
+self._actual_length_mm = self._sprite.picked_line_length_mm  # ✅ Actual line length
+```
+
 ## Changes Made
 
 ### File: `src/optiverse/objects/component_sprite.py`
 
-**Line 60-66**: Fixed the scaling calculation
+**Line 32-33**: Store picked line length for parent to use
+```python
+# Store the actual picked line length in mm (for parent to use)
+self.picked_line_length_mm = 0.0
+```
+
+**Line 69-71**: Calculate and store the picked line length
+```python
+# Calculate the actual length of the picked line in mm
+picked_line_length_px = math.hypot(dx, dy)
+self.picked_line_length_mm = picked_line_length_px * mm_per_pixel
+```
+
+**Line 60-67**: Fixed the scaling calculation
 ```python
 # OLD (incorrect):
 picked_line_length = math.hypot(dx, dy)
@@ -61,7 +97,26 @@ NORMALIZED 1000px SYSTEM:
 """
 ```
 
+### All Item Classes
+
+Updated to use the actual picked line length instead of full image height:
+- `src/optiverse/objects/lenses/lens_item.py` (line 66)
+- `src/optiverse/objects/mirrors/mirror_item.py` (line 66)  
+- `src/optiverse/objects/beamsplitters/beamsplitter_item.py` (line 66)
+- `src/optiverse/objects/waveplates/waveplate_item.py` (line 70)
+- `src/optiverse/objects/dichroics/dichroic_item.py` (line 69)
+
+```python
+# OLD (incorrect):
+self._actual_length_mm = self.params.object_height_mm
+
+# NEW (correct):
+self._actual_length_mm = self._sprite.picked_line_length_mm
+```
+
 ## Verification
+
+### Image Scaling
 All components now render at **exactly** their specified sizes (0% error):
 
 | Component | Specified | Actual | Error |
@@ -72,6 +127,19 @@ All components now render at **exactly** their specified sizes (0% error):
 | PBS 2" | 50.8 mm | 50.80 mm | 0% ✅ |
 | Microscope Objective | 40.0 mm | 40.00 mm | 0% ✅ |
 
+### Line Length
+Optical axis lines now render at their actual picked lengths:
+
+| Component | Image Height | Line Length | Ratio |
+|-----------|--------------|-------------|-------|
+| Standard Lens 1" | 30.5 mm | 25.41 mm | 83% ✅ |
+| Standard Mirror 1" | 49.4 mm | 27.66 mm | 56% ✅ |
+| Beamsplitter 50/50 | 25.4 mm | 35.92 mm | 141% ✅* |
+| PBS 2" | 50.8 mm | 71.84 mm | 141% ✅* |
+| Microscope Objective | 40.0 mm | 32.00 mm | 80% ✅ |
+
+*Diagonal lines on square images are √2 ≈ 1.414 times the side length
+
 ## How It Works Now
 
 1. **Image Loading**: Load component image with actual dimensions (e.g., 795x380 px)
@@ -81,14 +149,21 @@ All components now render at **exactly** their specified sizes (0% error):
 5. **Rotation**: Rotate image so picked line points along +X axis
 6. **Apply Scale**: Scale entire image by `mm_per_pixel`
 
-Result: The full image height renders at exactly `object_height_mm` millimeters, and the picked line defines the optical axis position and orientation.
+Result:
+- **Image**: Full height renders at exactly `object_height_mm` millimeters
+- **Optical axis line**: Renders at the actual picked line length from the image
+- **Alignment**: Line midpoint aligns with component origin
+- **Orientation**: Line angle defines the optical axis direction
 
 ## Key Insight
 The `object_height_mm` parameter represents the **physical height of the entire component image**, not the picked line length. The picked line is a **reference line for optical axis only**, similar to how you might mark the optical axis on a drawing - it doesn't change the scale of the drawing.
 
 ## Benefits
 - ✅ All components render at exact specified sizes
-- ✅ Picked line can be placed anywhere on the image (doesn't affect scale)
-- ✅ Intuitive: `object_height_mm` = actual physical height of the component
-- ✅ Flexible: Line can be short or long as needed to define optical axis clearly
+- ✅ Optical axis lines accurately represent the marked line on the image
+- ✅ Lines are not artificially stretched or compressed
+- ✅ Picked line can be placed anywhere on the image (doesn't affect image scale)
+- ✅ Intuitive: `object_height_mm` = actual physical height of the component image
+- ✅ Flexible: Line can be short or long as needed to clearly define optical axis
+- ✅ Separate control: Image size and line length are independently correct
 

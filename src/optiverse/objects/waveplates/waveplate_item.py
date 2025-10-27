@@ -57,44 +57,18 @@ class WaveplateItem(BaseObj):
             self._sprite = None
         
         if self.params.image_path and self.params.line_px:
-            import math
-            import os
-            from PyQt6.QtGui import QPixmap
+            # ComponentSprite handles all denormalization internally
+            # We just pass the normalized coordinates and let it handle the rest
+            self._sprite = ComponentSprite(
+                self.params.image_path,
+                self.params.line_px,
+                self.params.object_height_mm,
+                self,
+            )
             
-            # Load image to get actual dimensions
-            if os.path.exists(self.params.image_path):
-                pix = QPixmap(self.params.image_path)
-                actual_height = pix.height()
-                
-                # line_px is in normalized 1000px space - denormalize to actual image space
-                scale = float(actual_height) / 1000.0 if actual_height > 0 else 1.0
-                x1, y1, x2, y2 = self.params.line_px
-                x1_actual = x1 * scale
-                y1_actual = y1 * scale
-                x2_actual = x2 * scale
-                y2_actual = y2 * scale
-                
-                # Compute picked line length in actual image pixels
-                picked_len_px = max(1.0, math.hypot(x2_actual - x1_actual, y2_actual - y1_actual))
-                
-                # Compute mm_per_pixel from object_height_mm
-                # Scale image so that the picked line is exactly object_height_mm long
-                mm_per_pixel = self.params.object_height_mm / picked_len_px if self.params.object_height_mm > 0 else 0.1
-                
-                # The picked line length in mm is equal to object_height_mm
-                picked_len_mm = self.params.object_height_mm
-                
-                # Update element geometry to match picked line length
-                # This makes the blue line match the actual optical element size
-                self._actual_length_mm = picked_len_mm
-                self._update_geom()
-                
-                self._sprite = ComponentSprite(
-                    self.params.image_path,
-                    self.params.line_px,
-                    self.params.object_height_mm,
-                    self,
-                )
+            # Update element geometry to match the picked line length (not full image height)
+            self._actual_length_mm = self._sprite.picked_line_length_mm
+            self._update_geom()
         
         self.setZValue(0)
     
