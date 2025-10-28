@@ -7,13 +7,14 @@ name = "optiverse"
 version = "0.2.0"
 description = "Optiverse: 2D ray-optics sandbox and component editor (PyQt6, modular)"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"  # 3.9-3.11 recommended for Numba JIT speedup
 license = { text = "MIT" }
 authors = [{ name = "Your Name" }]
 dependencies = [
   "PyQt6>=6.5",
   "PyQt6-WebEngine>=6.5",
   "numpy>=1.24",
+  "numba>=0.58",  # JIT compilation for 4-8x raytracing speedup (Python 3.9-3.11)
   "websockets>=12.0",
 ]
 

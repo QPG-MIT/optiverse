@@ -2,25 +2,68 @@
 
 Modern, modular rewrite of the 2D ray‑optics sandbox and component editor.
 
+## Installation
+
+```bash
+# Create and activate virtual environment
+python -m venv .venv
+
+# Windows:
+.venv\Scripts\activate
+# Mac/Linux:
+source .venv/bin/activate
+
+# Install in editable mode with all dependencies
+pip install -e .
+
+# Or with development tools (testing, linting, type checking):
+pip install -e .[dev]
+```
+
+### ⚠️ Python Version Recommendations
+
+**For maximum raytracing speed (4-8x speedup):**
+- ✅ **Python 3.9, 3.10, or 3.11** (Numba fully supported)
+- `numba` provides JIT compilation for fast raytracing
+
+**If using Python 3.12+:**
+- ⚠️ Everything works, but raytracing is slower (Numba not yet supported)
+- Parallel processing is auto-disabled to prevent performance degradation
+- Consider Python 3.11 if performance is critical
+
 ## Quickstart
 
-- Create venv and install dev deps:
-  - `python -m venv .venv && .venv\\Scripts\\activate` (Windows)
-  - `python -m venv .venv && source .venv/bin/activate` (Mac/Linux)
-  - `pip install -e .[dev]`
-- Run tests (first time will be mostly empty):
+- Launch app:
+  - `python -m optiverse.app.main` or `optiverse`
+- Run tests:
   - `pytest -q`
 - Lint, typecheck:
   - `ruff check .`
   - `mypy src/`
-- Launch app:
-  - `python -m optiverse.app.main` or `optiverse`
+
+## Performance
+
+### Raytracing Speedup (Numba JIT + Threading)
+
+Optiverse uses a hybrid Numba JIT + Threading approach for fast raytracing:
+
+- **With Numba (Python 3.9-3.11)**: **4-8x speedup** on multi-core CPUs
+- **Without Numba (Python 3.12+)**: Normal speed (pure Python)
+- Automatically enabled when Numba is available
+- Works on all platforms: Windows, Mac, Linux
+
+**To enable speedup:**
+```bash
+pip install numba  # Requires Python 3.9-3.11
+```
+
+See [PARALLEL_RAYTRACING.md](PARALLEL_RAYTRACING.md) for technical details and benchmarks.
 
 ## Platform-Specific Features
 
 ### macOS Optimizations
 
-Optiverse includes native Mac trackpad gesture support and performance optimizations:
+Optiverse includes native Mac trackpad gesture support and rendering optimizations:
 
 **Trackpad Gestures:**
 - 🖱️ **Two-finger scroll** → Pan canvas (like in Safari, Finder)

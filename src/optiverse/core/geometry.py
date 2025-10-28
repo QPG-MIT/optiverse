@@ -5,21 +5,44 @@ from typing import Optional, Tuple, TYPE_CHECKING
 
 import numpy as np
 
+# Try to import numba, but make it optional
+try:
+    from numba import jit
+    NUMBA_AVAILABLE = True
+except ImportError:
+    # Fallback: no-op decorator if numba isn't available
+    def jit(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+    NUMBA_AVAILABLE = False
+    print("Warning: numba not available. Raytracing will be slower. Install with: pip install numba")
+
 if TYPE_CHECKING:
     from .models import Polarization
 
 
+@jit(nopython=True, cache=True)
 def deg2rad(a: float) -> float:
+    """Convert degrees to radians. JIT-compiled for performance when numba is available."""
     return a * math.pi / 180.0
 
 
+@jit(nopython=True, cache=True)
 def normalize(v: np.ndarray) -> np.ndarray:
-    n = float(np.linalg.norm(v))
-    return v if n == 0.0 else (v / n)
+    """Normalize a vector. JIT-compiled for performance when numba is available."""
+    n = math.sqrt(v[0]**2 + v[1]**2)
+    if n == 0.0:
+        return v.copy()
+    else:
+        return v / n
 
 
+@jit(nopython=True, cache=True)
 def reflect_vec(v: np.ndarray, n_hat: np.ndarray) -> np.ndarray:
-    return v - 2.0 * float(np.dot(v, n_hat)) * n_hat
+    """Reflect vector v across normal n_hat. JIT-compiled for performance when numba is available."""
+    dot_product = v[0] * n_hat[0] + v[1] * n_hat[1]
+    return v - 2.0 * dot_product * n_hat
 
 
 def jones_matrix_rotation(angle_deg: float) -> np.ndarray:
@@ -346,6 +369,7 @@ def compute_dichroic_reflectance(
     return reflectance, transmittance
 
 
+@jit(nopython=True, cache=True)
 def ray_hit_element(
     P: np.ndarray,
     V: np.ndarray,
@@ -353,26 +377,42 @@ def ray_hit_element(
     B: np.ndarray,
     tol: float = 1e-9,
 ):
-    """Intersect ray (P + t V, t>0) with finite segment AB.
+    """
+    Intersect ray (P + t V, t>0) with finite segment AB.
+    JIT-compiled for maximum performance.
 
     Returns (t, X, t_hat, n_hat, C, L) or None if no hit.
     """
-    t_hat = normalize(B - A)
-    L = float(np.linalg.norm(B - A))
+    # Compute segment direction and length
+    diff = B - A
+    L = math.sqrt(diff[0]**2 + diff[1]**2)
     if L < tol:
         return None
+    
+    t_hat = diff / L
     n_hat = np.array([-t_hat[1], t_hat[0]])
     C = 0.5 * (A + B)
-    denom = float(np.dot(V, n_hat))
+    
+    # Check if ray is parallel to segment
+    denom = V[0] * n_hat[0] + V[1] * n_hat[1]
     if abs(denom) < tol:
         return None
-    t = float(np.dot(C - P, n_hat)) / denom
+    
+    # Compute intersection parameter
+    diff_CP = C - P
+    t = (diff_CP[0] * n_hat[0] + diff_CP[1] * n_hat[1]) / denom
     if t <= tol:
         return None
+    
+    # Compute intersection point
     X = P + t * V
-    s = float(np.dot(X - C, t_hat))
+    
+    # Check if intersection is within segment bounds
+    diff_XC = X - C
+    s = diff_XC[0] * t_hat[0] + diff_XC[1] * t_hat[1]
     if abs(s) > 0.5 * L + 1e-7:
         return None
-    return t, X, t_hat, n_hat, C, L
+    
+    return (t, X, t_hat, n_hat, C, L)
 
 

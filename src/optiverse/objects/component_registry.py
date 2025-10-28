@@ -237,7 +237,7 @@ class ComponentRegistry:
             "kind": "slm",
             "object_height_mm": 100.0,  # Typical large SLM size
             "image_path": _get_image_path("slm.png"),
-            "line_px": (50, 325, 950, 325),  # Horizontal line defining optical axis in normalized 1000px space
+            "line_px": (220, 515, 780, 515),  # Horizontal line defining optical axis in normalized 1000px space
             "angle_deg": 0.0,  # Horizontal orientation by default
         }
     

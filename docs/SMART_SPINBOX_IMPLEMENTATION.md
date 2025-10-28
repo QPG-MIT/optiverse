@@ -14,11 +14,12 @@ Created `src/optiverse/ui/smart_spinbox.py` with two new spinbox classes:
 
 #### `SmartDoubleSpinBox`
 - Extends `QDoubleSpinBox` with intelligent increment behavior
-- Overrides `stepBy()` to detect cursor position and adjust step size accordingly
+- Increments the digit to the **left** of the cursor (the digit you just typed/are looking at)
 - Examples of behavior:
-  - Value: `123.456`, cursor at position 2 (`12|3.456`) → Up arrow → `133.456` (increments tens place)
-  - Value: `123.456`, cursor at position 5 (`123.4|56`) → Up arrow → `123.556` (increments hundredths place)
-  - Value: `123.456`, cursor at position 0 (`|123.456`) → Up arrow → `223.456` (increments hundreds place)
+  - Value: `123.456`, cursor at `12|3.456` → Up arrow → `133.456` (increments the '2' in tens place)
+  - Value: `123.456`, cursor at `123|.456` → Up arrow → `124.456` (increments the '3' in ones place)
+  - Value: `123.456`, cursor at `123.4|56` → Up arrow → `123.556` (increments the '4' in tenths place)
+  - Value: `123.456`, cursor at `123.45|6` → Up arrow → `123.466` (increments the '5' in hundredths place)
 
 #### `SmartSpinBox`
 - Similar functionality for integer values
@@ -78,13 +79,31 @@ This pattern ensures:
 
 ### Cursor-Aware Step Algorithm
 
-The `stepBy()` override in `SmartDoubleSpinBox`:
-1. Gets current cursor position in the line edit
-2. Strips prefix/suffix to get clean number text
-3. Finds decimal point position
-4. Calculates appropriate step size based on cursor position relative to decimal point
-5. Applies the step while respecting min/max bounds
-6. Preserves cursor position after update
+The implementation uses **two key mechanisms**:
+
+#### 1. Event Filter - Intercept Keyboard Events
+The `eventFilter()` method intercepts Up/Down arrow key presses from the line edit **before** Qt's default handling:
+- Installs an event filter on the line edit in `__init__()`
+- When Up/Down keys are pressed while editing, captures the current cursor position
+- Calls our custom `stepBy()` with the correct cursor position
+- Returns `True` to prevent Qt's default behavior from running
+- **This is critical**: Without this, Qt's default spinbox behavior would take over and ignore cursor position
+
+#### 2. Position-Aware Stepping
+The `stepBy()` override calculates step size based on cursor position:
+1. **Uses saved cursor position** (from eventFilter or position tracking)
+2. **Strips prefix/suffix correctly**: Accounts for " mm", " °" suffixes and spaces
+3. **Finds decimal point position** in the cleaned number text
+4. **Calculates appropriate step size**:
+   - Before decimal: `10^(distance_from_decimal)` (e.g., cursor at hundreds → step by 100)
+   - After decimal: `10^(-distance_from_decimal-1)` (e.g., cursor at hundredths → step by 0.01)
+5. **Applies the step** while respecting min/max bounds
+6. **Restores cursor position** accounting for any text reformatting
+
+#### Why Both Mechanisms?
+- **Event filter**: Catches keyboard Up/Down in the text field (most common use case)
+- **Position tracking**: Handles spinner button clicks and scroll wheel
+- Together they provide comprehensive cursor-aware behavior for all input methods
 
 ## Benefits
 
