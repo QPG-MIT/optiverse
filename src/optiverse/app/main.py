@@ -18,15 +18,6 @@ def get_dark_stylesheet() -> str:
         border: none;
     }
     
-    QMenuBar {
-        background-color: #1a1c21;
-        color: white;
-    }
-    
-    QMenuBar::item:selected {
-        background-color: #2d2f36;
-    }
-    
     QMenu {
         background-color: #1a1c21;
         color: white;
@@ -224,33 +215,9 @@ def get_dark_stylesheet() -> str:
 def get_light_stylesheet() -> str:
     """Get the light mode stylesheet."""
     return """
-    QMainWindow, QWidget {
-        background-color: white;
-        color: black;
-    }
-    
     QGraphicsView {
         background-color: white;
         border: none;
-    }
-    
-    QMenuBar {
-        background-color: #f0f0f0;
-        color: black;
-    }
-    
-    QMenuBar::item:selected {
-        background-color: #e0e0e0;
-    }
-    
-    QMenu {
-        background-color: white;
-        color: black;
-        border: 1px solid #c0c0c0;
-    }
-    
-    QMenu::item:selected {
-        background-color: #e0e0e0;
     }
     
     QToolBar {

@@ -13,8 +13,9 @@ import sys
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Store connections
+# Store connections and session state
 connections = {}
+session_state = {}  # session_id -> {state: dict, version: int, host: str}
 server = None
 
 
@@ -36,16 +37,38 @@ async def handler(websocket):
     connections[user_id] = websocket
     logger.info(f"User {user_id} joined session {session_id}")
     
+    # Determine if this is the first user (becomes host)
+    is_first_user = (session_id not in session_state) or (session_state[session_id].get('host') is None)
+    
+    if is_first_user:
+        session_state[session_id] = {
+            'state': {'items': [], 'version': 0, 'timestamp': '2025-10-28T12:00:00'},
+            'version': 0,
+            'host': user_id
+        }
+        logger.info(f"User {user_id} is the host of session {session_id}")
+    
     try:
         # Send connection ack
         await websocket.send(json.dumps({
             "type": "connection:ack",
             "session_id": session_id,
             "user_id": user_id,
+            "is_host": is_first_user,
             "users": [{"user_id": u} for u in connections.keys()],
             "timestamp": "2025-10-28T12:00:00"
         }))
-        logger.info(f"Sent ack to {user_id}")
+        logger.info(f"Sent ack to {user_id} (host={is_first_user})")
+        
+        # Send current session state to new joiner if not the first user
+        if not is_first_user and session_id in session_state:
+            stored_state = session_state[session_id]['state']
+            await websocket.send(json.dumps({
+                "type": "sync:full_state",
+                "state": stored_state,
+                "from_server": True
+            }))
+            logger.info(f"Sent session state to {user_id} ({len(stored_state.get('items', []))} items)")
         
         # Notify other users
         for other_id, other_ws in connections.items():
@@ -69,10 +92,41 @@ async def handler(websocket):
                     "timestamp": "2025-10-28T12:00:00"
                 }))
                 logger.debug(f"Sent pong to {user_id}")
+            
+            elif msg_type == 'sync:full_state':
+                # Host is sending full state update
+                if session_id in session_state and session_state[session_id]['host'] == user_id:
+                    state = data.get('state', {})
+                    session_state[session_id]['state'] = state
+                    session_state[session_id]['version'] = state.get('version', 0)
+                    logger.info(f"📦 Stored session state from host {user_id} (version {state.get('version', 0)})")
+                
+                # Broadcast to other users
+                for other_id, other_ws in connections.items():
+                    if other_id != user_id:
+                        try:
+                            await other_ws.send(message)
+                        except Exception as e:
+                            logger.error(f"Failed to send state to {other_id}: {e}")
+            
+            elif msg_type == 'sync:request':
+                # Client requesting sync (reconnection)
+                logger.info(f"📥 Sync request from {user_id}")
+                if session_id in session_state:
+                    stored_state = session_state[session_id]['state']
+                    await websocket.send(json.dumps({
+                        "type": "sync:full_state",
+                        "state": stored_state,
+                        "from_server": True,
+                        "conflict_resolution": "host_wins"
+                    }))
+                    logger.info(f"📤 Sent stored state to {user_id}")
+            
             elif msg_type == 'command':
                 # Broadcast command to other users in the session
-                action = data.get('action', '')
-                item_type = data.get('item_type', '')
+                command = data.get('command', {})
+                action = command.get('action', '')
+                item_type = command.get('item_type', '')
                 logger.info(f"📤 Broadcasting {action} ({item_type}) from {user_id} to {len(connections)-1} other(s)")
                 
                 for other_id, other_ws in connections.items():

@@ -233,9 +233,9 @@ class CollaborationService(QObject):
                 self.log.debug(f"Received command from {sender}: {action}", "Collaboration")
                 self.command_received.emit(data)
             
-            elif msg_type == 'sync:state':
+            elif msg_type == 'sync:state' or msg_type == 'sync:full_state':
                 # Full state synchronization
-                self.log.info("Received state sync", "Collaboration")
+                self.log.info("Received full state sync", "Collaboration")
                 self.sync_state_received.emit(data)
             
             elif msg_type == 'pong':

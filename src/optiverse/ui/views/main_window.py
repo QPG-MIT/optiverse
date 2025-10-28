@@ -1367,16 +1367,48 @@ class MainWindow(QtWidgets.QMainWindow):
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             info = dialog.get_connection_info()
             
-            # Store server process if one was started
-            if dialog.server_process:
-                self.collab_server_process = dialog.server_process
+            mode = info.get("mode", "connect")
             
-            # Connect to the session
-            server_url = info["server_url"]
-            session_id = info["session_id"]
-            user_id = info["user_id"]
+            if mode == "host":
+                # Host creating a new session
+                session_id = info.get("session_id", "default")
+                user_id = info.get("user_id", "host")
+                use_current_canvas = info.get("use_current_canvas", True)
+                
+                # Store server process if hosted locally
+                if dialog.server_process:
+                    self.collab_server_process = dialog.server_process
+                
+                # Create session as host
+                self.collaboration_manager.create_session(
+                    session_id=session_id,
+                    user_id=user_id,
+                    use_current_canvas=use_current_canvas
+                )
+                
+                # Connect to local server
+                server_url = f"ws://localhost:{info.get('port', 8765)}"
+                self.collaboration_manager.connect_to_session(server_url, session_id, user_id)
+                
+                self.log_service.info(
+                    f"Created session '{session_id}' as host (current_canvas={use_current_canvas})",
+                    "Collaboration"
+                )
             
-            self.collaboration_manager.connect_to_session(server_url, session_id, user_id)
+            else:
+                # Client joining existing session
+                server_url = info.get("server_url", "ws://localhost:8765")
+                session_id = info.get("session_id", "default")
+                user_id = info.get("user_id", "user")
+                
+                # Join session as client
+                self.collaboration_manager.join_session(server_url, session_id, user_id)
+                
+                self.log_service.info(
+                    f"Joining session '{session_id}' as client",
+                    "Collaboration"
+                )
+            
             self.act_disconnect.setEnabled(True)
             self.act_collaborate.setEnabled(False)
     

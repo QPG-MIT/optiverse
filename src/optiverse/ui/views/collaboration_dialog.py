@@ -59,7 +59,7 @@ class CollaborationDialog(QtWidgets.QDialog):
         layout.addWidget(mode_group)
         
         # Connection settings (for connect mode)
-        self.connect_group = QtWidgets.QGroupBox("Connection Settings")
+        self.connect_group = QtWidgets.QGroupBox("Join Session")
         connect_layout = QtWidgets.QFormLayout(self.connect_group)
         
         self.server_url_edit = QtWidgets.QLineEdit("ws://localhost:8765")
@@ -80,11 +80,49 @@ class CollaborationDialog(QtWidgets.QDialog):
             self.user_id_edit.setText("user")
         connect_layout.addRow("Your Name:", self.user_id_edit)
         
+        # Info about joining
+        join_info = QtWidgets.QLabel("⚠️ Joining will replace your current canvas with the session's canvas.")
+        join_info.setWordWrap(True)
+        join_info.setStyleSheet("color: #888; font-style: italic; padding: 5px;")
+        connect_layout.addRow("", join_info)
+        
         layout.addWidget(self.connect_group)
         
         # Host settings (for host mode)
-        self.host_group = QtWidgets.QGroupBox("Server Settings")
+        self.host_group = QtWidgets.QGroupBox("Create Session")
         host_layout = QtWidgets.QFormLayout(self.host_group)
+        
+        # Session ID for host
+        self.host_session_id_edit = QtWidgets.QLineEdit()
+        self.host_session_id_edit.setPlaceholderText("session-name")
+        self.host_session_id_edit.setText("default")
+        host_layout.addRow("Session ID:", self.host_session_id_edit)
+        
+        # User name for host
+        self.host_user_id_edit = QtWidgets.QLineEdit()
+        self.host_user_id_edit.setPlaceholderText("your-name")
+        try:
+            self.host_user_id_edit.setText(socket.gethostname())
+        except:
+            self.host_user_id_edit.setText("host")
+        host_layout.addRow("Your Name:", self.host_user_id_edit)
+        
+        # Canvas options
+        canvas_label = QtWidgets.QLabel("Canvas:")
+        canvas_label.setStyleSheet("font-weight: bold;")
+        host_layout.addRow("", canvas_label)
+        
+        self.radio_use_current = QtWidgets.QRadioButton("Use current canvas (share my current work)")
+        self.radio_empty_canvas = QtWidgets.QRadioButton("Start with empty canvas")
+        self.radio_use_current.setChecked(True)
+        
+        host_layout.addRow("", self.radio_use_current)
+        host_layout.addRow("", self.radio_empty_canvas)
+        
+        # Server settings
+        server_label = QtWidgets.QLabel("Server:")
+        server_label.setStyleSheet("font-weight: bold;")
+        host_layout.addRow("", server_label)
         
         self.host_address_edit = QtWidgets.QLineEdit("0.0.0.0")
         self.host_address_edit.setToolTip("0.0.0.0 = all network interfaces (LAN accessible)")
@@ -161,13 +199,15 @@ class CollaborationDialog(QtWidgets.QDialog):
         if is_connect:
             self.info_label.setText(
                 "💡 Connect to an existing collaboration server. "
-                "You can find the server URL from the person hosting the session."
+                "You can find the server URL from the person hosting the session. "
+                "Your canvas will be replaced with the session's canvas."
             )
         else:
             local_ip = self._get_local_ip()
             self.info_label.setText(
                 f"💡 Start a server on this computer for others to join. "
-                f"Others on your network can connect to: ws://{local_ip}:{self.host_port_spin.value()}"
+                f"Choose whether to share your current canvas or start fresh. "
+                f"Others can connect to: ws://{local_ip}:{self.host_port_spin.value()}"
             )
     
     def _get_local_ip(self) -> str:
@@ -343,14 +383,28 @@ class CollaborationDialog(QtWidgets.QDialog):
     
     def get_connection_info(self) -> dict:
         """Get connection information from the dialog."""
-        return {
+        info = {
             "mode": self.mode,
-            "server_url": self.server_url_edit.text(),
-            "session_id": self.session_id_edit.text(),
-            "user_id": self.user_id_edit.text(),
-            "host": self.host_address_edit.text(),
-            "port": self.host_port_spin.value(),
         }
+        
+        if self.mode == "connect":
+            # Client joining session
+            info.update({
+                "server_url": self.server_url_edit.text(),
+                "session_id": self.session_id_edit.text(),
+                "user_id": self.user_id_edit.text(),
+            })
+        else:
+            # Host creating session
+            info.update({
+                "session_id": self.host_session_id_edit.text(),
+                "user_id": self.host_user_id_edit.text(),
+                "use_current_canvas": self.radio_use_current.isChecked(),
+                "host": self.host_address_edit.text(),
+                "port": self.host_port_spin.value(),
+            })
+        
+        return info
     
     def closeEvent(self, event) -> None:
         """Handle dialog close event."""

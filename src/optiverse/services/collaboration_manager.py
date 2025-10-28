@@ -25,6 +25,8 @@ class CollaborationManager(QObject):
     - Broadcast local changes to other users
     - Apply remote changes to local scene
     - Handle conflicts and synchronization
+    - Manage session roles (host/client)
+    - Handle initial state sync and reconnection
     """
     
     # Signals
@@ -47,6 +49,17 @@ class CollaborationManager(QObject):
         # Track items by UUID
         self.item_uuid_map: Dict[str, Any] = {}  # uuid -> item object
         
+        # Session management
+        self.role: Optional[str] = None  # "host" or "client"
+        self.session_id: Optional[str] = None
+        self.session_version: int = 0  # Version counter for state tracking
+        self.initial_sync_complete: bool = False  # Flag for initial sync
+        
+        # Reconnection handling
+        self.needs_resync: bool = False  # Flag to trigger resync on reconnect
+        self.last_known_state: Optional[Dict[str, Any]] = None  # Cached state
+        self.pending_changes: list[Dict[str, Any]] = []  # Changes made while offline
+        
         # Connect signals
         self.collaboration_service.connected.connect(self._on_connected)
         self.collaboration_service.disconnected.connect(self._on_disconnected)
@@ -57,6 +70,57 @@ class CollaborationManager(QObject):
         self.collaboration_service.error_occurred.connect(self._on_error)
         self.collaboration_service.connection_acknowledged.connect(self._on_connection_acknowledged)
     
+    def create_session(self, session_id: str, user_id: str, use_current_canvas: bool = True) -> None:
+        """
+        Create a new session as host.
+        
+        Args:
+            session_id: Session ID to create
+            user_id: Your user ID/name
+            use_current_canvas: If True, share current canvas state; if False, start with empty canvas
+        """
+        self.role = "host"
+        self.session_id = session_id
+        self.session_version = 0
+        self.initial_sync_complete = True  # Host starts with sync complete
+        
+        if not use_current_canvas:
+            # Clear the canvas for empty session
+            if hasattr(self.main_window, 'scene') and self.main_window.scene:
+                self.main_window.scene.clear()
+            self.item_uuid_map.clear()
+        else:
+            # Rebuild UUID map from current canvas
+            self.rebuild_uuid_map()
+        
+        # Cache initial state
+        self.last_known_state = self.get_session_state()
+        
+        self.log.info(f"Created session '{session_id}' as host (current_canvas={use_current_canvas})", "Collaboration")
+    
+    def join_session(self, server_url: str, session_id: str, user_id: str) -> None:
+        """
+        Join an existing session as client.
+        
+        Args:
+            server_url: WebSocket server URL (e.g., ws://localhost:8765)
+            session_id: Session ID to join
+            user_id: Your user ID/name
+        """
+        self.role = "client"
+        self.session_id = session_id
+        self.initial_sync_complete = False  # Client needs initial sync
+        
+        # Clear canvas before joining
+        if hasattr(self.main_window, 'scene') and self.main_window.scene:
+            self.main_window.scene.clear()
+        self.item_uuid_map.clear()
+        
+        # Connect to session
+        self.connect_to_session(server_url, session_id, user_id)
+        
+        self.log.info(f"Joining session '{session_id}' as client", "Collaboration")
+    
     def connect_to_session(self, server_url: str, session_id: str, user_id: str) -> None:
         """
         Connect to a collaboration session.
@@ -66,6 +130,7 @@ class CollaborationManager(QObject):
             session_id: Session ID to join
             user_id: Your user ID/name
         """
+        self.session_id = session_id
         self.collaboration_service.set_server_url(server_url)
         self.collaboration_service.connect_to_session(session_id, user_id)
         self.status_changed.emit(f"Connecting to {server_url}...")
@@ -100,6 +165,10 @@ class CollaborationManager(QObject):
         if not self.enabled or self._suppress_broadcast:
             return
         
+        # Suppress during initial sync
+        if not self.initial_sync_complete:
+            return
+        
         if not hasattr(item, 'item_uuid') or not hasattr(item, 'to_dict'):
             return
         
@@ -109,6 +178,9 @@ class CollaborationManager(QObject):
         
         # Add to UUID map
         self.item_uuid_map[item.item_uuid] = item
+        
+        # Increment version
+        self._increment_version()
         
         # Log the broadcast
         pos = (item.x(), item.y()) if hasattr(item, 'x') and hasattr(item, 'y') else (0, 0)
@@ -234,12 +306,29 @@ class CollaborationManager(QObject):
     
     def _on_connected(self) -> None:
         """Handle successful connection."""
+        from datetime import datetime
+        
         self.status_changed.emit("Connected!")
+        
+        # If reconnecting, request sync
+        if self.needs_resync and self.role == "client":
+            self.log.info("Reconnected - requesting state sync", "Collaboration")
+            # Send sync request with local version
+            self.collaboration_service.send_message({
+                'type': 'sync:request',
+                'local_version': self.session_version,
+                'timestamp': datetime.now().isoformat()
+            })
     
     def _on_disconnected(self) -> None:
         """Handle disconnection."""
+        # Cache current state before clearing
+        if self.item_uuid_map:
+            self.last_known_state = self.get_session_state()
+        
         self.enabled = False
-        self.item_uuid_map.clear()
+        self.needs_resync = True  # Flag for reconnection
+        # Don't clear item_uuid_map yet - keep it for reconnection comparison
         self.status_changed.emit("Disconnected")
     
     def _on_connection_acknowledged(self, data: Dict[str, Any]) -> None:
@@ -431,14 +520,68 @@ class CollaborationManager(QObject):
     def _on_sync_state_received(self, message: Dict[str, Any]) -> None:
         """Handle full state synchronization from server."""
         state = message.get('state')
-        if state:
-            self.log.debug("Applying state sync...", "Collaboration")
-            # TODO: Apply full state (requires scene serialization/deserialization)
+        if not state:
+            return
+        
+        self.log.info("Received full state sync", "Collaboration")
+        
+        # Check for version conflict
+        conflict_resolution = message.get('conflict_resolution', 'host_wins')
+        has_conflict = self._detect_version_conflict(state)
+        
+        if has_conflict and self.role == "client":
+            self.log.warning(f"Version conflict detected: local={self.session_version}, remote={state.get('version', 0)}", "Collaboration")
+            self.log.info(f"Resolving with strategy: {conflict_resolution}", "Collaboration")
+        
+        # Clear scene before applying state (host wins by default)
+        if hasattr(self.main_window, 'scene') and self.main_window.scene:
+            # Remove all items from scene
+            for item in list(self.main_window.scene.items()):
+                self.main_window.scene.removeItem(item)
+        
+        self.item_uuid_map.clear()
+        
+        # Suppress broadcast while applying state
+        self._suppress_broadcast = True
+        try:
+            # Apply all items from state
+            items = state.get('items', [])
+            self.log.info(f"Applying {len(items)} items from state sync", "Collaboration")
+            
+            for item_data in items:
+                item_type = item_data.get('item_type')
+                if item_type:
+                    self._apply_add_item(item_type, item_data)
+            
+            # Update version
+            self.session_version = state.get('version', 0)
+            self.last_known_state = state
+            self.initial_sync_complete = True
+            self.needs_resync = False
+            
+            # Retrace if needed
+            if hasattr(self.main_window, 'autotrace') and self.main_window.autotrace:
+                if hasattr(self.main_window, 'retrace'):
+                    self.main_window.retrace()
+            
+            self.log.info(f"State sync complete - version {self.session_version}", "Collaboration")
+        finally:
+            self._suppress_broadcast = False
     
     def _on_user_joined(self, user_id: str) -> None:
         """Handle user joined notification."""
         self.log.info(f"👤 User joined: {user_id}", "Collaboration")
         self.status_changed.emit(f"{user_id} joined")
+        
+        # If we're the host, send full state to new client
+        if self.role == "host":
+            self.log.info(f"Sending full state to new client: {user_id}", "Collaboration")
+            state = self.get_session_state()
+            self.collaboration_service.send_message({
+                'type': 'sync:full_state',
+                'state': state,
+                'target_user': user_id  # Optional: target specific user
+            })
     
     def _on_user_left(self, user_id: str) -> None:
         """Handle user left notification."""
@@ -448,4 +591,46 @@ class CollaborationManager(QObject):
     def _on_error(self, error: str) -> None:
         """Handle collaboration error."""
         self.status_changed.emit(f"Error: {error}")
+    
+    def get_session_state(self) -> Dict[str, Any]:
+        """
+        Get complete session state including all items.
+        
+        Returns:
+            Dictionary containing complete canvas state with version
+        """
+        items = []
+        for item_uuid, item in self.item_uuid_map.items():
+            if hasattr(item, 'to_dict'):
+                item_data = item.to_dict()
+                item_data['uuid'] = item_uuid
+                item_data['item_type'] = self._get_item_type(item)
+                items.append(item_data)
+        
+        from datetime import datetime
+        state = {
+            'items': items,
+            'version': self.session_version,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        return state
+    
+    def _increment_version(self) -> None:
+        """Increment session version counter."""
+        self.session_version += 1
+        self.last_known_state = self.get_session_state()
+    
+    def _detect_version_conflict(self, remote_state: Dict[str, Any]) -> bool:
+        """
+        Detect if remote state version conflicts with local version.
+        
+        Args:
+            remote_state: Remote state dictionary with version
+            
+        Returns:
+            True if versions conflict, False otherwise
+        """
+        remote_version = remote_state.get('version', 0)
+        return remote_version != self.session_version
 
