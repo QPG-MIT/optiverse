@@ -7,6 +7,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import SourceParams
 from ...core.color_utils import qcolor_from_hex, hex_from_qcolor, wavelength_to_hex, LASER_WAVELENGTHS
+from ...ui.smart_spinbox import SmartDoubleSpinBox
 from ..base_obj import BaseObj
 
 
@@ -75,25 +76,46 @@ class SourceItem(BaseObj):
         d.setWindowTitle("Edit Source")
         f = QtWidgets.QFormLayout(d)
         
+        # Save initial state for rollback on cancel (x, y, angle)
+        initial_x = self.pos().x()
+        initial_y = self.pos().y()
+        initial_ang = self.rotation()
+        
         # Position and orientation
-        x = QtWidgets.QDoubleSpinBox()
+        x = SmartDoubleSpinBox()
         x.setRange(-1e6, 1e6)
         x.setDecimals(3)
         x.setSuffix(" mm")
-        x.setValue(self.pos().x())
+        x.setValue(initial_x)
         
-        y = QtWidgets.QDoubleSpinBox()
+        y = SmartDoubleSpinBox()
         y.setRange(-1e6, 1e6)
         y.setDecimals(3)
         y.setSuffix(" mm")
-        y.setValue(self.pos().y())
+        y.setValue(initial_y)
         
-        ang = QtWidgets.QDoubleSpinBox()
+        ang = SmartDoubleSpinBox()
         ang.setRange(-180, 180)
         ang.setDecimals(2)
         ang.setSuffix(" °")
-        ang.setValue(self.rotation())
+        ang.setValue(initial_ang)
         ang.setToolTip("Optical axis angle - direction rays emit (0° = horizontal →, 90° = vertical ↑)")
+        
+        # Live update connections
+        def update_position():
+            self.setPos(x.value(), y.value())
+            self.params.x_mm = x.value()
+            self.params.y_mm = y.value()
+            self.edited.emit()
+        
+        def update_angle():
+            self.setRotation(ang.value())
+            self.params.angle_deg = ang.value()
+            self.edited.emit()
+        
+        x.valueChanged.connect(update_position)
+        y.valueChanged.connect(update_position)
+        ang.valueChanged.connect(update_angle)
         
         # Source parameters
         size = QtWidgets.QDoubleSpinBox()
@@ -271,13 +293,10 @@ class SourceItem(BaseObj):
         btn.accepted.connect(d.accept)
         btn.rejected.connect(d.reject)
         
-        # Apply changes if accepted
+        # Apply other changes if accepted, rollback x/y/angle if cancelled
         if d.exec():
-            self.setPos(x.value(), y.value())
-            self.params.x_mm = x.value()
-            self.params.y_mm = y.value()
-            self.setRotation(ang.value())
-            self.params.angle_deg = ang.value()
+            # x, y, angle already applied live - just update other params
+            pass  # Position and angle already updated live
             self.params.size_mm = size.value()
             self.params.n_rays = nr.value()
             self.params.ray_length_mm = rlen.value()
@@ -299,6 +318,14 @@ class SourceItem(BaseObj):
             self.params.polarization_type = pol_type.currentText()
             self.params.polarization_angle_deg = pol_angle.value()
             self._update_shape()
+            self.edited.emit()
+        else:
+            # User clicked Cancel - restore initial x, y, angle
+            self.setPos(initial_x, initial_y)
+            self.params.x_mm = initial_x
+            self.params.y_mm = initial_y
+            self.setRotation(initial_ang)
+            self.params.angle_deg = initial_ang
             self.edited.emit()
     
     def to_dict(self) -> Dict[str, Any]:

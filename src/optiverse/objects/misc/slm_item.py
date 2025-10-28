@@ -7,6 +7,7 @@ import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import SLMParams
+from ...ui.smart_spinbox import SmartDoubleSpinBox
 from ..base_obj import BaseObj
 from ..component_sprite import ComponentSprite
 
@@ -98,30 +99,59 @@ class SLMItem(BaseObj):
         d.setWindowTitle("Edit SLM")
         f = QtWidgets.QFormLayout(d)
         
-        x = QtWidgets.QDoubleSpinBox()
+        # Save initial state for rollback on cancel
+        initial_x = self.pos().x()
+        initial_y = self.pos().y()
+        initial_ang = self.rotation()
+        initial_length = self.params.object_height_mm
+        
+        x = SmartDoubleSpinBox()
         x.setRange(-1e6, 1e6)
         x.setDecimals(3)
         x.setSuffix(" mm")
-        x.setValue(self.pos().x())
+        x.setValue(initial_x)
         
-        y = QtWidgets.QDoubleSpinBox()
+        y = SmartDoubleSpinBox()
         y.setRange(-1e6, 1e6)
         y.setDecimals(3)
         y.setSuffix(" mm")
-        y.setValue(self.pos().y())
+        y.setValue(initial_y)
         
-        ang = QtWidgets.QDoubleSpinBox()
+        ang = SmartDoubleSpinBox()
         ang.setRange(-180, 180)
         ang.setDecimals(2)
         ang.setSuffix(" °")
-        ang.setValue(self.rotation())
+        ang.setValue(initial_ang)
         ang.setToolTip("Optical axis angle (0° = horizontal →, 90° = vertical ↑)")
         
-        length = QtWidgets.QDoubleSpinBox()
+        length = SmartDoubleSpinBox()
         length.setRange(1, 1e7)
         length.setDecimals(2)
         length.setSuffix(" mm")
-        length.setValue(self.params.object_height_mm)
+        length.setValue(initial_length)
+        
+        # Live update connections
+        def update_position():
+            self.setPos(x.value(), y.value())
+            self.params.x_mm = x.value()
+            self.params.y_mm = y.value()
+            self.edited.emit()
+        
+        def update_angle():
+            self.setRotation(ang.value())
+            self.params.angle_deg = ang.value()
+            self.edited.emit()
+        
+        def update_length():
+            self.params.object_height_mm = length.value()
+            self._update_geom()
+            self._maybe_attach_sprite()
+            self.edited.emit()
+        
+        x.valueChanged.connect(update_position)
+        y.valueChanged.connect(update_position)
+        ang.valueChanged.connect(update_angle)
+        length.valueChanged.connect(update_length)
         
         f.addRow("X Position", x)
         f.addRow("Y Position", y)
@@ -136,13 +166,15 @@ class SLMItem(BaseObj):
         btn.accepted.connect(d.accept)
         btn.rejected.connect(d.reject)
         
-        if d.exec():
-            self.setPos(x.value(), y.value())
-            self.params.x_mm = x.value()
-            self.params.y_mm = y.value()
-            self.setRotation(ang.value())
-            self.params.angle_deg = ang.value()
-            self.params.object_height_mm = length.value()
+        # Execute dialog and rollback if cancelled
+        if not d.exec():
+            # User clicked Cancel - restore initial values
+            self.setPos(initial_x, initial_y)
+            self.params.x_mm = initial_x
+            self.params.y_mm = initial_y
+            self.setRotation(initial_ang)
+            self.params.angle_deg = initial_ang
+            self.params.object_height_mm = initial_length
             self._update_geom()
             self._maybe_attach_sprite()
             self.edited.emit()
