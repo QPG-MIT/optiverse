@@ -421,11 +421,12 @@ class CollaborationManager(QObject):
             
             # Prepare data dict for from_dict()
             # Note: from_dict() will set item_uuid from dict, but then passes
-            # the whole dict to Params(**d), so we need to remove item_uuid first
+            # the whole dict to Params(**d), so we need to remove non-param fields
             data_copy = data.copy()
-            # Remove UUID fields to avoid passing to params constructor
+            # Remove UUID and type fields to avoid passing to params constructor
             data_copy.pop('uuid', None)
             data_copy.pop('item_uuid', None)
+            data_copy.pop('item_type', None)
             
             # Create appropriate params object with default values
             if item_type == 'lens':
@@ -512,7 +513,12 @@ class CollaborationManager(QObject):
             self.log.info(f"📥 Applying UPDATE: {item_type}", "Collaboration")
             
             if hasattr(item, 'from_dict'):
-                item.from_dict(data)
+                # Remove UUID and type fields to avoid passing to params constructor
+                data_copy = data.copy()
+                data_copy.pop('uuid', None)
+                data_copy.pop('item_uuid', None)
+                data_copy.pop('item_type', None)
+                item.from_dict(data_copy)
         else:
             self.log.warning(f"📥 UPDATE failed: item {item_uuid[:8]} not found", "Collaboration")
         self.remote_item_updated.emit(item_uuid, data)

@@ -984,7 +984,13 @@ class MainWindow(QtWidgets.QMainWindow):
     def clear_rays(self):
         """Remove all ray graphics from scene."""
         for it in self.ray_items:
-            self.scene.removeItem(it)
+            try:
+                # Check if item is still in scene before removing
+                if it.scene() is not None:
+                    self.scene.removeItem(it)
+            except RuntimeError:
+                # Item was already deleted (e.g., during scene clear)
+                pass
         self.ray_items.clear()
 
     def retrace(self):

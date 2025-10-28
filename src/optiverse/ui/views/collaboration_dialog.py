@@ -161,7 +161,7 @@ class CollaborationDialog(QtWidgets.QDialog):
         self.info_label.setWordWrap(True)
         # Use palette colors to adapt to light/dark mode
         palette = self.palette()
-        is_dark = palette.color(QtWidgets.QPalette.ColorRole.Window).lightness() < 128
+        is_dark = palette.color(QtGui.QPalette.ColorRole.Window).lightness() < 128
         if is_dark:
             info_bg = "#2d2f36"
             info_border = "#3d3f46"
