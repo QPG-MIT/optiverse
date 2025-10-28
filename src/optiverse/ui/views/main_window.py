@@ -24,7 +24,9 @@ from ...core.use_cases import trace_rays
 from ...services.settings_service import SettingsService
 from ...services.storage_service import StorageService
 from ...services.collaboration_manager import CollaborationManager
+from ...services.log_service import get_log_service
 from .collaboration_dialog import CollaborationDialog
+from .log_window import LogWindow
 from ...objects import (
     BeamsplitterItem,
     DichroicItem,
@@ -167,6 +169,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings_service = SettingsService()
         self.undo_stack = UndoStack()
         self.collaboration_manager = CollaborationManager(self)
+        self.log_service = get_log_service()
+        self.collab_server_process = None  # Track hosted server process
         
         # Load saved preferences
         self.magnetic_snap = self.settings_service.get_value("magnetic_snap", True, bool)
@@ -180,6 +184,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._build_toolbar()
         self._build_menubar()
         self._build_library_dock()
+        
+        # Add actions with shortcuts to main window so they work globally
+        self._register_shortcuts()
 
         # Install event filter for snap and ruler placement
         self.scene.installEventFilter(self)
@@ -193,33 +200,40 @@ class MainWindow(QtWidgets.QMainWindow):
         # --- File ---
         self.act_open = QtGui.QAction("Open Assembly…", self)
         self.act_open.setShortcut(QtGui.QKeySequence.StandardKey.Open)
+        self.act_open.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_open.triggered.connect(self.open_assembly)
 
         self.act_save = QtGui.QAction("Save Assembly…", self)
         self.act_save.setShortcut(QtGui.QKeySequence.StandardKey.Save)
+        self.act_save.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_save.triggered.connect(self.save_assembly)
 
         # --- Edit ---
         self.act_undo = QtGui.QAction("Undo", self)
         self.act_undo.setShortcut(QtGui.QKeySequence("Ctrl+Z"))
+        self.act_undo.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_undo.triggered.connect(self._do_undo)
         self.act_undo.setEnabled(False)
 
         self.act_redo = QtGui.QAction("Redo", self)
         self.act_redo.setShortcut(QtGui.QKeySequence("Ctrl+Y"))
+        self.act_redo.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_redo.triggered.connect(self._do_redo)
         self.act_redo.setEnabled(False)
 
         self.act_delete = QtGui.QAction("Delete", self)
         self.act_delete.setShortcut(QtGui.QKeySequence.StandardKey.Delete)
+        self.act_delete.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_delete.triggered.connect(self.delete_selected)
 
         self.act_copy = QtGui.QAction("Copy", self)
         self.act_copy.setShortcut(QtGui.QKeySequence("Ctrl+C"))
+        self.act_copy.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_copy.triggered.connect(self.copy_selected)
 
         self.act_paste = QtGui.QAction("Paste", self)
         self.act_paste.setShortcut(QtGui.QKeySequence("Ctrl+V"))
+        self.act_paste.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_paste.triggered.connect(self.paste_items)
         self.act_paste.setEnabled(False)
 
@@ -249,14 +263,17 @@ class MainWindow(QtWidgets.QMainWindow):
         # --- View ---
         self.act_zoom_in = QtGui.QAction("Zoom In", self)
         self.act_zoom_in.setShortcut(QtGui.QKeySequence.StandardKey.ZoomIn)
+        self.act_zoom_in.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_zoom_in.triggered.connect(lambda: (self.view.scale(1.15, 1.15), self.view.zoomChanged.emit()))
 
         self.act_zoom_out = QtGui.QAction("Zoom Out", self)
         self.act_zoom_out.setShortcut(QtGui.QKeySequence.StandardKey.ZoomOut)
+        self.act_zoom_out.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_zoom_out.triggered.connect(lambda: (self.view.scale(1 / 1.15, 1 / 1.15), self.view.zoomChanged.emit()))
 
         self.act_fit = QtGui.QAction("Fit Scene", self)
         self.act_fit.setShortcut("Ctrl+0")
+        self.act_fit.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_fit.triggered.connect(
             lambda: (
                 self.view.fitInView(
@@ -297,6 +314,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # --- Tools ---
         self.act_retrace = QtGui.QAction("Retrace", self)
         self.act_retrace.setShortcut("Space")
+        self.act_retrace.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_retrace.triggered.connect(self.retrace)
 
         self.act_clear = QtGui.QAction("Clear Rays", self)
@@ -304,14 +322,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.act_editor = QtGui.QAction("Component Editor…", self)
         self.act_editor.setShortcut("Ctrl+E")
+        self.act_editor.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_editor.triggered.connect(self.open_component_editor)
 
         self.act_reload = QtGui.QAction("Reload Library", self)
         self.act_reload.triggered.connect(self.populate_library)
         
+        self.act_show_log = QtGui.QAction("Show Log Window...", self)
+        self.act_show_log.setShortcut("Ctrl+L")
+        self.act_show_log.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
+        self.act_show_log.triggered.connect(self.show_log_window)
+        
         # --- Collaboration ---
         self.act_collaborate = QtGui.QAction("Connect/Host Session…", self)
         self.act_collaborate.setShortcut("Ctrl+Shift+C")
+        self.act_collaborate.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_collaborate.triggered.connect(self.open_collaboration_dialog)
         
         self.act_disconnect = QtGui.QAction("Disconnect", self)
@@ -405,6 +430,8 @@ class MainWindow(QtWidgets.QMainWindow):
         mTools.addSeparator()
         mTools.addAction(self.act_editor)
         mTools.addAction(self.act_reload)
+        mTools.addSeparator()
+        mTools.addAction(self.act_show_log)
         
         # Collaboration menu
         mCollab = mb.addMenu("&Collaboration")
@@ -423,6 +450,35 @@ class MainWindow(QtWidgets.QMainWindow):
         self.libDock.setWidget(self.libraryTree)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.libDock)
         self.populate_library()
+
+    def _register_shortcuts(self):
+        """Register actions with shortcuts to main window for global access.
+        
+        This ensures keyboard shortcuts work even when child widgets have focus.
+        """
+        # File actions
+        self.addAction(self.act_open)
+        self.addAction(self.act_save)
+        
+        # Edit actions
+        self.addAction(self.act_undo)
+        self.addAction(self.act_redo)
+        self.addAction(self.act_delete)
+        self.addAction(self.act_copy)
+        self.addAction(self.act_paste)
+        
+        # View actions
+        self.addAction(self.act_zoom_in)
+        self.addAction(self.act_zoom_out)
+        self.addAction(self.act_fit)
+        
+        # Tools actions
+        self.addAction(self.act_retrace)
+        self.addAction(self.act_editor)
+        self.addAction(self.act_show_log)
+        
+        # Collaboration actions
+        self.addAction(self.act_collaborate)
 
     def populate_library(self):
         """Load and populate component library organized by category."""
@@ -745,24 +801,35 @@ class MainWindow(QtWidgets.QMainWindow):
                     # Store the type of the item for reconstruction
                     item_data['_item_type'] = type(item).__name__
                     self._clipboard.append(item_data)
-                except Exception:
-                    # Skip items that can't be serialized
-                    pass
+                except Exception as e:
+                    # Log error but continue with other items
+                    import traceback
+                    self.log_service.error(
+                        f"Could not copy {type(item).__name__}: {e}\n{traceback.format_exc()}",
+                        "Copy/Paste"
+                    )
         
         # Enable paste action if we have items in clipboard
         self.act_paste.setEnabled(len(self._clipboard) > 0)
+        
+        # Provide feedback
+        if len(self._clipboard) > 0:
+            self.log_service.info(f"Copied {len(self._clipboard)} item(s) to clipboard", "Copy/Paste")
 
     def paste_items(self):
         """Paste items from clipboard."""
         if not self._clipboard:
+            self.log_service.warning("Cannot paste - clipboard is empty", "Copy/Paste")
             return
+        
+        self.log_service.debug(f"Pasting {len(self._clipboard)} item(s) from clipboard", "Copy/Paste")
         
         # Offset for pasted items so they're visible
         paste_offset = QtCore.QPointF(20.0, 20.0)
         pasted_items = []
         
-        # Fields to exclude when pasting (these get recalculated)
-        excluded_fields = {'_item_type', 'mm_per_pixel'}
+        # Fields to exclude when pasting (these get recalculated or belong to item, not params)
+        excluded_fields = {'_item_type', 'mm_per_pixel', 'item_uuid'}
         
         for item_data in self._clipboard:
             try:
@@ -803,6 +870,30 @@ class MainWindow(QtWidgets.QMainWindow):
                     # Sprite is automatically attached in constructor
                     item.edited.connect(self._maybe_retrace)
                     pasted_items.append(item)
+                
+                elif item_type == 'DichroicItem':
+                    params = DichroicParams(**{k: v for k, v in item_data.items() if k not in excluded_fields})
+                    params.x_mm += paste_offset.x()
+                    params.y_mm += paste_offset.y()
+                    item = DichroicItem(params)
+                    item.edited.connect(self._maybe_retrace)
+                    pasted_items.append(item)
+                
+                elif item_type == 'WaveplateItem':
+                    params = WaveplateParams(**{k: v for k, v in item_data.items() if k not in excluded_fields})
+                    params.x_mm += paste_offset.x()
+                    params.y_mm += paste_offset.y()
+                    item = WaveplateItem(params)
+                    item.edited.connect(self._maybe_retrace)
+                    pasted_items.append(item)
+                
+                elif item_type == 'SLMItem':
+                    params = SLMParams(**{k: v for k, v in item_data.items() if k not in excluded_fields})
+                    params.x_mm += paste_offset.x()
+                    params.y_mm += paste_offset.y()
+                    item = SLMItem(params)
+                    item.edited.connect(self._maybe_retrace)
+                    pasted_items.append(item)
                     
                 elif item_type == 'RulerItem':
                     # Remove _item_type and reconstruct ruler
@@ -819,12 +910,20 @@ class MainWindow(QtWidgets.QMainWindow):
                     # Offset the text note position
                     item.setPos(item.pos() + paste_offset)
                     pasted_items.append(item)
+                
+                else:
+                    self.log_service.warning(f"Unknown item type '{item_type}' - skipping", "Copy/Paste")
                     
-            except Exception:
-                # Skip items that can't be reconstructed
-                pass
+            except Exception as e:
+                # Log error but continue with other items
+                import traceback
+                self.log_service.error(
+                    f"Error pasting {item_type}: {e}\n{traceback.format_exc()}",
+                    "Copy/Paste"
+                )
         
         if pasted_items:
+            self.log_service.info(f"Successfully pasted {len(pasted_items)} item(s)", "Copy/Paste")
             # Use undo command to add all pasted items at once
             cmd = PasteItemsCommand(self.scene, pasted_items)
             self.undo_stack.push(cmd)
@@ -1230,12 +1329,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
         return super().eventFilter(obj, ev)
 
+    def show_log_window(self):
+        """Show the application log window."""
+        log_window = LogWindow(self)
+        log_window.show()
+    
     # ----- Collaboration -----
     def open_collaboration_dialog(self):
         """Open dialog to connect to or host a collaboration session."""
         dialog = CollaborationDialog(self)
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             info = dialog.get_connection_info()
+            
+            # Store server process if one was started
+            if dialog.server_process:
+                self.collab_server_process = dialog.server_process
             
             # Connect to the session
             server_url = info["server_url"]
@@ -1252,6 +1360,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_disconnect.setEnabled(False)
         self.act_collaborate.setEnabled(True)
         self.collab_status_label.setText("Not connected")
+        
+        # Stop server if we're hosting one
+        if self.collab_server_process:
+            try:
+                self.collab_server_process.terminate()
+                try:
+                    self.collab_server_process.wait(timeout=3)
+                except:
+                    self.collab_server_process.kill()
+                self.log_service.info("Stopped collaboration server", "Collaboration")
+            except Exception as e:
+                self.log_service.warning(f"Error stopping server: {e}", "Collaboration")
+            finally:
+                self.collab_server_process = None
     
     def _on_collaboration_status_changed(self, status: str):
         """Update collaboration status indicator."""
@@ -1308,9 +1430,9 @@ class MainWindow(QtWidgets.QMainWindow):
         try:
             if hasattr(self, "_comp_editor") and self._comp_editor:
                 self._comp_editor.close()
-            # Disconnect from collaboration
+            # Disconnect from collaboration and stop server if running
             if hasattr(self, "collaboration_manager"):
-                self.collaboration_manager.disconnect()
+                self.disconnect_collaboration()
         except Exception:
             pass
         super().closeEvent(e)

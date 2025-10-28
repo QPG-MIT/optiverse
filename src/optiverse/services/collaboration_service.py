@@ -12,6 +12,8 @@ import json
 from typing import Optional, Dict, Any
 from datetime import datetime
 
+from .log_service import get_log_service, LogLevel
+
 
 class CollaborationService(QObject):
     """
@@ -46,6 +48,9 @@ class CollaborationService(QObject):
         self.connected_state = False
         self.users_in_session: Dict[str, Dict[str, Any]] = {}  # Track connected users
         
+        # Get log service
+        self.log = get_log_service()
+        
         # Connect WebSocket signals
         self.ws.connected.connect(self._on_connected)
         self.ws.disconnected.connect(self._on_disconnected)
@@ -69,17 +74,34 @@ class CollaborationService(QObject):
             session_id: The session ID to join
             user_id: Your user ID/name
         """
+        # Close existing connection if any
+        if self.ws.isValid():
+            self.log.info("Closing existing connection before reconnecting", "Collaboration")
+            self.ws.close()
+        
         self.session_id = session_id
         self.user_id = user_id
         
         url = f"{self.server_url}/ws/{session_id}/{user_id}"
-        print(f"Connecting to: {url}")
-        self.ws.open(QUrl(url))
+        self.log.info(f"→ Connecting to: {url}", "Collaboration")
+        self.log.debug(f"CollaborationService id: {id(self)}", "Collaboration")
+        self.log.debug(f"QWebSocket id: {id(self.ws)}", "Collaboration")
+        self.log.debug(f"Parent: {self.parent()}", "Collaboration")
+        
+        try:
+            self.ws.open(QUrl(url))
+        except Exception as e:
+            self.log.error(f"Failed to initiate connection: {e}", "Collaboration")
+            self.error_occurred.emit(str(e))
     
     def disconnect_from_session(self) -> None:
         """Disconnect from current session."""
+        self.log.debug(f"disconnect_from_session called, isValid={self.ws.isValid()}", "Collaboration")
         if self.ws.isValid():
+            self.log.info("Closing WebSocket", "Collaboration")
             self.ws.close()
+        else:
+            self.log.warning("WebSocket already invalid, not closing", "Collaboration")
     
     def send_message(self, message: dict) -> None:
         """
@@ -89,7 +111,7 @@ class CollaborationService(QObject):
             message: Dictionary containing message data
         """
         if not self.connected_state:
-            print("Warning: Not connected, message not sent")
+            self.log.warning("Not connected, message not sent", "Collaboration")
             return
         
         try:
@@ -100,7 +122,7 @@ class CollaborationService(QObject):
             json_str = json.dumps(message)
             self.ws.sendTextMessage(json_str)
         except Exception as e:
-            print(f"Error sending message: {e}")
+            self.log.error(f"Error sending message: {e}", "Collaboration")
             self.error_occurred.emit(str(e))
     
     def is_connected(self) -> bool:
@@ -110,7 +132,10 @@ class CollaborationService(QObject):
     def _on_connected(self) -> None:
         """Called when WebSocket connection is established."""
         self.connected_state = True
-        print(f"Connected to session {self.session_id} as {self.user_id}")
+        self.log.info(f"✓ Connected to session '{self.session_id}' as '{self.user_id}'", "Collaboration")
+        self.log.debug(f"WebSocket state: {self.ws.state()}", "Collaboration")
+        self.log.debug(f"WebSocket isValid: {self.ws.isValid()}", "Collaboration")
+        self.log.debug(f"Starting heartbeat timer (interval: {self.heartbeat_timer.interval()}ms)", "Collaboration")
         self.heartbeat_timer.start()
         self.connected.emit()
     
@@ -119,7 +144,51 @@ class CollaborationService(QObject):
         self.connected_state = False
         self.heartbeat_timer.stop()
         self.users_in_session.clear()
-        print(f"Disconnected from session {self.session_id}")
+        
+        close_code_enum = self.ws.closeCode()
+        close_reason = self.ws.closeReason()
+        
+        # Convert enum to int for comparison
+        # PyQt6 returns QWebSocketProtocol.CloseCode enum
+        try:
+            close_code = int(close_code_enum)
+        except (ValueError, TypeError):
+            close_code = 0
+        
+        # Map close codes to readable messages
+        close_code_messages = {
+            1000: "Normal closure",
+            1001: "Going away",
+            1002: "Protocol error",
+            1003: "Unsupported data",
+            1006: "Abnormal closure (no close frame)",
+            1007: "Invalid frame payload data",
+            1008: "Policy violation (ping/pong issue)",
+            1009: "Message too big",
+            1010: "Missing extension",
+            1011: "Internal server error",
+            1015: "TLS handshake error"
+        }
+        
+        close_code_msg = close_code_messages.get(close_code, f"Unknown code {close_code} ({close_code_enum})")
+        
+        if close_code in [1000, 1001]:
+            self.log.info(f"✓ Disconnected from session '{self.session_id}' - {close_code_msg}", "Collaboration")
+        else:
+            self.log.warning(f"✗ Disconnected from session '{self.session_id}' - {close_code_msg}", "Collaboration")
+            self.log.warning(f"Close code enum: {close_code_enum}, int value: {close_code}", "Collaboration")
+        
+        self.log.debug(f"WebSocket state: {self.ws.state()}", "Collaboration")
+        
+        if close_reason:
+            self.log.info(f"Reason: {close_reason}", "Collaboration")
+        
+        # Log stack trace for debugging only on abnormal close codes
+        if close_code not in [1000, 1001]:  # Normal close codes
+            import traceback
+            stack_trace = ''.join(traceback.format_stack())
+            self.log.debug(f"Disconnect called from:\n{stack_trace}", "Collaboration")
+        
         self.disconnected.emit()
     
     def _on_message(self, message: str) -> None:
@@ -136,14 +205,14 @@ class CollaborationService(QObject):
             # Handle special message types
             if msg_type == 'connection:ack':
                 # Connection acknowledged with user list
-                print(f"Connection acknowledged: {data}")
                 users = data.get('users', [])
+                self.log.info(f"Connection acknowledged with {len(users)} user(s)", "Collaboration")
                 self.users_in_session = {u['user_id']: u for u in users}
                 self.connection_acknowledged.emit(data)
             
             elif msg_type == 'user:joined':
                 user_id = data.get('user_id', 'unknown')
-                print(f"User joined: {user_id}")
+                self.log.info(f"User joined: {user_id}", "Collaboration")
                 self.users_in_session[user_id] = {
                     'user_id': user_id,
                     'connected_at': data.get('timestamp')
@@ -152,23 +221,26 @@ class CollaborationService(QObject):
             
             elif msg_type == 'user:left':
                 user_id = data.get('user_id', 'unknown')
-                print(f"User left: {user_id}")
+                self.log.info(f"User left: {user_id}", "Collaboration")
                 if user_id in self.users_in_session:
                     del self.users_in_session[user_id]
                 self.user_left.emit(user_id)
             
             elif msg_type == 'command':
                 # Remote command from another user
-                print(f"Received command from {data.get('user_id')}: {data.get('command', {}).get('action')}")
+                sender = data.get('user_id', 'unknown')
+                action = data.get('command', {}).get('action', 'unknown')
+                self.log.debug(f"Received command from {sender}: {action}", "Collaboration")
                 self.command_received.emit(data)
             
             elif msg_type == 'sync:state':
                 # Full state synchronization
-                print("Received state sync")
+                self.log.info("Received state sync", "Collaboration")
                 self.sync_state_received.emit(data)
             
             elif msg_type == 'pong':
                 # Heartbeat response
+                self.log.debug("← Received heartbeat pong", "Collaboration")
                 pass
             
             else:
@@ -176,10 +248,10 @@ class CollaborationService(QObject):
                 self.message_received.emit(data)
         
         except json.JSONDecodeError as e:
-            print(f"Error parsing message: {e}")
+            self.log.error(f"Error parsing message: {e}", "Collaboration")
             self.error_occurred.emit(f"Invalid JSON: {e}")
         except Exception as e:
-            print(f"Error processing message: {e}")
+            self.log.error(f"Error processing message: {e}", "Collaboration")
             self.error_occurred.emit(str(e))
     
     def _on_error(self, error_code) -> None:
@@ -190,12 +262,13 @@ class CollaborationService(QObject):
             error_code: Qt WebSocket error code
         """
         error_str = self.ws.errorString()
-        print(f"WebSocket error ({error_code}): {error_str}")
+        self.log.error(f"WebSocket error ({error_code}): {error_str}", "Collaboration")
         self.error_occurred.emit(error_str)
     
     def _send_heartbeat(self) -> None:
         """Send heartbeat ping to keep connection alive."""
         if self.connected_state:
+            self.log.debug("→ Sending heartbeat ping", "Collaboration")
             self.send_message({"type": "ping"})
     
     def send_command(self, action: str, item_type: str, item_id: str, data: Dict[str, Any]) -> None:

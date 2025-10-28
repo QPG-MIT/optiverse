@@ -33,6 +33,7 @@ class CollaborationDialog(QtWidgets.QDialog):
         
         self.mode = "connect"  # "connect" or "host"
         self.server_process: Optional[subprocess.Popen] = None
+        self._accepted = False  # Track if dialog was accepted
         
         self._build_ui()
         self._update_mode()
@@ -129,7 +130,7 @@ class CollaborationDialog(QtWidgets.QDialog):
         button_box = QtWidgets.QDialogButtonBox()
         self.connect_btn = button_box.addButton("Connect", QtWidgets.QDialogButtonBox.ButtonRole.AcceptRole)
         self.cancel_btn = button_box.addButton("Cancel", QtWidgets.QDialogButtonBox.ButtonRole.RejectRole)
-        button_box.accepted.connect(self.accept)
+        button_box.accepted.connect(self._on_accept)
         button_box.rejected.connect(self.reject)
         
         layout.addWidget(button_box)
@@ -172,10 +173,50 @@ class CollaborationDialog(QtWidgets.QDialog):
         except:
             return "localhost"
     
+    def _check_port_listening(self, host: str, port: int) -> bool:
+        """Check if a port is listening/accepting connections."""
+        try:
+            # Try to connect to the port
+            test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            test_socket.settimeout(2)
+            
+            # Convert 0.0.0.0 to localhost for connection test
+            test_host = "localhost" if host == "0.0.0.0" else host
+            
+            result = test_socket.connect_ex((test_host, port))
+            test_socket.close()
+            
+            # If connect_ex returns 0, connection succeeded (port is listening)
+            return result == 0
+        except Exception as e:
+            print(f"Port check error: {e}")
+            return False
+    
     def _on_start_server(self) -> None:
         """Start the collaboration server."""
         host = self.host_address_edit.text()
         port = self.host_port_spin.value()
+        
+        # Check if websockets is available
+        try:
+            result = subprocess.run(
+                [sys.executable, "-c", "import websockets"],
+                capture_output=True,
+                timeout=5
+            )
+            if result.returncode != 0:
+                QtWidgets.QMessageBox.critical(
+                    self,
+                    "Missing Dependency",
+                    "The 'websockets' library is not installed.\n\n"
+                    "Please install dependencies with:\n"
+                    "pip install -e .\n\n"
+                    "Or install websockets directly:\n"
+                    "pip install websockets"
+                )
+                return
+        except Exception as e:
+            print(f"Error checking websockets: {e}")
         
         # Find the server script
         server_script = Path(__file__).parent.parent.parent.parent.parent / "tools" / "collaboration_server.py"
@@ -190,13 +231,46 @@ class CollaborationDialog(QtWidgets.QDialog):
             return
         
         try:
-            # Start server process
-            self.server_process = subprocess.Popen(
-                [sys.executable, str(server_script), "--host", host, "--port", str(port)],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-            )
+            # Start server process with proper subprocess configuration
+            # Don't pipe stdout/stderr to avoid blocking - let them go to console or DEVNULL
+            kwargs = {
+                "args": [sys.executable, str(server_script), "--host", host, "--port", str(port)],
+                "stdout": subprocess.DEVNULL,  # Suppress output to prevent blocking
+                "stderr": subprocess.DEVNULL,  # Suppress errors to prevent blocking
+            }
+            
+            if sys.platform == "win32":
+                # On Windows, detach from parent console and hide window
+                # CREATE_NO_WINDOW = 0x08000000, DETACHED_PROCESS = 0x00000008
+                kwargs["creationflags"] = 0x08000000 | 0x00000008
+            else:
+                # On Unix-like systems (Mac, Linux), start in background
+                kwargs["start_new_session"] = True
+            
+            self.server_process = subprocess.Popen(**kwargs)
+            
+            # Give server a moment to start and verify it's actually listening
+            import time
+            time.sleep(1.5)
+            
+            # Check if process died
+            if self.server_process.poll() is not None:
+                raise Exception(
+                    "Server crashed on startup. Please ensure:\n"
+                    "1. websockets library is installed: pip install websockets\n"
+                    "2. Port is not already in use\n"
+                    "3. Python has network permissions"
+                )
+            
+            # Verify server is actually listening on the port
+            if not self._check_port_listening(host, port):
+                self.server_process.terminate()
+                self.server_process = None
+                raise Exception(
+                    f"Server started but not listening on port {port}.\n"
+                    "The server process is running but may have errors.\n"
+                    "Try running manually: python tools/collaboration_server.py"
+                )
             
             self.server_status_label.setText(f"Server running on {host}:{port}")
             self.server_status_label.setStyleSheet("color: green;")
@@ -230,12 +304,19 @@ class CollaborationDialog(QtWidgets.QDialog):
     def _on_stop_server(self) -> None:
         """Stop the collaboration server."""
         if self.server_process:
-            self.server_process.terminate()
             try:
-                self.server_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.server_process.kill()
-            self.server_process = None
+                # First try graceful termination
+                self.server_process.terminate()
+                try:
+                    self.server_process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    # Force kill if it doesn't stop
+                    self.server_process.kill()
+                    self.server_process.wait()
+            except Exception as e:
+                print(f"Error stopping server: {e}")
+            finally:
+                self.server_process = None
             
             self.server_status_label.setText("Server stopped")
             self.server_status_label.setStyleSheet("color: gray;")
@@ -245,6 +326,11 @@ class CollaborationDialog(QtWidgets.QDialog):
             self.host_port_spin.setEnabled(True)
             
             self.info_label.setText("Server has been stopped.")
+    
+    def _on_accept(self) -> None:
+        """Handle dialog acceptance (Connect button clicked)."""
+        self._accepted = True
+        self.accept()
     
     def get_connection_info(self) -> dict:
         """Get connection information from the dialog."""
@@ -259,8 +345,9 @@ class CollaborationDialog(QtWidgets.QDialog):
     
     def closeEvent(self, event) -> None:
         """Handle dialog close event."""
-        # Stop server if running
-        if self.server_process:
+        # Only stop server if dialog was not accepted (was canceled/closed)
+        # If accepted, the main window will take ownership of the server process
+        if self.server_process and not self._accepted:
             reply = QtWidgets.QMessageBox.question(
                 self,
                 "Stop Server?",
@@ -270,6 +357,8 @@ class CollaborationDialog(QtWidgets.QDialog):
             )
             if reply == QtWidgets.QMessageBox.StandardButton.Yes:
                 self._on_stop_server()
+            # If user chose No, server will keep running but won't be tracked
+            # (This is an edge case - user started server but canceled connection)
         
         super().closeEvent(event)
 

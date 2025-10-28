@@ -14,6 +14,7 @@ dependencies = [
   "PyQt6>=6.5",
   "PyQt6-WebEngine>=6.5",
   "numpy>=1.24",
+  "websockets>=12.0",
 ]
 
 [project.scripts]
@@ -27,9 +28,6 @@ dev = [
   "ruff>=0.6.0",
   "black>=24.3.0",
   "mypy>=1.8.0",
-]
-server = [
-  "websockets>=12.0",
 ]
 
 [project.urls]

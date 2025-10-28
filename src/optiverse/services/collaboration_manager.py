@@ -10,6 +10,7 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from .collaboration_service import CollaborationService
+from .log_service import get_log_service
 
 if TYPE_CHECKING:
     from ..ui.views.main_window import MainWindow
@@ -39,6 +40,9 @@ class CollaborationManager(QObject):
         self.collaboration_service = CollaborationService(self)
         self.enabled = False
         self._suppress_broadcast = False  # Flag to prevent re-broadcasting remote changes
+        
+        # Get log service
+        self.log = get_log_service()
         
         # Track items by UUID
         self.item_uuid_map: Dict[str, Any] = {}  # uuid -> item object
@@ -248,7 +252,7 @@ class CollaborationManager(QObject):
         item_id = command.get('item_id')
         data = command.get('data', {})
         
-        print(f"Processing remote command: {action} {item_type} {item_id}")
+        self.log.debug(f"Processing remote command: {action} {item_type} {item_id}", "Collaboration")
         
         # Suppress broadcasting while applying remote changes
         self._suppress_broadcast = True
@@ -301,7 +305,7 @@ class CollaborationManager(QObject):
         """Handle full state synchronization from server."""
         state = message.get('state')
         if state:
-            print("Applying state sync...")
+            self.log.debug("Applying state sync...", "Collaboration")
             # TODO: Apply full state (requires scene serialization/deserialization)
     
     def _on_user_joined(self, user_id: str) -> None:

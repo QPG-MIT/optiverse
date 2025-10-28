@@ -451,33 +451,41 @@ class GraphicsView(QtWidgets.QGraphicsView):
 
     # ----- Pan Controls (Phase 3.1: Space + Middle Button) -----
     def keyPressEvent(self, e: QtGui.QKeyEvent):
-        """Handle key press for pan mode (Space key)."""
+        """Handle key press for pan mode (Space key).
+        
+        Note: We must check for modifier keys (Ctrl, Shift, etc.) to avoid
+        intercepting keyboard shortcuts like Ctrl+C, Ctrl+V, etc.
+        """
+        # Don't handle key events with modifiers - let them propagate for shortcuts
+        if e.modifiers() not in (QtCore.Qt.KeyboardModifier.NoModifier, 
+                                  QtCore.Qt.KeyboardModifier.KeypadModifier):
+            super().keyPressEvent(e)
+            return
+            
         if e.key() in (QtCore.Qt.Key.Key_Plus, QtCore.Qt.Key.Key_Equal):
             # Zoom in
             self.scale(1.15, 1.15)
             self.zoomChanged.emit()
             self.viewport().update()
+            e.accept()
             return
         if e.key() in (QtCore.Qt.Key.Key_Minus, QtCore.Qt.Key.Key_Underscore):
             # Zoom out
             self.scale(1 / 1.15, 1 / 1.15)
             self.zoomChanged.emit()
             self.viewport().update()
+            e.accept()
             return
-        if e.key() == QtCore.Qt.Key.Key_Space:
-            # Hold space → drag to pan
-            self._hand = True
-            self.setDragMode(self.DragMode.ScrollHandDrag)
-            return
+        
+        # Note: Space key is handled by MainWindow action for retrace
+        # Pan mode is still available via middle mouse button
+        
+        # Let parent handle all other keys (including shortcuts)
         super().keyPressEvent(e)
 
     def keyReleaseEvent(self, e: QtGui.QKeyEvent):
-        """Handle key release to exit pan mode."""
-        if e.key() == QtCore.Qt.Key.Key_Space and self._hand:
-            # Release space → back to select mode
-            self._hand = False
-            self.setDragMode(self.DragMode.RubberBandDrag)
-            return
+        """Handle key release events."""
+        # Note: Space key pan mode removed to avoid conflict with retrace shortcut
         super().keyReleaseEvent(e)
 
     def mousePressEvent(self, e: QtGui.QMouseEvent):
