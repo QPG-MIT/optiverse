@@ -1,0 +1,102 @@
+{
+  "sources": [
+    {
+      "x_mm": -400.0,
+      "y_mm": 0.0,
+      "angle_deg": 0.0,
+      "size_mm": 10.0,
+      "n_rays": 9,
+      "ray_length_mm": 1000.0,
+      "spread_deg": 0.0,
+      "color_hex": "#00FF00",
+      "wavelength_nm": 532.0,
+      "polarization_type": "vertical",
+      "polarization_angle_deg": 90.0,
+      "custom_jones_ex_real": 1.0,
+      "custom_jones_ex_imag": 0.0,
+      "custom_jones_ey_real": 0.0,
+      "custom_jones_ey_imag": 0.0,
+      "use_custom_jones": false,
+      "item_uuid": "source-123"
+    }
+  ],
+  "lenses": [
+    {
+      "x_mm": -200.0,
+      "y_mm": 0.0,
+      "angle_deg": 90.0,
+      "efl_mm": 100.0,
+      "object_height_mm": 30.5,
+      "image_path": "path/to/lens.png",
+      "mm_per_pixel": 0.1,
+      "line_px": [320, 83, 320, 916],
+      "name": "Standard Lens",
+      "item_uuid": "lens-456"
+    }
+  ],
+  "mirrors": [],
+  "beamsplitters": [
+    {
+      "x_mm": 0.0,
+      "y_mm": 0.0,
+      "angle_deg": 45.0,
+      "object_height_mm": 50.8,
+      "split_T": 0.0,
+      "split_R": 0.0,
+      "image_path": "path/to/pbs.png",
+      "mm_per_pixel": 0.1,
+      "line_px": [0, 0, 1000, 1000],
+      "name": "PBS",
+      "is_polarizing": true,
+      "pbs_transmission_axis_deg": 30.0,
+      "item_uuid": "bs-789"
+    }
+  ],
+  "dichroics": [
+    {
+      "x_mm": 100.0,
+      "y_mm": 100.0,
+      "angle_deg": 45.0,
+      "object_height_mm": 25.4,
+      "cutoff_wavelength_nm": 550.0,
+      "transition_width_nm": 50.0,
+      "pass_type": "longpass",
+      "image_path": "path/to/dichroic.png",
+      "mm_per_pixel": 0.1,
+      "line_px": [0, 0, 1000, 1000],
+      "name": "Dichroic 550nm",
+      "item_uuid": "dichroic-101"
+    }
+  ],
+  "waveplates": [
+    {
+      "x_mm": 200.0,
+      "y_mm": 0.0,
+      "angle_deg": 90.0,
+      "object_height_mm": 30.5,
+      "phase_shift_deg": 90.0,
+      "fast_axis_deg": 45.0,
+      "image_path": "path/to/waveplate.png",
+      "mm_per_pixel": 0.1,
+      "line_px": [320, 83, 320, 916],
+      "name": "Quarter Waveplate",
+      "item_uuid": "wp-202"
+    }
+  ],
+  "slms": [
+    {
+      "x_mm": 300.0,
+      "y_mm": 0.0,
+      "angle_deg": 0.0,
+      "object_height_mm": 100.0,
+      "image_path": "path/to/slm.png",
+      "mm_per_pixel": 0.1,
+      "line_px": [220, 515, 780, 515],
+      "name": "Spatial Light Modulator",
+      "item_uuid": "slm-303"
+    }
+  ],
+  "rulers": [],
+  "texts": []
+}
+

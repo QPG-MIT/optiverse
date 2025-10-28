@@ -95,7 +95,7 @@ class SourceItem(BaseObj):
         y.setValue(initial_y)
         
         ang = SmartDoubleSpinBox()
-        ang.setRange(-180, 180)
+        ang.setRange(0, 360)
         ang.setDecimals(2)
         ang.setSuffix(" °")
         ang.setValue(initial_ang)
@@ -113,9 +113,32 @@ class SourceItem(BaseObj):
             self.params.angle_deg = ang.value()
             self.edited.emit()
         
+        # Update spinboxes when item is modified externally (e.g., Ctrl+drag rotation)
+        def sync_from_item():
+            # Block signals to prevent recursive updates
+            x.blockSignals(True)
+            y.blockSignals(True)
+            ang.blockSignals(True)
+            
+            # Normalize angle to 0 to 360 range
+            angle = self.rotation() % 360
+            if angle < 0:
+                angle += 360
+            
+            x.setValue(self.pos().x())
+            y.setValue(self.pos().y())
+            ang.setValue(angle)
+            
+            x.blockSignals(False)
+            y.blockSignals(False)
+            ang.blockSignals(False)
+        
         x.valueChanged.connect(update_position)
         y.valueChanged.connect(update_position)
         ang.valueChanged.connect(update_angle)
+        
+        # Connect to item's edited signal to sync spinboxes
+        self.edited.connect(sync_from_item)
         
         # Source parameters
         size = QtWidgets.QDoubleSpinBox()
@@ -294,7 +317,12 @@ class SourceItem(BaseObj):
         btn.rejected.connect(d.reject)
         
         # Apply other changes if accepted, rollback x/y/angle if cancelled
-        if d.exec():
+        result = d.exec()
+        
+        # Disconnect the sync signal to prevent memory leaks
+        self.edited.disconnect(sync_from_item)
+        
+        if result:
             # x, y, angle already applied live - just update other params
             pass  # Position and angle already updated live
             self.params.size_mm = size.value()

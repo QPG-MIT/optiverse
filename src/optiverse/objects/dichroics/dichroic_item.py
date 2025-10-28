@@ -125,7 +125,7 @@ class DichroicItem(BaseObj):
         y.setValue(initial_y)
         
         ang = SmartDoubleSpinBox()
-        ang.setRange(-180, 180)
+        ang.setRange(0, 360)
         ang.setDecimals(2)
         ang.setSuffix(" °")
         ang.setValue(initial_ang)
@@ -155,10 +155,33 @@ class DichroicItem(BaseObj):
             self._maybe_attach_sprite()
             self.edited.emit()
         
+        # Update spinboxes when item is modified externally (e.g., Ctrl+drag rotation)
+        def sync_from_item():
+            # Block signals to prevent recursive updates
+            x.blockSignals(True)
+            y.blockSignals(True)
+            ang.blockSignals(True)
+            
+            # Normalize angle to 0 to 360 range
+            angle = self.rotation() % 360
+            if angle < 0:
+                angle += 360
+            
+            x.setValue(self.pos().x())
+            y.setValue(self.pos().y())
+            ang.setValue(angle)
+            
+            x.blockSignals(False)
+            y.blockSignals(False)
+            ang.blockSignals(False)
+        
         x.valueChanged.connect(update_position)
         y.valueChanged.connect(update_position)
         ang.valueChanged.connect(update_angle)
         length.valueChanged.connect(update_length)
+        
+        # Connect to item's edited signal to sync spinboxes
+        self.edited.connect(sync_from_item)
         
         cutoff = QtWidgets.QDoubleSpinBox()
         cutoff.setRange(200, 2000)
@@ -222,7 +245,18 @@ class DichroicItem(BaseObj):
         btn.rejected.connect(d.reject)
         
         # Execute dialog and rollback if cancelled
-        if not d.exec():
+        result = d.exec()
+        
+        # Disconnect the sync signal to prevent memory leaks
+        self.edited.disconnect(sync_from_item)
+        
+        if result:
+            # Save dichroic parameters (x, y, angle, length already applied live)
+            self.params.cutoff_wavelength_nm = cutoff.value()
+            self.params.transition_width_nm = transition.value()
+            self.params.pass_type = pass_type.currentText()
+            self.edited.emit()
+        else:
             # User clicked Cancel - restore initial values
             self.setPos(initial_x, initial_y)
             self.params.x_mm = initial_x

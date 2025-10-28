@@ -1127,6 +1127,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "beamsplitters": [],
             "dichroics": [],
             "waveplates": [],
+            "slms": [],
             "rulers": [],
             "texts": [],
         }
@@ -1144,6 +1145,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 data["dichroics"].append(it.to_dict())
             elif isinstance(it, WaveplateItem):
                 data["waveplates"].append(it.to_dict())
+            elif isinstance(it, SLMItem):
+                data["slms"].append(it.to_dict())
             elif isinstance(it, RulerItem):
                 data["rulers"].append(it.to_dict())
             elif isinstance(it, TextNoteItem):
@@ -1171,7 +1174,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Remove existing optical objects (keep grid lines)
         for it in list(self.scene.items()):
-            if isinstance(it, (SourceItem, LensItem, MirrorItem, BeamsplitterItem, DichroicItem, WaveplateItem, RulerItem, TextNoteItem)):
+            if isinstance(it, (SourceItem, LensItem, MirrorItem, BeamsplitterItem, DichroicItem, WaveplateItem, SLMItem, RulerItem, TextNoteItem)):
                 self.scene.removeItem(it)
 
         # Re-create everything
@@ -1204,6 +1207,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.scene.addItem(W)
             # Sprite is automatically attached in constructor
             W.edited.connect(self._maybe_retrace)
+        for d in data.get("slms", []):
+            S = SLMItem(SLMParams(**d))
+            self.scene.addItem(S)
+            # Sprite is automatically attached in constructor
+            S.edited.connect(self._maybe_retrace)
         for d in data.get("rulers", []):
             R = RulerItem.from_dict(d)
             self.scene.addItem(R)

@@ -41,6 +41,13 @@ class BaseObj(QtWidgets.QGraphicsObject):
         self._rotating = False
         self._rotation_start_angle = 0.0
         self._rotation_initial = 0.0
+        
+        # Group rotation state (for multiple selected items)
+        self._group_rotating = False
+        self._group_items = []
+        self._group_initial_positions = {}
+        self._group_initial_rotations = {}
+        self._group_center = QtCore.QPointF(0, 0)
 
     def itemChange(self, change, value):
         """Sync params when position or rotation changes, and apply magnetic snap."""
@@ -171,6 +178,35 @@ class BaseObj(QtWidgets.QGraphicsObject):
                 return views[0].window()
         return QtWidgets.QApplication.activeWindow()
 
+    def _rotate_group(self, items: list, rotation_delta: float):
+        """Rotate a group of items around their common center."""
+        if not items:
+            return
+        
+        # Calculate center of all items
+        center_x = sum(item.pos().x() for item in items) / len(items)
+        center_y = sum(item.pos().y() for item in items) / len(items)
+        center = QtCore.QPointF(center_x, center_y)
+        
+        # Rotate each item around the common center
+        for item in items:
+            # Get current position relative to center
+            rel_pos = item.pos() - center
+            
+            # Rotate the relative position
+            angle_rad = math.radians(rotation_delta)
+            cos_a = math.cos(angle_rad)
+            sin_a = math.sin(angle_rad)
+            new_x = rel_pos.x() * cos_a - rel_pos.y() * sin_a
+            new_y = rel_pos.x() * sin_a + rel_pos.y() * cos_a
+            
+            # Set new position
+            item.setPos(center.x() + new_x, center.y() + new_y)
+            
+            # Also rotate the item itself
+            item.setRotation(item.rotation() + rotation_delta)
+            item.edited.emit()
+    
     def mousePressEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
         """Handle mouse press for rotation mode (Ctrl+drag) or normal drag."""
         if self.isSelected() and (ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
@@ -178,8 +214,31 @@ class BaseObj(QtWidgets.QGraphicsObject):
             self._rotating = True
             self._rotation_initial = self.rotation()
             
-            # Calculate initial angle from item center to mouse position
-            center = self.mapToScene(self.transformOriginPoint())
+            # Check if this is a group rotation
+            if self.scene():
+                selected_items = [item for item in self.scene().selectedItems() 
+                                if isinstance(item, BaseObj)]
+                self._group_rotating = len(selected_items) > 1
+                
+                if self._group_rotating:
+                    # Store initial state for all items
+                    self._group_items = selected_items
+                    self._group_initial_positions = {item: item.pos() for item in selected_items}
+                    self._group_initial_rotations = {item: item.rotation() for item in selected_items}
+                    
+                    # Calculate group center
+                    center_x = sum(item.pos().x() for item in selected_items) / len(selected_items)
+                    center_y = sum(item.pos().y() for item in selected_items) / len(selected_items)
+                    self._group_center = QtCore.QPointF(center_x, center_y)
+                    center = self._group_center
+                else:
+                    self._group_rotating = False
+                    center = self.mapToScene(self.transformOriginPoint())
+            else:
+                self._group_rotating = False
+                center = self.mapToScene(self.transformOriginPoint())
+            
+            # Calculate initial angle from rotation center to mouse position
             mouse_pos = ev.scenePos()
             dx = mouse_pos.x() - center.x()
             dy = mouse_pos.y() - center.y()
@@ -195,22 +254,50 @@ class BaseObj(QtWidgets.QGraphicsObject):
     def mouseMoveEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
         """Handle mouse move for rotation or normal drag."""
         if self._rotating:
-            # Calculate current angle from item center to mouse position
-            center = self.mapToScene(self.transformOriginPoint())
+            # Get rotation center (group center or item center)
+            if getattr(self, '_group_rotating', False):
+                center = self._group_center
+            else:
+                center = self.mapToScene(self.transformOriginPoint())
+            
+            # Calculate current angle from rotation center to mouse position
             mouse_pos = ev.scenePos()
             dx = mouse_pos.x() - center.x()
             dy = mouse_pos.y() - center.y()
             current_angle = math.degrees(math.atan2(dy, dx))
             
-            # Calculate rotation delta and apply
+            # Calculate rotation delta
             angle_delta = current_angle - self._rotation_start_angle
-            new_rotation = self._rotation_initial + angle_delta
             
             # Shift+Ctrl: snap to 45-degree increments (0, 45, 90, 135, 180, etc.)
             if ev.modifiers() & QtCore.Qt.KeyboardModifier.ShiftModifier:
-                new_rotation = round(new_rotation / 45.0) * 45.0
+                angle_delta = round(angle_delta / 45.0) * 45.0
             
-            self.setRotation(new_rotation)
+            # Apply rotation
+            if getattr(self, '_group_rotating', False):
+                # Group rotation
+                for item in self._group_items:
+                    # Rotate position around group center
+                    initial_pos = self._group_initial_positions[item]
+                    rel_pos = initial_pos - center
+                    angle_rad = math.radians(angle_delta)
+                    cos_a = math.cos(angle_rad)
+                    sin_a = math.sin(angle_rad)
+                    new_x = rel_pos.x() * cos_a - rel_pos.y() * sin_a
+                    new_y = rel_pos.x() * sin_a + rel_pos.y() * cos_a
+                    item.setPos(center.x() + new_x, center.y() + new_y)
+                    
+                    # Rotate the item itself
+                    initial_rotation = self._group_initial_rotations[item]
+                    item.setRotation(initial_rotation + angle_delta)
+                    # Emit edited signal during drag for live editor updates
+                    item.edited.emit()
+            else:
+                # Single item rotation
+                new_rotation = self._rotation_initial + angle_delta
+                self.setRotation(new_rotation)
+                # Emit edited signal during drag for live editor updates
+                self.edited.emit()
             
             ev.accept()
         else:
@@ -222,18 +309,47 @@ class BaseObj(QtWidgets.QGraphicsObject):
         if self._rotating:
             self._rotating = False
             self.setCursor(QtCore.Qt.CursorShape.OpenHandCursor)
-            self.edited.emit()
+            
+            # Emit edited signal for all affected items
+            if getattr(self, '_group_rotating', False):
+                for item in self._group_items:
+                    item.edited.emit()
+                # Clean up group rotation state
+                self._group_rotating = False
+                self._group_items = []
+                self._group_initial_positions = {}
+                self._group_initial_rotations = {}
+            else:
+                self.edited.emit()
+            
             ev.accept()
         else:
             super().mouseReleaseEvent(ev)
 
     def wheelEvent(self, ev: QtWidgets.QGraphicsSceneWheelEvent):
-        """Ctrl + wheel → rotate element."""
+        """Ctrl + wheel → rotate element(s)."""
         if self.isSelected() and (ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
             dy = ev.angleDelta().y()
             steps = dy / 120.0
-            self.setRotation(self.rotation() + 2.0 * steps)
-            self.edited.emit()
+            rotation_delta = 2.0 * steps
+            
+            # Check if multiple items are selected for group rotation
+            if self.scene():
+                selected_items = [item for item in self.scene().selectedItems() 
+                                if isinstance(item, BaseObj)]
+                
+                if len(selected_items) > 1:
+                    # Group rotation around common center
+                    self._rotate_group(selected_items, rotation_delta)
+                else:
+                    # Single item rotation
+                    self.setRotation(self.rotation() + rotation_delta)
+                    self.edited.emit()
+            else:
+                # Fallback to single rotation
+                self.setRotation(self.rotation() + rotation_delta)
+                self.edited.emit()
+            
             ev.accept()
         else:
             ev.ignore()
