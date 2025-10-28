@@ -157,7 +157,10 @@ class DichroicItem(BaseObj):
             "Adjust the cutoff wavelength to set the separation point."
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color: gray; font-size: 10px;")
+        # Adapt color to theme
+        palette = d.palette()
+        is_dark = palette.color(QtWidgets.QPalette.ColorRole.Window).lightness() < 128
+        info.setStyleSheet(f"color: {'#888' if is_dark else '#666'}; font-size: 10px;")
         f.addRow("", info)
         
         btn = QtWidgets.QDialogButtonBox(

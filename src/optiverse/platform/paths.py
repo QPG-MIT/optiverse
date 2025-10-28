@@ -7,6 +7,21 @@ from pathlib import Path
 from PyQt6 import QtCore
 
 
+def is_macos() -> bool:
+    """Check if running on macOS."""
+    return sys.platform == "darwin"
+
+
+def is_windows() -> bool:
+    """Check if running on Windows."""
+    return sys.platform == "win32"
+
+
+def is_linux() -> bool:
+    """Check if running on Linux."""
+    return sys.platform.startswith("linux")
+
+
 def _app_data_root() -> Path:
     # Prefer Qt standard writable location
     base = QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.StandardLocation.AppDataLocation)
