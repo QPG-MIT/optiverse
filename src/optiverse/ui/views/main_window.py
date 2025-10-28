@@ -226,7 +226,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_redo.setEnabled(False)
 
         self.act_delete = QtGui.QAction("Delete", self)
-        self.act_delete.setShortcut(QtGui.QKeySequence.StandardKey.Delete)
+        self.act_delete.setShortcuts([QtGui.QKeySequence.StandardKey.Delete, QtGui.QKeySequence(QtCore.Qt.Key.Key_Backspace)])
         self.act_delete.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_delete.triggered.connect(self.delete_selected)
 
