@@ -3,7 +3,7 @@ Share dialog for creating and joining collaboration sessions.
 """
 from __future__ import annotations
 
-from PyQt6 import QtWidgets, QtCore
+from PyQt6 import QtWidgets, QtCore, QtGui
 import time
 try:
     import requests
@@ -63,8 +63,17 @@ class ShareDialog(QtWidgets.QDialog):
         self.share_link_label.setTextInteractionFlags(
             QtCore.Qt.TextInteractionFlag.TextSelectableByMouse
         )
+        # Use palette colors to adapt to light/dark mode
+        palette = self.palette()
+        is_dark = palette.color(QtWidgets.QPalette.ColorRole.Window).lightness() < 128
+        if is_dark:
+            bg_color = "#2d2f36"
+            border_color = "#3d3f46"
+        else:
+            bg_color = "#f0f0f0"
+            border_color = "#d0d0d0"
         self.share_link_label.setStyleSheet(
-            "QLabel { background-color: #f0f0f0; padding: 10px; border-radius: 5px; }"
+            f"QLabel {{ background-color: {bg_color}; padding: 10px; border-radius: 5px; border: 1px solid {border_color}; }}"
         )
         create_layout.addWidget(self.share_link_label)
         
@@ -120,7 +129,10 @@ class ShareDialog(QtWidgets.QDialog):
         info_label = QtWidgets.QLabel(
             "<i>Note: Make sure the collaboration server is running!</i>"
         )
-        info_label.setStyleSheet("color: #666;")
+        # Adapt color to theme
+        palette = self.palette()
+        is_dark = palette.color(QtWidgets.QPalette.ColorRole.Window).lightness() < 128
+        info_label.setStyleSheet("color: #999;" if is_dark else "color: #666;")
         layout.addWidget(info_label)
     
     def _create_session(self):

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
+from ...platform.paths import is_macos
+
 
 class GraphicsView(QtWidgets.QGraphicsView):
     zoomChanged = QtCore.pyqtSignal()
@@ -11,9 +13,22 @@ class GraphicsView(QtWidgets.QGraphicsView):
         self.setRenderHints(
             QtGui.QPainter.RenderHint.Antialiasing | QtGui.QPainter.RenderHint.TextAntialiasing
         )
-        # Use FullViewportUpdate to properly render drawForeground (scale bar)
-        # BoundingRectViewportUpdate causes scale bar artifacts during panning
-        self.setViewportUpdateMode(QtWidgets.QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
+        
+        # Dark mode state (detect system preference by default)
+        self._dark_mode = self._detect_system_dark_mode()
+        
+        # Mac-specific optimizations for performance
+        if is_macos():
+            # On Mac, use MinimalViewportUpdate for better performance with Retina displays
+            # This significantly reduces lag while avoiding grid artifacts
+            # MinimalViewportUpdate: only updates bounding rect of changed items
+            # but still properly redraws background (grid) during pan/zoom
+            self.setViewportUpdateMode(QtWidgets.QGraphicsView.ViewportUpdateMode.MinimalViewportUpdate)
+        else:
+            # Use FullViewportUpdate to properly render drawForeground (scale bar)
+            # BoundingRectViewportUpdate causes scale bar artifacts during panning
+            self.setViewportUpdateMode(QtWidgets.QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
+        
         self.setTransformationAnchor(QtWidgets.QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setResizeAnchor(QtWidgets.QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setDragMode(QtWidgets.QGraphicsView.DragMode.RubberBandDrag)
@@ -22,6 +37,12 @@ class GraphicsView(QtWidgets.QGraphicsView):
         # Enable scrollbars to support panning (visible when scene larger than viewport)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        
+        # Enable gesture support for Mac trackpad
+        if is_macos():
+            self.viewport().setAttribute(QtCore.Qt.WidgetAttribute.WA_AcceptTouchEvents, True)
+            self.viewport().grabGesture(QtCore.Qt.GestureType.PinchGesture)
+            self.viewport().grabGesture(QtCore.Qt.GestureType.PanGesture)
 
         # scale bar prefs
         self._sb_len_px = 120
@@ -39,23 +60,161 @@ class GraphicsView(QtWidgets.QGraphicsView):
 
         # Magnetic snap alignment guides
         self._snap_guides: list[tuple[str, float]] = []  # [("horizontal", y), ("vertical", x)]
+        
+        # Mac trackpad gesture state
+        self._pinch_start_scale = 1.0
+        self._is_panning_gesture = False
+        
+        # Dark mode state
+        self._dark_mode = self._detect_system_dark_mode() if is_macos() else False
+    
+    def _detect_system_dark_mode(self) -> bool:
+        """Detect if macOS is in dark mode."""
+        if not is_macos():
+            return False
+        try:
+            # Use Qt's palette to detect dark mode
+            palette = QtWidgets.QApplication.palette()
+            bg_color = palette.color(QtGui.QPalette.ColorRole.Window)
+            # If background is dark (low lightness), we're in dark mode
+            return bg_color.lightness() < 128
+        except Exception:
+            return False
+    
+    def set_dark_mode(self, enabled: bool):
+        """Set dark mode on/off."""
+        self._dark_mode = enabled
+        self.viewport().update()
+    
+    def is_dark_mode(self) -> bool:
+        """Check if dark mode is enabled."""
+        return self._dark_mode
 
     def wheelEvent(self, e: QtGui.QWheelEvent):
-        delta_y = e.angleDelta().y()
-        factor = 1.15 if delta_y > 0 else 1 / 1.15
-        self.scale(factor, factor)
-        e.accept()
-        self.zoomChanged.emit()
-        self.viewport().update()
+        """Handle wheel events including Mac trackpad scrolling.
+        
+        Mac trackpads send:
+        - pixelDelta() for smooth scrolling gestures (two-finger scroll)
+        - angleDelta() for traditional wheel events
+        """
+        # Check for pixel-based scrolling (Mac trackpad two-finger scroll)
+        pixel_delta = e.pixelDelta()
+        angle_delta = e.angleDelta()
+        
+        # On Mac, use pixel deltas if available (smoother for trackpad)
+        if is_macos() and not pixel_delta.isNull():
+            # Two-finger scroll on trackpad
+            # Check if this is primarily vertical scrolling with Command key (for zoom)
+            if e.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier:
+                # Cmd+scroll = zoom (like in most Mac apps)
+                delta_y = pixel_delta.y()
+                if abs(delta_y) > 0:
+                    # Smoother zoom for trackpad
+                    factor = 1.0 + (delta_y * 0.01)  # More gradual than mouse wheel
+                    factor = max(0.5, min(2.0, factor))  # Limit zoom per event
+                    self.scale(factor, factor)
+                    self.zoomChanged.emit()
+                    # Force viewport update for clean grid rendering
+                    self.viewport().update()
+                    e.accept()
+                    return
+            else:
+                # Regular two-finger scroll = pan
+                # Use scrollbars for smooth panning
+                h_bar = self.horizontalScrollBar()
+                v_bar = self.verticalScrollBar()
+                h_bar.setValue(h_bar.value() - pixel_delta.x())
+                v_bar.setValue(v_bar.value() - pixel_delta.y())
+                # Force full viewport update to ensure grid redraws cleanly
+                self.viewport().update()
+                e.accept()
+                return
+        
+        # Traditional mouse wheel or fallback behavior
+        if not angle_delta.isNull():
+            delta_y = angle_delta.y()
+            if delta_y != 0:
+                factor = 1.15 if delta_y > 0 else 1 / 1.15
+                self.scale(factor, factor)
+                self.zoomChanged.emit()
+                self.viewport().update()
+                e.accept()
+                return
+        
+        e.ignore()
 
     def resizeEvent(self, e: QtGui.QResizeEvent):
         super().resizeEvent(e)
         self.zoomChanged.emit()
         self.viewport().update()
+    
+    def viewportEvent(self, event: QtCore.QEvent) -> bool:
+        """Handle gesture events for Mac trackpad support."""
+        if event.type() == QtCore.QEvent.Type.Gesture:
+            return self._handle_gesture_event(event)
+        return super().viewportEvent(event)
+    
+    def _handle_gesture_event(self, event: QtGui.QGestureEvent) -> bool:
+        """Process pinch and pan gestures from Mac trackpad."""
+        pinch = event.gesture(QtCore.Qt.GestureType.PinchGesture)
+        if pinch:
+            return self._handle_pinch_gesture(pinch)
+        
+        # Note: PanGesture is handled via wheelEvent pixelDelta for better control
+        return True
+    
+    def _handle_pinch_gesture(self, gesture: QtWidgets.QGesture) -> bool:
+        """Handle pinch-to-zoom gesture from Mac trackpad.
+        
+        This provides natural two-finger pinch zooming like in Safari, Preview, etc.
+        """
+        if not isinstance(gesture, QtWidgets.QPinchGesture):
+            return False
+        
+        state = gesture.state()
+        
+        if state == QtCore.Qt.GestureState.GestureStarted:
+            # Store initial scale
+            self._pinch_start_scale = self.transform().m11()
+        
+        elif state == QtCore.Qt.GestureState.GestureUpdated:
+            # Apply incremental scaling
+            scale_factor = gesture.scaleFactor()
+            
+            # Apply the scaling relative to the gesture center point
+            # Get the center point in viewport coordinates
+            center_point = gesture.centerPoint().toPoint()
+            
+            # Map to scene coordinates for proper anchor
+            old_pos = self.mapToScene(center_point)
+            
+            # Apply scale
+            self.scale(scale_factor, scale_factor)
+            
+            # Adjust to keep the point under the gesture center
+            new_pos = self.mapToScene(center_point)
+            delta = new_pos - old_pos
+            self.translate(delta.x(), delta.y())
+            
+            self.zoomChanged.emit()
+            # Force viewport update for clean grid rendering
+            self.viewport().update()
+        
+        elif state == QtCore.Qt.GestureState.GestureFinished:
+            # Final update
+            self.viewport().update()
+        
+        return True
 
     def drawBackground(self, painter: QtGui.QPainter, rect: QtCore.QRectF):
         """Draw grid in background (MUCH faster than QGraphicsItems!)."""
         super().drawBackground(painter, rect)
+        
+        # Draw background color
+        if self._dark_mode:
+            painter.fillRect(rect, QtGui.QColor(25, 25, 28))  # Dark background
+        else:
+            painter.fillRect(rect, QtGui.QColor(255, 255, 255))  # White background
         
         # Get visible area in scene coordinates
         visible_rect = self.mapToScene(self.viewport().rect()).boundingRect()
@@ -70,19 +229,73 @@ class GraphicsView(QtWidgets.QGraphicsView):
         # Adaptive grid density based on zoom
         zoom_scale = self.transform().m11()
         
+        # More aggressive step increases to prevent lag when zoomed out
         if zoom_scale > 0.5:
             step = 1  # 1mm grid
         elif zoom_scale > 0.1:
             step = 10  # 1cm grid
         elif zoom_scale > 0.05:
             step = 100  # 10cm grid
-        else:
+        elif zoom_scale > 0.01:
             step = 1000  # 1m grid
+        elif zoom_scale > 0.005:
+            step = 5000  # 5m grid
+        else:
+            step = 10000  # 10m grid - very zoomed out
         
-        # Setup pens
-        minor_pen = QtGui.QPen(QtGui.QColor(242, 242, 242))
-        major_pen = QtGui.QPen(QtGui.QColor(215, 215, 215))
-        axis_pen = QtGui.QPen(QtGui.QColor(170, 170, 170))
+        # Performance optimization: limit number of lines drawn
+        # Calculate how many lines would be drawn
+        x_range = xmax - xmin
+        y_range = ymax - ymin
+        max_lines_per_axis = 500  # Maximum lines to draw in each direction
+        
+        # If we would draw too many lines, increase step size
+        potential_x_lines = int(x_range / step)
+        potential_y_lines = int(y_range / step)
+        
+        if potential_x_lines > max_lines_per_axis:
+            # Calculate required step, ensuring proper rounding
+            required_step = x_range / max_lines_per_axis
+            # Round up to nearest multiple of 10 to get nice numbers
+            new_step = int((required_step + 9) / 10) * 10
+            step = max(step, new_step)
+        
+        if potential_y_lines > max_lines_per_axis:
+            # Calculate required step, ensuring proper rounding
+            required_step = y_range / max_lines_per_axis
+            # Round up to nearest multiple of 10 to get nice numbers
+            new_step = int((required_step + 9) / 10) * 10
+            step = max(step, new_step)
+        
+        # Skip grid entirely if step is too large (too zoomed out)
+        if step > 50000:
+            painter.save()
+            # Just draw axes
+            if self._dark_mode:
+                axis_pen = QtGui.QPen(QtGui.QColor(80, 82, 87))
+            else:
+                axis_pen = QtGui.QPen(QtGui.QColor(170, 170, 170))
+            axis_pen.setStyle(QtCore.Qt.PenStyle.DashLine)
+            axis_pen.setCosmetic(True)
+            axis_pen.setWidth(1)
+            painter.setPen(axis_pen)
+            if ymin <= 0 <= ymax:
+                painter.drawLine(QtCore.QPointF(xmin, 0), QtCore.QPointF(xmax, 0))
+            if xmin <= 0 <= xmax:
+                painter.drawLine(QtCore.QPointF(0, ymin), QtCore.QPointF(0, ymax))
+            painter.restore()
+            return
+        
+        # Setup pens based on dark mode
+        if self._dark_mode:
+            minor_pen = QtGui.QPen(QtGui.QColor(40, 42, 47))  # Subtle dark grid
+            major_pen = QtGui.QPen(QtGui.QColor(60, 62, 67))  # More visible dark grid
+            axis_pen = QtGui.QPen(QtGui.QColor(80, 82, 87))   # Axis lines
+        else:
+            minor_pen = QtGui.QPen(QtGui.QColor(242, 242, 242))  # Light gray grid
+            major_pen = QtGui.QPen(QtGui.QColor(215, 215, 215))  # Darker gray grid
+            axis_pen = QtGui.QPen(QtGui.QColor(170, 170, 170))   # Axis lines
+        
         axis_pen.setStyle(QtCore.Qt.PenStyle.DashLine)
         
         for pen in (minor_pen, major_pen, axis_pen):
@@ -91,25 +304,29 @@ class GraphicsView(QtWidgets.QGraphicsView):
         
         painter.save()
         
-        # Draw vertical lines
+        # Draw vertical lines with line count limit
         x = xmin - (xmin % step)  # Align to grid
-        while x <= xmax:
-            if x % 10 == 0:
+        line_count = 0
+        while x <= xmax and line_count < max_lines_per_axis:
+            if x % (step * 10) == 0:
                 painter.setPen(major_pen)
             else:
                 painter.setPen(minor_pen)
             painter.drawLine(QtCore.QPointF(x, ymin), QtCore.QPointF(x, ymax))
             x += step
+            line_count += 1
         
-        # Draw horizontal lines
+        # Draw horizontal lines with line count limit
         y = ymin - (ymin % step)  # Align to grid
-        while y <= ymax:
-            if y % 10 == 0:
+        line_count = 0
+        while y <= ymax and line_count < max_lines_per_axis:
+            if y % (step * 10) == 0:
                 painter.setPen(major_pen)
             else:
                 painter.setPen(minor_pen)
             painter.drawLine(QtCore.QPointF(xmin, y), QtCore.QPointF(xmax, y))
             y += step
+            line_count += 1
         
         # Draw axes
         painter.setPen(axis_pen)
@@ -164,15 +381,29 @@ class GraphicsView(QtWidgets.QGraphicsView):
         mm_value = self._sb_len_px / px_per_mm
 
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
-        painter.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0, 90)))
-        painter.setBrush(QtGui.QColor(255, 255, 255, 200))
-        painter.drawRoundedRect(x0, y0, box_w, box_h, 6, 6)
-
-        painter.setPen(QtCore.Qt.PenStyle.NoPen)
-        painter.setBrush(QtGui.QColor(30, 30, 30))
-        painter.drawRect(x0 + 12, y0 + 11, self._sb_len_px, self._sb_height_px)
-
-        painter.setPen(QtGui.QColor(20, 20, 20))
+        
+        # Scale bar colors based on dark mode
+        if self._dark_mode:
+            painter.setPen(QtGui.QPen(QtGui.QColor(100, 100, 100, 90)))
+            painter.setBrush(QtGui.QColor(40, 40, 45, 200))
+            painter.drawRoundedRect(x0, y0, box_w, box_h, 6, 6)
+            
+            painter.setPen(QtCore.Qt.PenStyle.NoPen)
+            painter.setBrush(QtGui.QColor(200, 200, 200))
+            painter.drawRect(x0 + 12, y0 + 11, self._sb_len_px, self._sb_height_px)
+            
+            painter.setPen(QtGui.QColor(220, 220, 220))
+        else:
+            painter.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0, 90)))
+            painter.setBrush(QtGui.QColor(255, 255, 255, 200))
+            painter.drawRoundedRect(x0, y0, box_w, box_h, 6, 6)
+            
+            painter.setPen(QtCore.Qt.PenStyle.NoPen)
+            painter.setBrush(QtGui.QColor(30, 30, 30))
+            painter.drawRect(x0 + 12, y0 + 11, self._sb_len_px, self._sb_height_px)
+            
+            painter.setPen(QtGui.QColor(20, 20, 20))
+        
         painter.setFont(self._sb_font)
         label = f"{mm_value:.1f} mm"
         painter.drawText(x0 + 12 + self._sb_len_px + 8, y0 + 11 + self._sb_height_px, label)

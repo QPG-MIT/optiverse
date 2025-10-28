@@ -13,7 +13,7 @@ import socket
 from pathlib import Path
 from typing import Optional
 
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 
 class CollaborationDialog(QtWidgets.QDialog):
@@ -102,7 +102,7 @@ class CollaborationDialog(QtWidgets.QDialog):
         
         # Server status
         self.server_status_label = QtWidgets.QLabel("Server not running")
-        self.server_status_label.setStyleSheet("color: gray;")
+        self.server_status_label.setStyleSheet("color: #888;")
         host_layout.addRow("Status:", self.server_status_label)
         
         # Server control buttons
@@ -118,10 +118,19 @@ class CollaborationDialog(QtWidgets.QDialog):
         
         layout.addWidget(self.host_group)
         
-        # Info label
+        # Info label (adapt to theme)
         self.info_label = QtWidgets.QLabel()
         self.info_label.setWordWrap(True)
-        self.info_label.setStyleSheet("QLabel { background-color: #f0f0f0; padding: 8px; border-radius: 4px; }")
+        # Use palette colors to adapt to light/dark mode
+        palette = self.palette()
+        is_dark = palette.color(QtWidgets.QPalette.ColorRole.Window).lightness() < 128
+        if is_dark:
+            info_bg = "#2d2f36"
+            info_border = "#3d3f46"
+        else:
+            info_bg = "#f0f0f0"
+            info_border = "#d0d0d0"
+        self.info_label.setStyleSheet(f"QLabel {{ background-color: {info_bg}; padding: 8px; border-radius: 4px; border: 1px solid {info_border}; }}")
         layout.addWidget(self.info_label)
         
         layout.addStretch()
@@ -273,7 +282,7 @@ class CollaborationDialog(QtWidgets.QDialog):
                 )
             
             self.server_status_label.setText(f"Server running on {host}:{port}")
-            self.server_status_label.setStyleSheet("color: green;")
+            self.server_status_label.setStyleSheet("color: #6cc644;")
             self.start_server_btn.setEnabled(False)
             self.stop_server_btn.setEnabled(True)
             self.host_address_edit.setEnabled(False)
@@ -319,7 +328,7 @@ class CollaborationDialog(QtWidgets.QDialog):
                 self.server_process = None
             
             self.server_status_label.setText("Server stopped")
-            self.server_status_label.setStyleSheet("color: gray;")
+            self.server_status_label.setStyleSheet("color: #888;")
             self.start_server_btn.setEnabled(True)
             self.stop_server_btn.setEnabled(False)
             self.host_address_edit.setEnabled(True)

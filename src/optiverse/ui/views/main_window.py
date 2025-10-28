@@ -175,6 +175,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # Load saved preferences
         self.magnetic_snap = self.settings_service.get_value("magnetic_snap", True, bool)
         
+        # Load dark mode preference
+        dark_mode_saved = self.settings_service.get_value("dark_mode", self.view.is_dark_mode(), bool)
+        self.view.set_dark_mode(dark_mode_saved)
+        
         # Connect collaboration signals
         self.collaboration_manager.remote_item_added.connect(self._on_remote_item_added)
         self.collaboration_manager.status_changed.connect(self._on_collaboration_status_changed)
@@ -295,6 +299,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_magnetic_snap = QtGui.QAction("Magnetic snap", self, checkable=True)
         self.act_magnetic_snap.setChecked(self.magnetic_snap)
         self.act_magnetic_snap.toggled.connect(self._toggle_magnetic_snap)
+        
+        # Dark mode toggle
+        self.act_dark_mode = QtGui.QAction("Dark mode", self, checkable=True)
+        self.act_dark_mode.setChecked(self.view.is_dark_mode())
+        self.act_dark_mode.toggled.connect(self._toggle_dark_mode)
 
         # Ray width submenu with presets + Custom…
         self.menu_raywidth = QtWidgets.QMenu("Ray width", self)
@@ -421,6 +430,9 @@ class MainWindow(QtWidgets.QMainWindow):
         mView.addAction(self.act_autotrace)
         mView.addAction(self.act_snap)
         mView.addAction(self.act_magnetic_snap)
+        mView.addSeparator()
+        mView.addAction(self.act_dark_mode)
+        mView.addSeparator()
         mView.addMenu(self.menu_raywidth)
 
         # Tools menu
@@ -525,7 +537,11 @@ class MainWindow(QtWidgets.QMainWindow):
             font.setBold(True)
             font.setPointSize(10)
             category_item.setFont(0, font)
-            category_item.setForeground(0, QtGui.QColor(60, 60, 100))
+            # Color adapts to dark/light mode
+            if self.view.is_dark_mode():
+                category_item.setForeground(0, QtGui.QColor(140, 150, 200))  # Light blue for dark mode
+            else:
+                category_item.setForeground(0, QtGui.QColor(60, 60, 100))  # Dark blue for light mode
             
             self.libraryTree.addTopLevelItem(category_item)
             
@@ -1207,6 +1223,16 @@ class MainWindow(QtWidgets.QMainWindow):
         # Clear guides if turning off
         if not on:
             self.view.clear_snap_guides()
+    
+    def _toggle_dark_mode(self, on: bool):
+        """Toggle dark mode."""
+        self.view.set_dark_mode(on)
+        self.settings_service.set_value("dark_mode", on)
+        # Apply the theme to the entire application
+        from ...app.main import apply_theme
+        apply_theme(on)
+        # Refresh library to update category colors
+        self.populate_library()
 
     def _set_ray_width(self, v: float):
         """Set ray width and retrace."""
