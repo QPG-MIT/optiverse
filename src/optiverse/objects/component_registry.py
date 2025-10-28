@@ -223,6 +223,25 @@ class ComponentRegistry:
         }
     
     @staticmethod
+    def get_slm() -> Dict[str, Any]:
+        """
+        Get Spatial Light Modulator (SLM) definition.
+        
+        SLMs act as programmable mirrors and can modulate light spatially.
+        
+        Returns:
+            Dictionary with SLM parameters including image and calibration
+        """
+        return {
+            "name": "Spatial Light Modulator",
+            "kind": "slm",
+            "object_height_mm": 100.0,  # Typical large SLM size
+            "image_path": _get_image_path("slm.png"),
+            "line_px": (50, 325, 950, 325),  # Horizontal line defining optical axis in normalized 1000px space
+            "angle_deg": 0.0,  # Horizontal orientation by default
+        }
+    
+    @staticmethod
     def get_standard_components() -> List[Dict[str, Any]]:
         """
         Get all standard components as a list.
@@ -241,6 +260,7 @@ class ComponentRegistry:
             ComponentRegistry.get_quarter_waveplate(),
             ComponentRegistry.get_half_waveplate(),
             ComponentRegistry.get_standard_source(),
+            ComponentRegistry.get_slm(),
         ]
     
     @staticmethod
@@ -270,6 +290,7 @@ class ComponentRegistry:
                 ComponentRegistry.get_half_waveplate(),
             ],
             "Sources": [ComponentRegistry.get_standard_source()],
+            "Misc": [ComponentRegistry.get_slm()],
         }
     
     @staticmethod
@@ -304,11 +325,11 @@ class ComponentRegistry:
         Get the category name for a component kind.
         
         Args:
-            kind: Component kind ('lens', 'mirror', 'beamsplitter', 'dichroic', 'waveplate', 'source')
+            kind: Component kind ('lens', 'mirror', 'beamsplitter', 'dichroic', 'waveplate', 'source', 'slm')
             name: Optional component name to distinguish special cases (e.g., objectives)
         
         Returns:
-            Category name (e.g., 'Lenses', 'Mirrors', 'Dichroics')
+            Category name (e.g., 'Lenses', 'Mirrors', 'Dichroics', 'Misc')
         """
         # Special case: Objectives are lenses but in their own category
         if kind == "lens" and "objective" in name.lower():
@@ -321,6 +342,7 @@ class ComponentRegistry:
             "dichroic": "Dichroics",
             "waveplate": "Waveplates",
             "source": "Sources",
+            "slm": "Misc",
         }
         return kind_to_category.get(kind, "Other")
 

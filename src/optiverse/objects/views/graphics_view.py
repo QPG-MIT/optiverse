@@ -220,10 +220,11 @@ class GraphicsView(QtWidgets.QGraphicsView):
             self._clear_ghost()
 
         # Import here to avoid circular imports
-        from ...core.models import BeamsplitterParams, LensParams, MirrorParams, WaveplateParams
+        from ...core.models import BeamsplitterParams, LensParams, MirrorParams, SLMParams, WaveplateParams
         from ..beamsplitters import BeamsplitterItem
         from ..lenses import LensItem
         from ..mirrors import MirrorItem
+        from ..misc import SLMItem
         from ..waveplates import WaveplateItem
 
         # Determine default angle for this component type
@@ -299,6 +300,17 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 name=name
             )
             item = WaveplateItem(params)
+        elif kind == "slm":
+            params = SLMParams(
+                x_mm=scene_pos.x(),
+                y_mm=scene_pos.y(),
+                angle_deg=angle,
+                object_height_mm=object_height_mm,
+                image_path=img,
+                line_px=line_px,
+                name=name
+            )
+            item = SLMItem(params)
         else:  # mirror (default)
             params = MirrorParams(
                 x_mm=scene_pos.x(),

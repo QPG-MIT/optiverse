@@ -12,6 +12,7 @@ from ...core.models import (
     DichroicParams,
     LensParams,
     MirrorParams,
+    SLMParams,
     WaveplateParams,
     OpticalElement,
     SourceParams,
@@ -28,6 +29,7 @@ from ...objects import (
     GraphicsView,
     LensItem,
     MirrorItem,
+    SLMItem,
     WaveplateItem,
     RulerItem,
     SourceItem,
@@ -386,6 +388,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "Dichroics": [],
             "Waveplates": [],
             "Sources": [],
+            "Misc": [],
             "Other": []
         }
         
@@ -396,7 +399,7 @@ class MainWindow(QtWidgets.QMainWindow):
             categories[category].append(rec)
         
         # Create category nodes with components
-        for category_name in ["Lenses", "Objectives", "Mirrors", "Beamsplitters", "Dichroics", "Waveplates", "Sources", "Other"]:
+        for category_name in ["Lenses", "Objectives", "Mirrors", "Beamsplitters", "Dichroics", "Waveplates", "Sources", "Misc", "Other"]:
             comps = categories[category_name]
             if not comps:
                 continue
@@ -521,6 +524,17 @@ class MainWindow(QtWidgets.QMainWindow):
                 name=name,
             )
             item = DichroicItem(params)
+        elif kind == "slm":
+            params = SLMParams(
+                x_mm=scene_pos.x(),
+                y_mm=scene_pos.y(),
+                angle_deg=angle_deg,
+                object_height_mm=object_height_mm,
+                image_path=img,
+                line_px=line_px,
+                name=name,
+            )
+            item = SLMItem(params)
         else:  # mirror
             params = MirrorParams(
                 x_mm=scene_pos.x(),
@@ -805,6 +819,7 @@ class MainWindow(QtWidgets.QMainWindow):
         beamsplitters: list[BeamsplitterItem] = []
         dichroics: list[DichroicItem] = []
         waveplates: list[WaveplateItem] = []
+        slms: list[SLMItem] = []
 
         for it in self.scene.items():
             if isinstance(it, SourceItem):
@@ -819,6 +834,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 dichroics.append(it)
             elif isinstance(it, WaveplateItem):
                 waveplates.append(it)
+            elif isinstance(it, SLMItem):
+                slms.append(it)
 
         if not sources:
             return
@@ -872,6 +889,10 @@ class MainWindow(QtWidgets.QMainWindow):
                     transition_width_nm=D.params.transition_width_nm,
                 )
             )
+        for S in slms:
+            p1, p2 = S.endpoints_scene()
+            # SLMs act as mirrors for ray tracing
+            elems.append(OpticalElement(kind="mirror", p1=p1, p2=p2))
 
         # Build source params (use actual params from items)
         srcs: list[SourceParams] = []

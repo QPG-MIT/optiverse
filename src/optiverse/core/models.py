@@ -344,6 +344,19 @@ class MirrorParams:
 
 
 @dataclass
+class SLMParams:
+    """Spatial Light Modulator parameters (acts as a mirror)."""
+    x_mm: float = 150.0
+    y_mm: float = 0.0
+    angle_deg: float = 0.0
+    object_height_mm: float = 80.0
+    image_path: Optional[str] = None
+    mm_per_pixel: float = 0.1
+    line_px: Optional[Tuple[float, float, float, float]] = None
+    name: Optional[str] = None
+
+
+@dataclass
 class BeamsplitterParams:
     x_mm: float = 0.0
     y_mm: float = 0.0

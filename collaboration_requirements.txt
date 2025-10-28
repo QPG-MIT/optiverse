@@ -1,7 +1,0 @@
-# Collaboration Server Dependencies
-aiohttp>=3.9.0
-requests>=2.31.0
-
-# PyQt6 WebSocket Support (for desktop client)
-PyQt6-WebSockets>=6.6.0
-
