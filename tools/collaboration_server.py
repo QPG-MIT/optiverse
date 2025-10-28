@@ -47,18 +47,42 @@ async def handler(websocket):
         }))
         logger.info(f"Sent ack to {user_id}")
         
+        # Notify other users
+        for other_id, other_ws in connections.items():
+            if other_id != user_id:
+                try:
+                    await other_ws.send(json.dumps({
+                        "type": "user:joined",
+                        "user_id": user_id
+                    }))
+                except:
+                    pass
+        
         # Handle messages
         async for message in websocket:
             data = json.loads(message)
             msg_type = data.get('type', '')
-            logger.info(f"Received from {user_id}: {msg_type}")
             
             if msg_type == 'ping':
                 await websocket.send(json.dumps({
                     "type": "pong",
                     "timestamp": "2025-10-28T12:00:00"
                 }))
-                logger.info(f"Sent pong to {user_id}")
+                logger.debug(f"Sent pong to {user_id}")
+            elif msg_type == 'command':
+                # Broadcast command to other users in the session
+                action = data.get('action', '')
+                item_type = data.get('item_type', '')
+                logger.info(f"📤 Broadcasting {action} ({item_type}) from {user_id} to {len(connections)-1} other(s)")
+                
+                for other_id, other_ws in connections.items():
+                    if other_id != user_id:
+                        try:
+                            await other_ws.send(message)
+                        except Exception as e:
+                            logger.error(f"Failed to send to {other_id}: {e}")
+            else:
+                logger.info(f"Received from {user_id}: {msg_type}")
     
     except Exception as e:
         logger.error(f"Error for {user_id}: {e}")
@@ -66,6 +90,16 @@ async def handler(websocket):
         if user_id in connections:
             del connections[user_id]
         logger.info(f"User {user_id} disconnected")
+        
+        # Notify other users
+        for other_id, other_ws in connections.items():
+            try:
+                await other_ws.send(json.dumps({
+                    "type": "user:left",
+                    "user_id": user_id
+                }))
+            except:
+                pass
 
 
 async def main(host="0.0.0.0", port=8765):

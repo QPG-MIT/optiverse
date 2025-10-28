@@ -84,6 +84,14 @@ class BaseObj(QtWidgets.QGraphicsObject):
             if getattr(self, "_ready", False) and self.scene() is not None:
                 self._sync_params_from_item()
                 self.edited.emit()
+                
+                # Broadcast position/rotation change to collaboration
+                if self.scene():
+                    views = self.scene().views()
+                    if views:
+                        main_window = views[0].window()
+                        if hasattr(main_window, 'collaboration_manager'):
+                            main_window.collaboration_manager.broadcast_move_item(self)
 
         # Phase 2.2: Ensure sprite re-renders when selection toggles (remove lingering tint)
         if change in (

@@ -110,8 +110,14 @@ class CollaborationManager(QObject):
         # Add to UUID map
         self.item_uuid_map[item.item_uuid] = item
         
+        # Log the broadcast
+        pos = (item.x(), item.y()) if hasattr(item, 'x') and hasattr(item, 'y') else (0, 0)
+        self.log.info(f"📤 Broadcasting ADD: {item_type} at ({pos[0]:.0f}, {pos[1]:.0f})", "Collaboration")
+        
         # Broadcast to other users
         data = item.to_dict()
+        # Ensure UUID is in the data for remote recreation
+        data['item_uuid'] = item.item_uuid
         self.collaboration_service.send_command(
             action="add_item",
             item_type=item_type,
@@ -136,7 +142,13 @@ class CollaborationManager(QObject):
         if not item_type:
             return
         
+        # Log the broadcast
+        pos = (item.x(), item.y()) if hasattr(item, 'x') and hasattr(item, 'y') else (0, 0)
+        rot = item.rotation() if hasattr(item, 'rotation') else 0
+        self.log.debug(f"📤 Broadcasting MOVE: {item_type} to ({pos[0]:.0f}, {pos[1]:.0f}) rot={rot:.0f}°", "Collaboration")
+        
         data = item.to_dict()
+        data['item_uuid'] = item.item_uuid
         self.collaboration_service.send_command(
             action="move_item",
             item_type=item_type,
@@ -165,6 +177,9 @@ class CollaborationManager(QObject):
         if item.item_uuid in self.item_uuid_map:
             del self.item_uuid_map[item.item_uuid]
         
+        # Log the broadcast
+        self.log.info(f"📤 Broadcasting REMOVE: {item_type}", "Collaboration")
+        
         self.collaboration_service.send_command(
             action="remove_item",
             item_type=item_type,
@@ -189,7 +204,11 @@ class CollaborationManager(QObject):
         if not item_type:
             return
         
+        # Log the broadcast
+        self.log.info(f"📤 Broadcasting UPDATE: {item_type}", "Collaboration")
+        
         data = item.to_dict()
+        data['item_uuid'] = item.item_uuid
         self.collaboration_service.send_command(
             action="update_item",
             item_type=item_type,
@@ -270,35 +289,143 @@ class CollaborationManager(QObject):
     
     def _apply_add_item(self, item_type: str, data: Dict[str, Any]) -> None:
         """Apply remote add item command."""
+        # Create item from remote data
+        item = self._create_item_from_remote(item_type, data)
+        if item:
+            # Log the remote add
+            pos = (data.get('x_mm', 0), data.get('y_mm', 0))
+            self.log.info(f"📥 Applying ADD: {item_type} at ({pos[0]:.0f}, {pos[1]:.0f})", "Collaboration")
+            
+            # Add to scene
+            self.main_window.scene.addItem(item)
+            # Add to UUID map
+            self.item_uuid_map[item.item_uuid] = item
+            # Connect signals
+            item.edited.connect(self.main_window._maybe_retrace)
+            # Retrace if needed
+            if self.main_window.autotrace:
+                self.main_window.retrace()
+        else:
+            self.log.error(f"📥 ADD failed: couldn't create {item_type}", "Collaboration")
+        
         self.remote_item_added.emit(item_type, data)
+    
+    def _create_item_from_remote(self, item_type: str, data: Dict[str, Any]):
+        """Create an optical component from remote data."""
+        try:
+            # Import component classes and params
+            from ..objects.lenses import LensItem
+            from ..objects.mirrors import MirrorItem
+            from ..objects.sources import SourceItem
+            from ..objects.beamsplitters import BeamsplitterItem
+            from ..objects.dichroics import DichroicItem
+            from ..objects.waveplates import WaveplateItem
+            from ..objects.misc import SLMItem
+            from ..objects.annotations import RulerItem, TextNoteItem
+            from ..core.models import (
+                LensParams, MirrorParams, SourceParams, 
+                BeamsplitterParams, DichroicParams, WaveplateParams, SLMParams
+            )
+            
+            # Extract UUID from data
+            item_uuid = data.get('uuid') or data.get('item_uuid')
+            
+            # Prepare data dict for from_dict()
+            # Note: from_dict() will set item_uuid from dict, but then passes
+            # the whole dict to Params(**d), so we need to remove item_uuid first
+            data_copy = data.copy()
+            # Remove UUID fields to avoid passing to params constructor
+            data_copy.pop('uuid', None)
+            data_copy.pop('item_uuid', None)
+            
+            # Create appropriate params object with default values
+            if item_type == 'lens':
+                params = LensParams()
+                item = LensItem(params, item_uuid)
+            elif item_type == 'mirror':
+                params = MirrorParams()
+                item = MirrorItem(params, item_uuid)
+            elif item_type == 'source':
+                params = SourceParams()
+                item = SourceItem(params, item_uuid)
+            elif item_type == 'beamsplitter':
+                params = BeamsplitterParams()
+                item = BeamsplitterItem(params, item_uuid)
+            elif item_type == 'dichroic':
+                params = DichroicParams()
+                item = DichroicItem(params, item_uuid)
+            elif item_type == 'waveplate':
+                params = WaveplateParams()
+                item = WaveplateItem(params, item_uuid)
+            elif item_type == 'slm':
+                params = SLMParams()
+                item = SLMItem(params, item_uuid)
+            elif item_type == 'ruler':
+                # Rulers don't use params system
+                item = RulerItem()
+                if item_uuid:
+                    item.item_uuid = item_uuid
+            elif item_type == 'text':
+                # Text notes don't use params system
+                item = TextNoteItem()
+                if item_uuid:
+                    item.item_uuid = item_uuid
+            else:
+                self.log.error(f"Unknown item type: {item_type}", "Collaboration")
+                return None
+            
+            # Load data from dict
+            item.from_dict(data_copy)
+            return item
+            
+        except Exception as e:
+            self.log.error(f"Error creating remote item: {e}", "Collaboration")
+            import traceback
+            traceback.print_exc()
+            return None
     
     def _apply_move_item(self, item_uuid: str, data: Dict[str, Any]) -> None:
         """Apply remote move item command."""
         if item_uuid in self.item_uuid_map:
             item = self.item_uuid_map[item_uuid]
+            pos = (data.get('x_mm', 0), data.get('y_mm', 0))
+            rot = data.get('angle_deg', 0)
+            self.log.debug(f"📥 Applying MOVE: to ({pos[0]:.0f}, {pos[1]:.0f}) rot={rot:.0f}°", "Collaboration")
+            
             if hasattr(item, 'setPos') and 'x_mm' in data and 'y_mm' in data:
                 item.setPos(data['x_mm'], data['y_mm'])
             if hasattr(item, 'setRotation') and 'angle_deg' in data:
                 item.setRotation(data['angle_deg'])
         else:
             # Item not found, might need to add it
+            self.log.warning(f"📥 MOVE failed: item {item_uuid[:8]} not found", "Collaboration")
             self.remote_item_moved.emit(item_uuid, data)
     
     def _apply_remove_item(self, item_uuid: str) -> None:
         """Apply remote remove item command."""
         if item_uuid in self.item_uuid_map:
             item = self.item_uuid_map[item_uuid]
+            item_type = self._get_item_type(item)
+            self.log.info(f"📥 Applying REMOVE: {item_type}", "Collaboration")
+            
             if hasattr(self.main_window, 'scene') and self.main_window.scene:
                 self.main_window.scene.removeItem(item)
             del self.item_uuid_map[item_uuid]
+        else:
+            self.log.warning(f"📥 REMOVE failed: item {item_uuid[:8]} not found", "Collaboration")
         self.remote_item_removed.emit(item_uuid)
     
     def _apply_update_item(self, item_uuid: str, data: Dict[str, Any]) -> None:
         """Apply remote update item command."""
         if item_uuid in self.item_uuid_map:
             item = self.item_uuid_map[item_uuid]
+            item_type = self._get_item_type(item)
+            self.log.info(f"📥 Applying UPDATE: {item_type}", "Collaboration")
+            
             if hasattr(item, 'from_dict'):
                 item.from_dict(data)
+        else:
+            self.log.warning(f"📥 UPDATE failed: item {item_uuid[:8]} not found", "Collaboration")
         self.remote_item_updated.emit(item_uuid, data)
     
     def _on_sync_state_received(self, message: Dict[str, Any]) -> None:
@@ -310,10 +437,12 @@ class CollaborationManager(QObject):
     
     def _on_user_joined(self, user_id: str) -> None:
         """Handle user joined notification."""
+        self.log.info(f"👤 User joined: {user_id}", "Collaboration")
         self.status_changed.emit(f"{user_id} joined")
     
     def _on_user_left(self, user_id: str) -> None:
         """Handle user left notification."""
+        self.log.info(f"👤 User left: {user_id}", "Collaboration")
         self.status_changed.emit(f"{user_id} left")
     
     def _on_error(self, error: str) -> None:
