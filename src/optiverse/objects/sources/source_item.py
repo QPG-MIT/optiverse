@@ -121,7 +121,10 @@ class SourceItem(BaseObj):
         # Wavelength controls
         wl_mode = QtWidgets.QComboBox()
         wl_mode.addItems(["Custom Color", "Wavelength"])
-        wl_mode.setCurrentIndex(1 if self.params.wavelength_nm > 0 else 0)
+        # Detect mode: if color matches wavelength-derived color, we're in wavelength mode
+        is_wl_mode = (self.params.wavelength_nm > 0 and 
+                      self.params.color_hex == wavelength_to_hex(self.params.wavelength_nm))
+        wl_mode.setCurrentIndex(1 if is_wl_mode else 0)
         
         # Wavelength preset dropdown
         wl_preset = QtWidgets.QComboBox()
@@ -136,20 +139,19 @@ class SourceItem(BaseObj):
                     wl_preset.setCurrentIndex(i)
                     break
         
-        # Wavelength spinbox
+        # Wavelength spinbox (always enabled)
         wl_spin = QtWidgets.QDoubleSpinBox()
         wl_spin.setRange(200, 2000)
         wl_spin.setDecimals(1)
         wl_spin.setSuffix(" nm")
         wl_spin.setValue(self.params.wavelength_nm if self.params.wavelength_nm > 0 else 633.0)
-        wl_spin.setEnabled(self.params.wavelength_nm > 0)
         
         # Color picker
         color_btn = QtWidgets.QToolButton()
         color_btn.setText("Pick…")
         color_disp = QtWidgets.QLabel(self.params.color_hex)
-        color_btn.setEnabled(self.params.wavelength_nm == 0)
-        color_disp.setEnabled(self.params.wavelength_nm == 0)
+        color_btn.setEnabled(not is_wl_mode)
+        color_disp.setEnabled(not is_wl_mode)
         
         def paint_chip(lbl: QtWidgets.QLabel, hexstr: str):
             pm = QtGui.QPixmap(40, 16)
@@ -160,7 +162,7 @@ class SourceItem(BaseObj):
             lbl.setPixmap(pm)
         
         chip = QtWidgets.QLabel()
-        if self.params.wavelength_nm > 0:
+        if is_wl_mode:
             paint_chip(chip, wavelength_to_hex(self.params.wavelength_nm))
         else:
             paint_chip(chip, self.params.color_hex)
@@ -178,15 +180,15 @@ class SourceItem(BaseObj):
                 paint_chip(chip, c.name())
         
         def update_from_wavelength():
-            """Update color chip from wavelength."""
-            wl = wl_spin.value()
-            paint_chip(chip, wavelength_to_hex(wl))
+            """Update color chip from wavelength only if in Wavelength mode."""
+            if wl_mode.currentText() == "Wavelength":
+                wl = wl_spin.value()
+                paint_chip(chip, wavelength_to_hex(wl))
         
         def on_mode_changed(mode: str):
             """Handle wavelength mode change."""
             use_wl = (mode == "Wavelength")
-            wl_preset.setEnabled(use_wl)
-            wl_spin.setEnabled(use_wl)
+            # Wavelength controls are always enabled
             color_btn.setEnabled(not use_wl)
             color_disp.setEnabled(not use_wl)
             if use_wl:
@@ -199,7 +201,9 @@ class SourceItem(BaseObj):
             wl = wl_preset.itemData(idx)
             if wl > 0:
                 wl_spin.setValue(wl)
-                update_from_wavelength()
+                # Only update chip if in Wavelength mode
+                if wl_mode.currentText() == "Wavelength":
+                    update_from_wavelength()
         
         wl_mode.currentTextChanged.connect(on_mode_changed)
         wl_preset.currentIndexChanged.connect(on_preset_changed)
@@ -279,13 +283,16 @@ class SourceItem(BaseObj):
             self.params.ray_length_mm = rlen.value()
             self.params.spread_deg = spr.value()
             
-            # Save wavelength or custom color based on mode
+            # Save wavelength and color based on mode
+            # Wavelength is always saved regardless of mode
+            self.params.wavelength_nm = wl_spin.value()
+            
             if wl_mode.currentText() == "Wavelength":
-                self.params.wavelength_nm = wl_spin.value()
+                # Use wavelength-derived color for display
                 self.params.color_hex = wavelength_to_hex(self.params.wavelength_nm)
                 self._color = qcolor_from_hex(self.params.color_hex)
             else:
-                self.params.wavelength_nm = 0.0
+                # Use custom color for display, but preserve wavelength
                 self.params.color_hex = hex_from_qcolor(self._color)
             
             # Polarization parameters

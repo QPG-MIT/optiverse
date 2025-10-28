@@ -92,6 +92,10 @@ class ComponentEditor(QtWidgets.QMainWindow):
         act_reload.triggered.connect(self.reload_library)
         tb.addAction(act_reload)
 
+        act_load_lib = QtGui.QAction("Load Library from Path…", self)
+        act_load_lib.triggered.connect(self.load_library_from_path)
+        tb.addAction(act_load_lib)
+
     def _build_shortcuts(self):
         """Setup keyboard shortcuts."""
         sc_copy = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Copy, self)
@@ -114,7 +118,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.name_edit = QtWidgets.QLineEdit()
         
         self.kind_combo = QtWidgets.QComboBox()
-        self.kind_combo.addItems(["lens", "mirror", "beamsplitter"])
+        self.kind_combo.addItems(["lens", "mirror", "beamsplitter", "dichroic"])
         self.kind_combo.currentTextChanged.connect(self._on_kind_changed)
 
         # OBJECT HEIGHT (mm) -> physical size of the optical element
@@ -177,6 +181,24 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.split_R.setValue(50.0)
         self.split_R.valueChanged.connect(self._sync_TR_from_R)
 
+        # Dichroic cutoff wavelength
+        self.cutoff_wavelength = QtWidgets.QDoubleSpinBox()
+        self.cutoff_wavelength.setRange(200, 2000)
+        self.cutoff_wavelength.setDecimals(1)
+        self.cutoff_wavelength.setSuffix(" nm")
+        self.cutoff_wavelength.setValue(550.0)
+        
+        # Dichroic transition width
+        self.transition_width = QtWidgets.QDoubleSpinBox()
+        self.transition_width.setRange(1, 200)
+        self.transition_width.setDecimals(1)
+        self.transition_width.setSuffix(" nm")
+        self.transition_width.setValue(50.0)
+        
+        # Dichroic pass type
+        self.pass_type = QtWidgets.QComboBox()
+        self.pass_type.addItems(["longpass", "shortpass"])
+
         # Notes field
         self.notes = QtWidgets.QPlainTextEdit()
         self.notes.setPlaceholderText("Optional notes…")
@@ -209,6 +231,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
         f.addRow("EFL (lens)", self.efl_mm)
         f.addRow("Split T (BS)", self.split_T)
         f.addRow("Split R (BS)", self.split_R)
+        f.addRow("Cutoff λ (dichroic)", self.cutoff_wavelength)
+        f.addRow("Trans. Width (dichroic)", self.transition_width)
+        f.addRow("Pass Type (dichroic)", self.pass_type)
         f.addRow("Notes", self.notes)
 
         self._on_kind_changed(self.kind_combo.currentText())
@@ -236,9 +261,13 @@ class ComponentEditor(QtWidgets.QMainWindow):
         """Show/hide type-specific fields."""
         is_lens = (kind == "lens")
         is_bs = (kind == "beamsplitter")
+        is_dichroic = (kind == "dichroic")
         self.efl_mm.setVisible(is_lens)
         self.split_T.setVisible(is_bs)
         self.split_R.setVisible(is_bs)
+        self.cutoff_wavelength.setVisible(is_dichroic)
+        self.transition_width.setVisible(is_dichroic)
+        self.pass_type.setVisible(is_dichroic)
 
     def _sync_TR_from_T(self, v: float):
         """Auto-complement R from T."""
@@ -358,10 +387,13 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.canvas.clear_points()
         self.name_edit.clear()
         self.kind_combo.setCurrentText("lens")
-        self.height_mm.setValue(50.0)
+        self.object_height_mm.setValue(50.0)
         self.efl_mm.setValue(100.0)
         self.split_T.setValue(50.0)
         self.split_R.setValue(50.0)
+        self.cutoff_wavelength.setValue(550.0)
+        self.transition_width.setValue(50.0)
+        self.pass_type.setCurrentIndex(0)  # longpass
         self.notes.clear()
         self._update_derived_labels()
 
@@ -538,6 +570,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
             if kind == "beamsplitter"
             else (50.0, 50.0)
         )
+        cutoff_wavelength = float(self.cutoff_wavelength.value()) if kind == "dichroic" else 550.0
+        transition_width = float(self.transition_width.value()) if kind == "dichroic" else 50.0
+        pass_type_value = self.pass_type.currentText() if kind == "dichroic" else "longpass"
 
         return ComponentRecord(
             name=name,
@@ -547,6 +582,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
             object_height_mm=object_height,
             efl_mm=efl,
             split_TR=TR,
+            cutoff_wavelength_nm=cutoff_wavelength,
+            transition_width_nm=transition_width,
+            pass_type=pass_type_value,
             notes=self.notes.toPlainText().strip()
         )
 
@@ -679,7 +717,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         # Populate UI
         self.name_edit.setText(rec.name)
         self.kind_combo.setCurrentText(
-            rec.kind if rec.kind in ("lens", "mirror", "beamsplitter") else "lens"
+            rec.kind if rec.kind in ("lens", "mirror", "beamsplitter", "dichroic") else "lens"
         )
         
         # Set object height directly from component record
@@ -689,6 +727,12 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.efl_mm.setValue(rec.efl_mm if rec.kind == "lens" else 0.0)
         self.split_T.setValue(rec.split_TR[0] if rec.kind == "beamsplitter" else 50.0)
         self.split_R.setValue(rec.split_TR[1] if rec.kind == "beamsplitter" else 50.0)
+        self.cutoff_wavelength.setValue(rec.cutoff_wavelength_nm if rec.kind == "dichroic" else 550.0)
+        self.transition_width.setValue(rec.transition_width_nm if rec.kind == "dichroic" else 50.0)
+        if rec.kind == "dichroic":
+            idx = self.pass_type.findText(rec.pass_type)
+            if idx >= 0:
+                self.pass_type.setCurrentIndex(idx)
         self.notes.setPlainText(rec.notes)
         
         if rec.line_px:
@@ -739,6 +783,69 @@ class ComponentEditor(QtWidgets.QMainWindow):
             "Library",
             f"Loaded {len(rows)} component(s).\n\nLibrary file:\n{get_library_path()}"
         )
+    
+    def load_library_from_path(self):
+        """Load component library from a custom path."""
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Load Library File",
+            "",
+            "JSON files (*.json);;All files (*.*)"
+        )
+        if not path:
+            return
+        
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            if not isinstance(data, list):
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Invalid Library",
+                    "The selected file does not contain a valid component library (expected JSON array)."
+                )
+                return
+            
+            # Merge with existing library
+            existing = self.storage.load_library()
+            existing_names = {comp.get("name") for comp in existing}
+            
+            new_count = 0
+            for comp in data:
+                if isinstance(comp, dict) and comp.get("name"):
+                    if comp.get("name") not in existing_names:
+                        existing.append(comp)
+                        existing_names.add(comp.get("name"))
+                        new_count += 1
+            
+            if new_count > 0:
+                self.storage.save_library(existing)
+                self._refresh_library_list()
+                QtWidgets.QMessageBox.information(
+                    self,
+                    "Library Loaded",
+                    f"Loaded {new_count} new component(s) from:\n{path}\n\nTotal components: {len(existing)}"
+                )
+            else:
+                QtWidgets.QMessageBox.information(
+                    self,
+                    "Library Loaded",
+                    "No new components found in the library file (all components already exist)."
+                )
+        
+        except json.JSONDecodeError as e:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Invalid JSON",
+                f"Could not parse JSON file:\n{e}"
+            )
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Load Error",
+                f"Could not load library file:\n{e}"
+            )
 
 
 # Keep old name for backward compatibility

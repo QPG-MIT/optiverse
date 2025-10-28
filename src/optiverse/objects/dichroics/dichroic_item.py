@@ -135,7 +135,6 @@ class DichroicItem(BaseObj):
         cutoff.setDecimals(1)
         cutoff.setSuffix(" nm")
         cutoff.setValue(self.params.cutoff_wavelength_nm)
-        cutoff.setToolTip("Wavelengths below this reflect, above this transmit")
         
         transition = QtWidgets.QDoubleSpinBox()
         transition.setRange(1, 200)
@@ -144,22 +143,43 @@ class DichroicItem(BaseObj):
         transition.setValue(self.params.transition_width_nm)
         transition.setToolTip("Width of transition region between reflection and transmission")
         
+        pass_type = QtWidgets.QComboBox()
+        pass_type.addItems(["longpass", "shortpass"])
+        # Set current value
+        current_pass_type = getattr(self.params, "pass_type", "longpass")
+        idx = pass_type.findText(current_pass_type)
+        if idx >= 0:
+            pass_type.setCurrentIndex(idx)
+        
+        # Update cutoff tooltip based on pass type
+        def update_cutoff_tooltip(text):
+            if text == "longpass":
+                cutoff.setToolTip("Wavelengths below this reflect, above this transmit")
+            else:  # shortpass
+                cutoff.setToolTip("Wavelengths above this reflect, below this transmit")
+        
+        # Set initial tooltip
+        update_cutoff_tooltip(pass_type.currentText())
+        pass_type.currentTextChanged.connect(update_cutoff_tooltip)
+        
         f.addRow("X Position", x)
         f.addRow("Y Position", y)
         f.addRow("Optical Axis Angle", ang)
         f.addRow("Length", length)
+        f.addRow("Pass Type", pass_type)
         f.addRow("Cutoff Wavelength", cutoff)
         f.addRow("Transition Width", transition)
         
         # Add info label
         info = QtWidgets.QLabel(
-            "Dichroic mirrors reflect short wavelengths and transmit long wavelengths.\n"
-            "Adjust the cutoff wavelength to set the separation point."
+            "Dichroic mirrors selectively reflect or transmit based on wavelength.\n"
+            "Long pass: reflects short wavelengths, transmits long wavelengths.\n"
+            "Short pass: reflects long wavelengths, transmits short wavelengths."
         )
         info.setWordWrap(True)
         # Adapt color to theme
         palette = d.palette()
-        is_dark = palette.color(QtWidgets.QPalette.ColorRole.Window).lightness() < 128
+        is_dark = palette.color(QtGui.QPalette.ColorRole.Window).lightness() < 128
         info.setStyleSheet(f"color: {'#888' if is_dark else '#666'}; font-size: 10px;")
         f.addRow("", info)
         
@@ -180,6 +200,7 @@ class DichroicItem(BaseObj):
             self.params.object_height_mm = length.value()
             self.params.cutoff_wavelength_nm = cutoff.value()
             self.params.transition_width_nm = transition.value()
+            self.params.pass_type = pass_type.currentText()
             self._update_geom()
             self._maybe_attach_sprite()
             self.edited.emit()

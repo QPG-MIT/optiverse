@@ -98,7 +98,7 @@ def get_dark_stylesheet() -> str:
         background-color: #23252b;
     }
     
-    QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    QLineEdit, QComboBox {
         background-color: #2d2f36;
         color: white;
         border: 1px solid #3d3f46;
@@ -106,7 +106,7 @@ def get_dark_stylesheet() -> str:
         border-radius: 3px;
     }
     
-    QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+    QLineEdit:focus, QComboBox:focus {
         border: 1px solid #5d5f66;
     }
     
@@ -288,7 +288,7 @@ def get_light_stylesheet() -> str:
         background-color: #d0d0d0;
     }
     
-    QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    QLineEdit, QComboBox {
         background-color: white;
         color: black;
         border: 1px solid #c0c0c0;
@@ -296,7 +296,7 @@ def get_light_stylesheet() -> str:
         border-radius: 3px;
     }
     
-    QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+    QLineEdit:focus, QComboBox:focus {
         border: 1px solid #4a90e2;
     }
     

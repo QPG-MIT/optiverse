@@ -640,6 +640,7 @@ class MainWindow(QtWidgets.QMainWindow):
         elif kind == "dichroic":
             cutoff_wavelength_nm = float(rec.get("cutoff_wavelength_nm", 550.0))
             transition_width_nm = float(rec.get("transition_width_nm", 50.0))
+            pass_type = str(rec.get("pass_type", "longpass"))
             params = DichroicParams(
                 x_mm=scene_pos.x(),
                 y_mm=scene_pos.y(),
@@ -647,6 +648,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 object_height_mm=object_height_mm,
                 cutoff_wavelength_nm=cutoff_wavelength_nm,
                 transition_width_nm=transition_width_nm,
+                pass_type=pass_type,
                 image_path=img,
                 line_px=line_px,
                 name=name,
@@ -1065,6 +1067,7 @@ class MainWindow(QtWidgets.QMainWindow):
         for D in dichroics:
             p1, p2 = D.endpoints_scene()
             # Dichroic mirrors have wavelength-dependent reflection/transmission
+            pass_type = getattr(D.params, "pass_type", "longpass")
             elems.append(
                 OpticalElement(
                     kind="dichroic",
@@ -1072,6 +1075,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     p2=p2,
                     cutoff_wavelength_nm=D.params.cutoff_wavelength_nm,
                     transition_width_nm=D.params.transition_width_nm,
+                    pass_type=pass_type,
                 )
             )
         for S in slms:

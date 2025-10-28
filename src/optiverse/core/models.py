@@ -122,6 +122,7 @@ class ComponentRecord:
     # dichroic only
     cutoff_wavelength_nm: float = 550.0  # Cutoff wavelength for dichroic mirrors
     transition_width_nm: float = 50.0  # Width of transition region
+    pass_type: str = "longpass"  # "longpass" or "shortpass"
     # optical axis angle (degrees) - default orientation when placed
     angle_deg: float = 0.0
     # misc
@@ -168,6 +169,7 @@ def serialize_component(rec: ComponentRecord) -> Dict[str, Any]:
     elif rec.kind == "dichroic":
         base["cutoff_wavelength_nm"] = float(rec.cutoff_wavelength_nm)
         base["transition_width_nm"] = float(rec.transition_width_nm)
+        base["pass_type"] = str(rec.pass_type)
     # mirror: no extra fields
     return base
 
@@ -214,6 +216,7 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
     fast_axis_deg = 0.0
     cutoff_wavelength_nm = 550.0
     transition_width_nm = 50.0
+    pass_type = "longpass"
 
     if kind == "lens":
         try:
@@ -252,6 +255,10 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
             transition_width_nm = float(data.get("transition_width_nm", 50.0))
         except Exception:
             transition_width_nm = 50.0
+        try:
+            pass_type = str(data.get("pass_type", "longpass"))
+        except Exception:
+            pass_type = "longpass"
 
     return ComponentRecord(
         name=name,
@@ -265,6 +272,7 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
         fast_axis_deg=fast_axis_deg,
         cutoff_wavelength_nm=cutoff_wavelength_nm,
         transition_width_nm=transition_width_nm,
+        pass_type=pass_type,
         angle_deg=angle_deg,
         notes=notes
     )
@@ -280,8 +288,9 @@ class SourceParams:
     ray_length_mm: float = 1000.0
     spread_deg: float = 0.0
     color_hex: str = "#DC143C"  # crimson default
-    # Wavelength (in nanometers) - if 0, use color_hex directly
-    wavelength_nm: float = 0.0  # 0 = use color_hex, >0 = compute color from wavelength
+    # Wavelength (in nanometers) - used for physics calculations (dichroics, etc.)
+    # Display color is always taken from color_hex, independent of wavelength
+    wavelength_nm: float = 633.0  # Default: 633nm (HeNe laser, red)
     # Polarization parameters
     polarization_type: str = "horizontal"  # horizontal, vertical, +45, -45, circular_right, circular_left, linear
     polarization_angle_deg: float = 0.0  # Used when polarization_type is "linear"
@@ -404,9 +413,8 @@ class DichroicParams:
     Dichroic mirror component parameters.
     
     Dichroic mirrors selectively reflect or transmit light based on wavelength.
-    Typically:
-    - Short wavelengths (< cutoff) reflect
-    - Long wavelengths (> cutoff) transmit
+    - Long pass: reflects short wavelengths (< cutoff), transmits long wavelengths (> cutoff)
+    - Short pass: reflects long wavelengths (> cutoff), transmits short wavelengths (< cutoff)
     
     The transition is smooth with a characteristic width.
     """
@@ -416,6 +424,7 @@ class DichroicParams:
     object_height_mm: float = 80.0  # Physical size of optical element
     cutoff_wavelength_nm: float = 550.0  # Cutoff wavelength (nm) - green
     transition_width_nm: float = 50.0  # Width of transition region (nm)
+    pass_type: str = "longpass"  # "longpass" or "shortpass"
     image_path: Optional[str] = None
     mm_per_pixel: float = 0.1
     line_px: Optional[Tuple[float, float, float, float]] = None
@@ -439,6 +448,7 @@ class OpticalElement:
     # Dichroic properties
     cutoff_wavelength_nm: float = 550.0  # Cutoff wavelength for dichroic mirrors
     transition_width_nm: float = 50.0  # Width of transition region
+    pass_type: str = "longpass"  # "longpass" or "shortpass"
 
 
 @dataclass

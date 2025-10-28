@@ -39,16 +39,13 @@ def trace_rays(
         spread = deg2rad(S.spread_deg)
         
         # Determine wavelength and color
-        # If wavelength is specified (> 0), use it; otherwise use color_hex
+        # Wavelength is used for physics calculations (dichroics, etc.)
+        # Color is always used for visualization (independent of wavelength)
         source_wavelength = S.wavelength_nm if S.wavelength_nm > 0 else 0.0
         
-        if source_wavelength > 0:
-            # Compute color from wavelength
-            base_rgb = wavelength_to_rgb(source_wavelength)
-        else:
-            # Use color from hex
-            src_col = qcolor_from_hex(S.color_hex)
-            base_rgb = (src_col.red(), src_col.green(), src_col.blue())
+        # Always use color_hex for visualization
+        src_col = qcolor_from_hex(S.color_hex)
+        base_rgb = (src_col.red(), src_col.green(), src_col.blue())
 
         ys = [0.0] if (S.n_rays <= 1 or S.size_mm == 0) else list(np.linspace(-S.size_mm/2, S.size_mm/2, S.n_rays))
         if spread == 0 or S.n_rays <= 1:
@@ -235,11 +232,12 @@ def trace_rays(
                     # Get dichroic properties
                     cutoff_wl = getattr(obj, 'cutoff_wavelength_nm', 550.0)
                     transition_width = getattr(obj, 'transition_width_nm', 50.0)
+                    pass_type = getattr(obj, 'pass_type', 'longpass')
                     
                     # Compute wavelength-dependent reflectance and transmittance
                     # If wavelength not specified (wl == 0), assume 50/50 split
                     if wl > 0:
-                        R, T = compute_dichroic_reflectance(wl, cutoff_wl, transition_width)
+                        R, T = compute_dichroic_reflectance(wl, cutoff_wl, transition_width, pass_type)
                     else:
                         # No wavelength specified, treat as 50/50 beamsplitter
                         R, T = 0.5, 0.5

@@ -296,37 +296,47 @@ def transform_polarization_beamsplitter(
 def compute_dichroic_reflectance(
     wavelength_nm: float,
     cutoff_wavelength_nm: float,
-    transition_width_nm: float
+    transition_width_nm: float,
+    pass_type: str = "longpass"
 ) -> Tuple[float, float]:
     """
     Compute reflection and transmission coefficients for a dichroic mirror.
     
-    Dichroic mirrors selectively reflect short wavelengths and transmit long wavelengths.
+    Dichroic mirrors selectively reflect or transmit based on wavelength.
     The transition is modeled with a smooth sigmoid function.
     
     Physical model:
-    - R(λ) = 1 / (1 + exp((λ - λ_cutoff) / Δλ))
-    - T(λ) = 1 - R(λ)
+    - Long pass: R(λ) = 1 / (1 + exp((λ - λ_cutoff) / Δλ)), T(λ) = 1 - R(λ)
+      (reflects short wavelengths, transmits long wavelengths)
+    - Short pass: R(λ) = 1 / (1 + exp((λ_cutoff - λ) / Δλ)), T(λ) = 1 - R(λ)
+      (reflects long wavelengths, transmits short wavelengths)
     
     Args:
         wavelength_nm: Incident light wavelength in nanometers
         cutoff_wavelength_nm: Cutoff wavelength (50% point)
         transition_width_nm: Characteristic width of transition region
+        pass_type: "longpass" or "shortpass"
         
     Returns:
         Tuple of (reflectance, transmittance) both in range [0, 1]
         
     Notes:
-        - Short wavelengths (< cutoff): high reflectance
-        - Long wavelengths (> cutoff): high transmittance
+        - Long pass: Short wavelengths (< cutoff) have high reflectance
+        - Short pass: Long wavelengths (> cutoff) have high reflectance
         - Smooth transition preserves energy (R + T ≈ 1)
     """
     # Normalized deviation from cutoff
     delta = (wavelength_nm - cutoff_wavelength_nm) / max(1.0, transition_width_nm)
     
     # Sigmoid function for smooth transition
-    # R decreases from 1 to 0 as wavelength increases
-    reflectance = 1.0 / (1.0 + np.exp(delta))
+    if pass_type == "shortpass":
+        # Invert the behavior: reflect long wavelengths, transmit short wavelengths
+        # R increases from 0 to 1 as wavelength increases
+        reflectance = 1.0 / (1.0 + np.exp(-delta))
+    else:  # longpass (default)
+        # R decreases from 1 to 0 as wavelength increases
+        reflectance = 1.0 / (1.0 + np.exp(delta))
+    
     transmittance = 1.0 - reflectance
     
     # Clamp to physical range
