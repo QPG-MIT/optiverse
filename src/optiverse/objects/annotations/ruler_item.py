@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import uuid
 from typing import Optional, Dict, Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -13,8 +14,11 @@ class RulerItem(QtWidgets.QGraphicsObject):
     - Right-click → Delete.
     """
     
-    def __init__(self, p1=QtCore.QPointF(-50, 0), p2=QtCore.QPointF(50, 0)):
+    def __init__(self, p1=QtCore.QPointF(-50, 0), p2=QtCore.QPointF(50, 0), item_uuid: str | None = None):
         super().__init__()
+        # Generate or use provided UUID for collaboration
+        self.item_uuid = item_uuid if item_uuid else str(uuid.uuid4())
+        
         self.setFlags(
             QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable
             | QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
@@ -30,8 +34,8 @@ class RulerItem(QtWidgets.QGraphicsObject):
         
         # Appearance
         self._line_w = 2.0
-        self._bar_w = 2.0      # bar thickness along the line
-        self._bar_h = 10.0     # bar height perpendicular to the line
+        self._bar_w = 1.0      # reduced bar thickness along the line (was 2.0)
+        self._bar_h = 12.0     # bar height perpendicular to the line
         self._hit_radius = 10.0
         self._pad = 90.0       # padding to fully cover label area when moving
 
@@ -164,6 +168,7 @@ class RulerItem(QtWidgets.QGraphicsObject):
             "type": "ruler",
             "p1": [float(p1_scene.x()), float(p1_scene.y())],
             "p2": [float(p2_scene.x()), float(p2_scene.y())],
+            "item_uuid": self.item_uuid,
         }
     
     @staticmethod
@@ -171,7 +176,8 @@ class RulerItem(QtWidgets.QGraphicsObject):
         """Deserialize ruler from dictionary."""
         p1 = QtCore.QPointF(float(d["p1"][0]), float(d["p1"][1]))
         p2 = QtCore.QPointF(float(d["p2"][0]), float(d["p2"][1]))
+        item_uuid = d.get("item_uuid")
         # store points in item coords and keep item at origin
-        return RulerItem(p1, p2)
+        return RulerItem(p1, p2, item_uuid)
 
 

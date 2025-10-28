@@ -17,8 +17,8 @@ class SLMItem(BaseObj):
     Acts as a mirror for ray tracing purposes.
     """
     
-    def __init__(self, params: SLMParams):
-        super().__init__()
+    def __init__(self, params: SLMParams, item_uuid: str | None = None):
+        super().__init__(item_uuid)
         self.params = params
         self._sprite: Optional[ComponentSprite] = None
         self._actual_length_mm: Optional[float] = None  # Calculated from picked line
@@ -159,10 +159,13 @@ class SLMItem(BaseObj):
         d["x_mm"] = float(self.pos().x())
         d["y_mm"] = float(self.pos().y())
         d["angle_deg"] = float(self.rotation())
+        d["item_uuid"] = self.item_uuid
         return d
     
     def from_dict(self, d: Dict[str, Any]):
         """Deserialize from dictionary."""
+        if "item_uuid" in d:
+            self.item_uuid = d["item_uuid"]
         self.params = SLMParams(**d)
         self.setPos(self.params.x_mm, self.params.y_mm)
         self.setRotation(self.params.angle_deg)

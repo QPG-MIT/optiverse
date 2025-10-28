@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from typing import Dict, Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -10,8 +11,11 @@ class TextNoteItem(QtWidgets.QGraphicsTextItem):
     Movable, editable text note. Double-click to edit; right-click → Delete/Edit.
     """
     
-    def __init__(self, text: str = "Text"):
+    def __init__(self, text: str = "Text", item_uuid: str | None = None):
         super().__init__(text)
+        # Generate or use provided UUID for collaboration
+        self.item_uuid = item_uuid if item_uuid else str(uuid.uuid4())
+        
         self.setFlags(
             QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable
             | QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
@@ -54,12 +58,14 @@ class TextNoteItem(QtWidgets.QGraphicsTextItem):
             "y": float(self.scenePos().y()),
             "color": self.defaultTextColor().name(),
             "point_size": float(self.font().pointSizeF()),
+            "item_uuid": self.item_uuid,
         }
     
     @staticmethod
     def from_dict(d: Dict[str, Any]) -> "TextNoteItem":
         """Deserialize text note from dictionary."""
-        item = TextNoteItem(d.get("text", "Text"))
+        item_uuid = d.get("item_uuid")
+        item = TextNoteItem(d.get("text", "Text"), item_uuid)
         col = QtGui.QColor(d.get("color", "#0A0A28"))
         item.setDefaultTextColor(col)
         f = item.font()

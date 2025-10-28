@@ -20,8 +20,8 @@ class WaveplateItem(BaseObj):
     - Half waveplate (HWP): 180° phase shift - rotates linear polarization
     """
     
-    def __init__(self, params: WaveplateParams):
-        super().__init__()
+    def __init__(self, params: WaveplateParams, item_uuid: str | None = None):
+        super().__init__(item_uuid)
         self.params = params
         self._sprite: Optional[ComponentSprite] = None
         self._actual_length_mm: Optional[float] = None  # Calculated from picked line
@@ -182,10 +182,13 @@ class WaveplateItem(BaseObj):
         d["x_mm"] = float(self.pos().x())
         d["y_mm"] = float(self.pos().y())
         d["angle_deg"] = float(self.rotation())
+        d["item_uuid"] = self.item_uuid
         return d
     
     def from_dict(self, d: Dict[str, Any]):
         """Deserialize from dictionary."""
+        if "item_uuid" in d:
+            self.item_uuid = d["item_uuid"]
         self.params = WaveplateParams(**d)
         self.setPos(self.params.x_mm, self.params.y_mm)
         self.setRotation(self.params.angle_deg)

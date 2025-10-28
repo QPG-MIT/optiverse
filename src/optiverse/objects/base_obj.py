@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import uuid
 from typing import Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -21,8 +22,11 @@ class BaseObj(QtWidgets.QGraphicsObject):
 
     edited = QtCore.pyqtSignal()
 
-    def __init__(self):
+    def __init__(self, item_uuid: str | None = None):
         super().__init__()
+        # Generate or use provided UUID for collaboration
+        self.item_uuid = item_uuid if item_uuid else str(uuid.uuid4())
+        
         self.setFlags(
             QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable
             | QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
@@ -244,7 +248,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize element to dictionary."""
-        return {}
+        return {"item_uuid": self.item_uuid}
 
     def from_dict(self, d: dict[str, Any]):
         """Deserialize element from dictionary."""

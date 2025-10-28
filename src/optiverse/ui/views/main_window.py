@@ -23,6 +23,8 @@ from ...core.undo_stack import UndoStack
 from ...core.use_cases import trace_rays
 from ...services.settings_service import SettingsService
 from ...services.storage_service import StorageService
+from ...services.collaboration_manager import CollaborationManager
+from .collaboration_dialog import CollaborationDialog
 from ...objects import (
     BeamsplitterItem,
     DichroicItem,
@@ -133,9 +135,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.storage_service = StorageService()
         self.settings_service = SettingsService()
         self.undo_stack = UndoStack()
+        self.collaboration_manager = CollaborationManager(self)
         
         # Load saved preferences
         self.magnetic_snap = self.settings_service.get_value("magnetic_snap", True, bool)
+        
+        # Connect collaboration signals
+        self.collaboration_manager.remote_item_added.connect(self._on_remote_item_added)
+        self.collaboration_manager.status_changed.connect(self._on_collaboration_status_changed)
 
         # Build UI
         self._build_actions()
@@ -270,6 +277,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.act_reload = QtGui.QAction("Reload Library", self)
         self.act_reload.triggered.connect(self.populate_library)
+        
+        # --- Collaboration ---
+        self.act_collaborate = QtGui.QAction("Connect/Host Session…", self)
+        self.act_collaborate.setShortcut("Ctrl+Shift+C")
+        self.act_collaborate.triggered.connect(self.open_collaboration_dialog)
+        
+        self.act_disconnect = QtGui.QAction("Disconnect", self)
+        self.act_disconnect.setEnabled(False)
+        self.act_disconnect.triggered.connect(self.disconnect_collaboration)
 
     def _build_toolbar(self):
         """Build component toolbar with custom PNG icons."""
@@ -358,6 +374,15 @@ class MainWindow(QtWidgets.QMainWindow):
         mTools.addSeparator()
         mTools.addAction(self.act_editor)
         mTools.addAction(self.act_reload)
+        
+        # Collaboration menu
+        mCollab = mb.addMenu("&Collaboration")
+        mCollab.addAction(self.act_collaborate)
+        mCollab.addAction(self.act_disconnect)
+        
+        # Add collaboration status to status bar
+        self.collab_status_label = QtWidgets.QLabel("Not connected")
+        self.statusBar().addPermanentWidget(self.collab_status_label)
 
     def _build_library_dock(self):
         """Build component library dock with categorized tree view."""
@@ -549,11 +574,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Sprite is automatically attached in constructor, no need to call again
         item.edited.connect(self._maybe_retrace)
+        item.edited.connect(lambda: self.collaboration_manager.broadcast_update_item(item))
         cmd = AddItemCommand(self.scene, item)
         self.undo_stack.push(cmd)
         # Clear previous selection and select only the newly dropped item
         self.scene.clearSelection()
         item.setSelected(True)
+        # Broadcast addition to collaboration
+        self.collaboration_manager.broadcast_add_item(item)
         if self.autotrace:
             self.retrace()
 
@@ -562,9 +590,12 @@ class MainWindow(QtWidgets.QMainWindow):
         """Add source with default params."""
         s = SourceItem(SourceParams())
         s.edited.connect(self._maybe_retrace)
+        s.edited.connect(lambda: self.collaboration_manager.broadcast_update_item(s))
         cmd = AddItemCommand(self.scene, s)
         self.undo_stack.push(cmd)
         s.setSelected(True)
+        # Broadcast addition to collaboration
+        self.collaboration_manager.broadcast_add_item(s)
         if self.autotrace:
             self.retrace()
 
@@ -659,6 +690,8 @@ class MainWindow(QtWidgets.QMainWindow):
         for item in selected:
             # Only delete optical components, rulers, and text notes (not grid lines or rays)
             if isinstance(item, (BaseObj, RulerItem, TextNoteItem)):
+                # Broadcast deletion to collaboration
+                self.collaboration_manager.broadcast_remove_item(item)
                 cmd = RemoveItemCommand(self.scene, item)
                 self.undo_stack.push(cmd)
         
@@ -1150,11 +1183,87 @@ class MainWindow(QtWidgets.QMainWindow):
 
         return super().eventFilter(obj, ev)
 
+    # ----- Collaboration -----
+    def open_collaboration_dialog(self):
+        """Open dialog to connect to or host a collaboration session."""
+        dialog = CollaborationDialog(self)
+        if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
+            info = dialog.get_connection_info()
+            
+            # Connect to the session
+            server_url = info["server_url"]
+            session_id = info["session_id"]
+            user_id = info["user_id"]
+            
+            self.collaboration_manager.connect_to_session(server_url, session_id, user_id)
+            self.act_disconnect.setEnabled(True)
+            self.act_collaborate.setEnabled(False)
+    
+    def disconnect_collaboration(self):
+        """Disconnect from collaboration session."""
+        self.collaboration_manager.disconnect()
+        self.act_disconnect.setEnabled(False)
+        self.act_collaborate.setEnabled(True)
+        self.collab_status_label.setText("Not connected")
+    
+    def _on_collaboration_status_changed(self, status: str):
+        """Update collaboration status indicator."""
+        self.collab_status_label.setText(f"Collaboration: {status}")
+    
+    def _on_remote_item_added(self, item_type: str, data: dict):
+        """Handle remote item addition."""
+        # Suppress broadcasting while adding remote item
+        try:
+            # Create the appropriate item type
+            if item_type == "source":
+                item = SourceItem(SourceParams(**data), data.get("item_uuid"))
+                self.scene.addItem(item)
+                item.edited.connect(self._maybe_retrace)
+            elif item_type == "lens":
+                item = LensItem(LensParams(**data), data.get("item_uuid"))
+                self.scene.addItem(item)
+                item.edited.connect(self._maybe_retrace)
+            elif item_type == "mirror":
+                item = MirrorItem(MirrorParams(**data), data.get("item_uuid"))
+                self.scene.addItem(item)
+                item.edited.connect(self._maybe_retrace)
+            elif item_type == "beamsplitter":
+                item = BeamsplitterItem(BeamsplitterParams(**data), data.get("item_uuid"))
+                self.scene.addItem(item)
+                item.edited.connect(self._maybe_retrace)
+            elif item_type == "dichroic":
+                item = DichroicItem(DichroicParams(**data), data.get("item_uuid"))
+                self.scene.addItem(item)
+                item.edited.connect(self._maybe_retrace)
+            elif item_type == "waveplate":
+                item = WaveplateItem(WaveplateParams(**data), data.get("item_uuid"))
+                self.scene.addItem(item)
+                item.edited.connect(self._maybe_retrace)
+            elif item_type == "ruler":
+                item = RulerItem.from_dict(data)
+                self.scene.addItem(item)
+            elif item_type == "text":
+                item = TextNoteItem.from_dict(data)
+                self.scene.addItem(item)
+            
+            # Add to UUID map
+            if hasattr(item, 'item_uuid'):
+                self.collaboration_manager.item_uuid_map[item.item_uuid] = item
+            
+            # Retrace if autotrace is on
+            if self.autotrace:
+                QtCore.QTimer.singleShot(50, self.retrace)
+        except Exception as e:
+            print(f"Error adding remote item: {e}")
+    
     # ensure clean shutdown
     def closeEvent(self, e: QtGui.QCloseEvent):
         try:
             if hasattr(self, "_comp_editor") and self._comp_editor:
                 self._comp_editor.close()
+            # Disconnect from collaboration
+            if hasattr(self, "collaboration_manager"):
+                self.collaboration_manager.disconnect()
         except Exception:
             pass
         super().closeEvent(e)

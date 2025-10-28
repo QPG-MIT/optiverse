@@ -20,8 +20,8 @@ class SourceItem(BaseObj):
     - Serialization support
     """
     
-    def __init__(self, params: SourceParams):
-        super().__init__()
+    def __init__(self, params: SourceParams, item_uuid: str | None = None):
+        super().__init__(item_uuid)
         self.params = params
         self._color = qcolor_from_hex(self.params.color_hex)
         self._update_shape()
@@ -302,10 +302,14 @@ class SourceItem(BaseObj):
         d["y_mm"] = float(self.pos().y())
         d["angle_deg"] = float(self.rotation())
         d["color_hex"] = hex_from_qcolor(self._color)
+        d["item_uuid"] = self.item_uuid
         return d
     
     def from_dict(self, d: Dict[str, Any]):
         """Deserialize from dictionary."""
+        # Restore UUID if present
+        if "item_uuid" in d:
+            self.item_uuid = d["item_uuid"]
         self.params = SourceParams(**d)
         self._color = qcolor_from_hex(self.params.color_hex)
         self.setPos(self.params.x_mm, self.params.y_mm)
