@@ -152,7 +152,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.snap_to_grid = True
         self._ray_width_px = 2.0
         self.ray_items: list[QtWidgets.QGraphicsPathItem] = []
+        self.ray_data: list = []  # Store RayPath data for each ray item
         self.autotrace = True
+        self._pipet_mode = False  # Track if pipet tool is active
         # Grid now drawn in GraphicsView.drawBackground() for better performance
         
         # Snap helper for magnetic alignment
@@ -333,6 +335,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_add_text = QtGui.QAction("Text", self)
         self.act_add_text.triggered.connect(self.add_text)
 
+        # --- Tools ---
+        self.act_pipet = QtGui.QAction("Pipet", self, checkable=True)
+        self.act_pipet.setChecked(False)
+        self.act_pipet.toggled.connect(self._toggle_pipet)
+
         # --- View ---
         self.act_zoom_in = QtGui.QAction("Zoom In", self)
         self.act_zoom_in.setShortcut(QtGui.QKeySequence.StandardKey.ZoomIn)
@@ -428,6 +435,25 @@ class MainWindow(QtWidgets.QMainWindow):
         toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         toolbar.setIconSize(QtCore.QSize(32, 32))
         self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, toolbar)
+        
+        # Add styling for checked/active tool buttons to make them visually distinct
+        # Using box-shadow instead of border to avoid resizing the toolbar
+        toolbar.setStyleSheet("""
+            QToolButton {
+                padding: 2px;
+                border: 2px solid transparent;
+                border-radius: 4px;
+            }
+            QToolButton:checked {
+                background-color: rgba(100, 150, 255, 100);
+                border: 2px solid rgba(100, 150, 255, 180);
+                border-radius: 4px;
+            }
+            QToolButton:checked:hover {
+                background-color: rgba(100, 150, 255, 120);
+                border: 2px solid rgba(100, 150, 255, 200);
+            }
+        """)
 
         # Source button
         source_icon = QtGui.QIcon(_get_icon_path("source.png"))
@@ -455,6 +481,11 @@ class MainWindow(QtWidgets.QMainWindow):
         ruler_icon = QtGui.QIcon(_get_icon_path("ruler.png"))
         self.act_add_ruler.setIcon(ruler_icon)
         toolbar.addAction(self.act_add_ruler)
+
+        # Pipet button
+        pipet_icon = QtGui.QIcon(_get_icon_path("pipet.png"))
+        self.act_pipet.setIcon(pipet_icon)
+        toolbar.addAction(self.act_pipet)
 
         # Text button
         text_icon = QtGui.QIcon(_get_icon_path("text.png"))
@@ -508,6 +539,8 @@ class MainWindow(QtWidgets.QMainWindow):
         mTools = mb.addMenu("&Tools")
         mTools.addAction(self.act_retrace)
         mTools.addAction(self.act_clear)
+        mTools.addSeparator()
+        mTools.addAction(self.act_pipet)
         mTools.addSeparator()
         mTools.addAction(self.act_editor)
         mTools.addAction(self.act_reload)
@@ -1039,6 +1072,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def start_place_ruler(self):
         """Enter ruler placement mode (two-click)."""
+        # Disable pipet mode if active
+        if self._pipet_mode:
+            self.act_pipet.setChecked(False)
+        
         self._placing_ruler = True
         self._ruler_p1_scene = None
         self._prev_cursor = self.view.cursor()
@@ -1065,6 +1102,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 # Item was already deleted (e.g., during scene clear)
                 pass
         self.ray_items.clear()
+        self.ray_data.clear()
 
     def retrace(self):
         """Trace all rays from sources through optical elements."""
@@ -1203,6 +1241,7 @@ class MainWindow(QtWidgets.QMainWindow):
             item.setZValue(10)
             self.scene.addItem(item)
             self.ray_items.append(item)
+            self.ray_data.append(p)  # Store RayPath data for pipet tool
 
     def _maybe_retrace(self):
         """Retrace if autotrace is enabled."""
@@ -1415,6 +1454,177 @@ class MainWindow(QtWidgets.QMainWindow):
         apply_theme(on)
         # Refresh library to update category colors
         self.populate_library()
+    
+    def _toggle_pipet(self, on: bool):
+        """Toggle pipet tool mode."""
+        self._pipet_mode = on
+        if on:
+            # Change cursor to indicate pipet mode is active
+            self.view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+            QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), "Click on a ray to view its properties")
+        else:
+            # Restore default cursor
+            self.view.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+    
+    def _point_to_segment_distance(self, point, seg_start, seg_end):
+        """
+        Calculate the minimum distance from a point to a line segment.
+        
+        Args:
+            point: The point to check (numpy array)
+            seg_start: Start of line segment (numpy array)
+            seg_end: End of line segment (numpy array)
+            
+        Returns:
+            Minimum distance from point to the line segment
+        """
+        # Vector from seg_start to seg_end
+        segment = seg_end - seg_start
+        segment_len_sq = np.dot(segment, segment)
+        
+        # Handle degenerate case (segment is a point)
+        if segment_len_sq < 1e-10:
+            return np.linalg.norm(point - seg_start)
+        
+        # Project point onto the line defined by the segment
+        # t = 0 means point projects to seg_start
+        # t = 1 means point projects to seg_end
+        t = np.dot(point - seg_start, segment) / segment_len_sq
+        
+        # Clamp t to [0, 1] to stay within the segment
+        t = max(0.0, min(1.0, t))
+        
+        # Find the closest point on the segment
+        closest_point = seg_start + t * segment
+        
+        # Return distance to the closest point
+        return np.linalg.norm(point - closest_point)
+    
+    def _handle_pipet_click(self, scene_pos: QtCore.QPointF):
+        """Handle click in pipet mode to display ray information."""
+        click_pt = np.array([scene_pos.x(), scene_pos.y()])
+        
+        # Find the nearest ray segment within tolerance
+        # Use a tolerance that scales with zoom level for better UX
+        # Get the view's transform to compute pixel-to-scene ratio
+        transform = self.view.transform()
+        scale_factor = transform.m11()  # Horizontal scale (zoom level)
+        tolerance_px = 15.0  # pixels - generous click radius
+        tolerance = tolerance_px / max(scale_factor, 0.01)  # Convert to scene units (mm)
+        
+        best_ray = None
+        best_distance = float('inf')
+        best_point_idx = None
+        
+        for i, ray_data in enumerate(self.ray_data):
+            # Check each line segment in the ray path
+            points = ray_data.points
+            for j in range(len(points) - 1):
+                # Calculate distance to the line segment between consecutive points
+                dist = self._point_to_segment_distance(click_pt, points[j], points[j + 1])
+                
+                if dist < best_distance and dist < tolerance:
+                    best_distance = dist
+                    best_ray = ray_data
+                    # Use the closest endpoint of the segment
+                    dist_to_start = np.linalg.norm(click_pt - points[j])
+                    dist_to_end = np.linalg.norm(click_pt - points[j + 1])
+                    best_point_idx = j if dist_to_start < dist_to_end else j + 1
+        
+        if best_ray is not None:
+            # Display the ray information
+            self._show_ray_info_dialog(best_ray, best_point_idx)
+        else:
+            QtWidgets.QMessageBox.information(
+                self,
+                "No Ray Found",
+                "No ray found near the clicked position.\nTry clicking closer to a ray."
+            )
+    
+    def _show_ray_info_dialog(self, ray_data, point_idx):
+        """Display a dialog with ray polarization and intensity information."""
+        # Get position
+        point = ray_data.points[point_idx]
+        x_mm, y_mm = point[0], point[1]
+        
+        # Get intensity (from alpha channel)
+        intensity = ray_data.rgba[3] / 255.0
+        
+        # Get polarization state
+        pol = ray_data.polarization
+        
+        # Format polarization info
+        if pol is not None:
+            ex, ey = pol.jones_vector[0], pol.jones_vector[1]
+            # Calculate Stokes parameters
+            I_total = abs(ex)**2 + abs(ey)**2
+            Q = abs(ex)**2 - abs(ey)**2
+            U = 2 * np.real(ex * np.conj(ey))
+            V = 2 * np.imag(ex * np.conj(ey))
+            
+            # Calculate degree of polarization
+            pol_degree = np.sqrt(Q**2 + U**2 + V**2) / I_total if I_total > 0 else 0
+            
+            # Linear polarization angle
+            pol_angle_rad = 0.5 * np.arctan2(U, Q)
+            pol_angle_deg = np.degrees(pol_angle_rad)
+            
+            pol_text = f"""Jones Vector: [{ex:.4f}, {ey:.4f}]
+
+Stokes Parameters:
+  I = {I_total:.4f}
+  Q = {Q:.4f}
+  U = {U:.4f}
+  V = {V:.4f}
+
+Degree of Polarization: {pol_degree:.2%}
+Linear Polarization Angle: {pol_angle_deg:.2f}°"""
+        else:
+            pol_text = "No polarization information available"
+        
+        # Get wavelength
+        wavelength_text = f"{ray_data.wavelength_nm:.1f} nm" if ray_data.wavelength_nm > 0 else "Not specified"
+        
+        # Create info dialog
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("Ray Information")
+        dialog.setMinimumWidth(400)
+        
+        layout = QtWidgets.QVBoxLayout(dialog)
+        
+        # Position info
+        pos_label = QtWidgets.QLabel(f"<b>Position:</b> ({x_mm:.2f}, {y_mm:.2f}) mm")
+        layout.addWidget(pos_label)
+        
+        # Intensity info
+        intensity_label = QtWidgets.QLabel(f"<b>Intensity:</b> {intensity:.2%}")
+        layout.addWidget(intensity_label)
+        
+        # Wavelength info
+        wl_label = QtWidgets.QLabel(f"<b>Wavelength:</b> {wavelength_text}")
+        layout.addWidget(wl_label)
+        
+        layout.addSpacing(10)
+        
+        # Polarization info
+        pol_title = QtWidgets.QLabel("<b>Polarization State:</b>")
+        layout.addWidget(pol_title)
+        
+        pol_text_widget = QtWidgets.QTextEdit()
+        pol_text_widget.setPlainText(pol_text)
+        pol_text_widget.setReadOnly(True)
+        pol_text_widget.setMaximumHeight(200)
+        layout.addWidget(pol_text_widget)
+        
+        # Close button
+        button_layout = QtWidgets.QHBoxLayout()
+        button_layout.addStretch()
+        close_btn = QtWidgets.QPushButton("Close")
+        close_btn.clicked.connect(dialog.accept)
+        button_layout.addWidget(close_btn)
+        layout.addLayout(button_layout)
+        
+        dialog.exec()
 
     def _set_ray_width(self, v: float):
         """Set ray width and retrace."""
@@ -1463,10 +1673,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self._comp_editor._load_from_dict(component_data)
         self._comp_editor.show()
 
-    # ----- Event filter for snap and ruler placement -----
+    # ----- Event filter for snap, ruler placement, and pipet -----
     def eventFilter(self, obj, ev):
-        """Handle scene events for snap and ruler placement."""
+        """Handle scene events for snap, ruler placement, and pipet tool."""
         et = ev.type()
+
+        # --- Pipet tool ---
+        if self._pipet_mode and et == QtCore.QEvent.Type.GraphicsSceneMousePress:
+            mev = ev  # QGraphicsSceneMouseEvent
+            if mev.button() == QtCore.Qt.MouseButton.LeftButton:
+                scene_pt = mev.scenePos()
+                self._handle_pipet_click(scene_pt)
+                return True  # consume event
 
         # --- Ruler 2-click placement ---
         if self._placing_ruler and et == QtCore.QEvent.Type.GraphicsSceneMousePress:
