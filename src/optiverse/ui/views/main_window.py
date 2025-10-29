@@ -183,9 +183,12 @@ class MainWindow(QtWidgets.QMainWindow):
         # Load saved preferences
         self.magnetic_snap = self.settings_service.get_value("magnetic_snap", True, bool)
         
-        # Load dark mode preference
+        # Load dark mode preference and apply theme to match
         dark_mode_saved = self.settings_service.get_value("dark_mode", self.view.is_dark_mode(), bool)
         self.view.set_dark_mode(dark_mode_saved)
+        # Apply theme to ensure app-wide styling matches the saved preference
+        from ...app.main import apply_theme
+        apply_theme(dark_mode_saved)
         
         # Connect collaboration signals
         self.collaboration_manager.remote_item_added.connect(self._on_remote_item_added)
@@ -443,15 +446,18 @@ class MainWindow(QtWidgets.QMainWindow):
                 padding: 2px;
                 border: 2px solid transparent;
                 border-radius: 4px;
+                color: palette(window-text);
             }
             QToolButton:checked {
                 background-color: rgba(100, 150, 255, 100);
                 border: 2px solid rgba(100, 150, 255, 180);
                 border-radius: 4px;
+                color: palette(window-text);
             }
             QToolButton:checked:hover {
                 background-color: rgba(100, 150, 255, 120);
                 border: 2px solid rgba(100, 150, 255, 200);
+                color: palette(window-text);
             }
         """)
 

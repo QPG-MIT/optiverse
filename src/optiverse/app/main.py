@@ -215,9 +215,24 @@ def get_dark_stylesheet() -> str:
 def get_light_stylesheet() -> str:
     """Get the light mode stylesheet."""
     return """
+    QMainWindow, QWidget {
+        background-color: white;
+        color: black;
+    }
+    
     QGraphicsView {
         background-color: white;
         border: none;
+    }
+    
+    QMenu {
+        background-color: white;
+        color: black;
+        border: 1px solid #c0c0c0;
+    }
+    
+    QMenu::item:selected {
+        background-color: #e0e0e0;
     }
     
     QToolBar {
@@ -228,17 +243,20 @@ def get_light_stylesheet() -> str:
     
     QToolBar QToolButton {
         background-color: transparent;
+        color: black;
         border: none;
         padding: 3px;
     }
     
     QToolBar QToolButton:hover {
         background-color: #e0e0e0;
+        color: black;
         border-radius: 3px;
     }
     
     QToolBar QToolButton:pressed {
         background-color: #d0d0d0;
+        color: black;
         border-radius: 3px;
     }
     
@@ -418,10 +436,48 @@ def apply_theme(dark_mode: bool):
     """Apply the appropriate stylesheet based on dark mode setting."""
     app = QtWidgets.QApplication.instance()
     if app:
+        # Create a palette to override system colors
+        palette = QtGui.QPalette()
+        
         if dark_mode:
+            # Dark mode colors
+            palette.setColor(QtGui.QPalette.ColorRole.Window, QtGui.QColor("#1a1c21"))
+            palette.setColor(QtGui.QPalette.ColorRole.WindowText, QtGui.QColor("white"))
+            palette.setColor(QtGui.QPalette.ColorRole.Base, QtGui.QColor("#2d2f36"))
+            palette.setColor(QtGui.QPalette.ColorRole.AlternateBase, QtGui.QColor("#23252b"))
+            palette.setColor(QtGui.QPalette.ColorRole.Text, QtGui.QColor("white"))
+            palette.setColor(QtGui.QPalette.ColorRole.Button, QtGui.QColor("#2d2f36"))
+            palette.setColor(QtGui.QPalette.ColorRole.ButtonText, QtGui.QColor("white"))
+            palette.setColor(QtGui.QPalette.ColorRole.BrightText, QtGui.QColor("white"))
+            palette.setColor(QtGui.QPalette.ColorRole.Link, QtGui.QColor("#6495ff"))
+            palette.setColor(QtGui.QPalette.ColorRole.Highlight, QtGui.QColor("#2d2f36"))
+            palette.setColor(QtGui.QPalette.ColorRole.HighlightedText, QtGui.QColor("white"))
             app.setStyleSheet(get_dark_stylesheet())
         else:
+            # Light mode colors
+            palette.setColor(QtGui.QPalette.ColorRole.Window, QtGui.QColor("white"))
+            palette.setColor(QtGui.QPalette.ColorRole.WindowText, QtGui.QColor("black"))
+            palette.setColor(QtGui.QPalette.ColorRole.Base, QtGui.QColor("white"))
+            palette.setColor(QtGui.QPalette.ColorRole.AlternateBase, QtGui.QColor("#f8f8f8"))
+            palette.setColor(QtGui.QPalette.ColorRole.Text, QtGui.QColor("black"))
+            palette.setColor(QtGui.QPalette.ColorRole.Button, QtGui.QColor("#f0f0f0"))
+            palette.setColor(QtGui.QPalette.ColorRole.ButtonText, QtGui.QColor("black"))
+            palette.setColor(QtGui.QPalette.ColorRole.BrightText, QtGui.QColor("black"))
+            palette.setColor(QtGui.QPalette.ColorRole.Link, QtGui.QColor("#4a90e2"))
+            palette.setColor(QtGui.QPalette.ColorRole.Highlight, QtGui.QColor("#cce8ff"))
+            palette.setColor(QtGui.QPalette.ColorRole.HighlightedText, QtGui.QColor("black"))
             app.setStyleSheet(get_light_stylesheet())
+        
+        # Apply the palette to override system colors
+        app.setPalette(palette)
+        
+        # Force complete style refresh to override macOS system styling
+        # This is critical on Mac where system dark mode can conflict with app theme
+        for widget in app.allWidgets():
+            # Force each widget to recompute its style
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+            widget.update()
 
 
 def main() -> int:
