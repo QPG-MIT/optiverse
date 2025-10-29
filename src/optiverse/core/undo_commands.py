@@ -113,6 +113,36 @@ class MoveItemCommand(Command):
         self.item.setPos(self.old_pos)
 
 
+class RemoveMultipleItemsCommand(Command):
+    """Command to remove multiple items from the scene in a single operation."""
+
+    def __init__(self, scene: QtWidgets.QGraphicsScene, items: list[QtWidgets.QGraphicsItem]):
+        """
+        Initialize RemoveMultipleItemsCommand.
+
+        Args:
+            scene: The graphics scene to remove items from
+            items: The list of graphics items to remove
+        """
+        self.scene = scene
+        self.items = items
+        self._executed = False
+
+    def execute(self) -> None:
+        """Remove all items from the scene."""
+        if not self._executed:
+            for item in self.items:
+                self.scene.removeItem(item)
+            self._executed = True
+
+    def undo(self) -> None:
+        """Add all items back to the scene."""
+        if self._executed:
+            for item in self.items:
+                self.scene.addItem(item)
+            self._executed = False
+
+
 class PasteItemsCommand(Command):
     """Command to paste multiple items to the scene."""
 

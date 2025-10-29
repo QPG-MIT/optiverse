@@ -1,0 +1,10 @@
+bugs:
+- check waveplate polarization
+- check control+z and control + Y
+- check dichroic
+- check multiplayer
+- check refractive element
+
+feature request:
+- zemax file include
+- zemax black box model

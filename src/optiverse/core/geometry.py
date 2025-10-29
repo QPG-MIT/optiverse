@@ -124,7 +124,8 @@ def transform_polarization_lens(pol: 'Polarization') -> 'Polarization':
 def transform_polarization_waveplate(
     pol: 'Polarization',
     phase_shift_deg: float,
-    fast_axis_deg: float
+    fast_axis_deg: float,
+    is_forward: bool = True
 ) -> 'Polarization':
     """
     Transform polarization through a waveplate.
@@ -142,6 +143,18 @@ def transform_polarization_waveplate(
       * Rotates linear polarization
       * Switches handedness of circular polarization
     
+    Directionality:
+    --------------
+    The direction of light propagation through the waveplate matters!
+    - Forward direction (with element normal): phase shift = +δ
+    - Backward direction (against element normal): phase shift = -δ
+    
+    This is critical for quarter waveplates:
+    - QWP forward (+90°): H → Right Circular
+    - QWP backward (-90°): H → Left Circular
+    
+    For half waveplates, direction doesn't matter since exp(i·180°) = exp(-i·180°) = -1
+    
     Jones Matrix Formalism:
     ----------------------
     The Jones matrix for a waveplate with fast axis at angle θ and phase shift δ:
@@ -152,31 +165,48 @@ def transform_polarization_waveplate(
     - R(θ) is the rotation matrix
     - exp(iδ) represents the phase shift on the slow axis
     - Fast axis component has no phase shift (factor of 1)
+    - δ is negated if light travels backward through the waveplate
     
     Args:
         pol: Input polarization state (Jones vector)
         phase_shift_deg: Phase shift in degrees (90° for QWP, 180° for HWP)
         fast_axis_deg: ABSOLUTE angle of fast axis in lab frame (degrees)
                        0° = horizontal, 90° = vertical
+        is_forward: True if light travels in forward direction (with normal),
+                   False if backward (against normal). Default: True
     
     Returns:
         Transformed polarization state
     
     Example:
-        # Convert horizontal to right circular with QWP at 45°
+        # Convert horizontal to right circular with QWP at 45° (forward)
         pol_in = Polarization.horizontal()  # [1, 0]
         pol_out = transform_polarization_waveplate(
             pol_in,
             phase_shift_deg=90.0,  # Quarter wave
-            fast_axis_deg=45.0     # 45° fast axis
+            fast_axis_deg=45.0,    # 45° fast axis
+            is_forward=True        # Forward direction
         )
         # Result: right circular [1/√2, i/√2]
+        
+        # Same waveplate, backward direction gives left circular
+        pol_out_back = transform_polarization_waveplate(
+            pol_in,
+            phase_shift_deg=90.0,
+            fast_axis_deg=45.0,
+            is_forward=False       # Backward direction
+        )
+        # Result: left circular [1/√2, -i/√2]
     """
     from .models import Polarization
     
     # Convert angles to radians
     theta = deg2rad(fast_axis_deg)
     delta = deg2rad(phase_shift_deg)
+    
+    # Apply directionality: backward direction reverses phase shift
+    if not is_forward:
+        delta = -delta
     
     # Rotation matrix to fast/slow axis basis
     c = np.cos(theta)
@@ -367,6 +397,126 @@ def compute_dichroic_reflectance(
     transmittance = float(np.clip(transmittance, 0.0, 1.0))
     
     return reflectance, transmittance
+
+
+def refract_vector_snell(
+    v_in: np.ndarray,
+    n_hat: np.ndarray,
+    n1: float,
+    n2: float
+) -> Tuple[Optional[np.ndarray], bool]:
+    """
+    Apply Snell's law to refract a ray at an interface.
+    
+    Args:
+        v_in: Incident ray direction (normalized)
+        n_hat: Surface normal pointing from medium 1 to medium 2 (normalized)
+        n1: Refractive index of incident medium
+        n2: Refractive index of transmitted medium
+    
+    Returns:
+        Tuple of (refracted_direction, is_total_reflection)
+        - refracted_direction: Refracted ray direction (normalized), or None if total internal reflection
+        - is_total_reflection: True if total internal reflection occurs
+    
+    Physics:
+    - Snell's law: n1 * sin(θ1) = n2 * sin(θ2)
+    - Total internal reflection occurs when n1 > n2 and θ1 > critical angle
+    - Critical angle: θc = arcsin(n2 / n1)
+    """
+    # Normalize inputs
+    v_in = normalize(v_in)
+    n_hat = normalize(n_hat)
+    
+    # Compute incident angle (cos θ1)
+    cos_theta1 = -np.dot(v_in, n_hat)
+    
+    # Handle ray coming from the "wrong" side (flip normal)
+    if cos_theta1 < 0:
+        n_hat = -n_hat
+        cos_theta1 = -cos_theta1
+    
+    # Compute refractive index ratio
+    eta = n1 / n2
+    
+    # Check for total internal reflection
+    # sin²(θ2) = (n1/n2)² * sin²(θ1) = eta² * (1 - cos²(θ1))
+    sin2_theta2 = eta * eta * (1.0 - cos_theta1 * cos_theta1)
+    
+    if sin2_theta2 > 1.0:
+        # Total internal reflection
+        # Reflect the ray
+        v_reflected = reflect_vec(v_in, n_hat)
+        return v_reflected, True
+    
+    # Compute refracted direction using vector form of Snell's law
+    cos_theta2 = np.sqrt(1.0 - sin2_theta2)
+    v_refracted = eta * v_in + (eta * cos_theta1 - cos_theta2) * n_hat
+    v_refracted = normalize(v_refracted)
+    
+    return v_refracted, False
+
+
+def fresnel_coefficients(
+    theta1_rad: float,
+    n1: float,
+    n2: float
+) -> Tuple[float, float]:
+    """
+    Compute Fresnel reflection and transmission coefficients for unpolarized light.
+    
+    Args:
+        theta1_rad: Incident angle in radians (angle between ray and normal)
+        n1: Refractive index of incident medium
+        n2: Refractive index of transmitted medium
+    
+    Returns:
+        Tuple of (R, T) where:
+        - R: Reflectance (fraction of intensity reflected, 0-1)
+        - T: Transmittance (fraction of intensity transmitted, 0-1)
+    
+    Physics:
+    - Fresnel equations for unpolarized light (average of s and p polarizations)
+    - At normal incidence: R = ((n1-n2)/(n1+n2))²
+    - At grazing angles: R → 1 (Brewster angle effects)
+    - Energy conservation: R + T = 1
+    """
+    import math
+    
+    # Compute incident angle
+    cos_theta1 = math.cos(theta1_rad)
+    sin_theta1 = math.sin(theta1_rad)
+    
+    # Check for total internal reflection
+    eta = n1 / n2
+    sin2_theta2 = eta * eta * sin_theta1 * sin_theta1
+    
+    if sin2_theta2 > 1.0:
+        # Total internal reflection
+        return 1.0, 0.0
+    
+    cos_theta2 = math.sqrt(1.0 - sin2_theta2)
+    
+    # Fresnel equations for s and p polarizations
+    # s-polarization (perpendicular to plane of incidence)
+    rs_num = n1 * cos_theta1 - n2 * cos_theta2
+    rs_den = n1 * cos_theta1 + n2 * cos_theta2
+    rs = rs_num / rs_den if abs(rs_den) > 1e-12 else 0.0
+    
+    # p-polarization (parallel to plane of incidence)
+    rp_num = n2 * cos_theta1 - n1 * cos_theta2
+    rp_den = n2 * cos_theta1 + n1 * cos_theta2
+    rp = rp_num / rp_den if abs(rp_den) > 1e-12 else 0.0
+    
+    # Average reflectance for unpolarized light
+    R = 0.5 * (rs * rs + rp * rp)
+    T = 1.0 - R
+    
+    # Clamp to [0, 1]
+    R = max(0.0, min(1.0, R))
+    T = max(0.0, min(1.0, T))
+    
+    return R, T
 
 
 @jit(nopython=True, cache=True)

@@ -107,7 +107,7 @@ class ComponentRecord:
     - Images saved by the component editor are normalized to 1000px height, but legacy images may vary
     """
     name: str
-    kind: str  # 'lens' | 'mirror' | 'beamsplitter' | 'waveplate' | 'dichroic'
+    kind: str  # 'lens' | 'mirror' | 'beamsplitter' | 'waveplate' | 'dichroic' | 'refractive_object'
     image_path: str
     line_px: Tuple[float, float, float, float]  # x1,y1,x2,y2 in normalized 1000px coordinate space
     object_height_mm: float  # Physical size (mm) of the optical element (picked line length in mm)
@@ -123,10 +123,17 @@ class ComponentRecord:
     cutoff_wavelength_nm: float = 550.0  # Cutoff wavelength for dichroic mirrors
     transition_width_nm: float = 50.0  # Width of transition region
     pass_type: str = "longpass"  # "longpass" or "shortpass"
+    # refractive_object only
+    interfaces: List[Dict[str, Any]] = None  # List of interface dicts for refractive objects
     # optical axis angle (degrees) - default orientation when placed
     angle_deg: float = 0.0
     # misc
     notes: str = ""
+    
+    def __post_init__(self):
+        """Initialize interfaces list if None."""
+        if self.interfaces is None:
+            self.interfaces = []
 
 
 def _coerce_line_px(val: Any) -> Optional[Tuple[float, float, float, float]]:
@@ -170,6 +177,9 @@ def serialize_component(rec: ComponentRecord) -> Dict[str, Any]:
         base["cutoff_wavelength_nm"] = float(rec.cutoff_wavelength_nm)
         base["transition_width_nm"] = float(rec.transition_width_nm)
         base["pass_type"] = str(rec.pass_type)
+    elif rec.kind == "refractive_object":
+        # Store interfaces as list of dicts
+        base["interfaces"] = rec.interfaces if rec.interfaces else []
     # mirror: no extra fields
     return base
 
@@ -217,6 +227,7 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
     cutoff_wavelength_nm = 550.0
     transition_width_nm = 50.0
     pass_type = "longpass"
+    interfaces = []
 
     if kind == "lens":
         try:
@@ -259,6 +270,14 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
             pass_type = str(data.get("pass_type", "longpass"))
         except Exception:
             pass_type = "longpass"
+    elif kind == "refractive_object":
+        # Load interfaces
+        try:
+            interfaces = data.get("interfaces", [])
+            if not isinstance(interfaces, list):
+                interfaces = []
+        except Exception:
+            interfaces = []
 
     return ComponentRecord(
         name=name,
@@ -273,6 +292,7 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
         cutoff_wavelength_nm=cutoff_wavelength_nm,
         transition_width_nm=transition_width_nm,
         pass_type=pass_type,
+        interfaces=interfaces,
         angle_deg=angle_deg,
         notes=notes
     )
@@ -432,6 +452,55 @@ class DichroicParams:
 
 
 @dataclass
+class RefractiveInterface:
+    """
+    A single refractive interface with refractive indices on both sides.
+    
+    This represents a planar surface separating two media with different refractive indices.
+    Handles both refraction (Snell's law) and partial reflection (Fresnel equations).
+    """
+    # Interface geometry in local coordinates relative to component origin
+    x1_mm: float = 0.0  # Start point x
+    y1_mm: float = 0.0  # Start point y
+    x2_mm: float = 0.0  # End point x
+    y2_mm: float = 0.0  # End point y
+    # Refractive indices
+    n1: float = 1.0  # Refractive index on the "left" side (ray coming from this side)
+    n2: float = 1.5  # Refractive index on the "right" side (ray going to this side)
+    # Special properties
+    is_beam_splitter: bool = False  # If True, apply beam splitting logic
+    split_T: float = 50.0  # Transmission ratio for beam splitter interface
+    split_R: float = 50.0  # Reflection ratio for beam splitter interface
+    is_polarizing: bool = False  # If True, acts as PBS
+    pbs_transmission_axis_deg: float = 0.0  # PBS axis for polarizing interface
+
+
+@dataclass
+class RefractiveObjectParams:
+    """
+    Refractive object with multiple optical interfaces.
+    
+    This represents a complex optical component like a beam splitter cube, prism,
+    or any object with multiple refracting surfaces. Each interface is defined
+    in local coordinates relative to the component's origin.
+    """
+    x_mm: float = 0.0  # Component center position
+    y_mm: float = 0.0
+    angle_deg: float = 45.0  # Component rotation
+    object_height_mm: float = 80.0  # Physical size for rendering
+    interfaces: List['RefractiveInterface'] = None  # List of refractive interfaces
+    image_path: Optional[str] = None
+    mm_per_pixel: float = 0.1
+    line_px: Optional[Tuple[float, float, float, float]] = None  # Optional reference line for calibration
+    name: Optional[str] = None
+    
+    def __post_init__(self):
+        """Initialize default interfaces if none provided."""
+        if self.interfaces is None:
+            self.interfaces = []
+
+
+@dataclass
 class OpticalElement:
     kind: str  # 'lens' | 'mirror' | 'bs' | 'waveplate' | 'dichroic'
     p1: np.ndarray
@@ -445,6 +514,7 @@ class OpticalElement:
     # Waveplate properties
     phase_shift_deg: float = 90.0  # Phase shift for waveplates
     fast_axis_deg: float = 0.0  # Fast axis angle for waveplates
+    angle_deg: float = 90.0  # Waveplate orientation angle (for directionality detection)
     # Dichroic properties
     cutoff_wavelength_nm: float = 550.0  # Cutoff wavelength for dichroic mirrors
     transition_width_nm: float = 50.0  # Width of transition region

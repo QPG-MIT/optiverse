@@ -14,11 +14,12 @@ from ...core.models import (
     MirrorParams,
     SLMParams,
     WaveplateParams,
+    RefractiveObjectParams,
     OpticalElement,
     SourceParams,
 )
 from ...core.snap_helper import SnapHelper
-from ...core.undo_commands import AddItemCommand, MoveItemCommand, RemoveItemCommand, PasteItemsCommand
+from ...core.undo_commands import AddItemCommand, MoveItemCommand, RemoveItemCommand, RemoveMultipleItemsCommand, PasteItemsCommand
 from ...core.undo_stack import UndoStack
 from ...core.use_cases import trace_rays
 from ...services.settings_service import SettingsService
@@ -33,6 +34,7 @@ from ...objects import (
     GraphicsView,
     LensItem,
     MirrorItem,
+    RefractiveObjectItem,
     SLMItem,
     WaveplateItem,
     RulerItem,
@@ -172,6 +174,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.log_service = get_log_service()
         self.collab_server_process = None  # Track hosted server process
         
+        # Track unsaved changes
+        self._is_modified = False
+        self._saved_file_path = None  # Track current file for save vs save-as
+        
         # Load saved preferences
         self.magnetic_snap = self.settings_service.get_value("magnetic_snap", True, bool)
         
@@ -198,6 +204,65 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # Grid is now drawn in GraphicsView.drawBackground() for much better performance
     # No need for _draw_grid() method anymore!
+
+    def _connect_modification_tracking(self):
+        """Connect signals to track when canvas is modified."""
+        # Use a custom signal handler to mark modified on push
+        original_push = self.undo_stack.push
+        def tracked_push(command):
+            original_push(command)
+            self._mark_modified()
+        self.undo_stack.push = tracked_push
+
+    def _mark_modified(self):
+        """Mark the canvas as having unsaved changes."""
+        if not self._is_modified:
+            self._is_modified = True
+            self._update_window_title()
+
+    def _mark_clean(self):
+        """Mark the canvas as saved (no unsaved changes)."""
+        if self._is_modified:
+            self._is_modified = False
+            self._update_window_title()
+
+    def _update_window_title(self):
+        """Update window title to show file name and modified state."""
+        title = "2D Ray Optics Sandbox — Top View (mm/cm grid)"
+        if self._saved_file_path:
+            import os
+            filename = os.path.basename(self._saved_file_path)
+            title = f"{filename} - {title}"
+        if self._is_modified:
+            title = f"*{title}"
+        self.setWindowTitle(title)
+
+    def _prompt_save_changes(self):
+        """
+        Prompt user to save unsaved changes.
+        
+        Returns:
+            QMessageBox.StandardButton: The user's choice (Save, Discard, or Cancel)
+        """
+        reply = QtWidgets.QMessageBox.question(
+            self,
+            "Unsaved Changes",
+            "Do you want to save your changes before closing?",
+            QtWidgets.QMessageBox.StandardButton.Save |
+            QtWidgets.QMessageBox.StandardButton.Discard |
+            QtWidgets.QMessageBox.StandardButton.Cancel,
+            QtWidgets.QMessageBox.StandardButton.Save
+        )
+        
+        if reply == QtWidgets.QMessageBox.StandardButton.Save:
+            # Save the file
+            self.save_assembly()
+            # Check if save was successful (user didn't cancel the save dialog)
+            if self._is_modified:
+                # User cancelled the save dialog, treat as cancel
+                return QtWidgets.QMessageBox.StandardButton.Cancel
+        
+        return reply
 
     def _build_actions(self):
         """Build all menu actions."""
@@ -244,6 +309,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # Connect undo stack signals to update action states
         self.undo_stack.canUndoChanged.connect(self.act_undo.setEnabled)
         self.undo_stack.canRedoChanged.connect(self.act_redo.setEnabled)
+        
+        # Mark canvas as modified when commands are pushed
+        # Note: We'll connect this after initialization
+        self._connect_modification_tracking()
 
         # --- Insert ---
         self.act_add_source = QtGui.QAction("Source", self)
@@ -705,77 +774,68 @@ class MainWindow(QtWidgets.QMainWindow):
             self.retrace()
 
     def add_lens(self):
-        """Add lens with standard params from component registry."""
-        try:
-            from ...objects.component_registry import ComponentRegistry
-            std_comp = ComponentRegistry.get_standard_lens()
-            params = LensParams(
-                efl_mm=std_comp["efl_mm"],
-                object_height_mm=std_comp["object_height_mm"],
-                image_path=std_comp["image_path"],
-                line_px=tuple(std_comp["line_px"]),
-                name=std_comp.get("name"),
-            )
-        except Exception:
-            # Fallback to basic params if registry fails
-            params = LensParams()
+        """Add basic lens without image - just optical axis."""
+        # Create basic lens with default parameters (no image attached)
+        params = LensParams(
+            efl_mm=100.0,
+            object_height_mm=60.0,
+            angle_deg=90.0,
+            name="Lens",
+        )
         
         L = LensItem(params)
         # Sprite is automatically attached in constructor
         L.edited.connect(self._maybe_retrace)
+        L.edited.connect(lambda: self.collaboration_manager.broadcast_update_item(L))
         cmd = AddItemCommand(self.scene, L)
         self.undo_stack.push(cmd)
         L.setSelected(True)
+        # Broadcast addition to collaboration
+        self.collaboration_manager.broadcast_add_item(L)
         if self.autotrace:
             self.retrace()
 
     def add_mirror(self):
-        """Add mirror with standard params from component registry."""
-        try:
-            from ...objects.component_registry import ComponentRegistry
-            std_comp = ComponentRegistry.get_standard_mirror()
-            params = MirrorParams(
-                object_height_mm=std_comp["object_height_mm"],
-                image_path=std_comp["image_path"],
-                line_px=tuple(std_comp["line_px"]),
-                name=std_comp.get("name"),
-            )
-        except Exception:
-            # Fallback to basic params if registry fails
-            params = MirrorParams()
+        """Add basic mirror without image - just optical axis."""
+        # Create basic mirror with default parameters (no image attached)
+        params = MirrorParams(
+            object_height_mm=80.0,
+            angle_deg=45.0,
+            name="Mirror",
+        )
         
         M = MirrorItem(params)
         # Sprite is automatically attached in constructor
         M.edited.connect(self._maybe_retrace)
+        M.edited.connect(lambda: self.collaboration_manager.broadcast_update_item(M))
         cmd = AddItemCommand(self.scene, M)
         self.undo_stack.push(cmd)
         M.setSelected(True)
+        # Broadcast addition to collaboration
+        self.collaboration_manager.broadcast_add_item(M)
         if self.autotrace:
             self.retrace()
 
     def add_bs(self):
-        """Add beamsplitter with standard params from component registry."""
-        try:
-            from ...objects.component_registry import ComponentRegistry
-            std_comp = ComponentRegistry.get_standard_beamsplitter()
-            params = BeamsplitterParams(
-                split_T=std_comp["split_T"],
-                split_R=std_comp["split_R"],
-                object_height_mm=std_comp["object_height_mm"],
-                image_path=std_comp["image_path"],
-                line_px=tuple(std_comp["line_px"]),
-                name=std_comp.get("name"),
-            )
-        except Exception:
-            # Fallback to basic params if registry fails
-            params = BeamsplitterParams()
+        """Add basic beamsplitter without image - just optical axis."""
+        # Create basic beamsplitter with default parameters (no image attached)
+        params = BeamsplitterParams(
+            split_T=50.0,
+            split_R=50.0,
+            object_height_mm=80.0,
+            angle_deg=45.0,
+            name="Beamsplitter",
+        )
         
         B = BeamsplitterItem(params)
         # Sprite is automatically attached in constructor
         B.edited.connect(self._maybe_retrace)
+        B.edited.connect(lambda: self.collaboration_manager.broadcast_update_item(B))
         cmd = AddItemCommand(self.scene, B)
         self.undo_stack.push(cmd)
         B.setSelected(True)
+        # Broadcast addition to collaboration
+        self.collaboration_manager.broadcast_add_item(B)
         if self.autotrace:
             self.retrace()
 
@@ -792,13 +852,24 @@ class MainWindow(QtWidgets.QMainWindow):
         from ...objects import BaseObj
         
         selected = self.scene.selectedItems()
+        items_to_delete = []
+        
         for item in selected:
             # Only delete optical components, rulers, and text notes (not grid lines or rays)
             if isinstance(item, (BaseObj, RulerItem, TextNoteItem)):
+                items_to_delete.append(item)
                 # Broadcast deletion to collaboration
                 self.collaboration_manager.broadcast_remove_item(item)
-                cmd = RemoveItemCommand(self.scene, item)
-                self.undo_stack.push(cmd)
+        
+        # Use a single command for all deletions so undo/redo works correctly
+        if items_to_delete:
+            if len(items_to_delete) == 1:
+                # Single item: use RemoveItemCommand for backwards compatibility
+                cmd = RemoveItemCommand(self.scene, items_to_delete[0])
+            else:
+                # Multiple items: use RemoveMultipleItemsCommand to batch them
+                cmd = RemoveMultipleItemsCommand(self.scene, items_to_delete)
+            self.undo_stack.push(cmd)
         
         if self.autotrace:
             self.retrace()
@@ -1007,6 +1078,7 @@ class MainWindow(QtWidgets.QMainWindow):
         dichroics: list[DichroicItem] = []
         waveplates: list[WaveplateItem] = []
         slms: list[SLMItem] = []
+        refractive_objects: list[RefractiveObjectItem] = []
 
         for it in self.scene.items():
             if isinstance(it, SourceItem):
@@ -1023,6 +1095,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 waveplates.append(it)
             elif isinstance(it, SLMItem):
                 slms.append(it)
+            elif isinstance(it, RefractiveObjectItem):
+                refractive_objects.append(it)
 
         if not sources:
             return
@@ -1055,6 +1129,7 @@ class MainWindow(QtWidgets.QMainWindow):
             p1, p2 = W.endpoints_scene()
             # Waveplate fast axis is stored in absolute lab frame coordinates
             # Phase shift determines QWP (90°) or HWP (180°) behavior
+            # angle_deg is the waveplate orientation (needed for directionality detection)
             elems.append(
                 OpticalElement(
                     kind="waveplate",
@@ -1062,6 +1137,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     p2=p2,
                     phase_shift_deg=W.params.phase_shift_deg,
                     fast_axis_deg=W.params.fast_axis_deg,
+                    angle_deg=W.params.angle_deg,
                 )
             )
         for D in dichroics:
@@ -1082,6 +1158,28 @@ class MainWindow(QtWidgets.QMainWindow):
             p1, p2 = S.endpoints_scene()
             # SLMs act as mirrors for ray tracing
             elems.append(OpticalElement(kind="mirror", p1=p1, p2=p2))
+        
+        # Process refractive objects - each interface becomes a separate OpticalElement
+        for R in refractive_objects:
+            interfaces_scene = R.get_interfaces_scene()
+            for p1, p2, iface in interfaces_scene:
+                # Create an OpticalElement for each interface
+                # The 'obj' in the element list will be the interface itself
+                elem = OpticalElement(
+                    kind="refractive_interface",
+                    p1=p1,
+                    p2=p2
+                )
+                # Store the interface data directly in the element
+                # The ray tracer will access these as attributes
+                elem.n1 = iface.n1
+                elem.n2 = iface.n2
+                elem.is_beam_splitter = iface.is_beam_splitter
+                elem.split_T = iface.split_T
+                elem.split_R = iface.split_R
+                elem.is_polarizing = iface.is_polarizing
+                elem.pbs_transmission_axis_deg = iface.pbs_transmission_axis_deg
+                elems.append(elem)
 
         # Build source params (use actual params from items)
         srcs: list[SourceParams] = []
@@ -1155,11 +1253,20 @@ class MainWindow(QtWidgets.QMainWindow):
         try:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
+            # Mark as clean and track the file path
+            self._saved_file_path = path
+            self._mark_clean()
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Save error", str(e))
 
     def open_assembly(self):
         """Load all elements from JSON file."""
+        # Check for unsaved changes before opening
+        if self._is_modified:
+            reply = self._prompt_save_changes()
+            if reply == QtWidgets.QMessageBox.StandardButton.Cancel:
+                return
+        
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
             self, "Open Assembly", "", "Optics Assembly (*.json)"
         )
@@ -1179,36 +1286,64 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Re-create everything
         for d in data.get("sources", []):
+            # Remove item_uuid before passing to Params (it's for collaboration)
+            item_uuid = d.pop("item_uuid", None)
             s = SourceItem(SourceParams(**d))
+            if item_uuid:
+                s.item_uuid = item_uuid
             self.scene.addItem(s)
             s.edited.connect(self._maybe_retrace)
         for d in data.get("lenses", []):
+            # Remove item_uuid before passing to Params (it's for collaboration)
+            item_uuid = d.pop("item_uuid", None)
             L = LensItem(LensParams(**d))
+            if item_uuid:
+                L.item_uuid = item_uuid
             self.scene.addItem(L)
             # Sprite is automatically attached in constructor
             L.edited.connect(self._maybe_retrace)
         for d in data.get("mirrors", []):
+            # Remove item_uuid before passing to Params (it's for collaboration)
+            item_uuid = d.pop("item_uuid", None)
             M = MirrorItem(MirrorParams(**d))
+            if item_uuid:
+                M.item_uuid = item_uuid
             self.scene.addItem(M)
             # Sprite is automatically attached in constructor
             M.edited.connect(self._maybe_retrace)
         for d in data.get("beamsplitters", []):
+            # Remove item_uuid before passing to Params (it's for collaboration)
+            item_uuid = d.pop("item_uuid", None)
             B = BeamsplitterItem(BeamsplitterParams(**d))
+            if item_uuid:
+                B.item_uuid = item_uuid
             self.scene.addItem(B)
             # Sprite is automatically attached in constructor
             B.edited.connect(self._maybe_retrace)
         for d in data.get("dichroics", []):
+            # Remove item_uuid before passing to Params (it's for collaboration)
+            item_uuid = d.pop("item_uuid", None)
             D = DichroicItem(DichroicParams(**d))
+            if item_uuid:
+                D.item_uuid = item_uuid
             self.scene.addItem(D)
             # Sprite is automatically attached in constructor
             D.edited.connect(self._maybe_retrace)
         for d in data.get("waveplates", []):
+            # Remove item_uuid before passing to Params (it's for collaboration)
+            item_uuid = d.pop("item_uuid", None)
             W = WaveplateItem(WaveplateParams(**d))
+            if item_uuid:
+                W.item_uuid = item_uuid
             self.scene.addItem(W)
             # Sprite is automatically attached in constructor
             W.edited.connect(self._maybe_retrace)
         for d in data.get("slms", []):
+            # Remove item_uuid before passing to Params (it's for collaboration)
+            item_uuid = d.pop("item_uuid", None)
             S = SLMItem(SLMParams(**d))
+            if item_uuid:
+                S.item_uuid = item_uuid
             self.scene.addItem(S)
             # Sprite is automatically attached in constructor
             S.edited.connect(self._maybe_retrace)
@@ -1221,6 +1356,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Clear undo history after loading
         self.undo_stack.clear()
+        
+        # Mark as clean and track the file path
+        self._saved_file_path = path
+        self._mark_clean()
+        
         self.retrace()
 
     # ----- Settings -----
@@ -1503,6 +1643,13 @@ class MainWindow(QtWidgets.QMainWindow):
     
     # ensure clean shutdown
     def closeEvent(self, e: QtGui.QCloseEvent):
+        # Check for unsaved changes
+        if self._is_modified:
+            reply = self._prompt_save_changes()
+            if reply == QtWidgets.QMessageBox.StandardButton.Cancel:
+                e.ignore()  # Don't close the window
+                return
+        
         try:
             if hasattr(self, "_comp_editor") and self._comp_editor:
                 self._comp_editor.close()

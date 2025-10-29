@@ -12,9 +12,10 @@ from .geometry import (
     transform_polarization_mirror, transform_polarization_lens,
     transform_polarization_beamsplitter, transform_polarization_waveplate,
     compute_dichroic_reflectance,
+    refract_vector_snell, fresnel_coefficients,
     NUMBA_AVAILABLE
 )
-from .models import OpticalElement, SourceParams, RayPath, Polarization
+from .models import OpticalElement, SourceParams, RayPath, Polarization, RefractiveInterface
 from .color_utils import qcolor_from_hex, wavelength_to_rgb
 
 
@@ -39,8 +40,8 @@ def _trace_single_ray_worker(args):
     # Unpack ray initial state
     P_init, V_init, remaining_init, pol_init, wl_init, base_rgb = ray_state
     
-    # Unpack element lists (each is a list of (obj, p1, p2) tuples)
-    mirrors, lenses, bss, waveplates, dichroics = element_lists
+    # Unpack element lists (each is a list of (obj, p1, p2) tuples or (p1, p2, interface) for refractive)
+    mirrors, lenses, bss, waveplates, dichroics, refractive_interfaces = element_lists
     
     # Unpack configuration
     max_events = config['max_events']
@@ -125,6 +126,18 @@ def _trace_single_ray_worker(args):
                 continue
             if nearest[0] is None or t < nearest[0]:
                 nearest = (t, X, "dichroic", obj, t_hat, n_hat, C, L)
+        
+        # Check refractive interfaces
+        for A, B, iface in refractive_interfaces:
+            # Don't skip based on last_obj for interfaces - allow multiple hits
+            res = ray_hit_element(P, V, A, B)
+            if res is None:
+                continue
+            t, X, t_hat, n_hat, C, L = res
+            if t * vnorm > remaining:
+                continue
+            if nearest[0] is None or t < nearest[0]:
+                nearest = (t, X, "refractive", iface, t_hat, n_hat, C, L)
 
         t, X, kind, obj, t_hat, n_hat, C, L = nearest
         if X is None:
@@ -200,7 +213,26 @@ def _trace_single_ray_worker(args):
             phase_shift_deg = getattr(obj, 'phase_shift_deg', 90.0)
             fast_axis_deg = getattr(obj, 'fast_axis_deg', 0.0)
             
-            pol2 = transform_polarization_waveplate(pol, phase_shift_deg, fast_axis_deg)
+            # Determine forward/backward based on which side ray hits waveplate from
+            # Use waveplate's intrinsic orientation angle (not the ray-dependent t_hat!)
+            # The waveplate's angle_deg defines its inherent direction in the lab frame
+            waveplate_angle_deg = getattr(obj, 'angle_deg', 90.0)
+            waveplate_angle_rad = deg2rad(waveplate_angle_deg)
+            
+            # Compute forward normal (perpendicular to waveplate, 90° CCW from tangent)
+            # For vertical waveplate (90°): normal points LEFT (-1, 0)
+            # For horizontal waveplate (0°): normal points UP (0, 1)
+            forward_normal = np.array([
+                -math.sin(waveplate_angle_rad),
+                math.cos(waveplate_angle_rad)
+            ])
+            
+            # Ray hits from forward side if traveling against the normal
+            dot_v_n = float(np.dot(V, forward_normal))
+            is_forward = dot_v_n < 0  # Traveling against normal = forward
+            
+            # Apply waveplate transformation
+            pol2 = transform_polarization_waveplate(pol, phase_shift_deg, fast_axis_deg, is_forward)
             
             V2 = normalize(V)
             P2 = P + V2 * EPS_ADV
@@ -229,6 +261,90 @@ def _trace_single_ray_worker(args):
             if Ir >= MIN_I:
                 pol_r = transform_polarization_mirror(pol, V, n_hat)
                 stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, obj, events + 1, Ir, pol_r, wl))
+            continue
+        
+        if kind == "refractive":
+            # obj here is actually a RefractiveInterface
+            iface = obj
+            
+            # If this is a beam splitter interface, handle it specially
+            if iface.is_beam_splitter:
+                # Beam splitter behavior with optional PBS
+                is_polarizing = iface.is_polarizing
+                pbs_axis_deg = iface.pbs_transmission_axis_deg
+                
+                pol_t, intensity_factor_t = transform_polarization_beamsplitter(
+                    pol, V, n_hat, t_hat, is_polarizing, pbs_axis_deg, is_transmitted=True
+                )
+                
+                pol_r, intensity_factor_r = transform_polarization_beamsplitter(
+                    pol, V, n_hat, t_hat, is_polarizing, pbs_axis_deg, is_transmitted=False
+                )
+                
+                if is_polarizing:
+                    T = intensity_factor_t
+                    R = intensity_factor_r
+                else:
+                    T = max(0.0, min(1.0, iface.split_T / 100.0))
+                    R = max(0.0, min(1.0, iface.split_R / 100.0))
+                
+                # Transmitted ray (no refraction for beam splitter coating)
+                Vt = normalize(V)
+                Pt = P + Vt * EPS_ADV
+                It = I * T
+                if It >= MIN_I:
+                    stack.append((pts + [Pt.copy()], Pt.copy(), Vt, remaining - EPS_ADV, iface, events + 1, It, pol_t, wl))
+                
+                # Reflected ray
+                Vr = normalize(reflect_vec(V, n_hat))
+                Pr = P + Vr * EPS_ADV
+                Ir = I * R
+                if Ir >= MIN_I:
+                    stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, iface, events + 1, Ir, pol_r, wl))
+                continue
+            
+            # Regular refractive interface - apply Snell's law and Fresnel equations
+            # Determine which direction the ray is traveling
+            dot_v_n = float(np.dot(V, n_hat))
+            if dot_v_n < 0:
+                # Ray traveling in direction of normal (n1 -> n2)
+                n1 = iface.n1
+                n2 = iface.n2
+            else:
+                # Ray traveling against normal (n2 -> n1)
+                n1 = iface.n2
+                n2 = iface.n1
+                n_hat = -n_hat  # Flip normal to point in ray direction
+            
+            # Apply Snell's law
+            V_refracted, is_total_reflection = refract_vector_snell(V, n_hat, n1, n2)
+            
+            if is_total_reflection:
+                # Total internal reflection - all light reflects
+                Vr = V_refracted
+                Pr = P + Vr * EPS_ADV
+                pol_r = transform_polarization_mirror(pol, V, n_hat)
+                stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, iface, events + 1, I, pol_r, wl))
+            else:
+                # Partial reflection and transmission - compute Fresnel coefficients
+                theta1 = abs(math.acos(max(-1.0, min(1.0, -np.dot(V, n_hat)))))
+                R, T = fresnel_coefficients(theta1, n1, n2)
+                
+                # Transmitted (refracted) ray
+                Vt = normalize(V_refracted)
+                Pt = P + Vt * EPS_ADV
+                It = I * T
+                if It >= MIN_I:
+                    # Polarization approximately preserved through refraction (simplified)
+                    stack.append((pts + [Pt.copy()], Pt.copy(), Vt, remaining - EPS_ADV, iface, events + 1, It, pol, wl))
+                
+                # Reflected ray (Fresnel reflection)
+                Vr = normalize(reflect_vec(V, n_hat))
+                Pr = P + Vr * EPS_ADV
+                Ir = I * R
+                if Ir >= MIN_I:
+                    pol_r = transform_polarization_mirror(pol, V, n_hat)
+                    stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, iface, events + 1, Ir, pol_r, wl))
             continue
 
     return paths
@@ -283,7 +399,11 @@ def trace_rays(
     waveplates = [(e, e.p1, e.p2) for e in elements if e.kind == "waveplate"]
     dichroics = [(e, e.p1, e.p2) for e in elements if e.kind == "dichroic"]
     
-    element_lists = (mirrors, lenses, bss, waveplates, dichroics)
+    # Refractive interfaces are passed directly as (p1, p2, interface) tuples
+    # They are collected separately from refractive objects in the main window
+    refractive_interfaces = [(e.p1, e.p2, e) for e in elements if e.kind == "refractive_interface"]
+    
+    element_lists = (mirrors, lenses, bss, waveplates, dichroics, refractive_interfaces)
     
     # Configuration
     config = {

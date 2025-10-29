@@ -76,6 +76,23 @@ class ComponentRegistry:
         }
     
     @staticmethod
+    def get_standard_mirror_2_inch() -> Dict[str, Any]:
+        """
+        Get standard 2-inch mirror definition.
+        
+        Returns:
+            Dictionary with mirror parameters including image and calibration
+        """
+        return {
+            "name": "Standard Mirror (2\")",
+            "kind": "mirror",
+            "object_height_mm": 68.6,  # Physical height of optical element (2 inch with mount)
+            "image_path": _get_image_path("standard_mirror_1_inch.png"),
+            "line_px": (5, 220, 5, 780),  # Vertical line defining optical axis in normalized 1000px space
+            "angle_deg": 0.0,  # Horizontal orientation by default
+        }
+    
+    @staticmethod
     def get_standard_beamsplitter() -> Dict[str, Any]:
         """
         Get standard 50/50 1-inch beamsplitter definition.
@@ -253,6 +270,7 @@ class ComponentRegistry:
             ComponentRegistry.get_standard_lens(),
             ComponentRegistry.get_standard_lens_2_inch(),
             ComponentRegistry.get_standard_mirror(),
+            ComponentRegistry.get_standard_mirror_2_inch(),
             ComponentRegistry.get_standard_beamsplitter(),
             ComponentRegistry.get_standard_pbs(),
             ComponentRegistry.get_standard_dichroic_550nm(),
@@ -277,7 +295,10 @@ class ComponentRegistry:
                 ComponentRegistry.get_standard_lens_2_inch(),
             ],
             "Objectives": [ComponentRegistry.get_standard_objective()],
-            "Mirrors": [ComponentRegistry.get_standard_mirror()],
+            "Mirrors": [
+                ComponentRegistry.get_standard_mirror(),
+                ComponentRegistry.get_standard_mirror_2_inch(),
+            ],
             "Beamsplitters": [
                 ComponentRegistry.get_standard_beamsplitter(),
                 ComponentRegistry.get_standard_pbs(),

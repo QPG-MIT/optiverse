@@ -20,6 +20,7 @@ from .beamsplitters import BeamsplitterItem
 from .dichroics import DichroicItem
 from .waveplates import WaveplateItem
 from .sources import SourceItem
+from .refractive import RefractiveObjectItem
 
 # Miscellaneous
 from .misc import SLMItem
@@ -41,6 +42,7 @@ __all__ = [
     "DichroicItem",
     "WaveplateItem",
     "SourceItem",
+    "RefractiveObjectItem",
     # Miscellaneous
     "SLMItem",
     # Annotations

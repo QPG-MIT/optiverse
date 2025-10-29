@@ -11,7 +11,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from ...core.models import ComponentRecord, serialize_component, deserialize_component
 from ...services.storage_service import StorageService
 from ...platform.paths import assets_dir, get_library_path
-from ...objects import ImageCanvas
+from ...objects.views import MultiLineCanvas, InterfaceLine
 
 
 def slugify(name: str) -> str:
@@ -34,11 +34,11 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.resize(1100, 680)
         self.storage = storage
 
-        self.canvas = ImageCanvas()
+        self.canvas = MultiLineCanvas()
         self.setCentralWidget(self.canvas)
         self.canvas.imageDropped.connect(self._on_image_dropped)
-        self.canvas.clickedPoint.connect(self._update_derived_labels)
-        self.canvas.pointsChanged.connect(self._update_derived_labels)
+        self.canvas.linesChanged.connect(self._on_canvas_lines_changed)
+        self.canvas.lineSelected.connect(self._on_canvas_line_selected)
 
         self._build_side_dock()
         self._build_library_dock()
@@ -118,7 +118,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.name_edit = QtWidgets.QLineEdit()
         
         self.kind_combo = QtWidgets.QComboBox()
-        self.kind_combo.addItems(["lens", "mirror", "beamsplitter", "dichroic"])
+        self.kind_combo.addItems(["lens", "mirror", "beamsplitter", "dichroic", "refractive_object"])
         self.kind_combo.currentTextChanged.connect(self._on_kind_changed)
 
         # OBJECT HEIGHT (mm) -> physical size of the optical element
@@ -198,6 +198,38 @@ class ComponentEditor(QtWidgets.QMainWindow):
         # Dichroic pass type
         self.pass_type = QtWidgets.QComboBox()
         self.pass_type.addItems(["longpass", "shortpass"])
+        
+        # Optical interfaces (shown for all component types)
+        self.interfaces_label = QtWidgets.QLabel("<b>Interfaces (drag on canvas):</b>")
+        self.interfaces_list = QtWidgets.QListWidget()
+        self.interfaces_list.setMaximumHeight(150)
+        self.interfaces_list.setToolTip("Visual interfaces - select to highlight on canvas, drag endpoints to adjust geometry")
+        
+        self.interfaces_buttons = QtWidgets.QWidget()
+        btn_layout = QtWidgets.QHBoxLayout(self.interfaces_buttons)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.btn_add_interface = QtWidgets.QPushButton("Add")
+        self.btn_add_interface.setToolTip("Add a new interface")
+        self.btn_edit_interface = QtWidgets.QPushButton("Edit")
+        self.btn_edit_interface.setToolTip("Edit selected interface")
+        self.btn_delete_interface = QtWidgets.QPushButton("Delete")
+        self.btn_delete_interface.setToolTip("Delete selected interface")
+        self.btn_preset_bs_cube = QtWidgets.QPushButton("BS Cube Preset")
+        self.btn_preset_bs_cube.setToolTip("Create beam splitter cube (5 interfaces)")
+        
+        btn_layout.addWidget(self.btn_add_interface)
+        btn_layout.addWidget(self.btn_edit_interface)
+        btn_layout.addWidget(self.btn_delete_interface)
+        btn_layout.addWidget(self.btn_preset_bs_cube)
+        
+        self.btn_add_interface.clicked.connect(self._add_interface)
+        self.btn_edit_interface.clicked.connect(self._edit_interface)
+        self.btn_delete_interface.clicked.connect(self._delete_interface)
+        self.btn_preset_bs_cube.clicked.connect(self._create_bs_cube_preset)
+        
+        # Storage for interfaces
+        self._interfaces = []
 
         # Notes field
         self.notes = QtWidgets.QPlainTextEdit()
@@ -211,21 +243,10 @@ class ComponentEditor(QtWidgets.QMainWindow):
         f.addRow("→ mm/px", self.mm_per_px_lbl)
         f.addRow("→ Image height", self.image_height_lbl)
         
-        # Point coordinates section
-        f.addRow(QtWidgets.QLabel("─── Line Points (px) ───"))
-        p1_layout = QtWidgets.QHBoxLayout()
-        p1_layout.addWidget(QtWidgets.QLabel("X:"))
-        p1_layout.addWidget(self.p1_x)
-        p1_layout.addWidget(QtWidgets.QLabel("Y:"))
-        p1_layout.addWidget(self.p1_y)
-        f.addRow("Point 1", p1_layout)
-        
-        p2_layout = QtWidgets.QHBoxLayout()
-        p2_layout.addWidget(QtWidgets.QLabel("X:"))
-        p2_layout.addWidget(self.p2_x)
-        p2_layout.addWidget(QtWidgets.QLabel("Y:"))
-        p2_layout.addWidget(self.p2_y)
-        f.addRow("Point 2", p2_layout)
+        # Optical Interfaces - shown for ALL component types
+        f.addRow(self.interfaces_label)
+        f.addRow(self.interfaces_list)
+        f.addRow(self.interfaces_buttons)
         
         f.addRow(QtWidgets.QLabel("─── Properties ───"))
         f.addRow("EFL (lens)", self.efl_mm)
@@ -255,6 +276,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
         
         self.libDock.setWidget(self.libList)
         self._refresh_library_list()
+        
+        # Connect interface list selection to canvas
+        self.interfaces_list.currentRowChanged.connect(self._on_interface_list_selection)
 
     # ---------- Helpers ----------
     def _on_kind_changed(self, kind: str):
@@ -262,12 +286,24 @@ class ComponentEditor(QtWidgets.QMainWindow):
         is_lens = (kind == "lens")
         is_bs = (kind == "beamsplitter")
         is_dichroic = (kind == "dichroic")
+        is_refractive = (kind == "refractive_object")
+        
         self.efl_mm.setVisible(is_lens)
         self.split_T.setVisible(is_bs)
         self.split_R.setVisible(is_bs)
         self.cutoff_wavelength.setVisible(is_dichroic)
         self.transition_width.setVisible(is_dichroic)
         self.pass_type.setVisible(is_dichroic)
+        
+        # Interfaces are ALWAYS visible now, but buttons change visibility
+        # For refractive objects, show all buttons
+        # For simple components, hide the multi-interface buttons
+        self.btn_add_interface.setVisible(is_refractive)
+        self.btn_preset_bs_cube.setVisible(is_refractive)
+        
+        # Update canvas visualization when kind changes
+        self._sync_interfaces_to_canvas()
+        self._update_interface_list()
 
     def _sync_TR_from_T(self, v: float):
         """Auto-complement R from T."""
@@ -285,8 +321,13 @@ class ComponentEditor(QtWidgets.QMainWindow):
         """Update computed values from object height and picked line."""
         object_height = float(self.object_height_mm.value())
         
-        # Picked line live length (canvas returns actual pixel coordinates)
-        p1, p2 = self.canvas.get_points()
+        # For simple components, get first line if it exists
+        lines = self.canvas.get_all_lines()
+        p1, p2 = None, None
+        if lines:
+            line = lines[0]
+            p1 = (line.x1, line.y1)
+            p2 = (line.x2, line.y2)
         
         # Normalize canvas points to 1000px space for display
         _, h_px = self.canvas.image_pixel_size()
@@ -375,16 +416,23 @@ class ComponentEditor(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "Load failed", "Could not load image.")
             return
         self.canvas.set_pixmap(pix, source_path)
-        self.canvas.clear_points()
-        self.statusBar().showMessage(
-            "Image ready. Enter object height (mm), then click two points on the optical element."
-        )
+        self._sync_interfaces_to_canvas()
+        
+        kind = self.kind_combo.currentText()
+        if kind == "refractive_object":
+            self.statusBar().showMessage(
+                "Image loaded! Use 'Add Interface' or 'BS Cube Preset' to add optical interfaces. Drag line endpoints to adjust."
+            )
+        else:
+            self.statusBar().showMessage(
+                "Image loaded! Drag the colored line endpoints to align with your optical element. Enter object height."
+            )
         self._update_derived_labels()
 
     def _new_component(self):
         """Reset to new component state."""
         self.canvas.set_pixmap(QtGui.QPixmap(), None)
-        self.canvas.clear_points()
+        self.canvas.clear_lines()
         self.name_edit.clear()
         self.kind_combo.setCurrentText("lens")
         self.object_height_mm.setValue(50.0)
@@ -394,8 +442,604 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.cutoff_wavelength.setValue(550.0)
         self.transition_width.setValue(50.0)
         self.pass_type.setCurrentIndex(0)  # longpass
+        self._interfaces = []
+        self._update_interface_list()
         self.notes.clear()
         self._update_derived_labels()
+    
+    # ---------- Canvas/Interface Synchronization ----------
+    
+    def _get_interface_color(self, iface: dict) -> QtGui.QColor:
+        """Get color for interface based on its properties."""
+        if iface.get('is_beam_splitter', False):
+            if iface.get('is_polarizing', False):
+                return QtGui.QColor(150, 0, 150)  # Purple for PBS
+            else:
+                return QtGui.QColor(0, 150, 120)  # Green for BS
+        else:
+            # Regular refractive interface
+            n1 = iface.get('n1', 1.0)
+            n2 = iface.get('n2', 1.0)
+            if abs(n1 - n2) > 0.01:
+                return QtGui.QColor(100, 100, 255)  # Blue for refraction
+            else:
+                return QtGui.QColor(150, 150, 150)  # Gray for same index
+    
+    def _get_simple_component_color(self) -> QtGui.QColor:
+        """Get color for simple component types."""
+        kind = self.kind_combo.currentText()
+        colors = {
+            'lens': QtGui.QColor(0, 180, 180),      # Cyan
+            'mirror': QtGui.QColor(255, 140, 0),    # Orange
+            'beamsplitter': QtGui.QColor(0, 150, 120),  # Green
+            'dichroic': QtGui.QColor(255, 0, 255),  # Magenta
+        }
+        return colors.get(kind, QtGui.QColor(100, 100, 255))
+    
+    def _sync_interfaces_to_canvas(self):
+        """Sync interface list to canvas visual display."""
+        if not self.canvas.has_image():
+            return
+        
+        kind = self.kind_combo.currentText()
+        
+        # Block signals during bulk update
+        self.canvas.blockSignals(True)
+        self.canvas.clear_lines()
+        
+        if kind == "refractive_object":
+            # Show all interfaces as colored lines
+            for i, iface in enumerate(self._interfaces):
+                line = InterfaceLine(
+                    x1=iface.get('x1_px', 0),
+                    y1=iface.get('y1_px', 0),
+                    x2=iface.get('x2_px', 100),
+                    y2=iface.get('y2_px', 100),
+                    color=self._get_interface_color(iface),
+                    label=f"Interface {i+1}",
+                    properties=iface
+                )
+                self.canvas.add_line(line)
+                print(f"[DEBUG] Added interface line {i+1}: ({line.x1:.1f}, {line.y1:.1f}) to ({line.x2:.1f}, {line.y2:.1f}), color={line.color.name()}")
+        else:
+            # Simple component - ALWAYS create calibration line
+            w, h = self.canvas.image_pixel_size()
+            if w > 0 and h > 0:
+                cx, cy = w / 2, h / 2
+                line = InterfaceLine(
+                    x1=cx - 50, y1=cy,
+                    x2=cx + 50, y2=cy,
+                    color=self._get_simple_component_color(),
+                    label=kind.capitalize(),
+                    properties={'type': kind}
+                )
+                self.canvas.add_line(line)
+                print(f"[DEBUG] Created calibration line for {kind}: ({line.x1:.1f}, {line.y1:.1f}) to ({line.x2:.1f}, {line.y2:.1f}), color={line.color.name()}")
+        
+        self.canvas.blockSignals(False)
+        self.canvas.update()  # Force repaint
+        print(f"[DEBUG] Canvas now has {len(self.canvas.get_all_lines())} line(s)")
+    
+    def _on_canvas_lines_changed(self):
+        """Called when canvas lines change (user dragging)."""
+        kind = self.kind_combo.currentText()
+        
+        if kind == "refractive_object":
+            # Update interface coordinates from canvas
+            lines = self.canvas.get_all_lines()
+            for i, line in enumerate(lines):
+                if i < len(self._interfaces):
+                    self._interfaces[i]['x1_px'] = line.x1
+                    self._interfaces[i]['y1_px'] = line.y1
+                    self._interfaces[i]['x2_px'] = line.x2
+                    self._interfaces[i]['y2_px'] = line.y2
+    
+    def _on_canvas_line_selected(self, index: int):
+        """Called when a line is selected on canvas."""
+        # Highlight corresponding item in list
+        self.interfaces_list.blockSignals(True)
+        self.interfaces_list.setCurrentRow(index)
+        self.interfaces_list.blockSignals(False)
+    
+    def _on_interface_list_selection(self, row: int):
+        """Called when user selects an interface in the list."""
+        if row >= 0:
+            self.canvas.select_line(row)
+    
+    # ---------- Interface Management (Refractive Objects) ----------
+    
+    def _update_interface_list(self):
+        """Update the interfaces list widget."""
+        self.interfaces_list.clear()
+        
+        kind = self.kind_combo.currentText()
+        
+        if kind == "refractive_object":
+            # Show all refractive interfaces
+            for i, iface in enumerate(self._interfaces):
+                desc = f"Interface {i+1}: "
+                if iface.get('is_beam_splitter', False):
+                    desc += "BS "
+                desc += f"n={iface.get('n1', 1.0):.3f}→{iface.get('n2', 1.5):.3f}"
+                if iface.get('is_beam_splitter', False):
+                    desc += f" T/R={iface.get('split_T', 50):.0f}/{iface.get('split_R', 50):.0f}"
+                self.interfaces_list.addItem(desc)
+        else:
+            # Simple component - show the calibration line
+            lines = self.canvas.get_all_lines()
+            if len(lines) > 0:
+                line = lines[0]
+                desc = f"Calibration line ({kind})"
+                self.interfaces_list.addItem(desc)
+        
+        # Update canvas visualization
+        self._sync_interfaces_to_canvas()
+    
+    def _add_interface(self):
+        """Add a new interface."""
+        # Create dialog for interface properties
+        d = QtWidgets.QDialog(self)
+        d.setWindowTitle("Add Interface")
+        f = QtWidgets.QFormLayout(d)
+        
+        # Geometry
+        x1 = QtWidgets.QDoubleSpinBox()
+        x1.setRange(-1000, 1000)
+        x1.setDecimals(2)
+        x1.setSuffix(" mm")
+        x1.setValue(-10.0)
+        
+        y1 = QtWidgets.QDoubleSpinBox()
+        y1.setRange(-1000, 1000)
+        y1.setDecimals(2)
+        y1.setSuffix(" mm")
+        y1.setValue(0.0)
+        
+        x2 = QtWidgets.QDoubleSpinBox()
+        x2.setRange(-1000, 1000)
+        x2.setDecimals(2)
+        x2.setSuffix(" mm")
+        x2.setValue(10.0)
+        
+        y2 = QtWidgets.QDoubleSpinBox()
+        y2.setRange(-1000, 1000)
+        y2.setDecimals(2)
+        y2.setSuffix(" mm")
+        y2.setValue(0.0)
+        
+        # Refractive indices
+        n1 = QtWidgets.QDoubleSpinBox()
+        n1.setRange(1.0, 3.0)
+        n1.setDecimals(4)
+        n1.setValue(1.0)  # Air
+        n1.setToolTip("Refractive index on 'left' side (ray incident from)")
+        
+        n2 = QtWidgets.QDoubleSpinBox()
+        n2.setRange(1.0, 3.0)
+        n2.setDecimals(4)
+        n2.setValue(1.517)  # BK7 glass
+        n2.setToolTip("Refractive index on 'right' side (ray exits to)")
+        
+        # Beam splitter properties
+        is_bs = QtWidgets.QCheckBox("Beam Splitter Coating")
+        split_t = QtWidgets.QDoubleSpinBox()
+        split_t.setRange(0, 100)
+        split_t.setDecimals(1)
+        split_t.setSuffix(" %")
+        split_t.setValue(50.0)
+        split_t.setEnabled(False)
+        
+        split_r = QtWidgets.QDoubleSpinBox()
+        split_r.setRange(0, 100)
+        split_r.setDecimals(1)
+        split_r.setSuffix(" %")
+        split_r.setValue(50.0)
+        split_r.setEnabled(False)
+        
+        is_pbs = QtWidgets.QCheckBox("Polarizing (PBS)")
+        is_pbs.setEnabled(False)
+        
+        pbs_axis = QtWidgets.QDoubleSpinBox()
+        pbs_axis.setRange(-180, 180)
+        pbs_axis.setDecimals(1)
+        pbs_axis.setSuffix(" °")
+        pbs_axis.setValue(0.0)
+        pbs_axis.setEnabled(False)
+        pbs_axis.setToolTip("PBS transmission axis (absolute angle in lab frame)")
+        
+        def on_bs_toggled(checked):
+            split_t.setEnabled(checked)
+            split_r.setEnabled(checked)
+            is_pbs.setEnabled(checked)
+            pbs_axis.setEnabled(checked and is_pbs.isChecked())
+        
+        def on_pbs_toggled(checked):
+            pbs_axis.setEnabled(is_bs.isChecked() and checked)
+        
+        is_bs.toggled.connect(on_bs_toggled)
+        is_pbs.toggled.connect(on_pbs_toggled)
+        
+        # Layout
+        f.addRow("Start X", x1)
+        f.addRow("Start Y", y1)
+        f.addRow("End X", x2)
+        f.addRow("End Y", y2)
+        f.addRow("Refractive Index n1", n1)
+        f.addRow("Refractive Index n2", n2)
+        f.addRow("", is_bs)
+        f.addRow("Transmission %", split_t)
+        f.addRow("Reflection %", split_r)
+        f.addRow("", is_pbs)
+        f.addRow("PBS Axis", pbs_axis)
+        
+        btn = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+        )
+        f.addRow(btn)
+        btn.accepted.connect(d.accept)
+        btn.rejected.connect(d.reject)
+        
+        if d.exec():
+            # Get image center for default positioning
+            w, h = self.canvas.image_pixel_size()
+            center_x = w / 2 if w > 0 else 500
+            center_y = h / 2 if h > 0 else 500
+            
+            # Create interface dict (storing in pixels for now)
+            iface = {
+                'x1_px': center_x - 50,
+                'y1_px': center_y,
+                'x2_px': center_x + 50,
+                'y2_px': center_y,
+                'x1_mm': x1.value(),
+                'y1_mm': y1.value(),
+                'x2_mm': x2.value(),
+                'y2_mm': y2.value(),
+                'n1': n1.value(),
+                'n2': n2.value(),
+                'is_beam_splitter': is_bs.isChecked(),
+                'split_T': split_t.value(),
+                'split_R': split_r.value(),
+                'is_polarizing': is_pbs.isChecked(),
+                'pbs_transmission_axis_deg': pbs_axis.value()
+            }
+            self._interfaces.append(iface)
+            self._update_interface_list()
+    
+    def _edit_interface(self):
+        """Edit the selected interface."""
+        row = self.interfaces_list.currentRow()
+        kind = self.kind_combo.currentText()
+        
+        # For simple components, just enable edit mode (drag only this line)
+        if kind != "refractive_object":
+            if row < 0:
+                QtWidgets.QMessageBox.information(self, "No Selection", "Please select the interface to edit.")
+                return
+            # Lock canvas to only drag this line
+            self.canvas.set_drag_lock(row)
+            self.statusBar().showMessage(f"Editing: Drag only this line. Click outside to finish editing.")
+            return
+        
+        # For refractive objects, open property dialog
+        if row < 0 or row >= len(self._interfaces):
+            QtWidgets.QMessageBox.information(self, "No Selection", "Please select an interface to edit.")
+            return
+        
+        iface = self._interfaces[row]
+        
+        # Lock canvas to only drag this line while editing
+        self.canvas.set_drag_lock(row)
+        
+        # Create non-modal dialog that allows dragging on canvas
+        d = QtWidgets.QDialog(self)
+        d.setWindowTitle(f"Edit Interface {row + 1}")
+        d.setWindowFlags(d.windowFlags() | QtCore.Qt.WindowType.WindowStaysOnTopHint)
+        d.setModal(False)  # Non-modal - allows interaction with parent
+        f = QtWidgets.QFormLayout(d)
+        
+        # Pre-fill with existing values
+        x1 = QtWidgets.QDoubleSpinBox()
+        x1.setRange(-1000, 1000)
+        x1.setDecimals(2)
+        x1.setSuffix(" mm")
+        x1.setValue(iface.get('x1_mm', 0))
+        
+        y1 = QtWidgets.QDoubleSpinBox()
+        y1.setRange(-1000, 1000)
+        y1.setDecimals(2)
+        y1.setSuffix(" mm")
+        y1.setValue(iface.get('y1_mm', 0))
+        
+        x2 = QtWidgets.QDoubleSpinBox()
+        x2.setRange(-1000, 1000)
+        x2.setDecimals(2)
+        x2.setSuffix(" mm")
+        x2.setValue(iface.get('x2_mm', 0))
+        
+        y2 = QtWidgets.QDoubleSpinBox()
+        y2.setRange(-1000, 1000)
+        y2.setDecimals(2)
+        y2.setSuffix(" mm")
+        y2.setValue(iface.get('y2_mm', 0))
+        
+        n1 = QtWidgets.QDoubleSpinBox()
+        n1.setRange(1.0, 3.0)
+        n1.setDecimals(4)
+        n1.setValue(iface.get('n1', 1.0))
+        
+        n2 = QtWidgets.QDoubleSpinBox()
+        n2.setRange(1.0, 3.0)
+        n2.setDecimals(4)
+        n2.setValue(iface.get('n2', 1.5))
+        
+        is_bs = QtWidgets.QCheckBox("Beam Splitter Coating")
+        is_bs.setChecked(iface.get('is_beam_splitter', False))
+        
+        split_t = QtWidgets.QDoubleSpinBox()
+        split_t.setRange(0, 100)
+        split_t.setDecimals(1)
+        split_t.setSuffix(" %")
+        split_t.setValue(iface.get('split_T', 50.0))
+        split_t.setEnabled(is_bs.isChecked())
+        
+        split_r = QtWidgets.QDoubleSpinBox()
+        split_r.setRange(0, 100)
+        split_r.setDecimals(1)
+        split_r.setSuffix(" %")
+        split_r.setValue(iface.get('split_R', 50.0))
+        split_r.setEnabled(is_bs.isChecked())
+        
+        is_pbs = QtWidgets.QCheckBox("Polarizing (PBS)")
+        is_pbs.setChecked(iface.get('is_polarizing', False))
+        is_pbs.setEnabled(is_bs.isChecked())
+        
+        pbs_axis = QtWidgets.QDoubleSpinBox()
+        pbs_axis.setRange(-180, 180)
+        pbs_axis.setDecimals(1)
+        pbs_axis.setSuffix(" °")
+        pbs_axis.setValue(iface.get('pbs_transmission_axis_deg', 0.0))
+        pbs_axis.setEnabled(is_bs.isChecked() and is_pbs.isChecked())
+        
+        def on_bs_toggled(checked):
+            split_t.setEnabled(checked)
+            split_r.setEnabled(checked)
+            is_pbs.setEnabled(checked)
+            pbs_axis.setEnabled(checked and is_pbs.isChecked())
+        
+        def on_pbs_toggled(checked):
+            pbs_axis.setEnabled(is_bs.isChecked() and checked)
+        
+        is_bs.toggled.connect(on_bs_toggled)
+        is_pbs.toggled.connect(on_pbs_toggled)
+        
+        f.addRow("Start X", x1)
+        f.addRow("Start Y", y1)
+        f.addRow("End X", x2)
+        f.addRow("End Y", y2)
+        f.addRow("Refractive Index n1", n1)
+        f.addRow("Refractive Index n2", n2)
+        f.addRow("", is_bs)
+        f.addRow("Transmission %", split_t)
+        f.addRow("Reflection %", split_r)
+        f.addRow("", is_pbs)
+        f.addRow("PBS Axis", pbs_axis)
+        
+        # Apply and Close buttons (non-modal dialog)
+        btn_apply = QtWidgets.QPushButton("Apply")
+        btn_close = QtWidgets.QPushButton("Close")
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addWidget(btn_apply)
+        btn_layout.addWidget(btn_close)
+        f.addRow(btn_layout)
+        
+        def apply_changes():
+            """Apply changes to interface (can be called multiple times)."""
+            iface['x1_mm'] = x1.value()
+            iface['y1_mm'] = y1.value()
+            iface['x2_mm'] = x2.value()
+            iface['y2_mm'] = y2.value()
+            iface['n1'] = n1.value()
+            iface['n2'] = n2.value()
+            iface['is_beam_splitter'] = is_bs.isChecked()
+            iface['split_T'] = split_t.value()
+            iface['split_R'] = split_r.value()
+            iface['is_polarizing'] = is_pbs.isChecked()
+            iface['pbs_transmission_axis_deg'] = pbs_axis.value()
+            self._update_interface_list()
+            
+            # Update line color on canvas
+            lines = self.canvas.get_all_lines()
+            if row < len(lines):
+                lines[row].color = self._get_interface_color(iface)
+                self.canvas.update_line(row, lines[row])
+        
+        def on_dialog_close():
+            """Unlock canvas when dialog closes."""
+            self.canvas.clear_drag_lock()
+            self.statusBar().showMessage("Ready")
+            d.close()
+        
+        btn_apply.clicked.connect(apply_changes)
+        btn_close.clicked.connect(on_dialog_close)
+        
+        # Unlock when dialog is destroyed
+        d.finished.connect(lambda: self.canvas.clear_drag_lock())
+        
+        # Show non-modal dialog (allows dragging on canvas)
+        d.show()
+    
+    def _delete_interface(self):
+        """Delete the selected interface."""
+        row = self.interfaces_list.currentRow()
+        if row < 0 or row >= len(self._interfaces):
+            QtWidgets.QMessageBox.information(self, "No Selection", "Please select an interface to delete.")
+            return
+        
+        reply = QtWidgets.QMessageBox.question(
+            self,
+            "Delete Interface",
+            f"Delete interface {row + 1}?",
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
+        )
+        
+        if reply == QtWidgets.QMessageBox.StandardButton.Yes:
+            del self._interfaces[row]
+            self.canvas.remove_line(row)
+            self._update_interface_list()
+    
+    def _create_bs_cube_preset(self):
+        """Create a beam splitter cube preset (5 interfaces)."""
+        # Ask for cube parameters
+        d = QtWidgets.QDialog(self)
+        d.setWindowTitle("Beam Splitter Cube Preset")
+        f = QtWidgets.QFormLayout(d)
+        
+        size = QtWidgets.QDoubleSpinBox()
+        size.setRange(1.0, 1000.0)
+        size.setDecimals(2)
+        size.setSuffix(" mm")
+        size.setValue(25.4)  # 1 inch
+        size.setToolTip("Cube side length")
+        
+        n_glass = QtWidgets.QDoubleSpinBox()
+        n_glass.setRange(1.0, 3.0)
+        n_glass.setDecimals(4)
+        n_glass.setValue(1.517)  # BK7
+        n_glass.setToolTip("Refractive index of glass (1.517 for BK7)")
+        
+        split = QtWidgets.QDoubleSpinBox()
+        split.setRange(0, 100)
+        split.setDecimals(1)
+        split.setSuffix(" %")
+        split.setValue(50.0)
+        split.setToolTip("Transmission percentage")
+        
+        is_pbs = QtWidgets.QCheckBox("Polarizing Beam Splitter (PBS)")
+        
+        pbs_axis = QtWidgets.QDoubleSpinBox()
+        pbs_axis.setRange(-180, 180)
+        pbs_axis.setDecimals(1)
+        pbs_axis.setSuffix(" °")
+        pbs_axis.setValue(0.0)
+        pbs_axis.setEnabled(False)
+        pbs_axis.setToolTip("PBS transmission axis angle (lab frame)")
+        
+        is_pbs.toggled.connect(lambda checked: pbs_axis.setEnabled(checked))
+        
+        f.addRow("Cube Size", size)
+        f.addRow("Glass Index", n_glass)
+        f.addRow("Split T%", split)
+        f.addRow("", is_pbs)
+        f.addRow("PBS Axis", pbs_axis)
+        
+        btn = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+        )
+        f.addRow(btn)
+        btn.accepted.connect(d.accept)
+        btn.rejected.connect(d.reject)
+        
+        if d.exec():
+            # Clear existing interfaces and create BS cube
+            self._interfaces.clear()
+            
+            half_size_mm = size.value() / 2.0
+            n_g = n_glass.value()
+            split_t = split.value()
+            split_r = 100.0 - split_t
+            
+            # Get image dimensions for pixel positioning
+            w, h = self.canvas.image_pixel_size()
+            center_x = w / 2 if w > 0 else 500
+            center_y = h / 2 if h > 0 else 500
+            
+            # Use a scale factor for visual display (pixels per mm)
+            scale = 2.0  # Adjust this to make cube appropriately sized on screen
+            half_size_px = half_size_mm * scale
+            
+            # Interface 1: Left edge (air → glass)
+            self._interfaces.append({
+                'x1_px': center_x - half_size_px, 'y1_px': center_y - half_size_px,
+                'x2_px': center_x - half_size_px, 'y2_px': center_y + half_size_px,
+                'x1_mm': -half_size_mm, 'y1_mm': -half_size_mm,
+                'x2_mm': -half_size_mm, 'y2_mm': +half_size_mm,
+                'n1': 1.0, 'n2': n_g,
+                'is_beam_splitter': False,
+                'split_T': 50.0, 'split_R': 50.0,
+                'is_polarizing': False,
+                'pbs_transmission_axis_deg': 0.0
+            })
+            
+            # Interface 2: Bottom edge (air → glass)
+            self._interfaces.append({
+                'x1_px': center_x - half_size_px, 'y1_px': center_y + half_size_px,
+                'x2_px': center_x + half_size_px, 'y2_px': center_y + half_size_px,
+                'x1_mm': -half_size_mm, 'y1_mm': -half_size_mm,
+                'x2_mm': +half_size_mm, 'y2_mm': -half_size_mm,
+                'n1': 1.0, 'n2': n_g,
+                'is_beam_splitter': False,
+                'split_T': 50.0, 'split_R': 50.0,
+                'is_polarizing': False,
+                'pbs_transmission_axis_deg': 0.0
+            })
+            
+            # Interface 3: Diagonal beam splitter coating
+            self._interfaces.append({
+                'x1_px': center_x - half_size_px, 'y1_px': center_y + half_size_px,
+                'x2_px': center_x + half_size_px, 'y2_px': center_y - half_size_px,
+                'x1_mm': -half_size_mm, 'y1_mm': -half_size_mm,
+                'x2_mm': +half_size_mm, 'y2_mm': +half_size_mm,
+                'n1': n_g, 'n2': n_g,
+                'is_beam_splitter': True,
+                'split_T': split_t,
+                'split_R': split_r,
+                'is_polarizing': is_pbs.isChecked(),
+                'pbs_transmission_axis_deg': pbs_axis.value()
+            })
+            
+            # Interface 4: Right edge (glass → air)
+            self._interfaces.append({
+                'x1_px': center_x + half_size_px, 'y1_px': center_y + half_size_px,
+                'x2_px': center_x + half_size_px, 'y2_px': center_y - half_size_px,
+                'x1_mm': +half_size_mm, 'y1_mm': -half_size_mm,
+                'x2_mm': +half_size_mm, 'y2_mm': +half_size_mm,
+                'n1': n_g, 'n2': 1.0,
+                'is_beam_splitter': False,
+                'split_T': 50.0, 'split_R': 50.0,
+                'is_polarizing': False,
+                'pbs_transmission_axis_deg': 0.0
+            })
+            
+            # Interface 5: Top edge (glass → air)
+            self._interfaces.append({
+                'x1_px': center_x - half_size_px, 'y1_px': center_y - half_size_px,
+                'x2_px': center_x + half_size_px, 'y2_px': center_y - half_size_px,
+                'x1_mm': -half_size_mm, 'y1_mm': +half_size_mm,
+                'x2_mm': +half_size_mm, 'y2_mm': +half_size_mm,
+                'n1': n_g, 'n2': 1.0,
+                'is_beam_splitter': False,
+                'split_T': 50.0, 'split_R': 50.0,
+                'is_polarizing': False,
+                'pbs_transmission_axis_deg': 0.0
+            })
+            
+            self._update_interface_list()
+            
+            # Auto-select the diagonal coating for easy identification
+            self.canvas.select_line(2)
+            self.interfaces_list.setCurrentRow(2)
+            
+            QtWidgets.QMessageBox.information(
+                self,
+                "Preset Created",
+                f"Created beam splitter cube with 5 interfaces:\n"
+                f"- 4 blue external surfaces (glass-air refraction)\n"
+                f"- 1 green diagonal coating ({split_t:.0f}/{split_r:.0f} split)\n\n"
+                f"You can now drag any endpoint to adjust the geometry!"
+            )
 
     # ---------- File & Clipboard ----------
     def open_image(self):
@@ -410,7 +1054,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
             return
         
         if path.lower().endswith(".svg"):
-            pix = ImageCanvas._render_svg_to_pixmap(path)
+            pix = MultiLineCanvas._render_svg_to_pixmap(path)
             if not pix:
                 QtWidgets.QMessageBox.warning(self, "Load failed", "Invalid SVG.")
                 return
@@ -438,7 +1082,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
                     low = path.lower()
                     if low.endswith((".png", ".jpg", ".jpeg", ".tif", ".tiff", ".svg")):
                         if low.endswith(".svg"):
-                            pix = ImageCanvas._render_svg_to_pixmap(path)
+                            pix = MultiLineCanvas._render_svg_to_pixmap(path)
                             if pix:
                                 self._set_image(pix, path)
                                 return
@@ -454,7 +1098,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
             (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".svg")
         ):
             if text.lower().endswith(".svg"):
-                pix = ImageCanvas._render_svg_to_pixmap(text)
+                pix = MultiLineCanvas._render_svg_to_pixmap(text)
                 if pix:
                     self._set_image(pix, text)
                     return
@@ -491,7 +1135,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         
         if "image/svg+xml" in mime.formats():
             svg_bytes = mime.data("image/svg+xml")
-            pix = ImageCanvas._render_svg_to_pixmap(bytes(svg_bytes))
+            pix = MultiLineCanvas._render_svg_to_pixmap(bytes(svg_bytes))
             if pix:
                 return pix
         
@@ -573,6 +1217,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         cutoff_wavelength = float(self.cutoff_wavelength.value()) if kind == "dichroic" else 550.0
         transition_width = float(self.transition_width.value()) if kind == "dichroic" else 50.0
         pass_type_value = self.pass_type.currentText() if kind == "dichroic" else "longpass"
+        interfaces = list(self._interfaces) if kind == "refractive_object" else []
 
         return ComponentRecord(
             name=name,
@@ -585,6 +1230,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
             cutoff_wavelength_nm=cutoff_wavelength,
             transition_width_nm=transition_width,
             pass_type=pass_type_value,
+            interfaces=interfaces,
             notes=self.notes.toPlainText().strip()
         )
 
@@ -706,7 +1352,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         # Load image if available
         if rec.image_path and os.path.exists(rec.image_path):
             if rec.image_path.lower().endswith(".svg"):
-                pix = ImageCanvas._render_svg_to_pixmap(rec.image_path)
+                pix = MultiLineCanvas._render_svg_to_pixmap(rec.image_path)
                 if pix:
                     self._set_image(pix, rec.image_path)
             else:
@@ -717,7 +1363,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         # Populate UI
         self.name_edit.setText(rec.name)
         self.kind_combo.setCurrentText(
-            rec.kind if rec.kind in ("lens", "mirror", "beamsplitter", "dichroic") else "lens"
+            rec.kind if rec.kind in ("lens", "mirror", "beamsplitter", "dichroic", "refractive_object") else "lens"
         )
         
         # Set object height directly from component record
@@ -733,6 +1379,14 @@ class ComponentEditor(QtWidgets.QMainWindow):
             idx = self.pass_type.findText(rec.pass_type)
             if idx >= 0:
                 self.pass_type.setCurrentIndex(idx)
+        
+        # Load interfaces for refractive objects
+        if rec.kind == "refractive_object":
+            self._interfaces = list(rec.interfaces) if rec.interfaces else []
+            self._update_interface_list()
+        else:
+            self._interfaces = []
+            self._update_interface_list()
         self.notes.setPlainText(rec.notes)
         
         if rec.line_px:
