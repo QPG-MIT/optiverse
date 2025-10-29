@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 from PyQt6 import QtCore
 
@@ -48,5 +49,120 @@ def assets_dir() -> str:
 
 def get_library_path() -> str:
     return str(Path(library_root_dir()) / "components_library.json")
+
+
+def get_package_root() -> Path:
+    """
+    Get the package root directory (src/optiverse).
+    
+    Returns:
+        Path to the optiverse package root
+    """
+    # This file is at src/optiverse/platform/paths.py
+    # Go up two levels to get to src/optiverse
+    return Path(__file__).parent.parent
+
+
+def get_package_images_dir() -> Path:
+    """
+    Get the package images directory.
+    
+    Returns:
+        Path to src/optiverse/objects/images
+    """
+    return get_package_root() / "objects" / "images"
+
+
+def is_package_image(image_path: Optional[str]) -> bool:
+    """
+    Check if an image path is within the package.
+    
+    Args:
+        image_path: Path to check (can be absolute or relative)
+    
+    Returns:
+        True if the image is inside the package, False otherwise
+    """
+    if not image_path:
+        return False
+    
+    try:
+        path = Path(image_path).resolve()
+        package_root = get_package_root().resolve()
+        
+        # Check if the path is relative to the package root
+        try:
+            path.relative_to(package_root)
+            return True
+        except ValueError:
+            return False
+    except Exception:
+        return False
+
+
+def to_relative_path(image_path: Optional[str]) -> Optional[str]:
+    """
+    Convert an absolute image path to a relative path if it's within the package.
+    Otherwise, keep it as absolute.
+    
+    Args:
+        image_path: Absolute or relative path to an image
+    
+    Returns:
+        Relative path (from package root) if within package, otherwise absolute path
+    """
+    if not image_path:
+        return image_path
+    
+    try:
+        path = Path(image_path)
+        
+        # If already relative, return as-is
+        if not path.is_absolute():
+            return image_path
+        
+        # Try to make it relative to package root
+        package_root = get_package_root().resolve()
+        abs_path = path.resolve()
+        
+        try:
+            rel_path = abs_path.relative_to(package_root)
+            # Return with forward slashes for cross-platform compatibility
+            return rel_path.as_posix()
+        except ValueError:
+            # Path is outside package, return absolute with forward slashes
+            return abs_path.as_posix()
+    except Exception:
+        return image_path
+
+
+def to_absolute_path(image_path: Optional[str]) -> Optional[str]:
+    """
+    Convert a relative image path to absolute, assuming it's relative to package root.
+    If already absolute, verify it exists or leave as-is.
+    
+    Args:
+        image_path: Relative or absolute path to an image
+    
+    Returns:
+        Absolute path to the image
+    """
+    if not image_path:
+        return image_path
+    
+    try:
+        path = Path(image_path)
+        
+        # If already absolute, return as-is
+        if path.is_absolute():
+            return str(path)
+        
+        # Assume relative to package root
+        package_root = get_package_root()
+        abs_path = (package_root / path).resolve()
+        
+        return str(abs_path)
+    except Exception:
+        return image_path
 
 

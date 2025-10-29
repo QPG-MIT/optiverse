@@ -4,14 +4,19 @@ import os
 import json
 import re
 import time
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
+import math
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import ComponentRecord, serialize_component, deserialize_component
+from ...core.interface_definition import InterfaceDefinition
+from ...core import interface_types
+from ...core.component_migration import migrate_component_to_v2
 from ...services.storage_service import StorageService
 from ...platform.paths import assets_dir, get_library_path
 from ...objects.views import MultiLineCanvas, InterfaceLine
+from ..widgets.interface_tree_panel import InterfaceTreePanel
 
 
 def slugify(name: str) -> str:
@@ -107,158 +112,58 @@ class ComponentEditor(QtWidgets.QMainWindow):
         sc_paste.activated.connect(self._smart_paste)
 
     def _build_side_dock(self):
-        """Build side dock with component settings."""
+        """Build side dock with component settings (v2 interface-based)."""
         dock = QtWidgets.QDockWidget("Component Settings", self)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, dock)
         
         w = QtWidgets.QWidget()
         dock.setWidget(w)
-        f = QtWidgets.QFormLayout(w)
-
-        self.name_edit = QtWidgets.QLineEdit()
+        layout = QtWidgets.QVBoxLayout(w)
+        layout.setContentsMargins(5, 5, 5, 5)
         
-        self.kind_combo = QtWidgets.QComboBox()
-        self.kind_combo.addItems(["lens", "mirror", "beamsplitter", "dichroic", "refractive_object"])
-        self.kind_combo.currentTextChanged.connect(self._on_kind_changed)
-
-        # OBJECT HEIGHT (mm) -> physical size of the optical element
+        # Basic component info
+        info_form = QtWidgets.QFormLayout()
+        
+        self.name_edit = QtWidgets.QLineEdit()
+        info_form.addRow("Name", self.name_edit)
+        
+        # OBJECT HEIGHT (mm) -> physical size reference for calibration
         self.object_height_mm = QtWidgets.QDoubleSpinBox()
         self.object_height_mm.setRange(0.01, 1e7)
         self.object_height_mm.setDecimals(3)
         self.object_height_mm.setSuffix(" mm")
-        self.object_height_mm.setValue(30.0)  # Default: ~1 inch
-        self.object_height_mm.setToolTip("Physical height of the optical element (e.g., 25.4mm for 1-inch optic)")
-        self.object_height_mm.valueChanged.connect(self._update_derived_labels)
-
-        self.mm_per_px_lbl = QtWidgets.QLabel("— mm/px")
-        self.line_len_lbl = QtWidgets.QLabel("— px")
-        self.image_height_lbl = QtWidgets.QLabel("— mm")
-
-        # Line points manual edit (normalized 1000px space)
-        self.p1_x = QtWidgets.QDoubleSpinBox()
-        self.p1_x.setRange(0, 1000)
-        self.p1_x.setDecimals(2)
-        self.p1_x.setSuffix(" px")
-        self.p1_x.valueChanged.connect(self._on_manual_point_changed)
+        self.object_height_mm.setValue(25.4)  # Default: 1 inch
+        self.object_height_mm.setToolTip("Physical height for calibration (typically size of first interface)")
+        self.object_height_mm.valueChanged.connect(self._on_object_height_changed)
+        info_form.addRow("Object Height", self.object_height_mm)
         
-        self.p1_y = QtWidgets.QDoubleSpinBox()
-        self.p1_y.setRange(0, 1000)
-        self.p1_y.setDecimals(2)
-        self.p1_y.setSuffix(" px")
-        self.p1_y.valueChanged.connect(self._on_manual_point_changed)
+        layout.addLayout(info_form)
         
-        self.p2_x = QtWidgets.QDoubleSpinBox()
-        self.p2_x.setRange(0, 1000)
-        self.p2_x.setDecimals(2)
-        self.p2_x.setSuffix(" px")
-        self.p2_x.valueChanged.connect(self._on_manual_point_changed)
+        # Separator
+        separator = QtWidgets.QFrame()
+        separator.setFrameShape(QtWidgets.QFrame.Shape.HLine)
+        separator.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)
+        layout.addWidget(separator)
         
-        self.p2_y = QtWidgets.QDoubleSpinBox()
-        self.p2_y.setRange(0, 1000)
-        self.p2_y.setDecimals(2)
-        self.p2_y.setSuffix(" px")
-        self.p2_y.valueChanged.connect(self._on_manual_point_changed)
-
-        # Lens EFL
-        self.efl_mm = QtWidgets.QDoubleSpinBox()
-        self.efl_mm.setRange(-1e7, 1e7)
-        self.efl_mm.setDecimals(3)
-        self.efl_mm.setSuffix(" mm")
-        self.efl_mm.setValue(100.0)
-
-        # Beamsplitter T/R with auto-complement
-        self.split_T = QtWidgets.QDoubleSpinBox()
-        self.split_T.setRange(0, 100)
-        self.split_T.setDecimals(1)
-        self.split_T.setSuffix(" %")
-        self.split_T.setValue(50.0)
-        self.split_T.valueChanged.connect(self._sync_TR_from_T)
-
-        self.split_R = QtWidgets.QDoubleSpinBox()
-        self.split_R.setRange(0, 100)
-        self.split_R.setDecimals(1)
-        self.split_R.setSuffix(" %")
-        self.split_R.setValue(50.0)
-        self.split_R.valueChanged.connect(self._sync_TR_from_R)
-
-        # Dichroic cutoff wavelength
-        self.cutoff_wavelength = QtWidgets.QDoubleSpinBox()
-        self.cutoff_wavelength.setRange(200, 2000)
-        self.cutoff_wavelength.setDecimals(1)
-        self.cutoff_wavelength.setSuffix(" nm")
-        self.cutoff_wavelength.setValue(550.0)
+        # Interface tree panel (collapsible with simplified properties)
+        self.interface_panel = InterfaceTreePanel()
+        self.interface_panel.interfacesChanged.connect(self._on_interfaces_changed)
+        self.interface_panel.interfaceSelected.connect(self._on_interface_panel_selection)
+        layout.addWidget(self.interface_panel, 1)  # Stretch factor 1
         
-        # Dichroic transition width
-        self.transition_width = QtWidgets.QDoubleSpinBox()
-        self.transition_width.setRange(1, 200)
-        self.transition_width.setDecimals(1)
-        self.transition_width.setSuffix(" nm")
-        self.transition_width.setValue(50.0)
+        # Separator
+        separator2 = QtWidgets.QFrame()
+        separator2.setFrameShape(QtWidgets.QFrame.Shape.HLine)
+        separator2.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)
+        layout.addWidget(separator2)
         
-        # Dichroic pass type
-        self.pass_type = QtWidgets.QComboBox()
-        self.pass_type.addItems(["longpass", "shortpass"])
-        
-        # Optical interfaces (shown for all component types)
-        self.interfaces_label = QtWidgets.QLabel("<b>Interfaces (drag on canvas):</b>")
-        self.interfaces_list = QtWidgets.QListWidget()
-        self.interfaces_list.setMaximumHeight(150)
-        self.interfaces_list.setToolTip("Visual interfaces - select to highlight on canvas, drag endpoints to adjust geometry")
-        
-        self.interfaces_buttons = QtWidgets.QWidget()
-        btn_layout = QtWidgets.QHBoxLayout(self.interfaces_buttons)
-        btn_layout.setContentsMargins(0, 0, 0, 0)
-        
-        self.btn_add_interface = QtWidgets.QPushButton("Add")
-        self.btn_add_interface.setToolTip("Add a new interface")
-        self.btn_edit_interface = QtWidgets.QPushButton("Edit")
-        self.btn_edit_interface.setToolTip("Edit selected interface")
-        self.btn_delete_interface = QtWidgets.QPushButton("Delete")
-        self.btn_delete_interface.setToolTip("Delete selected interface")
-        self.btn_preset_bs_cube = QtWidgets.QPushButton("BS Cube Preset")
-        self.btn_preset_bs_cube.setToolTip("Create beam splitter cube (5 interfaces)")
-        
-        btn_layout.addWidget(self.btn_add_interface)
-        btn_layout.addWidget(self.btn_edit_interface)
-        btn_layout.addWidget(self.btn_delete_interface)
-        btn_layout.addWidget(self.btn_preset_bs_cube)
-        
-        self.btn_add_interface.clicked.connect(self._add_interface)
-        self.btn_edit_interface.clicked.connect(self._edit_interface)
-        self.btn_delete_interface.clicked.connect(self._delete_interface)
-        self.btn_preset_bs_cube.clicked.connect(self._create_bs_cube_preset)
-        
-        # Storage for interfaces
-        self._interfaces = []
-
         # Notes field
+        notes_form = QtWidgets.QFormLayout()
         self.notes = QtWidgets.QPlainTextEdit()
         self.notes.setPlaceholderText("Optional notes…")
-        self.notes.setMaximumHeight(80)
-
-        f.addRow("Name", self.name_edit)
-        f.addRow("Type", self.kind_combo)
-        f.addRow("Object height", self.object_height_mm)
-        f.addRow("Line length", self.line_len_lbl)
-        f.addRow("→ mm/px", self.mm_per_px_lbl)
-        f.addRow("→ Image height", self.image_height_lbl)
-        
-        # Optical Interfaces - shown for ALL component types
-        f.addRow(self.interfaces_label)
-        f.addRow(self.interfaces_list)
-        f.addRow(self.interfaces_buttons)
-        
-        f.addRow(QtWidgets.QLabel("─── Properties ───"))
-        f.addRow("EFL (lens)", self.efl_mm)
-        f.addRow("Split T (BS)", self.split_T)
-        f.addRow("Split R (BS)", self.split_R)
-        f.addRow("Cutoff λ (dichroic)", self.cutoff_wavelength)
-        f.addRow("Trans. Width (dichroic)", self.transition_width)
-        f.addRow("Pass Type (dichroic)", self.pass_type)
-        f.addRow("Notes", self.notes)
-
-        self._on_kind_changed(self.kind_combo.currentText())
-        self._update_derived_labels()
+        self.notes.setMaximumHeight(60)
+        notes_form.addRow("Notes", self.notes)
+        layout.addLayout(notes_form)
 
     def _build_library_dock(self):
         """Build library dock showing saved components."""
@@ -276,46 +181,26 @@ class ComponentEditor(QtWidgets.QMainWindow):
         
         self.libDock.setWidget(self.libList)
         self._refresh_library_list()
-        
-        # Connect interface list selection to canvas
-        self.interfaces_list.currentRowChanged.connect(self._on_interface_list_selection)
 
-    # ---------- Helpers ----------
-    def _on_kind_changed(self, kind: str):
-        """Show/hide type-specific fields."""
-        is_lens = (kind == "lens")
-        is_bs = (kind == "beamsplitter")
-        is_dichroic = (kind == "dichroic")
-        is_refractive = (kind == "refractive_object")
-        
-        self.efl_mm.setVisible(is_lens)
-        self.split_T.setVisible(is_bs)
-        self.split_R.setVisible(is_bs)
-        self.cutoff_wavelength.setVisible(is_dichroic)
-        self.transition_width.setVisible(is_dichroic)
-        self.pass_type.setVisible(is_dichroic)
-        
-        # Interfaces are ALWAYS visible now, but buttons change visibility
-        # For refractive objects, show all buttons
-        # For simple components, hide the multi-interface buttons
-        self.btn_add_interface.setVisible(is_refractive)
-        self.btn_preset_bs_cube.setVisible(is_refractive)
-        
-        # Update canvas visualization when kind changes
+    # ---------- Callbacks (New Interface-Based System) ----------
+    
+    def _on_object_height_changed(self):
+        """Handle object height changes."""
+        # Recalculate mm/px ratio and update canvas synchronization
         self._sync_interfaces_to_canvas()
-        self._update_interface_list()
-
-    def _sync_TR_from_T(self, v: float):
-        """Auto-complement R from T."""
-        self.split_R.blockSignals(True)
-        self.split_R.setValue(max(0.0, min(100.0, 100.0 - v)))
-        self.split_R.blockSignals(False)
-
-    def _sync_TR_from_R(self, v: float):
-        """Auto-complement T from R."""
-        self.split_T.blockSignals(True)
-        self.split_T.setValue(max(0.0, min(100.0, 100.0 - v)))
-        self.split_T.blockSignals(False)
+    
+    def _on_interfaces_changed(self):
+        """Handle interface list changes from panel."""
+        # Sync to canvas
+        self._sync_interfaces_to_canvas()
+    
+    def _on_interface_panel_selection(self, index: int):
+        """Handle interface selection in panel."""
+        # Highlight corresponding line on canvas
+        if 0 <= index < len(self.canvas.get_all_lines()):
+            self.canvas.select_line(index)
+    
+    # ---------- Legacy Helpers (deprecated but kept for compatibility) ----------
 
     def _update_derived_labels(self, *args):
         """Update computed values from object height and picked line."""
@@ -411,41 +296,35 @@ class ComponentEditor(QtWidgets.QMainWindow):
         return float(self.object_height_mm.value())
 
     def _set_image(self, pix: QtGui.QPixmap, source_path: str | None = None):
-        """Set canvas image."""
+        """Set canvas image (v2 system)."""
         if pix.isNull():
             QtWidgets.QMessageBox.warning(self, "Load failed", "Could not load image.")
             return
         self.canvas.set_pixmap(pix, source_path)
         self._sync_interfaces_to_canvas()
         
-        kind = self.kind_combo.currentText()
-        if kind == "refractive_object":
+        # Update status message based on number of interfaces
+        num_interfaces = self.interface_panel.count()
+        if num_interfaces == 0:
             self.statusBar().showMessage(
-                "Image loaded! Use 'Add Interface' or 'BS Cube Preset' to add optical interfaces. Drag line endpoints to adjust."
+                "Image loaded! Add interfaces using the 'Add Interface' button."
             )
         else:
             self.statusBar().showMessage(
-                "Image loaded! Drag the colored line endpoints to align with your optical element. Enter object height."
+                "Image loaded! Drag interface endpoints to align with your optical elements."
             )
-        self._update_derived_labels()
 
     def _new_component(self):
-        """Reset to new component state."""
+        """Reset to new component state (v2 system)."""
         self.canvas.set_pixmap(QtGui.QPixmap(), None)
         self.canvas.clear_lines()
         self.name_edit.clear()
-        self.kind_combo.setCurrentText("lens")
-        self.object_height_mm.setValue(50.0)
-        self.efl_mm.setValue(100.0)
-        self.split_T.setValue(50.0)
-        self.split_R.setValue(50.0)
-        self.cutoff_wavelength.setValue(550.0)
-        self.transition_width.setValue(50.0)
-        self.pass_type.setCurrentIndex(0)  # longpass
-        self._interfaces = []
-        self._update_interface_list()
+        self.object_height_mm.setValue(25.4)  # 1 inch default
+        self.interface_panel.clear()
         self.notes.clear()
-        self._update_derived_labels()
+        
+        # Status message
+        self.statusBar().showMessage("Ready. Load an image and add interfaces to begin.")
     
     # ---------- Canvas/Interface Synchronization ----------
     
@@ -477,75 +356,108 @@ class ComponentEditor(QtWidgets.QMainWindow):
         return colors.get(kind, QtGui.QColor(100, 100, 255))
     
     def _sync_interfaces_to_canvas(self):
-        """Sync interface list to canvas visual display."""
+        """Sync interface panel to canvas visual display (v2 system)."""
         if not self.canvas.has_image():
             return
-        
-        kind = self.kind_combo.currentText()
         
         # Block signals during bulk update
         self.canvas.blockSignals(True)
         self.canvas.clear_lines()
         
-        if kind == "refractive_object":
-            # Show all interfaces as colored lines
-            for i, iface in enumerate(self._interfaces):
-                line = InterfaceLine(
-                    x1=iface.get('x1_px', 0),
-                    y1=iface.get('y1_px', 0),
-                    x2=iface.get('x2_px', 100),
-                    y2=iface.get('y2_px', 100),
-                    color=self._get_interface_color(iface),
-                    label=f"Interface {i+1}",
-                    properties=iface
-                )
-                self.canvas.add_line(line)
+        # Get interfaces from panel
+        interfaces = self.interface_panel.get_interfaces()
+        
+        if not interfaces:
+            self.canvas.blockSignals(False)
+            return
+        
+        # Compute scaling: Y-axis goes from 0 (top) to object_height (bottom)
+        # Image height in pixels maps to object_height in mm
+        object_height = self.object_height_mm.value()
+        w, h = self.canvas.image_pixel_size()
+        
+        if h > 0 and object_height > 0:
+            # mm_per_px based on image height mapping to object_height
+            mm_per_px = object_height / h
         else:
-            # Simple component - ALWAYS create calibration line
-            w, h = self.canvas.image_pixel_size()
-            if w > 0 and h > 0:
-                cx, cy = w / 2, h / 2
-                line = InterfaceLine(
-                    x1=cx - 50, y1=cy,
-                    x2=cx + 50, y2=cy,
-                    color=self._get_simple_component_color(),
-                    label=kind.capitalize(),
-                    properties={'type': kind}
-                )
-                self.canvas.add_line(line)
+            mm_per_px = 1.0  # Fallback
+        
+        # Store mm_per_px for use during dragging
+        self._mm_per_px = mm_per_px
+        
+        # Convert each interface from mm to pixels and add to canvas
+        for i, interface in enumerate(interfaces):
+            # Convert mm coordinates to pixels
+            # Y: 0mm → 0px (top), object_height mm → h px (bottom)
+            x1_px = interface.x1_mm / mm_per_px
+            y1_px = interface.y1_mm / mm_per_px
+            x2_px = interface.x2_mm / mm_per_px
+            y2_px = interface.y2_mm / mm_per_px
+            
+            # Get color from interface
+            r, g, b = interface.get_color()
+            color = QtGui.QColor(r, g, b)
+            
+            line = InterfaceLine(
+                x1=x1_px, y1=y1_px,
+                x2=x2_px, y2=y2_px,
+                color=color,
+                label=interface.get_label(),
+                properties={'interface': interface}
+            )
+            self.canvas.add_line(line)
         
         self.canvas.blockSignals(False)
         self.canvas.update()  # Force repaint
     
     def _on_canvas_lines_changed(self):
-        """Called when canvas lines change (user dragging)."""
-        kind = self.kind_combo.currentText()
+        """Called when canvas lines change (user dragging) - v2 system."""
+        # Get interfaces from panel
+        interfaces = self.interface_panel.get_interfaces()
+        if not interfaces:
+            return
         
-        if kind == "refractive_object":
-            # Update interface coordinates from canvas
+        # Get mm_per_px ratio - use stored value to avoid recalculation during drag
+        # This is computed in _sync_interfaces_to_canvas and stored
+        if not hasattr(self, '_mm_per_px') or self._mm_per_px <= 0:
+            # Fallback: compute from object height and canvas size
+            object_height = self.object_height_mm.value()
+            w, h = self.canvas.image_pixel_size()
+            # Y-axis: 0 (top) to object_height (bottom)
+            self._mm_per_px = object_height / h if h > 0 else 1.0
+        
+        mm_per_px = self._mm_per_px
+        
+        # Block interface panel signals to prevent feedback loop during drag
+        self.interface_panel.blockSignals(True)
+        
+        try:
+            # Update interface coordinates from canvas (pixels → mm)
             lines = self.canvas.get_all_lines()
             for i, line in enumerate(lines):
-                if i < len(self._interfaces):
-                    self._interfaces[i]['x1_px'] = line.x1
-                    self._interfaces[i]['y1_px'] = line.y1
-                    self._interfaces[i]['x2_px'] = line.x2
-                    self._interfaces[i]['y2_px'] = line.y2
+                if i < len(interfaces):
+                    # Convert pixels to mm
+                    # Y: 0px (top) → 0mm, h px (bottom) → object_height mm
+                    interfaces[i].x1_mm = line.x1 * mm_per_px
+                    interfaces[i].y1_mm = line.y1 * mm_per_px
+                    interfaces[i].x2_mm = line.x2 * mm_per_px
+                    interfaces[i].y2_mm = line.y2 * mm_per_px
+                    
+                    # Update the interface in the panel (silently - signals blocked)
+                    self.interface_panel.update_interface(i, interfaces[i])
+        finally:
+            # Always unblock signals
+            self.interface_panel.blockSignals(False)
     
     def _on_canvas_line_selected(self, index: int):
-        """Called when a line is selected on canvas."""
-        # Highlight corresponding item in list
-        self.interfaces_list.blockSignals(True)
-        self.interfaces_list.setCurrentRow(index)
-        self.interfaces_list.blockSignals(False)
+        """Called when a line is selected on canvas - v2 system."""
+        # Select corresponding interface in panel
+        self.interface_panel.select_interface(index)
     
-    def _on_interface_list_selection(self, row: int):
-        """Called when user selects an interface in the list."""
-        if row >= 0:
-            self.canvas.select_line(row)
+    # ---------- DEPRECATED: Old Interface Management (kept for reference) ----------
+    # These methods are no longer used in v2 system, replaced by InterfacePropertiesPanel
     
-    # ---------- Interface Management (Refractive Objects) ----------
-    
-    def _update_interface_list(self):
+    def _update_interface_list_DEPRECATED(self):
         """Update the interfaces list widget."""
         self.interfaces_list.clear()
         
@@ -572,8 +484,8 @@ class ComponentEditor(QtWidgets.QMainWindow):
         # Update canvas visualization
         self._sync_interfaces_to_canvas()
     
-    def _add_interface(self):
-        """Add a new interface."""
+    def _add_interface_DEPRECATED(self):
+        """DEPRECATED: Add a new interface."""
         # Create dialog for interface properties
         d = QtWidgets.QDialog(self)
         d.setWindowTitle("Add Interface")
@@ -704,8 +616,8 @@ class ComponentEditor(QtWidgets.QMainWindow):
             self._interfaces.append(iface)
             self._update_interface_list()
     
-    def _edit_interface(self):
-        """Edit the selected interface."""
+    def _edit_interface_DEPRECATED(self):
+        """DEPRECATED: Edit the selected interface."""
         row = self.interfaces_list.currentRow()
         kind = self.kind_combo.currentText()
         
@@ -884,30 +796,56 @@ class ComponentEditor(QtWidgets.QMainWindow):
         d.setModal(False)  # Non-modal - allows interaction with parent
         f = QtWidgets.QFormLayout(d)
         
-        # Pre-fill with existing values
+        # Get pixel and physical coordinate info
+        _, h_px = self.canvas.image_pixel_size()
+        scale_norm = 1000.0 / float(h_px) if h_px > 0 else 1.0
+        mm_per_px = float(self.mm_per_px_lbl.text().split()[0]) if self.mm_per_px_lbl.text() != "— mm/px" else 0.0
+        
+        # Coordinate spinboxes (in normalized 1000px space)
         x1 = QtWidgets.QDoubleSpinBox()
-        x1.setRange(-1000, 1000)
+        x1.setRange(0, 1000)
         x1.setDecimals(2)
-        x1.setSuffix(" mm")
-        x1.setValue(iface.get('x1_mm', 0))
+        x1.setSuffix(" px")
+        x1.setValue(iface.get('x1_px', 0) * scale_norm)
         
         y1 = QtWidgets.QDoubleSpinBox()
-        y1.setRange(-1000, 1000)
+        y1.setRange(0, 1000)
         y1.setDecimals(2)
-        y1.setSuffix(" mm")
-        y1.setValue(iface.get('y1_mm', 0))
+        y1.setSuffix(" px")
+        y1.setValue(iface.get('y1_px', 0) * scale_norm)
         
         x2 = QtWidgets.QDoubleSpinBox()
-        x2.setRange(-1000, 1000)
+        x2.setRange(0, 1000)
         x2.setDecimals(2)
-        x2.setSuffix(" mm")
-        x2.setValue(iface.get('x2_mm', 0))
+        x2.setSuffix(" px")
+        x2.setValue(iface.get('x2_px', 0) * scale_norm)
         
         y2 = QtWidgets.QDoubleSpinBox()
-        y2.setRange(-1000, 1000)
+        y2.setRange(0, 1000)
         y2.setDecimals(2)
-        y2.setSuffix(" mm")
-        y2.setValue(iface.get('y2_mm', 0))
+        y2.setSuffix(" px")
+        y2.setValue(iface.get('y2_px', 0) * scale_norm)
+        
+        # Physical coordinates (read-only, for reference)
+        x1_mm_label = QtWidgets.QLabel()
+        y1_mm_label = QtWidgets.QLabel()
+        x2_mm_label = QtWidgets.QLabel()
+        y2_mm_label = QtWidgets.QLabel()
+        
+        def update_mm_labels():
+            """Update physical coordinate labels."""
+            if mm_per_px > 0:
+                x1_mm_label.setText(f"{x1.value() * mm_per_px:.3f} mm")
+                y1_mm_label.setText(f"{y1.value() * mm_per_px:.3f} mm")
+                x2_mm_label.setText(f"{x2.value() * mm_per_px:.3f} mm")
+                y2_mm_label.setText(f"{y2.value() * mm_per_px:.3f} mm")
+            else:
+                x1_mm_label.setText("—")
+                y1_mm_label.setText("—")
+                x2_mm_label.setText("—")
+                y2_mm_label.setText("—")
+        
+        update_mm_labels()
         
         n1 = QtWidgets.QDoubleSpinBox()
         n1.setRange(1.0, 3.0)
@@ -959,17 +897,34 @@ class ComponentEditor(QtWidgets.QMainWindow):
         is_bs.toggled.connect(on_bs_toggled)
         is_pbs.toggled.connect(on_pbs_toggled)
         
-        f.addRow("Start X", x1)
-        f.addRow("Start Y", y1)
-        f.addRow("End X", x2)
-        f.addRow("End Y", y2)
-        f.addRow("Refractive Index n1", n1)
-        f.addRow("Refractive Index n2", n2)
+        # Coordinates section
+        f.addRow(QtWidgets.QLabel("<b>Point 1 (Start)</b>"))
+        f.addRow("X₁:", x1)
+        f.addRow("  → Physical:", x1_mm_label)
+        f.addRow("Y₁:", y1)
+        f.addRow("  → Physical:", y1_mm_label)
+        
+        f.addRow(QtWidgets.QLabel("<b>Point 2 (End)</b>"))
+        f.addRow("X₂:", x2)
+        f.addRow("  → Physical:", x2_mm_label)
+        f.addRow("Y₂:", y2)
+        f.addRow("  → Physical:", y2_mm_label)
+        
+        # Properties section
+        f.addRow(QtWidgets.QLabel("<b>Optical Properties</b>"))
+        f.addRow("Refractive Index n₁", n1)
+        f.addRow("Refractive Index n₂", n2)
         f.addRow("", is_bs)
         f.addRow("Transmission %", split_t)
         f.addRow("Reflection %", split_r)
         f.addRow("", is_pbs)
         f.addRow("PBS Axis", pbs_axis)
+        
+        # Info label
+        info = QtWidgets.QLabel("💡 Drag line endpoints on canvas to adjust visually")
+        info.setWordWrap(True)
+        info.setStyleSheet("color: #666; font-size: 10px;")
+        f.addRow(info)
         
         # Apply and Close buttons (non-modal dialog)
         btn_apply = QtWidgets.QPushButton("Apply")
@@ -981,10 +936,13 @@ class ComponentEditor(QtWidgets.QMainWindow):
         
         def apply_changes():
             """Apply changes to interface (can be called multiple times)."""
-            iface['x1_mm'] = x1.value()
-            iface['y1_mm'] = y1.value()
-            iface['x2_mm'] = x2.value()
-            iface['y2_mm'] = y2.value()
+            # Update pixel coordinates
+            iface['x1_px'] = x1.value() / scale_norm
+            iface['y1_px'] = y1.value() / scale_norm
+            iface['x2_px'] = x2.value() / scale_norm
+            iface['y2_px'] = y2.value() / scale_norm
+            
+            # Update optical properties
             iface['n1'] = n1.value()
             iface['n2'] = n2.value()
             iface['is_beam_splitter'] = is_bs.isChecked()
@@ -992,16 +950,63 @@ class ComponentEditor(QtWidgets.QMainWindow):
             iface['split_R'] = split_r.value()
             iface['is_polarizing'] = is_pbs.isChecked()
             iface['pbs_transmission_axis_deg'] = pbs_axis.value()
-            self._update_interface_list()
             
-            # Update line color on canvas
+            # Update canvas line
             lines = self.canvas.get_all_lines()
             if row < len(lines):
-                lines[row].color = self._get_interface_color(iface)
-                self.canvas.update_line(row, lines[row])
+                line = lines[row]
+                line.x1 = iface['x1_px']
+                line.y1 = iface['y1_px']
+                line.x2 = iface['x2_px']
+                line.y2 = iface['y2_px']
+                line.color = self._get_interface_color(iface)
+                self.canvas.update_line(row, line)
+                self.canvas.update()
+            
+            update_mm_labels()
+            self._update_interface_list()
+        
+        def update_spinboxes_from_canvas():
+            """Update spinboxes when canvas line is dragged."""
+            lines = self.canvas.get_all_lines()
+            if row < len(lines):
+                line = lines[row]
+                # Block signals to prevent loop
+                x1.blockSignals(True)
+                y1.blockSignals(True)
+                x2.blockSignals(True)
+                y2.blockSignals(True)
+                
+                x1.setValue(line.x1 * scale_norm)
+                y1.setValue(line.y1 * scale_norm)
+                x2.setValue(line.x2 * scale_norm)
+                y2.setValue(line.y2 * scale_norm)
+                
+                x1.blockSignals(False)
+                y1.blockSignals(False)
+                x2.blockSignals(False)
+                y2.blockSignals(False)
+                
+                # Update interface data
+                iface['x1_px'] = line.x1
+                iface['y1_px'] = line.y1
+                iface['x2_px'] = line.x2
+                iface['y2_px'] = line.y2
+                
+                update_mm_labels()
+        
+        # Connect spinboxes to apply changes
+        x1.valueChanged.connect(apply_changes)
+        y1.valueChanged.connect(apply_changes)
+        x2.valueChanged.connect(apply_changes)
+        y2.valueChanged.connect(apply_changes)
+        
+        # Connect canvas changes to spinboxes
+        canvas_connection = self.canvas.linesChanged.connect(update_spinboxes_from_canvas)
         
         def on_dialog_close():
             """Unlock canvas when dialog closes."""
+            self.canvas.linesChanged.disconnect(canvas_connection)
             self.canvas.clear_drag_lock()
             self.statusBar().showMessage("Ready")
             d.close()
@@ -1014,9 +1019,10 @@ class ComponentEditor(QtWidgets.QMainWindow):
         
         # Show non-modal dialog (allows dragging on canvas)
         d.show()
+        self.statusBar().showMessage("Editing: Drag endpoints or enter coordinates")
     
-    def _delete_interface(self):
-        """Delete the selected interface."""
+    def _delete_interface_DEPRECATED(self):
+        """DEPRECATED: Delete the selected interface."""
         row = self.interfaces_list.currentRow()
         if row < 0 or row >= len(self._interfaces):
             QtWidgets.QMessageBox.information(self, "No Selection", "Please select an interface to delete.")
@@ -1034,8 +1040,8 @@ class ComponentEditor(QtWidgets.QMainWindow):
             self.canvas.remove_line(row)
             self._update_interface_list()
     
-    def _create_bs_cube_preset(self):
-        """Create a beam splitter cube preset (5 interfaces)."""
+    def _create_bs_cube_preset_DEPRECATED(self):
+        """DEPRECATED: Create a beam splitter cube preset (5 interfaces)."""
         # Ask for cube parameters
         d = QtWidgets.QDialog(self)
         d.setWindowTitle("Beam Splitter Cube Preset")
@@ -1307,17 +1313,18 @@ class ComponentEditor(QtWidgets.QMainWindow):
 
     # ---------- JSON Copy/Paste ----------
     def _build_record_from_ui(self) -> Optional[ComponentRecord]:
-        """Build ComponentRecord from UI state with normalized 1000px coordinates."""
+        """Build ComponentRecord from UI state (v2 format)."""
         if not self.canvas.has_image():
             QtWidgets.QMessageBox.warning(self, "Missing image", "Load or paste an image first.")
             return None
         
-        p1, p2 = self.canvas.get_points()
-        if not (p1 and p2):
+        # Get interfaces from panel
+        interfaces = self.interface_panel.get_interfaces()
+        if not interfaces:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Missing line",
-                "Click two points on the image to define the optical line."
+                "No interfaces",
+                "Add at least one interface to define the component."
             )
             return None
         
@@ -1326,7 +1333,6 @@ class ComponentEditor(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "Missing name", "Please enter a component name.")
             return None
 
-        kind = self.kind_combo.currentText()
         object_height = self._get_object_height()
         
         if object_height <= 0:
@@ -1336,46 +1342,16 @@ class ComponentEditor(QtWidgets.QMainWindow):
                 "Please set a positive object height (mm)."
             )
             return None
-
-        # Normalize line_px to 1000px coordinate space
-        _, h_px = self.canvas.image_pixel_size()
-        if h_px <= 0:
-            h_px = 1000  # Fallback
         
-        scale = 1000.0 / float(h_px)
-        line_px_normalized = (
-            float(p1[0]) * scale,
-            float(p1[1]) * scale,
-            float(p2[0]) * scale,
-            float(p2[1]) * scale
-        )
-        
+        # Save asset file
         asset_path = self._ensure_asset_file_normalized(name)
 
-        # Type-specific
-        efl = float(self.efl_mm.value()) if kind == "lens" else 0.0
-        TR = (
-            (float(self.split_T.value()), float(self.split_R.value()))
-            if kind == "beamsplitter"
-            else (50.0, 50.0)
-        )
-        cutoff_wavelength = float(self.cutoff_wavelength.value()) if kind == "dichroic" else 550.0
-        transition_width = float(self.transition_width.value()) if kind == "dichroic" else 50.0
-        pass_type_value = self.pass_type.currentText() if kind == "dichroic" else "longpass"
-        interfaces = list(self._interfaces) if kind == "refractive_object" else []
-
+        # Create v2 ComponentRecord
         return ComponentRecord(
             name=name,
-            kind=kind,
             image_path=asset_path,
-            line_px=line_px_normalized,
             object_height_mm=object_height,
-            efl_mm=efl,
-            split_TR=TR,
-            cutoff_wavelength_nm=cutoff_wavelength,
-            transition_width_nm=transition_width,
-            pass_type=pass_type_value,
-            interfaces=interfaces,
+            interfaces_v2=interfaces,
             notes=self.notes.toPlainText().strip()
         )
 
@@ -1489,11 +1465,15 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self._load_from_dict(data)
 
     def _load_from_dict(self, data: dict):
-        """Load component from dict."""
+        """Load component from dict (v2 system with migration)."""
         rec = deserialize_component(data)
         if not rec:
             return
 
+        # Migrate legacy components to v2 format
+        if not rec.is_v2_format():
+            rec = migrate_component_to_v2(rec)
+        
         # Load image if available
         if rec.image_path and os.path.exists(rec.image_path):
             if rec.image_path.lower().endswith(".svg"):
@@ -1507,43 +1487,22 @@ class ComponentEditor(QtWidgets.QMainWindow):
 
         # Populate UI
         self.name_edit.setText(rec.name)
-        self.kind_combo.setCurrentText(
-            rec.kind if rec.kind in ("lens", "mirror", "beamsplitter", "dichroic", "refractive_object") else "lens"
-        )
         
-        # Set object height directly from component record
+        # Set object height
         if rec.object_height_mm > 0:
             self.object_height_mm.setValue(rec.object_height_mm)
         
-        self.efl_mm.setValue(rec.efl_mm if rec.kind == "lens" else 0.0)
-        self.split_T.setValue(rec.split_TR[0] if rec.kind == "beamsplitter" else 50.0)
-        self.split_R.setValue(rec.split_TR[1] if rec.kind == "beamsplitter" else 50.0)
-        self.cutoff_wavelength.setValue(rec.cutoff_wavelength_nm if rec.kind == "dichroic" else 550.0)
-        self.transition_width.setValue(rec.transition_width_nm if rec.kind == "dichroic" else 50.0)
-        if rec.kind == "dichroic":
-            idx = self.pass_type.findText(rec.pass_type)
-            if idx >= 0:
-                self.pass_type.setCurrentIndex(idx)
+        # Load interfaces into panel
+        self.interface_panel.clear()
+        if rec.interfaces_v2:
+            for interface in rec.interfaces_v2:
+                self.interface_panel.add_interface(interface)
         
-        # Load interfaces for refractive objects
-        if rec.kind == "refractive_object":
-            self._interfaces = list(rec.interfaces) if rec.interfaces else []
-            self._update_interface_list()
-        else:
-            self._interfaces = []
-            self._update_interface_list()
+        # Notes
         self.notes.setPlainText(rec.notes)
         
-        if rec.line_px:
-            # rec.line_px is in normalized 1000px space, denormalize for canvas
-            _, h_px = self.canvas.image_pixel_size()
-            scale = float(h_px) / 1000.0 if h_px > 0 else 1.0
-            
-            p1 = (float(rec.line_px[0]) * scale, float(rec.line_px[1]) * scale)
-            p2 = (float(rec.line_px[2]) * scale, float(rec.line_px[3]) * scale)
-            self.canvas.set_points(p1, p2)
-        
-        self._update_derived_labels()
+        # Sync to canvas
+        self._sync_interfaces_to_canvas()
 
     def save_component(self):
         """Save component to library."""

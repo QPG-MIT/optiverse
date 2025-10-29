@@ -1,9 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Tuple, Optional, Dict, Any
 
 import numpy as np
+
+# Import new interface definition
+try:
+    from .interface_definition import InterfaceDefinition
+    HAS_INTERFACE_DEFINITION = True
+except ImportError:
+    HAS_INTERFACE_DEFINITION = False
+
+# Import path utilities for relative/absolute path conversion
+from ..platform.paths import to_relative_path, to_absolute_path
 
 
 @dataclass
@@ -99,19 +109,35 @@ class ComponentRecord:
     Persistent component data for library storage.
     Represents a physical optical component with calibrated dimensions.
     
-    NORMALIZED 1000px COORDINATE SYSTEM:
-    - line_px coordinates are in normalized 1000px space (regardless of actual image size)
-    - object_height_mm represents the physical size of the optical element (picked line)
-    - When rendering, line_px must be denormalized: actual_coords = line_px * (actual_image_height / 1000.0)
-    - mm_per_pixel is then computed as: object_height_mm / picked_line_length_actual_px
-    - Images saved by the component editor are normalized to 1000px height, but legacy images may vary
+    GENERALIZED INTERFACE-BASED DESIGN (v2):
+    - Component can contain multiple interfaces, each with its own type
+    - interfaces_v2: List of InterfaceDefinition objects (new format)
+    - Coordinates stored in mm in local coordinate system
+    - Interfaces can be reordered, optical effect determined by spatial position
+    
+    LEGACY SUPPORT (v1):
+    - kind: Component type (auto-computed from interfaces_v2 if not set)
+    - line_px: Calibration line in normalized 1000px space (legacy)
+    - Type-specific fields (efl_mm, split_TR, etc.) kept for backward compatibility
+    - Legacy components automatically migrated to v2 format on first access
+    
+    COORDINATE SYSTEMS:
+    - line_px: Normalized 1000px space (legacy, still used for simple components)
+    - interfaces_v2[].xN_mm: Millimeters in local coordinate system
+    - object_height_mm: Physical size for calibration (mm)
     """
     name: str
-    kind: str  # 'lens' | 'mirror' | 'beamsplitter' | 'waveplate' | 'dichroic' | 'refractive_object'
-    image_path: str
-    line_px: Tuple[float, float, float, float]  # x1,y1,x2,y2 in normalized 1000px coordinate space
-    object_height_mm: float  # Physical size (mm) of the optical element (picked line length in mm)
-    # mm_per_pixel is computed at render time: object_height_mm / picked_line_length_actual_px (not stored)
+    image_path: str = ""
+    object_height_mm: float = 25.4  # Physical size (mm) of the optical element
+    
+    # NEW: Interface-based format (v2)
+    interfaces_v2: Optional[List] = None  # List[InterfaceDefinition] when available
+    
+    # LEGACY: Component type and calibration
+    kind: str = ""  # Auto-computed from interfaces_v2, or legacy type
+    line_px: Tuple[float, float, float, float] = (0.0, 0.0, 100.0, 100.0)
+    
+    # LEGACY: Type-specific properties (kept for backward compatibility)
     # lens only
     efl_mm: float = 0.0
     # beamsplitter only
@@ -123,17 +149,42 @@ class ComponentRecord:
     cutoff_wavelength_nm: float = 550.0  # Cutoff wavelength for dichroic mirrors
     transition_width_nm: float = 50.0  # Width of transition region
     pass_type: str = "longpass"  # "longpass" or "shortpass"
-    # refractive_object only
-    interfaces: List[Dict[str, Any]] = None  # List of interface dicts for refractive objects
-    # optical axis angle (degrees) - default orientation when placed
-    angle_deg: float = 0.0
-    # misc
+    # refractive_object only (old format)
+    interfaces: List[Dict[str, Any]] = field(default_factory=list)  # Legacy interface dicts
+    
+    # Common properties
+    angle_deg: float = 0.0  # optical axis angle (degrees)
     notes: str = ""
     
     def __post_init__(self):
-        """Initialize interfaces list if None."""
-        if self.interfaces is None:
-            self.interfaces = []
+        """Initialize and validate component data."""
+        # Auto-compute kind from interfaces_v2 if available
+        if self.interfaces_v2 is not None and len(self.interfaces_v2) > 0 and not self.kind:
+            self.kind = self._compute_kind()
+        
+        # Ensure kind has a value
+        if not self.kind:
+            self.kind = "lens"  # Default fallback
+    
+    def _compute_kind(self) -> str:
+        """
+        Compute component kind from interfaces_v2.
+        
+        Returns:
+            - Single interface type if only one interface
+            - "multi_element" if multiple interfaces
+            - "empty" if no interfaces
+        """
+        if self.interfaces_v2 is None or len(self.interfaces_v2) == 0:
+            return "empty"
+        elif len(self.interfaces_v2) == 1:
+            return self.interfaces_v2[0].element_type
+        else:
+            return "multi_element"
+    
+    def is_v2_format(self) -> bool:
+        """Check if this component uses the new v2 interface format."""
+        return self.interfaces_v2 is not None and len(self.interfaces_v2) > 0
 
 
 def _coerce_line_px(val: Any) -> Optional[Tuple[float, float, float, float]]:
@@ -149,68 +200,83 @@ def _coerce_line_px(val: Any) -> Optional[Tuple[float, float, float, float]]:
 def serialize_component(rec: ComponentRecord) -> Dict[str, Any]:
     """
     Serialize ComponentRecord to dict for JSON storage.
-    Only includes fields relevant to component kind.
-    For beamsplitter, also writes legacy split_T/split_R for backward compatibility.
+    
+    Supports both v2 (interface-based) and legacy (type-based) formats.
+    V2 format takes precedence if available.
+    
+    Image paths are stored as relative paths if within the package,
+    otherwise as absolute paths.
     """
-    # mm_per_pixel not stored - computed at render time from object_height_mm and actual image dimensions
     base = {
         "name": rec.name,
-        "kind": rec.kind,
-        "image_path": rec.image_path,
-        "line_px": [float(x) for x in rec.line_px],
+        "image_path": to_relative_path(rec.image_path),
         "object_height_mm": float(rec.object_height_mm),
-        "angle_deg": float(rec.angle_deg),  # Optical axis angle
+        "angle_deg": float(rec.angle_deg),
         "notes": rec.notes or ""
     }
-    if rec.kind == "lens":
-        base["efl_mm"] = float(rec.efl_mm)
-    elif rec.kind == "beamsplitter":
-        t, r = rec.split_TR
-        base["split_TR"] = [float(t), float(r)]
-        # Legacy for backward compatibility
-        base["split_T"] = float(t)
-        base["split_R"] = float(r)
-    elif rec.kind == "waveplate":
-        base["phase_shift_deg"] = float(rec.phase_shift_deg)
-        base["fast_axis_deg"] = float(rec.fast_axis_deg)
-    elif rec.kind == "dichroic":
-        base["cutoff_wavelength_nm"] = float(rec.cutoff_wavelength_nm)
-        base["transition_width_nm"] = float(rec.transition_width_nm)
-        base["pass_type"] = str(rec.pass_type)
-    elif rec.kind == "refractive_object":
-        # Store interfaces as list of dicts
-        base["interfaces"] = rec.interfaces if rec.interfaces else []
-    # mirror: no extra fields
+    
+    # V2 format: Interface-based (new)
+    if rec.is_v2_format() and HAS_INTERFACE_DEFINITION:
+        base["format_version"] = 2
+        base["interfaces_v2"] = [iface.to_dict() for iface in rec.interfaces_v2]
+        # Include computed kind for display
+        base["kind"] = rec.kind
+    else:
+        # Legacy format (v1)
+        base["format_version"] = 1
+        base["kind"] = rec.kind
+        base["line_px"] = [float(x) for x in rec.line_px]
+        
+        # Type-specific fields
+        if rec.kind == "lens":
+            base["efl_mm"] = float(rec.efl_mm)
+        elif rec.kind == "beamsplitter":
+            t, r = rec.split_TR
+            base["split_TR"] = [float(t), float(r)]
+            # Legacy for backward compatibility
+            base["split_T"] = float(t)
+            base["split_R"] = float(r)
+        elif rec.kind == "waveplate":
+            base["phase_shift_deg"] = float(rec.phase_shift_deg)
+            base["fast_axis_deg"] = float(rec.fast_axis_deg)
+        elif rec.kind == "dichroic":
+            base["cutoff_wavelength_nm"] = float(rec.cutoff_wavelength_nm)
+            base["transition_width_nm"] = float(rec.transition_width_nm)
+            base["pass_type"] = str(rec.pass_type)
+        elif rec.kind == "refractive_object":
+            # Store interfaces as list of dicts
+            base["interfaces"] = rec.interfaces if rec.interfaces else []
+        # mirror: no extra fields
+    
     return base
 
 
 def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
     """
     Deserialize dict to ComponentRecord.
-    Handles both new split_TR and legacy split_T/split_R formats.
-    Handles both object_height_mm and legacy object_height/length_mm.
-    Ignores unknown keys. Returns None if core fields are malformed.
+    
+    Supports both v2 (interface-based) and legacy (v1) formats.
+    Automatically migrates legacy components to v2 format if InterfaceDefinition is available.
+    Handles backward compatibility with all legacy field names.
+    
+    Image paths are converted from relative (package-relative) to absolute paths.
     """
     if not isinstance(data, dict):
         return None
 
-    name = str(data.get("name", "") or "(unnamed)")
-    kind = str(data.get("kind", "lens"))
-    image_path = str(data.get("image_path", ""))
+    # Detect format version
+    format_version = data.get("format_version", 1)
     
-    # Legacy: mm_per_pixel is no longer used - computed at render time from object_height_mm
-    # Old JSON files with mm_per_pixel are ignored
-
-    line_px = _coerce_line_px(data.get("line_px", (0, 0, 1, 0)))
-    if not line_px:
-        # Core geometry missing → invalid
-        return None
-
-    # Support legacy field names: object_height_mm (new) or object_height or length_mm (legacy)
+    # Common fields
+    name = str(data.get("name", "") or "(unnamed)")
+    image_path_raw = str(data.get("image_path", ""))
+    # Convert relative paths to absolute
+    image_path = to_absolute_path(image_path_raw) if image_path_raw else ""
+    
     try:
-        object_height_mm = float(data.get("object_height_mm", data.get("object_height", data.get("length_mm", 60.0))))
+        object_height_mm = float(data.get("object_height_mm", data.get("object_height", data.get("length_mm", 25.4))))
     except Exception:
-        object_height_mm = 60.0
+        object_height_mm = 25.4
     
     try:
         angle_deg = float(data.get("angle_deg", 0.0))
@@ -218,8 +284,36 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
         angle_deg = 0.0
     
     notes = str(data.get("notes", ""))
-
-    # Type-specific
+    
+    # V2 format: Interface-based
+    if format_version == 2 and "interfaces_v2" in data and HAS_INTERFACE_DEFINITION:
+        try:
+            from .interface_definition import InterfaceDefinition
+            interfaces_v2 = [InterfaceDefinition.from_dict(iface_data) for iface_data in data["interfaces_v2"]]
+            kind = data.get("kind", "multi_element")
+        except Exception:
+            # Fallback to legacy if v2 loading fails
+            interfaces_v2 = None
+            kind = data.get("kind", "lens")
+        
+        return ComponentRecord(
+            name=name,
+            image_path=image_path,
+            object_height_mm=object_height_mm,
+            interfaces_v2=interfaces_v2 if interfaces_v2 else None,
+            kind=kind,
+            angle_deg=angle_deg,
+            notes=notes
+        )
+    
+    # Legacy format (v1): Load type-specific fields
+    kind = str(data.get("kind", "lens"))
+    
+    line_px = _coerce_line_px(data.get("line_px", (0, 0, 100, 100)))
+    if not line_px:
+        line_px = (0.0, 0.0, 100.0, 100.0)
+    
+    # Type-specific fields
     efl_mm = 0.0
     split_TR = (50.0, 50.0)
     phase_shift_deg = 90.0
@@ -231,9 +325,9 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
 
     if kind == "lens":
         try:
-            efl_mm = float(data.get("efl_mm", 0.0))
+            efl_mm = float(data.get("efl_mm", 100.0))
         except Exception:
-            efl_mm = 0.0
+            efl_mm = 100.0
     elif kind == "beamsplitter":
         if "split_TR" in data and isinstance(data["split_TR"], (list, tuple)) and len(data["split_TR"]) == 2:
             try:
@@ -285,6 +379,7 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
         image_path=image_path,
         line_px=line_px,
         object_height_mm=object_height_mm,
+        interfaces_v2=None,  # Will be populated by migration if needed
         efl_mm=efl_mm,
         split_TR=split_TR,
         phase_shift_deg=phase_shift_deg,

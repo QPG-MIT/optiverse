@@ -1296,6 +1296,10 @@ class MainWindow(QtWidgets.QMainWindow):
         for d in data.get("lenses", []):
             # Remove item_uuid before passing to Params (it's for collaboration)
             item_uuid = d.pop("item_uuid", None)
+            # Convert relative image paths to absolute
+            if "image_path" in d and d["image_path"]:
+                from ..platform.paths import to_absolute_path
+                d["image_path"] = to_absolute_path(d["image_path"])
             L = LensItem(LensParams(**d))
             if item_uuid:
                 L.item_uuid = item_uuid
@@ -1305,6 +1309,10 @@ class MainWindow(QtWidgets.QMainWindow):
         for d in data.get("mirrors", []):
             # Remove item_uuid before passing to Params (it's for collaboration)
             item_uuid = d.pop("item_uuid", None)
+            # Convert relative image paths to absolute
+            if "image_path" in d and d["image_path"]:
+                from ..platform.paths import to_absolute_path
+                d["image_path"] = to_absolute_path(d["image_path"])
             M = MirrorItem(MirrorParams(**d))
             if item_uuid:
                 M.item_uuid = item_uuid
@@ -1314,6 +1322,10 @@ class MainWindow(QtWidgets.QMainWindow):
         for d in data.get("beamsplitters", []):
             # Remove item_uuid before passing to Params (it's for collaboration)
             item_uuid = d.pop("item_uuid", None)
+            # Convert relative image paths to absolute
+            if "image_path" in d and d["image_path"]:
+                from ..platform.paths import to_absolute_path
+                d["image_path"] = to_absolute_path(d["image_path"])
             B = BeamsplitterItem(BeamsplitterParams(**d))
             if item_uuid:
                 B.item_uuid = item_uuid
@@ -1323,6 +1335,10 @@ class MainWindow(QtWidgets.QMainWindow):
         for d in data.get("dichroics", []):
             # Remove item_uuid before passing to Params (it's for collaboration)
             item_uuid = d.pop("item_uuid", None)
+            # Convert relative image paths to absolute
+            if "image_path" in d and d["image_path"]:
+                from ..platform.paths import to_absolute_path
+                d["image_path"] = to_absolute_path(d["image_path"])
             D = DichroicItem(DichroicParams(**d))
             if item_uuid:
                 D.item_uuid = item_uuid
@@ -1332,6 +1348,10 @@ class MainWindow(QtWidgets.QMainWindow):
         for d in data.get("waveplates", []):
             # Remove item_uuid before passing to Params (it's for collaboration)
             item_uuid = d.pop("item_uuid", None)
+            # Convert relative image paths to absolute
+            if "image_path" in d and d["image_path"]:
+                from ..platform.paths import to_absolute_path
+                d["image_path"] = to_absolute_path(d["image_path"])
             W = WaveplateItem(WaveplateParams(**d))
             if item_uuid:
                 W.item_uuid = item_uuid
@@ -1341,6 +1361,10 @@ class MainWindow(QtWidgets.QMainWindow):
         for d in data.get("slms", []):
             # Remove item_uuid before passing to Params (it's for collaboration)
             item_uuid = d.pop("item_uuid", None)
+            # Convert relative image paths to absolute
+            if "image_path" in d and d["image_path"]:
+                from ..platform.paths import to_absolute_path
+                d["image_path"] = to_absolute_path(d["image_path"])
             S = SLMItem(SLMParams(**d))
             if item_uuid:
                 S.item_uuid = item_uuid

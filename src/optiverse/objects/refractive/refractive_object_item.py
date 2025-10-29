@@ -7,6 +7,7 @@ import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import RefractiveObjectParams, RefractiveInterface
+from ...platform.paths import to_relative_path, to_absolute_path
 from ...ui.smart_spinbox import SmartDoubleSpinBox
 from ..base_obj import BaseObj
 from ..component_sprite import ComponentSprite
@@ -454,7 +455,7 @@ class RefractiveObjectItem(BaseObj):
             "y_mm": float(self.pos().y()),
             "angle_deg": float(self.rotation()),
             "object_height_mm": self.params.object_height_mm,
-            "image_path": self.params.image_path,
+            "image_path": to_relative_path(self.params.image_path),
             "mm_per_pixel": self.params.mm_per_pixel,
             "line_px": self.params.line_px,
             "name": self.params.name,
@@ -473,13 +474,18 @@ class RefractiveObjectItem(BaseObj):
         for iface_dict in d.get("interfaces", []):
             interfaces.append(RefractiveInterface(**iface_dict))
         
+        # Convert relative image path to absolute
+        image_path = d.get("image_path")
+        if image_path:
+            image_path = to_absolute_path(image_path)
+        
         self.params = RefractiveObjectParams(
             x_mm=d.get("x_mm", 0.0),
             y_mm=d.get("y_mm", 0.0),
             angle_deg=d.get("angle_deg", 45.0),
             object_height_mm=d.get("object_height_mm", 80.0),
             interfaces=interfaces,
-            image_path=d.get("image_path"),
+            image_path=image_path,
             mm_per_pixel=d.get("mm_per_pixel", 0.1),
             line_px=d.get("line_px"),
             name=d.get("name")

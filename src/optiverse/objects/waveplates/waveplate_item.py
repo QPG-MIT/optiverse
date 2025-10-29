@@ -7,6 +7,7 @@ import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import WaveplateParams
+from ...platform.paths import to_relative_path, to_absolute_path
 from ...ui.smart_spinbox import SmartDoubleSpinBox
 from ..base_obj import BaseObj
 from ..component_sprite import ComponentSprite
@@ -246,12 +247,18 @@ class WaveplateItem(BaseObj):
         d["y_mm"] = float(self.pos().y())
         d["angle_deg"] = float(self.rotation())
         d["item_uuid"] = self.item_uuid
+        # Convert image path to relative if within package
+        if "image_path" in d:
+            d["image_path"] = to_relative_path(d["image_path"])
         return d
     
     def from_dict(self, d: Dict[str, Any]):
         """Deserialize from dictionary."""
         if "item_uuid" in d:
             self.item_uuid = d["item_uuid"]
+        # Convert relative image path to absolute
+        if "image_path" in d:
+            d["image_path"] = to_absolute_path(d["image_path"])
         self.params = WaveplateParams(**d)
         self.setPos(self.params.x_mm, self.params.y_mm)
         self.setRotation(self.params.angle_deg)
