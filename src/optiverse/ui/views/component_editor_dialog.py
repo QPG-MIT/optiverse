@@ -500,7 +500,6 @@ class ComponentEditor(QtWidgets.QMainWindow):
                     properties=iface
                 )
                 self.canvas.add_line(line)
-                print(f"[DEBUG] Added interface line {i+1}: ({line.x1:.1f}, {line.y1:.1f}) to ({line.x2:.1f}, {line.y2:.1f}), color={line.color.name()}")
         else:
             # Simple component - ALWAYS create calibration line
             w, h = self.canvas.image_pixel_size()
@@ -514,11 +513,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
                     properties={'type': kind}
                 )
                 self.canvas.add_line(line)
-                print(f"[DEBUG] Created calibration line for {kind}: ({line.x1:.1f}, {line.y1:.1f}) to ({line.x2:.1f}, {line.y2:.1f}), color={line.color.name()}")
         
         self.canvas.blockSignals(False)
         self.canvas.update()  # Force repaint
-        print(f"[DEBUG] Canvas now has {len(self.canvas.get_all_lines())} line(s)")
     
     def _on_canvas_lines_changed(self):
         """Called when canvas lines change (user dragging)."""
@@ -712,14 +709,162 @@ class ComponentEditor(QtWidgets.QMainWindow):
         row = self.interfaces_list.currentRow()
         kind = self.kind_combo.currentText()
         
-        # For simple components, just enable edit mode (drag only this line)
+        # For simple components, open coordinate edit dialog
         if kind != "refractive_object":
             if row < 0:
                 QtWidgets.QMessageBox.information(self, "No Selection", "Please select the interface to edit.")
                 return
+            
             # Lock canvas to only drag this line
             self.canvas.set_drag_lock(row)
-            self.statusBar().showMessage(f"Editing: Drag only this line. Click outside to finish editing.")
+            
+            # Get the line
+            lines = self.canvas.get_all_lines()
+            if row >= len(lines):
+                return
+            line = lines[row]
+            
+            # Create non-modal coordinate edit dialog
+            d = QtWidgets.QDialog(self)
+            d.setWindowTitle(f"Edit Calibration Line")
+            d.setWindowFlags(d.windowFlags() | QtCore.Qt.WindowType.WindowStaysOnTopHint)
+            d.setModal(False)  # Non-modal - allows dragging
+            f = QtWidgets.QFormLayout(d)
+            
+            # Get pixel and physical coordinate info
+            _, h_px = self.canvas.image_pixel_size()
+            scale_norm = 1000.0 / float(h_px) if h_px > 0 else 1.0
+            mm_per_px = float(self.mm_per_px_lbl.text().split()[0]) if self.mm_per_px_lbl.text() != "— mm/px" else 0.0
+            
+            # Coordinate spinboxes (in normalized 1000px space)
+            x1_spin = QtWidgets.QDoubleSpinBox()
+            x1_spin.setRange(0, 1000)
+            x1_spin.setDecimals(2)
+            x1_spin.setSuffix(" px")
+            x1_spin.setValue(line.x1 * scale_norm)
+            
+            y1_spin = QtWidgets.QDoubleSpinBox()
+            y1_spin.setRange(0, 1000)
+            y1_spin.setDecimals(2)
+            y1_spin.setSuffix(" px")
+            y1_spin.setValue(line.y1 * scale_norm)
+            
+            x2_spin = QtWidgets.QDoubleSpinBox()
+            x2_spin.setRange(0, 1000)
+            x2_spin.setDecimals(2)
+            x2_spin.setSuffix(" px")
+            x2_spin.setValue(line.x2 * scale_norm)
+            
+            y2_spin = QtWidgets.QDoubleSpinBox()
+            y2_spin.setRange(0, 1000)
+            y2_spin.setDecimals(2)
+            y2_spin.setSuffix(" px")
+            y2_spin.setValue(line.y2 * scale_norm)
+            
+            # Physical coordinates (read-only, for reference)
+            x1_mm_label = QtWidgets.QLabel()
+            y1_mm_label = QtWidgets.QLabel()
+            x2_mm_label = QtWidgets.QLabel()
+            y2_mm_label = QtWidgets.QLabel()
+            
+            def update_mm_labels():
+                """Update physical coordinate labels."""
+                if mm_per_px > 0:
+                    x1_mm_label.setText(f"{x1_spin.value() * mm_per_px:.3f} mm")
+                    y1_mm_label.setText(f"{y1_spin.value() * mm_per_px:.3f} mm")
+                    x2_mm_label.setText(f"{x2_spin.value() * mm_per_px:.3f} mm")
+                    y2_mm_label.setText(f"{y2_spin.value() * mm_per_px:.3f} mm")
+                else:
+                    x1_mm_label.setText("—")
+                    y1_mm_label.setText("—")
+                    x2_mm_label.setText("—")
+                    y2_mm_label.setText("—")
+            
+            update_mm_labels()
+            
+            f.addRow(QtWidgets.QLabel("<b>Point 1 (Start)</b>"))
+            f.addRow("X₁:", x1_spin)
+            f.addRow("  → Physical:", x1_mm_label)
+            f.addRow("Y₁:", y1_spin)
+            f.addRow("  → Physical:", y1_mm_label)
+            
+            f.addRow(QtWidgets.QLabel("<b>Point 2 (End)</b>"))
+            f.addRow("X₂:", x2_spin)
+            f.addRow("  → Physical:", x2_mm_label)
+            f.addRow("Y₂:", y2_spin)
+            f.addRow("  → Physical:", y2_mm_label)
+            
+            # Info label
+            info = QtWidgets.QLabel("💡 Drag line endpoints on canvas to adjust visually")
+            info.setWordWrap(True)
+            info.setStyleSheet("color: #666; font-size: 10px;")
+            f.addRow(info)
+            
+            def apply_spinbox_changes():
+                """Apply coordinate changes from spinboxes to canvas."""
+                # Denormalize to actual image space
+                lines = self.canvas.get_all_lines()
+                if row < len(lines):
+                    line = lines[row]
+                    line.x1 = x1_spin.value() / scale_norm
+                    line.y1 = y1_spin.value() / scale_norm
+                    line.x2 = x2_spin.value() / scale_norm
+                    line.y2 = y2_spin.value() / scale_norm
+                    self.canvas.update_line(row, line)
+                    self.canvas.update()
+                update_mm_labels()
+                self._update_derived_labels()  # Update line length, mm/px, etc.
+            
+            def update_spinboxes_from_canvas():
+                """Update spinboxes when canvas line is dragged."""
+                lines = self.canvas.get_all_lines()
+                if row < len(lines):
+                    line = lines[row]
+                    # Block signals to prevent loop
+                    x1_spin.blockSignals(True)
+                    y1_spin.blockSignals(True)
+                    x2_spin.blockSignals(True)
+                    y2_spin.blockSignals(True)
+                    
+                    x1_spin.setValue(line.x1 * scale_norm)
+                    y1_spin.setValue(line.y1 * scale_norm)
+                    x2_spin.setValue(line.x2 * scale_norm)
+                    y2_spin.setValue(line.y2 * scale_norm)
+                    
+                    x1_spin.blockSignals(False)
+                    y1_spin.blockSignals(False)
+                    x2_spin.blockSignals(False)
+                    y2_spin.blockSignals(False)
+                    
+                    update_mm_labels()
+                    self._update_derived_labels()  # Update line length, mm/px, etc.
+            
+            # Connect spinboxes to canvas
+            x1_spin.valueChanged.connect(apply_spinbox_changes)
+            y1_spin.valueChanged.connect(apply_spinbox_changes)
+            x2_spin.valueChanged.connect(apply_spinbox_changes)
+            y2_spin.valueChanged.connect(apply_spinbox_changes)
+            
+            # Connect canvas changes to spinboxes
+            canvas_connection = self.canvas.linesChanged.connect(update_spinboxes_from_canvas)
+            
+            # Close button
+            btn_close = QtWidgets.QPushButton("Close")
+            f.addRow(btn_close)
+            
+            def on_dialog_close():
+                """Unlock canvas when dialog closes."""
+                self.canvas.linesChanged.disconnect(canvas_connection)
+                self.canvas.clear_drag_lock()
+                self.statusBar().showMessage("Ready")
+                d.close()
+            
+            btn_close.clicked.connect(on_dialog_close)
+            d.finished.connect(lambda: self.canvas.clear_drag_lock())
+            
+            # Show non-modal dialog
+            d.show()
+            self.statusBar().showMessage("Editing: Drag endpoints or enter coordinates")
             return
         
         # For refractive objects, open property dialog

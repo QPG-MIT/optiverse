@@ -176,13 +176,11 @@ class MultiLineCanvas(QtWidgets.QLabel):
         self._drag_locked_line = line_index
         self._selected_line = line_index
         self.update()
-        print(f"[DEBUG] Drag locked to line {line_index}")
     
     def clear_drag_lock(self):
         """Clear drag lock, allow dragging all lines."""
         self._drag_locked_line = -1
         self.update()
-        print(f"[DEBUG] Drag lock cleared")
     
     # ========== Backward Compatibility (for simple components) ==========
     
@@ -261,10 +259,8 @@ class MultiLineCanvas(QtWidgets.QLabel):
         p.drawPixmap(target, self._pix)
         
         # Draw all lines
-        print(f"[DEBUG] paintEvent: Drawing {len(self._lines)} line(s)")
         for i, line in enumerate(self._lines):
             self._draw_line(p, target, line, i)
-            print(f"[DEBUG]   Line {i}: ({line.x1:.1f}, {line.y1:.1f}) to ({line.x2:.1f}, {line.y2:.1f}), color={line.color.name()}")
     
     def _draw_line(self, p: QtGui.QPainter, img_rect: QtCore.QRect, line: InterfaceLine, index: int):
         """Draw a single interface line."""
@@ -373,7 +369,6 @@ class MultiLineCanvas(QtWidgets.QLabel):
             # Check drag lock
             if self._drag_locked_line >= 0 and line_idx != self._drag_locked_line:
                 # Trying to drag a different line than the locked one - ignore
-                print(f"[DEBUG] Drag blocked: line {line_idx} is not the locked line {self._drag_locked_line}")
                 return
             
             # Start dragging
