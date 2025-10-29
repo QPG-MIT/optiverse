@@ -1337,7 +1337,7 @@ class MainWindow(QtWidgets.QMainWindow):
             item_uuid = d.pop("item_uuid", None)
             # Convert relative image paths to absolute
             if "image_path" in d and d["image_path"]:
-                from ..platform.paths import to_absolute_path
+                from ...platform.paths import to_absolute_path
                 d["image_path"] = to_absolute_path(d["image_path"])
             L = LensItem(LensParams(**d))
             if item_uuid:
@@ -1350,7 +1350,7 @@ class MainWindow(QtWidgets.QMainWindow):
             item_uuid = d.pop("item_uuid", None)
             # Convert relative image paths to absolute
             if "image_path" in d and d["image_path"]:
-                from ..platform.paths import to_absolute_path
+                from ...platform.paths import to_absolute_path
                 d["image_path"] = to_absolute_path(d["image_path"])
             M = MirrorItem(MirrorParams(**d))
             if item_uuid:
@@ -1363,7 +1363,7 @@ class MainWindow(QtWidgets.QMainWindow):
             item_uuid = d.pop("item_uuid", None)
             # Convert relative image paths to absolute
             if "image_path" in d and d["image_path"]:
-                from ..platform.paths import to_absolute_path
+                from ...platform.paths import to_absolute_path
                 d["image_path"] = to_absolute_path(d["image_path"])
             B = BeamsplitterItem(BeamsplitterParams(**d))
             if item_uuid:
@@ -1376,7 +1376,7 @@ class MainWindow(QtWidgets.QMainWindow):
             item_uuid = d.pop("item_uuid", None)
             # Convert relative image paths to absolute
             if "image_path" in d and d["image_path"]:
-                from ..platform.paths import to_absolute_path
+                from ...platform.paths import to_absolute_path
                 d["image_path"] = to_absolute_path(d["image_path"])
             D = DichroicItem(DichroicParams(**d))
             if item_uuid:
@@ -1389,7 +1389,7 @@ class MainWindow(QtWidgets.QMainWindow):
             item_uuid = d.pop("item_uuid", None)
             # Convert relative image paths to absolute
             if "image_path" in d and d["image_path"]:
-                from ..platform.paths import to_absolute_path
+                from ...platform.paths import to_absolute_path
                 d["image_path"] = to_absolute_path(d["image_path"])
             W = WaveplateItem(WaveplateParams(**d))
             if item_uuid:
@@ -1402,7 +1402,7 @@ class MainWindow(QtWidgets.QMainWindow):
             item_uuid = d.pop("item_uuid", None)
             # Convert relative image paths to absolute
             if "image_path" in d and d["image_path"]:
-                from ..platform.paths import to_absolute_path
+                from ...platform.paths import to_absolute_path
                 d["image_path"] = to_absolute_path(d["image_path"])
             S = SLMItem(SLMParams(**d))
             if item_uuid:
