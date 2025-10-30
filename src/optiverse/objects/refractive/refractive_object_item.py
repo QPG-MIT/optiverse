@@ -43,13 +43,18 @@ class RefractiveObjectItem(BaseObj):
         """Update geometry based on interfaces."""
         self.prepareGeometryChange()
         
+        # Get picked line offset for coordinate transformation
+        offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
+        
         # Compute bounding box from all interfaces
         if self.params.interfaces:
             all_x = []
             all_y = []
             for iface in self.params.interfaces:
-                all_x.extend([iface.x1_mm, iface.x2_mm])
-                all_y.extend([iface.y1_mm, iface.y2_mm])
+                # Apply picked line offset transformation
+                # Interfaces are stored relative to image center, but item (0,0) is at picked line center
+                all_x.extend([iface.x1_mm - offset_x, iface.x2_mm - offset_x])
+                all_y.extend([iface.y1_mm - offset_y, iface.y2_mm - offset_y])
             
             if all_x and all_y:
                 min_x = min(all_x)
@@ -78,6 +83,9 @@ class RefractiveObjectItem(BaseObj):
                 pass
             self._sprite = None
         
+        # Calculate picked line offset for coordinate transformation
+        self._picked_line_offset_mm = (0.0, 0.0)  # Default: no offset
+        
         if self.params.image_path and self.params.line_px:
             self._sprite = ComponentSprite(
                 self.params.image_path,
@@ -86,6 +94,37 @@ class RefractiveObjectItem(BaseObj):
                 self,
             )
             self._actual_length_mm = self._sprite.picked_line_length_mm
+            
+            # Calculate offset from image center to picked line center
+            # ComponentSprite centers the component on the picked line, but interfaces
+            # are stored relative to image center. We need to account for this offset.
+            import os
+            from PyQt6 import QtGui
+            if os.path.exists(self.params.image_path):
+                pix = QtGui.QPixmap(self.params.image_path)
+                actual_height = pix.height()
+                actual_width = pix.width()
+                
+                if actual_height > 0:
+                    # Denormalize line_px from 1000px space to actual image space
+                    scale = float(actual_height) / 1000.0
+                    x1_actual = self.params.line_px[0] * scale
+                    y1_actual = self.params.line_px[1] * scale
+                    x2_actual = self.params.line_px[2] * scale
+                    y2_actual = self.params.line_px[3] * scale
+                    
+                    # Picked line center in image pixel coords (top-left origin)
+                    cx_px = 0.5 * (x1_actual + x2_actual)
+                    cy_px = 0.5 * (y1_actual + y2_actual)
+                    
+                    # Convert to centered coordinate system (image center origin)
+                    mm_per_px = self.params.object_height_mm / actual_height
+                    x_picked_mm = (cx_px - actual_width / 2) * mm_per_px
+                    y_picked_mm = (cy_px - actual_height / 2) * mm_per_px
+                    
+                    # Store offset: interfaces are at image center, but item (0,0) is at picked line center
+                    self._picked_line_offset_mm = (x_picked_mm, y_picked_mm)
+            
             self._update_geom()
         
         self.setZValue(0)
@@ -99,10 +138,14 @@ class RefractiveObjectItem(BaseObj):
         """Return shape for hit testing."""
         path = QtGui.QPainterPath()
         
+        # Get picked line offset for coordinate transformation
+        offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
+        
         # Add all interfaces to shape
         for iface in self.params.interfaces:
-            p1 = QtCore.QPointF(iface.x1_mm, iface.y1_mm)
-            p2 = QtCore.QPointF(iface.x2_mm, iface.y2_mm)
+            # Transform from image-center coords to picked-line-center coords
+            p1 = QtCore.QPointF(iface.x1_mm - offset_x, iface.y1_mm - offset_y)
+            p2 = QtCore.QPointF(iface.x2_mm - offset_x, iface.y2_mm - offset_y)
             line_path = QtGui.QPainterPath()
             line_path.moveTo(p1)
             line_path.lineTo(p2)
@@ -117,6 +160,9 @@ class RefractiveObjectItem(BaseObj):
         """Paint all interfaces."""
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
         
+        # Get picked line offset for coordinate transformation
+        offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
+        
         for iface in self.params.interfaces:
             # Color coding by interface type
             if iface.is_beam_splitter:
@@ -130,8 +176,11 @@ class RefractiveObjectItem(BaseObj):
                 width = 1
             
             p.setPen(QtGui.QPen(color, width))
-            p1 = QtCore.QPointF(iface.x1_mm, iface.y1_mm)
-            p2 = QtCore.QPointF(iface.x2_mm, iface.y2_mm)
+            
+            # Transform from image-center coords to picked-line-center coords
+            # Interfaces are stored relative to image center, but item (0,0) is at picked line center
+            p1 = QtCore.QPointF(iface.x1_mm - offset_x, iface.y1_mm - offset_y)
+            p2 = QtCore.QPointF(iface.x2_mm - offset_x, iface.y2_mm - offset_y)
             p.drawLine(p1, p2)
             
             # Draw small normal indicator
@@ -434,11 +483,15 @@ class RefractiveObjectItem(BaseObj):
         Returns:
             List of (p1, p2, interface) tuples where p1 and p2 are scene coordinates
         """
+        # Get picked line offset for coordinate transformation
+        offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
+        
         result = []
         for iface in self.params.interfaces:
-            # Transform local coordinates to scene coordinates
-            p1_local = QtCore.QPointF(iface.x1_mm, iface.y1_mm)
-            p2_local = QtCore.QPointF(iface.x2_mm, iface.y2_mm)
+            # Transform from image-center coords to picked-line-center coords (item local coords)
+            # Then transform to scene coordinates
+            p1_local = QtCore.QPointF(iface.x1_mm - offset_x, iface.y1_mm - offset_y)
+            p2_local = QtCore.QPointF(iface.x2_mm - offset_x, iface.y2_mm - offset_y)
             p1_scene = self.mapToScene(p1_local)
             p2_scene = self.mapToScene(p2_local)
             

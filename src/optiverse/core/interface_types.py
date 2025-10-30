@@ -102,22 +102,29 @@ INTERFACE_TYPES: Dict[str, Dict[str, Any]] = {
         'description': 'Boundary between two media',
         'color': (100, 100, 255),
         'emoji': '🔵',
-        'properties': ['n1', 'n2'],
+        'properties': ['n1', 'n2', 'is_curved', 'radius_of_curvature_mm'],
         'property_labels': {
             'n1': 'Incident Index (n₁)',
             'n2': 'Transmitted Index (n₂)',
+            'is_curved': 'Curved Surface',
+            'radius_of_curvature_mm': 'Radius of Curvature',
         },
         'property_units': {
             'n1': '',
             'n2': '',
+            'is_curved': '',
+            'radius_of_curvature_mm': 'mm',
         },
         'property_ranges': {
             'n1': (1.0, 3.0),
             'n2': (1.0, 3.0),
+            'radius_of_curvature_mm': (-10000.0, 10000.0),
         },
         'property_defaults': {
             'n1': 1.0,
             'n2': 1.5,
+            'is_curved': False,
+            'radius_of_curvature_mm': 0.0,
         },
     },
 }

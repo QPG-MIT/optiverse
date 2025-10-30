@@ -481,8 +481,35 @@ def apply_theme(dark_mode: bool):
 
 
 def main() -> int:
+    # On macOS, change sys.argv[0] to set the app name in the menu bar
+    # This must be done BEFORE creating QApplication
+    original_argv0 = sys.argv[0]
+    sys.argv[0] = 'Optiverse'
+    
+    # Also try to set process name via pyobjc if available
+    try:
+        from Foundation import NSProcessInfo
+        processInfo = NSProcessInfo.processInfo()
+        processInfo.setProcessName_('Optiverse')
+    except ImportError:
+        pass
+    
     # Minimal app that opens the main window (Qt6 enables high DPI by default)
     app = QtWidgets.QApplication(sys.argv)
+    
+    # Restore original argv[0] after QApplication creation in case something needs it
+    sys.argv[0] = original_argv0
+    
+    # Set application name (for Qt internals and other purposes)
+    app.setApplicationName("Optiverse")
+    app.setApplicationDisplayName("Optiverse")
+    app.setOrganizationName("Optiverse")
+    
+    # Set application icon
+    from pathlib import Path
+    icon_path = Path(__file__).parent.parent / "ui" / "icons" / "optiverse.png"
+    if icon_path.exists():
+        app.setWindowIcon(QtGui.QIcon(str(icon_path)))
     
     # Detect system dark mode and apply initial stylesheet
     # Note: MainWindow will load user preference and override if needed

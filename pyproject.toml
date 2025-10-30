@@ -16,6 +16,7 @@ dependencies = [
   "numpy>=1.24",
   "numba>=0.58",  # JIT compilation for 4-8x raytracing speedup (Python 3.9-3.11)
   "websockets>=12.0",
+  "pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'",  # macOS menu bar app name
 ]
 
 [project.scripts]

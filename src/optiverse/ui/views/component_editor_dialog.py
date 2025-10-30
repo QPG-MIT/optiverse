@@ -83,6 +83,10 @@ class ComponentEditor(QtWidgets.QMainWindow):
         act_clear = QtGui.QAction("Clear Points", self)
         act_clear.triggered.connect(self.canvas.clear_points)
         tb.addAction(act_clear)
+        
+        act_import_zemax = QtGui.QAction("Import Zemax…", self)
+        act_import_zemax.triggered.connect(self._import_zemax)
+        tb.addAction(act_import_zemax)
 
         tb.addSeparator()
 
@@ -389,25 +393,35 @@ class ComponentEditor(QtWidgets.QMainWindow):
         else:
             mm_per_px = 1.0  # Fallback
         
-        # Store mm_per_px for use during dragging
-        self._mm_per_px = mm_per_px
+        # Set the canvas's coordinate conversion factor
+        self.canvas.set_mm_per_pixel(mm_per_px)
         
-        # Convert each interface from mm to pixels and add to canvas
+        # COORDINATE SYSTEM TRANSFORMATION
+        # Storage: (0,0) at IMAGE CENTER, Y-down (standard Qt coords), in mm
+        # Canvas: (0,0) at IMAGE CENTER, Y-up (flipped for intuitive display), in mm
+        # 
+        # Note: This matches how the canvas displays with centered coordinates.
+        # When the component has a sprite, RefractiveObjectItem will handle
+        # the offset to align with the picked line.
+        
+        # Add each interface for display
         for i, interface in enumerate(interfaces):
-            # Convert mm coordinates to pixels
-            # Y: 0mm → 0px (top), object_height mm → h px (bottom)
-            x1_px = interface.x1_mm / mm_per_px
-            y1_px = interface.y1_mm / mm_per_px
-            x2_px = interface.x2_mm / mm_per_px
-            y2_px = interface.y2_mm / mm_per_px
-            
             # Get color from interface
             r, g, b = interface.get_color()
             color = QtGui.QColor(r, g, b)
             
+            # Convert from storage coords to canvas display coords
+            # Storage and canvas both use image center as origin
+            # Only difference is Y-axis direction
+            x1_canvas = interface.x1_mm
+            y1_canvas = -interface.y1_mm  # Flip Y: storage Y-down → canvas Y-up
+            x2_canvas = interface.x2_mm
+            y2_canvas = -interface.y2_mm  # Flip Y: storage Y-down → canvas Y-up
+            
+            # Create InterfaceLine for canvas display
             line = InterfaceLine(
-                x1=x1_px, y1=y1_px,
-                x2=x2_px, y2=y2_px,
+                x1=x1_canvas, y1=y1_canvas,
+                x2=x2_canvas, y2=y2_canvas,
                 color=color,
                 label=interface.get_label(),
                 properties={'interface': interface}
@@ -424,31 +438,26 @@ class ComponentEditor(QtWidgets.QMainWindow):
         if not interfaces:
             return
         
-        # Get mm_per_px ratio - use stored value to avoid recalculation during drag
-        # This is computed in _sync_interfaces_to_canvas and stored
-        if not hasattr(self, '_mm_per_px') or self._mm_per_px <= 0:
-            # Fallback: compute from object height and canvas size
-            object_height = self.object_height_mm.value()
-            w, h = self.canvas.image_pixel_size()
-            # Y-axis: 0 (top) to object_height (bottom)
-            self._mm_per_px = object_height / h if h > 0 else 1.0
-        
-        mm_per_px = self._mm_per_px
-        
         # Block interface panel signals to prevent feedback loop during drag
         self.interface_panel.blockSignals(True)
         
         try:
-            # Update interface coordinates from canvas (pixels → mm)
+            # COORDINATE SYSTEM TRANSFORMATION
+            # Canvas: (0,0) at IMAGE CENTER, Y-up (flipped for display), in mm
+            # Storage: (0,0) at IMAGE CENTER, Y-down (standard Qt coords), in mm
+            #
+            # Both use image center as origin, only Y-axis direction differs
+            
+            # Update interface coordinates from canvas
             lines = self.canvas.get_all_lines()
             for i, line in enumerate(lines):
                 if i < len(interfaces):
-                    # Convert pixels to mm
-                    # Y: 0px (top) → 0mm, h px (bottom) → object_height mm
-                    interfaces[i].x1_mm = line.x1 * mm_per_px
-                    interfaces[i].y1_mm = line.y1 * mm_per_px
-                    interfaces[i].x2_mm = line.x2 * mm_per_px
-                    interfaces[i].y2_mm = line.y2 * mm_per_px
+                    # Convert from canvas display coords to storage coords
+                    # Only need to flip Y axis (both use centered coords)
+                    interfaces[i].x1_mm = line.x1
+                    interfaces[i].y1_mm = -line.y1  # Flip Y: canvas Y-up → storage Y-down
+                    interfaces[i].x2_mm = line.x2
+                    interfaces[i].y2_mm = -line.y2  # Flip Y: canvas Y-up → storage Y-down
                     
                     # Update the interface in the panel (silently - signals blocked)
                     self.interface_panel.update_interface(i, interfaces[i])
@@ -1220,6 +1229,112 @@ class ComponentEditor(QtWidgets.QMainWindow):
             pix = QtGui.QPixmap(path)
         
         self._set_image(pix, path)
+    
+    def _import_zemax(self):
+        """Import Zemax ZMX file."""
+        from ...services.zemax_parser import ZemaxParser
+        from ...services.zemax_converter import ZemaxToInterfaceConverter
+        from ...services.glass_catalog import GlassCatalog
+        
+        # Open file dialog
+        filepath, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Import Zemax File",
+            "",
+            "Zemax Files (*.zmx *.ZMX);;All Files (*.*)"
+        )
+        
+        if not filepath:
+            return
+        
+        try:
+            # Parse Zemax file
+            parser = ZemaxParser()
+            zemax_data = parser.parse(filepath)
+            
+            if not zemax_data:
+                QtWidgets.QMessageBox.critical(
+                    self,
+                    "Import Error",
+                    "Failed to parse Zemax file. The file may be corrupted or in an unsupported format."
+                )
+                return
+            
+            # Convert to interfaces
+            catalog = GlassCatalog()
+            converter = ZemaxToInterfaceConverter(catalog)
+            component = converter.convert(zemax_data)
+            
+            # Load into editor
+            self._load_component_record(component)
+            
+            # Show success message with summary
+            num_interfaces = len(component.interfaces_v2) if component.interfaces_v2 else 0
+            msg = f"Successfully imported {num_interfaces} interface(s) from Zemax file:\n\n"
+            msg += f"Name: {component.name}\n"
+            msg += f"Type: {component.kind}\n"
+            msg += f"Aperture: {component.object_height_mm:.2f} mm\n\n"
+            
+            if component.interfaces_v2:
+                msg += "Interfaces:\n"
+                for i, iface in enumerate(component.interfaces_v2[:5]):  # Show first 5
+                    curv_str = f" [R={iface.radius_of_curvature_mm:.1f}mm]" if iface.is_curved else ""
+                    msg += f"  {i+1}. {iface.name}{curv_str}\n"
+                if num_interfaces > 5:
+                    msg += f"  ... and {num_interfaces - 5} more\n"
+                
+                msg += "\n"
+                if not self.canvas.has_image():
+                    msg += "💡 TIP: Load an image (File → Open Image) to visualize\n"
+                    msg += "    the interfaces on the canvas. The interfaces are listed\n"
+                    msg += "    in the panel on the right.\n"
+                    msg += "\n"
+                msg += "👉 Expand each interface in the list to see:\n"
+                msg += "   • Refractive indices (n₁, n₂)\n"
+                msg += "   • Curvature (is_curved, radius_of_curvature_mm)\n"
+                msg += "   • Position and geometry\n"
+            
+            self.statusBar().showMessage(
+                f"Imported {num_interfaces} interfaces from Zemax"
+            )
+            
+            QtWidgets.QMessageBox.information(
+                self,
+                "Import Successful",
+                msg
+            )
+            
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Import Error",
+                f"Error importing Zemax file:\n\n{str(e)}\n\nDetails:\n{error_details}"
+            )
+    
+    def _load_component_record(self, component: ComponentRecord):
+        """Load a ComponentRecord into the editor."""
+        # Clear existing
+        self.canvas.clear_points()
+        
+        # Set component properties
+        self.name_edit.setText(component.name)
+        self.object_height_mm.setValue(component.object_height_mm)
+        
+        # Load interfaces into panel
+        self.interface_panel.clear()
+        if component.interfaces_v2:
+            for interface in component.interfaces_v2:
+                self.interface_panel.add_interface(interface)
+            
+            # Sync interfaces to canvas
+            self._sync_interfaces_to_canvas()
+            
+            # Update status
+            self.statusBar().showMessage(
+                f"Loaded component with {len(component.interfaces_v2)} interface(s)"
+            )
 
     def paste_image(self):
         """Paste image from clipboard."""

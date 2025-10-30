@@ -231,12 +231,20 @@ def _trace_single_ray_worker(args):
             dot_v_n = float(np.dot(V, forward_normal))
             is_forward = dot_v_n < 0  # Traveling against normal = forward
             
+            # Create a RayPath for the segment UP TO the waveplate with OLD polarization
+            # This ensures the pipette tool shows correct polarization before the waveplate
+            if len(pts) >= 2:
+                a = int(255 * max(0.0, min(1.0, I)))
+                paths.append(RayPath(pts, (base_rgb[0], base_rgb[1], base_rgb[2], a), pol, wl))
+            
             # Apply waveplate transformation
             pol2 = transform_polarization_waveplate(pol, phase_shift_deg, fast_axis_deg, is_forward)
             
+            # Start a NEW ray segment with the NEW polarization after the waveplate
             V2 = normalize(V)
             P2 = P + V2 * EPS_ADV
-            stack.append((pts + [P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I, pol2, wl))
+            # Start new segment with just P2 (not all previous points)
+            stack.append(([P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I, pol2, wl))
             continue
         
         if kind == "dichroic":

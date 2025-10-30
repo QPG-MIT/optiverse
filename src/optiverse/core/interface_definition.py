@@ -53,6 +53,13 @@ class InterfaceDefinition:
     n1: float = 1.0  # Incident refractive index
     n2: float = 1.5  # Transmitted refractive index
     
+    # Curved surface properties (for Zemax import)
+    is_curved: bool = False  # True if this is a curved surface
+    radius_of_curvature_mm: float = 0.0  # Radius of curvature (0 or inf = flat)
+    # Center of curvature is calculated from radius and surface position
+    # Positive radius: center is to the right (convex from left)
+    # Negative radius: center is to the left (concave from left)
+    
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary."""
         return {
@@ -73,6 +80,8 @@ class InterfaceDefinition:
             'pass_type': self.pass_type,
             'n1': self.n1,
             'n2': self.n2,
+            'is_curved': self.is_curved,
+            'radius_of_curvature_mm': self.radius_of_curvature_mm,
         }
     
     @classmethod
@@ -96,6 +105,8 @@ class InterfaceDefinition:
             pass_type=data.get('pass_type', 'longpass'),
             n1=data.get('n1', 1.0),
             n2=data.get('n2', 1.5),
+            is_curved=data.get('is_curved', False),
+            radius_of_curvature_mm=data.get('radius_of_curvature_mm', 0.0),
         )
     
     def get_color(self) -> Tuple[int, int, int]:
@@ -176,4 +187,66 @@ class InterfaceDefinition:
     def copy(self) -> 'InterfaceDefinition':
         """Create a copy of this interface definition."""
         return InterfaceDefinition.from_dict(self.to_dict())
+    
+    def center_of_curvature_mm(self) -> Tuple[float, float]:
+        """
+        Calculate center of curvature for curved surfaces.
+        
+        For Zemax convention:
+        - Positive radius: center is to the right (convex from left)
+        - Negative radius: center is to the left (concave from left)
+        
+        Returns:
+            (x, y) coordinates of center of curvature in mm
+        """
+        if not self.is_curved or abs(self.radius_of_curvature_mm) < 1e-6:
+            # Flat surface: return point at infinity
+            return (float('inf'), 0.0)
+        
+        # Get midpoint of the interface
+        mid_x = (self.x1_mm + self.x2_mm) / 2
+        mid_y = (self.y1_mm + self.y2_mm) / 2
+        
+        # Center is along x-axis at distance = radius from midpoint
+        center_x = mid_x + self.radius_of_curvature_mm
+        center_y = mid_y
+        
+        return (center_x, center_y)
+    
+    def is_flat(self) -> bool:
+        """Check if surface is flat (not curved)."""
+        return not self.is_curved or abs(self.radius_of_curvature_mm) < 1e-6 or math.isinf(self.radius_of_curvature_mm)
+    
+    def surface_sag_at_y(self, y_mm: float) -> float:
+        """
+        Calculate surface sag (deviation from flat) at given y-coordinate.
+        
+        For a spherical surface, the sag is:
+            sag = R - sqrt(R² - y²)
+        
+        where R is radius of curvature and y is distance from optical axis.
+        
+        Args:
+            y_mm: Distance from optical axis in mm
+            
+        Returns:
+            Sag (x-displacement) in mm
+        """
+        if self.is_flat():
+            return 0.0
+        
+        R = abs(self.radius_of_curvature_mm)
+        y_sq = y_mm ** 2
+        
+        if y_sq > R ** 2:
+            # Beyond the surface radius
+            return 0.0
+        
+        sag = R - math.sqrt(R**2 - y_sq)
+        
+        # Apply sign based on curvature direction
+        if self.radius_of_curvature_mm > 0:
+            return sag  # Convex from left
+        else:
+            return -sag  # Concave from left
 

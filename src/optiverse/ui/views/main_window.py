@@ -137,6 +137,11 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
         self.setWindowTitle("2D Ray Optics Sandbox — Top View (mm/cm grid)")
         self.resize(1450, 860)
+        
+        # Set window icon
+        icon_path = _get_icon_path("optiverse.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QtGui.QIcon(icon_path))
 
         # Scene and view
         self.scene = QtWidgets.QGraphicsScene(self)
@@ -773,6 +778,53 @@ class MainWindow(QtWidgets.QMainWindow):
                 name=name,
             )
             item = SLMItem(params)
+        elif kind == "refractive_object":
+            # Handle refractive objects with interfaces_v2
+            from ...core.interface_definition import InterfaceDefinition
+            from ...core.models import RefractiveInterface
+            
+            # Convert interfaces_v2 to RefractiveInterface format
+            interfaces = []
+            if "interfaces_v2" in rec and rec["interfaces_v2"]:
+                for iface_data in rec["interfaces_v2"]:
+                    # Create InterfaceDefinition from dict
+                    if isinstance(iface_data, dict):
+                        iface_def = InterfaceDefinition.from_dict(iface_data)
+                    else:
+                        iface_def = iface_data
+                    
+                    # Convert to RefractiveInterface (legacy format for scene)
+                    # Note: RefractiveInterface uses mm coordinates directly
+                    ref_iface = RefractiveInterface(
+                        x1_mm=iface_def.x1_mm,
+                        y1_mm=iface_def.y1_mm,
+                        x2_mm=iface_def.x2_mm,
+                        y2_mm=iface_def.y2_mm,
+                        n1=iface_def.n1,
+                        n2=iface_def.n2,
+                        is_beam_splitter=iface_def.element_type == 'beam_splitter',
+                        split_T=iface_def.split_T,
+                        split_R=iface_def.split_R,
+                        is_polarizing=iface_def.is_polarizing,
+                        pbs_transmission_axis_deg=iface_def.pbs_transmission_axis_deg
+                    )
+                    interfaces.append(ref_iface)
+            
+            # Get mm_per_pixel if available, otherwise compute from object_height
+            mm_per_pixel = float(rec.get("mm_per_pixel", object_height_mm / 1000.0))
+            
+            params = RefractiveObjectParams(
+                x_mm=scene_pos.x(),
+                y_mm=scene_pos.y(),
+                angle_deg=angle_deg,
+                object_height_mm=object_height_mm,
+                interfaces=interfaces,
+                image_path=img,
+                mm_per_pixel=mm_per_pixel,
+                line_px=line_px,
+                name=name,
+            )
+            item = RefractiveObjectItem(params)
         else:  # mirror
             params = MirrorParams(
                 x_mm=scene_pos.x(),
