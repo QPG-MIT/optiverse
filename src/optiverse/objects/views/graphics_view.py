@@ -112,7 +112,10 @@ class GraphicsView(QtWidgets.QGraphicsView):
                     # Smoother zoom for trackpad
                     factor = 1.0 + (delta_y * 0.01)  # More gradual than mouse wheel
                     factor = max(0.5, min(2.0, factor))  # Limit zoom per event
-                    self.scale(factor, factor)
+                    
+                    # Zoom centered on mouse cursor using scrollbar adjustment
+                    self._zoom_at_point(e.position().toPoint(), factor)
+                    
                     self.zoomChanged.emit()
                     # Force viewport update for clean grid rendering
                     self.viewport().update()
@@ -135,13 +138,42 @@ class GraphicsView(QtWidgets.QGraphicsView):
             delta_y = angle_delta.y()
             if delta_y != 0:
                 factor = 1.15 if delta_y > 0 else 1 / 1.15
-                self.scale(factor, factor)
+                
+                # Zoom centered on mouse cursor using scrollbar adjustment
+                self._zoom_at_point(e.position().toPoint(), factor)
+                
                 self.zoomChanged.emit()
                 self.viewport().update()
                 e.accept()
                 return
         
         e.ignore()
+    
+    def _zoom_at_point(self, viewport_point: QtCore.QPoint, factor: float):
+        """Zoom the view while keeping a specific viewport point fixed in place.
+        
+        Args:
+            viewport_point: Point in viewport coordinates to zoom towards
+            factor: Zoom factor (>1 = zoom in, <1 = zoom out)
+        """
+        # Get the scene position under the mouse before zooming
+        scene_pos = self.mapToScene(viewport_point)
+        
+        # Apply the zoom transformation
+        self.scale(factor, factor)
+        
+        # Get the new viewport position of that scene point after zoom
+        new_viewport_pos = self.mapFromScene(scene_pos)
+        
+        # Calculate the difference between where the point is now vs where it should be
+        delta = new_viewport_pos - viewport_point
+        
+        # Adjust the view by moving the scrollbars to compensate
+        # This keeps the scene point under the mouse cursor
+        h_bar = self.horizontalScrollBar()
+        v_bar = self.verticalScrollBar()
+        h_bar.setValue(h_bar.value() + delta.x())
+        v_bar.setValue(v_bar.value() + delta.y())
 
     def resizeEvent(self, e: QtGui.QResizeEvent):
         super().resizeEvent(e)
@@ -451,12 +483,13 @@ class GraphicsView(QtWidgets.QGraphicsView):
             self._clear_ghost()
 
         # Import here to avoid circular imports
-        from ...core.models import BeamsplitterParams, LensParams, MirrorParams, SLMParams, WaveplateParams
+        from ...core.models import BeamsplitterParams, LensParams, MirrorParams, SLMParams, WaveplateParams, RefractiveObjectParams
         from ..beamsplitters import BeamsplitterItem
         from ..lenses import LensItem
         from ..mirrors import MirrorItem
         from ..misc import SLMItem
         from ..waveplates import WaveplateItem
+        from ..refractive import RefractiveObjectItem
 
         # Determine default angle for this component type
         kind = (rec.get("kind") or "lens").lower()
@@ -475,16 +508,82 @@ class GraphicsView(QtWidgets.QGraphicsView):
             else:
                 angle = 0.0
 
-        # Extract common parameters (normalized 1000px system)
+        # Extract common parameters
         name = rec.get("name")
         img = rec.get("image_path")
-        line_px = tuple(rec.get("line_px", (0, 0, 1, 0)))
         # Support new object_height_mm and legacy object_height/length_mm
         object_height_mm = float(rec.get("object_height_mm", rec.get("object_height", rec.get("length_mm", 60.0))))
-        # mm_per_pixel computed from object_height_mm in normalized 1000px system
+
+        # Extract reference line from first interface if available
+        # This allows proper sprite orientation for components from the registry
+        reference_line_mm = None
+        interfaces_data = rec.get("interfaces", [])
+        has_interfaces = interfaces_data and len(interfaces_data) > 0
+        
+        if has_interfaces:
+            first_iface = interfaces_data[0]
+            reference_line_mm = (
+                float(first_iface.get("x1_mm", 0.0)),
+                float(first_iface.get("y1_mm", 0.0)),
+                float(first_iface.get("x2_mm", 0.0)),
+                float(first_iface.get("y2_mm", 0.0)),
+            )
+        
+        # Check if this should be a RefractiveObjectItem (for multi-interface Zemax imports)
+        use_refractive_item = False
+        if has_interfaces:
+            # Get interface types
+            interface_types = [iface.get("element_type", "lens") for iface in interfaces_data]
+            first_type = interface_types[0]
+            
+            # Check if all are refractive_interface or mixed types
+            all_refractive = all(t == "refractive_interface" for t in interface_types)
+            all_same_type = all(t == first_type for t in interface_types)
+            
+            # Use RefractiveObjectItem for all refractive OR mixed types
+            use_refractive_item = all_refractive or (len(interfaces_data) > 1 and not all_same_type)
 
         # Create the appropriate item type with images for visual feedback
-        if kind == "lens":
+        if use_refractive_item:
+            # Import RefractiveObjectParams and RefractiveInterface
+            from ...core.models import RefractiveObjectParams, RefractiveInterface
+            from ...core.interface_definition import InterfaceDefinition
+            
+            # Convert interfaces
+            ref_interfaces = []
+            for iface_data in interfaces_data:
+                if isinstance(iface_data, dict):
+                    iface_def = InterfaceDefinition.from_dict(iface_data)
+                    ref_iface = RefractiveInterface(
+                        x1_mm=iface_def.x1_mm,
+                        y1_mm=iface_def.y1_mm,
+                        x2_mm=iface_def.x2_mm,
+                        y2_mm=iface_def.y2_mm,
+                        n1=iface_def.n1,
+                        n2=iface_def.n2,
+                        is_curved=iface_def.is_curved,
+                        radius_of_curvature_mm=iface_def.radius_of_curvature_mm,
+                        is_beam_splitter=iface_def.element_type == 'beam_splitter',
+                        split_T=iface_def.split_T,
+                        split_R=iface_def.split_R,
+                        is_polarizing=iface_def.is_polarizing,
+                        pbs_transmission_axis_deg=iface_def.pbs_transmission_axis_deg
+                    )
+                    ref_interfaces.append(ref_iface)
+            
+            mm_per_pixel = float(rec.get("mm_per_pixel", object_height_mm / 1000.0))
+            params = RefractiveObjectParams(
+                x_mm=scene_pos.x(),
+                y_mm=scene_pos.y(),
+                angle_deg=angle,
+                object_height_mm=object_height_mm,
+                interfaces=ref_interfaces,
+                image_path=img,
+                mm_per_pixel=mm_per_pixel,
+                name=name,
+            )
+            item = RefractiveObjectItem(params)
+        elif kind == "lens":
             efl_mm = float(rec.get("efl_mm", 100.0))
             params = LensParams(
                 x_mm=scene_pos.x(),
@@ -493,9 +592,10 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 efl_mm=efl_mm,
                 object_height_mm=object_height_mm,
                 image_path=img,
-                line_px=line_px,
                 name=name
             )
+            if reference_line_mm:
+                params._reference_line_mm = reference_line_mm  # type: ignore
             item = LensItem(params)
         elif kind == "beamsplitter":
             if "split_TR" in rec and isinstance(rec["split_TR"], (list, tuple)) and len(rec["split_TR"]) == 2:
@@ -510,11 +610,12 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 split_T=T,
                 split_R=R,
                 image_path=img,
-                line_px=line_px,
                 name=name,
                 is_polarizing=bool(rec.get("is_polarizing", False)),
                 pbs_transmission_axis_deg=float(rec.get("pbs_transmission_axis_deg", 0.0)),
             )
+            if reference_line_mm:
+                params._reference_line_mm = reference_line_mm  # type: ignore
             item = BeamsplitterItem(params)
         elif kind == "waveplate":
             phase_shift_deg = float(rec.get("phase_shift_deg", 90.0))
@@ -527,9 +628,10 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 phase_shift_deg=phase_shift_deg,
                 fast_axis_deg=fast_axis_deg,
                 image_path=img,
-                line_px=line_px,
                 name=name
             )
+            if reference_line_mm:
+                params._reference_line_mm = reference_line_mm  # type: ignore
             item = WaveplateItem(params)
         elif kind == "slm":
             params = SLMParams(
@@ -538,9 +640,10 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 angle_deg=angle,
                 object_height_mm=object_height_mm,
                 image_path=img,
-                line_px=line_px,
                 name=name
             )
+            if reference_line_mm:
+                params._reference_line_mm = reference_line_mm  # type: ignore
             item = SLMItem(params)
         else:  # mirror (default)
             params = MirrorParams(
@@ -549,9 +652,10 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 angle_deg=angle,
                 object_height_mm=object_height_mm,
                 image_path=img,
-                line_px=line_px,
                 name=name
             )
+            if reference_line_mm:
+                params._reference_line_mm = reference_line_mm  # type: ignore
             item = MirrorItem(params)
 
         # Make it a non-interactive "ghost"
@@ -573,6 +677,11 @@ class GraphicsView(QtWidgets.QGraphicsView):
     def dragEnterEvent(self, e: QtGui.QDragEnterEvent):
         md = e.mimeData()
         if md.hasFormat("application/x-optics-component"):
+            # Temporarily disable transformation anchor to prevent zoom issues during drag
+            # Save current anchor and switch to NoAnchor during drag operation
+            self._saved_anchor = self.transformationAnchor()
+            self.setTransformationAnchor(self.ViewportAnchor.NoAnchor)
+            
             # Build ghost right away so the moment you cross into the canvas you see it
             try:
                 import json
@@ -586,6 +695,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 traceback.print_exc()
             e.acceptProposedAction()
         elif md.hasImage() or md.hasUrls():
+            # Also save anchor for image/URL drag operations
+            self._saved_anchor = self.transformationAnchor()
+            self.setTransformationAnchor(self.ViewportAnchor.NoAnchor)
             e.acceptProposedAction()
 
     def dragMoveEvent(self, e: QtGui.QDragMoveEvent):
@@ -609,6 +721,10 @@ class GraphicsView(QtWidgets.QGraphicsView):
     def dragLeaveEvent(self, e: QtGui.QDragLeaveEvent):
         """Clear ghost when drag leaves the view."""
         self._clear_ghost()
+        # Restore transformation anchor when drag leaves
+        if hasattr(self, '_saved_anchor'):
+            self.setTransformationAnchor(self._saved_anchor)
+            delattr(self, '_saved_anchor')
         e.accept()
 
     def dropEvent(self, e: QtGui.QDropEvent):
@@ -632,6 +748,11 @@ class GraphicsView(QtWidgets.QGraphicsView):
 
             # Finalize: remove ghost and create the real object
             self._clear_ghost()
+            
+            # Restore transformation anchor after drag completes
+            if hasattr(self, '_saved_anchor'):
+                self.setTransformationAnchor(self._saved_anchor)
+                delattr(self, '_saved_anchor')
 
             # Ensure we drop with the same default angle we previewed
             if "angle_deg" not in rec:
@@ -662,6 +783,10 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 item = QtWidgets.QGraphicsPixmapItem(pix)
                 item.setPos(scene_pos - QtCore.QPointF(pix.width() / 2, pix.height() / 2))
                 scene.addItem(item)
+                # Restore transformation anchor after drop
+                if hasattr(self, '_saved_anchor'):
+                    self.setTransformationAnchor(self._saved_anchor)
+                    delattr(self, '_saved_anchor')
                 e.acceptProposedAction()
                 return
 
@@ -676,8 +801,17 @@ class GraphicsView(QtWidgets.QGraphicsView):
                             item = QtWidgets.QGraphicsPixmapItem(pix)
                             item.setPos(scene_pos - QtCore.QPointF(pix.width() / 2, pix.height() / 2))
                             scene.addItem(item)
+                            # Restore transformation anchor after drop
+                            if hasattr(self, '_saved_anchor'):
+                                self.setTransformationAnchor(self._saved_anchor)
+                                delattr(self, '_saved_anchor')
                             e.acceptProposedAction()
                             return
+        
+        # If we get here without accepting, restore anchor and ignore
+        if hasattr(self, '_saved_anchor'):
+            self.setTransformationAnchor(self._saved_anchor)
+            delattr(self, '_saved_anchor')
         e.ignore()
 
     # ----- Pan Controls (Phase 3.1: Space + Middle Button) -----

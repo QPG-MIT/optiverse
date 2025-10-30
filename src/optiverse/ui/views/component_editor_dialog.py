@@ -12,11 +12,11 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from ...core.models import ComponentRecord, serialize_component, deserialize_component
 from ...core.interface_definition import InterfaceDefinition
 from ...core import interface_types
-from ...core.component_migration import migrate_component_to_v2
 from ...services.storage_service import StorageService
 from ...platform.paths import assets_dir, get_library_path
 from ...objects.views import MultiLineCanvas, InterfaceLine
 from ..widgets.interface_tree_panel import InterfaceTreePanel
+from ..widgets.ruler_widget import CanvasWithRulers
 
 
 def slugify(name: str) -> str:
@@ -40,7 +40,8 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.storage = storage
 
         self.canvas = MultiLineCanvas()
-        self.setCentralWidget(self.canvas)
+        self.canvas_with_rulers = CanvasWithRulers(self.canvas)
+        self.setCentralWidget(self.canvas_with_rulers)
         self.canvas.imageDropped.connect(self._on_image_dropped)
         self.canvas.linesChanged.connect(self._on_canvas_lines_changed)
         self.canvas.lineSelected.connect(self._on_canvas_line_selected)
@@ -397,12 +398,12 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.canvas.set_mm_per_pixel(mm_per_px)
         
         # COORDINATE SYSTEM TRANSFORMATION
-        # Storage: (0,0) at IMAGE CENTER, Y-down (standard Qt coords), in mm
-        # Canvas: (0,0) at IMAGE CENTER, Y-up (flipped for intuitive display), in mm
+        # Storage (InterfaceDefinition): (0,0) at IMAGE CENTER, Y-down (standard Qt), in mm
+        # Canvas (MultiLineCanvas): (0,0) at IMAGE CENTER, Y-up (for intuitive editing), in mm
         # 
-        # Note: This matches how the canvas displays with centered coordinates.
-        # When the component has a sprite, RefractiveObjectItem will handle
-        # the offset to align with the picked line.
+        # Transformation: Flip Y-axis only (both use centered origin)
+        #   Canvas Y = -Storage Y
+        #   Storage Y = -Canvas Y
         
         # Add each interface for display
         for i, interface in enumerate(interfaces):
@@ -410,13 +411,20 @@ class ComponentEditor(QtWidgets.QMainWindow):
             r, g, b = interface.get_color()
             color = QtGui.QColor(r, g, b)
             
-            # Convert from storage coords to canvas display coords
-            # Storage and canvas both use image center as origin
-            # Only difference is Y-axis direction
+            # Convert from storage coords (Y-down) to canvas display coords (Y-up)
+            # X remains the same, only Y is flipped
             x1_canvas = interface.x1_mm
             y1_canvas = -interface.y1_mm  # Flip Y: storage Y-down → canvas Y-up
             x2_canvas = interface.x2_mm
             y2_canvas = -interface.y2_mm  # Flip Y: storage Y-down → canvas Y-up
+            
+            # Debug validation: Check if coordinates are reasonable
+            max_coord = object_height * 2  # Sanity check: coords shouldn't exceed 2x object height
+            if (abs(x1_canvas) > max_coord or abs(y1_canvas) > max_coord or 
+                abs(x2_canvas) > max_coord or abs(y2_canvas) > max_coord):
+                print(f"Warning: Interface {i} has unusually large coordinates:")
+                print(f"  Storage: ({interface.x1_mm:.2f}, {interface.y1_mm:.2f}) to ({interface.x2_mm:.2f}, {interface.y2_mm:.2f})")
+                print(f"  Canvas: ({x1_canvas:.2f}, {y1_canvas:.2f}) to ({x2_canvas:.2f}, {y2_canvas:.2f})")
             
             # Create InterfaceLine for canvas display
             line = InterfaceLine(
@@ -443,21 +451,29 @@ class ComponentEditor(QtWidgets.QMainWindow):
         
         try:
             # COORDINATE SYSTEM TRANSFORMATION
-            # Canvas: (0,0) at IMAGE CENTER, Y-up (flipped for display), in mm
-            # Storage: (0,0) at IMAGE CENTER, Y-down (standard Qt coords), in mm
+            # Canvas (MultiLineCanvas): (0,0) at IMAGE CENTER, Y-up (for intuitive editing), in mm
+            # Storage (InterfaceDefinition): (0,0) at IMAGE CENTER, Y-down (standard Qt), in mm
             #
-            # Both use image center as origin, only Y-axis direction differs
+            # Transformation: Flip Y-axis only (both use centered origin)
+            #   Storage Y = -Canvas Y
+            #   Canvas Y = -Storage Y
             
             # Update interface coordinates from canvas
             lines = self.canvas.get_all_lines()
             for i, line in enumerate(lines):
                 if i < len(interfaces):
-                    # Convert from canvas display coords to storage coords
-                    # Only need to flip Y axis (both use centered coords)
+                    # Convert from canvas display coords (Y-up) to storage coords (Y-down)
+                    # X remains the same, only Y is flipped
                     interfaces[i].x1_mm = line.x1
                     interfaces[i].y1_mm = -line.y1  # Flip Y: canvas Y-up → storage Y-down
                     interfaces[i].x2_mm = line.x2
                     interfaces[i].y2_mm = -line.y2  # Flip Y: canvas Y-up → storage Y-down
+                    
+                    # Debug: Log coordinate transformation
+                    if False:  # Set to True for debugging
+                        print(f"Interface {i} dragged:")
+                        print(f"  Canvas (Y-up): ({line.x1:.2f}, {line.y1:.2f}) to ({line.x2:.2f}, {line.y2:.2f})")
+                        print(f"  Storage (Y-down): ({interfaces[i].x1_mm:.2f}, {interfaces[i].y1_mm:.2f}) to ({interfaces[i].x2_mm:.2f}, {interfaces[i].y2_mm:.2f})")
                     
                     # Update the interface in the panel (silently - signals blocked)
                     self.interface_panel.update_interface(i, interfaces[i])
@@ -1269,15 +1285,25 @@ class ComponentEditor(QtWidgets.QMainWindow):
             self._load_component_record(component)
             
             # Show success message with summary
-            num_interfaces = len(component.interfaces_v2) if component.interfaces_v2 else 0
+            num_interfaces = len(component.interfaces) if component.interfaces else 0
+            
+            # Determine component type from interfaces
+            if num_interfaces > 1:
+                component_type = f"Multi-element ({num_interfaces} interfaces)"
+            elif num_interfaces == 1:
+                element_type = component.interfaces[0].element_type.replace("_", " ").title()
+                component_type = element_type
+            else:
+                component_type = "Unknown"
+            
             msg = f"Successfully imported {num_interfaces} interface(s) from Zemax file:\n\n"
             msg += f"Name: {component.name}\n"
-            msg += f"Type: {component.kind}\n"
+            msg += f"Type: {component_type}\n"
             msg += f"Aperture: {component.object_height_mm:.2f} mm\n\n"
             
-            if component.interfaces_v2:
+            if component.interfaces:
                 msg += "Interfaces:\n"
-                for i, iface in enumerate(component.interfaces_v2[:5]):  # Show first 5
+                for i, iface in enumerate(component.interfaces[:5]):  # Show first 5
                     curv_str = f" [R={iface.radius_of_curvature_mm:.1f}mm]" if iface.is_curved else ""
                     msg += f"  {i+1}. {iface.name}{curv_str}\n"
                 if num_interfaces > 5:
@@ -1324,8 +1350,8 @@ class ComponentEditor(QtWidgets.QMainWindow):
         
         # Load interfaces into panel
         self.interface_panel.clear()
-        if component.interfaces_v2:
-            for interface in component.interfaces_v2:
+        if component.interfaces:
+            for interface in component.interfaces:
                 self.interface_panel.add_interface(interface)
             
             # Sync interfaces to canvas
@@ -1333,7 +1359,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
             
             # Update status
             self.statusBar().showMessage(
-                f"Loaded component with {len(component.interfaces_v2)} interface(s)"
+                f"Loaded component with {len(component.interfaces)} interface(s)"
             )
 
     def paste_image(self):
@@ -1436,12 +1462,19 @@ class ComponentEditor(QtWidgets.QMainWindow):
     # ---------- JSON Copy/Paste ----------
     def _build_record_from_ui(self) -> Optional[ComponentRecord]:
         """Build ComponentRecord from UI state (v2 format)."""
-        if not self.canvas.has_image():
-            QtWidgets.QMessageBox.warning(self, "Missing image", "Load or paste an image first.")
+        # Get interfaces from panel first
+        interfaces = self.interface_panel.get_interfaces()
+        
+        # Check if we have either an image or interfaces (Zemax imports may have no image)
+        has_image = self.canvas.has_image()
+        if not has_image and not interfaces:
+            QtWidgets.QMessageBox.warning(
+                self, 
+                "Missing data", 
+                "Either load an image with calibration line, or import interfaces from Zemax."
+            )
             return None
         
-        # Get interfaces from panel
-        interfaces = self.interface_panel.get_interfaces()
         if not interfaces:
             QtWidgets.QMessageBox.warning(
                 self,
@@ -1465,15 +1498,17 @@ class ComponentEditor(QtWidgets.QMainWindow):
             )
             return None
         
-        # Save asset file
-        asset_path = self._ensure_asset_file_normalized(name)
+        # Save asset file (normalized to 1000px height) only if image exists
+        asset_path = ""
+        if has_image:
+            asset_path = self._ensure_asset_file_normalized(name)
 
         # Create v2 ComponentRecord
         return ComponentRecord(
             name=name,
             image_path=asset_path,
             object_height_mm=object_height,
-            interfaces_v2=interfaces,
+            interfaces=interfaces,
             notes=self.notes.toPlainText().strip()
         )
 
@@ -1577,7 +1612,18 @@ class ComponentEditor(QtWidgets.QMainWindow):
                 if img and os.path.exists(img)
                 else self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileIcon)
             )
-            it = QtWidgets.QListWidgetItem(icon, f"{name}\n({rec.kind})")
+            
+            # Display element type and interface count instead of kind
+            if rec.interfaces and len(rec.interfaces) > 0:
+                if len(rec.interfaces) > 1:
+                    type_label = f"Multi-element ({len(rec.interfaces)} interfaces)"
+                else:
+                    element_type = rec.interfaces[0].element_type.replace("_", " ").title()
+                    type_label = element_type
+            else:
+                type_label = "Unknown"
+            
+            it = QtWidgets.QListWidgetItem(icon, f"{name}\n({type_label})")
             it.setData(QtCore.Qt.ItemDataRole.UserRole, row)  # store plain dict
             self.libList.addItem(it)
 
@@ -1587,14 +1633,10 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self._load_from_dict(data)
 
     def _load_from_dict(self, data: dict):
-        """Load component from dict (v2 system with migration)."""
+        """Load component from dict."""
         rec = deserialize_component(data)
         if not rec:
             return
-
-        # Migrate legacy components to v2 format
-        if not rec.is_v2_format():
-            rec = migrate_component_to_v2(rec)
         
         # Load image if available
         if rec.image_path and os.path.exists(rec.image_path):
@@ -1616,8 +1658,8 @@ class ComponentEditor(QtWidgets.QMainWindow):
         
         # Load interfaces into panel
         self.interface_panel.clear()
-        if rec.interfaces_v2:
-            for interface in rec.interfaces_v2:
+        if rec.interfaces:
+            for interface in rec.interfaces:
                 self.interface_panel.add_interface(interface)
         
         # Notes
@@ -1632,24 +1674,40 @@ class ComponentEditor(QtWidgets.QMainWindow):
         if not rec:
             return
         
+        # Debug: Print what we're about to save
+        print(f"[DEBUG] Saving component: {rec.name}")
+        print(f"[DEBUG] Number of interfaces: {len(rec.interfaces) if rec.interfaces else 0}")
+        if rec.interfaces:
+            for i, iface in enumerate(rec.interfaces[:3]):  # Show first 3
+                print(f"[DEBUG]   Interface {i+1}: {iface.name} at ({iface.x1_mm:.2f}, {iface.y1_mm:.2f})")
+        
+        serialized = serialize_component(rec)
+        print(f"[DEBUG] Serialized keys: {serialized.keys()}")
+        print(f"[DEBUG] Has 'interfaces' in serialized: {'interfaces' in serialized}")
+        if 'interfaces' in serialized:
+            print(f"[DEBUG] Number of interfaces in serialized: {len(serialized['interfaces'])}")
+        
         allrows = self.storage.load_library()
         # Replace by name or append
         replaced = False
         for i, row in enumerate(allrows):
             if row.get("name") == rec.name:
-                allrows[i] = serialize_component(rec)
+                allrows[i] = serialized
                 replaced = True
                 break
         
         if not replaced:
-            allrows.append(serialize_component(rec))
+            allrows.append(serialized)
         
         self.storage.save_library(allrows)
-        QtWidgets.QApplication.clipboard().setText(json.dumps(serialize_component(rec), indent=2))
+        QtWidgets.QApplication.clipboard().setText(json.dumps(serialized, indent=2))
         QtWidgets.QMessageBox.information(
             self,
             "Saved",
-            f"Saved component '{rec.name}'\n\nLibrary file:\n{get_library_path()}"
+            f"Saved component '{rec.name}'\n\n"
+            f"Interfaces: {len(rec.interfaces) if rec.interfaces else 0}\n"
+            f"Library file:\n{get_library_path()}\n\n"
+            f"Component JSON copied to clipboard."
         )
         self._refresh_library_list()
         self.saved.emit()

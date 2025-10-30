@@ -25,7 +25,7 @@ class ZemaxToInterfaceConverter:
         catalog = GlassCatalog()
         converter = ZemaxToInterfaceConverter(catalog)
         component = converter.convert(zemax_file)
-        # component.interfaces_v2 now contains all optical interfaces
+        # component.interfaces now contains all optical interfaces
     """
     
     def __init__(self, glass_catalog: Optional[GlassCatalog] = None):
@@ -46,7 +46,7 @@ class ZemaxToInterfaceConverter:
             zemax_file: Parsed Zemax data
             
         Returns:
-            ComponentRecord with interfaces_v2 populated
+            ComponentRecord with interfaces populated
         """
         interfaces: List[InterfaceDefinition] = []
         cumulative_x = 0.0  # Position along optical axis
@@ -104,9 +104,8 @@ class ZemaxToInterfaceConverter:
         
         return ComponentRecord(
             name=name,
-            interfaces_v2=interfaces,
+            interfaces=interfaces,
             object_height_mm=diameter_mm,
-            kind="multi_element",
             notes=notes
         )
     
@@ -280,13 +279,19 @@ if __name__ == "__main__":
             
             print(f"\nConverted to OptiVerse component:")
             print(f"Name: {component.name}")
-            print(f"Type: {component.kind}")
+            num_ifaces = len(component.interfaces) if component.interfaces else 0
+            if num_ifaces > 1:
+                print(f"Type: Multi-element ({num_ifaces} interfaces)")
+            elif num_ifaces == 1:
+                print(f"Type: {component.interfaces[0].element_type}")
+            else:
+                print(f"Type: Unknown")
             print(f"Object height: {component.object_height_mm:.2f} mm")
-            print(f"Interfaces: {len(component.interfaces_v2) if component.interfaces_v2 else 0}")
+            print(f"Interfaces: {num_ifaces}")
             print()
             
-            if component.interfaces_v2:
-                for i, iface in enumerate(component.interfaces_v2):
+            if component.interfaces:
+                for i, iface in enumerate(component.interfaces):
                     print(f"Interface {i+1}: {iface.name}")
                     print(f"  Position: x={iface.x1_mm:.2f} mm")
                     print(f"  Height: {iface.length_mm():.2f} mm")

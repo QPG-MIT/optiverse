@@ -109,100 +109,32 @@ class ComponentRecord:
     Persistent component data for library storage.
     Represents a physical optical component with calibrated dimensions.
     
-    GENERALIZED INTERFACE-BASED DESIGN (v2):
+    INTERFACE-BASED DESIGN:
     - Component can contain multiple interfaces, each with its own type
-    - interfaces_v2: List of InterfaceDefinition objects (new format)
-    - Coordinates stored in mm in local coordinate system
+    - interfaces: List of InterfaceDefinition objects
+    - Coordinates stored in mm in local coordinate system (centered, Y-down)
     - Interfaces can be reordered, optical effect determined by spatial position
-    
-    LEGACY SUPPORT (v1):
-    - kind: Component type (auto-computed from interfaces_v2 if not set)
-    - line_px: Calibration line in normalized 1000px space (legacy)
-    - Type-specific fields (efl_mm, split_TR, etc.) kept for backward compatibility
-    - Legacy components automatically migrated to v2 format on first access
+    - First interface is used as reference line for sprite positioning
     
     COORDINATE SYSTEMS:
-    - line_px: Normalized 1000px space (legacy, still used for simple components)
-    - interfaces_v2[].xN_mm: Millimeters in local coordinate system
+    - interfaces[].xN_mm: Millimeters in local coordinate system
     - object_height_mm: Physical size for calibration (mm)
     """
     name: str
     image_path: str = ""
     object_height_mm: float = 25.4  # Physical size (mm) of the optical element
     
-    # NEW: Interface-based format (v2)
-    interfaces_v2: Optional[List] = None  # List[InterfaceDefinition] when available
-    
-    # LEGACY: Component type and calibration
-    kind: str = ""  # Auto-computed from interfaces_v2, or legacy type
-    line_px: Tuple[float, float, float, float] = (0.0, 0.0, 100.0, 100.0)
-    
-    # LEGACY: Type-specific properties (kept for backward compatibility)
-    # lens only
-    efl_mm: float = 0.0
-    # beamsplitter only
-    split_TR: Tuple[float, float] = (50.0, 50.0)
-    # waveplate only
-    phase_shift_deg: float = 90.0  # Phase shift in degrees (90° for QWP, 180° for HWP)
-    fast_axis_deg: float = 0.0  # Fast axis angle in lab frame (degrees)
-    # dichroic only
-    cutoff_wavelength_nm: float = 550.0  # Cutoff wavelength for dichroic mirrors
-    transition_width_nm: float = 50.0  # Width of transition region
-    pass_type: str = "longpass"  # "longpass" or "shortpass"
-    # refractive_object only (old format)
-    interfaces: List[Dict[str, Any]] = field(default_factory=list)  # Legacy interface dicts
+    # Interface-based format
+    interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
     
     # Common properties
     angle_deg: float = 0.0  # optical axis angle (degrees)
     notes: str = ""
-    
-    def __post_init__(self):
-        """Initialize and validate component data."""
-        # Auto-compute kind from interfaces_v2 if available
-        if self.interfaces_v2 is not None and len(self.interfaces_v2) > 0 and not self.kind:
-            self.kind = self._compute_kind()
-        
-        # Ensure kind has a value
-        if not self.kind:
-            self.kind = "lens"  # Default fallback
-    
-    def _compute_kind(self) -> str:
-        """
-        Compute component kind from interfaces_v2.
-        
-        Returns:
-            - Single interface type if only one interface
-            - "multi_element" if multiple interfaces
-            - "empty" if no interfaces
-        """
-        if self.interfaces_v2 is None or len(self.interfaces_v2) == 0:
-            return "empty"
-        elif len(self.interfaces_v2) == 1:
-            return self.interfaces_v2[0].element_type
-        else:
-            return "multi_element"
-    
-    def is_v2_format(self) -> bool:
-        """Check if this component uses the new v2 interface format."""
-        return self.interfaces_v2 is not None and len(self.interfaces_v2) > 0
-
-
-def _coerce_line_px(val: Any) -> Optional[Tuple[float, float, float, float]]:
-    """Convert various line_px formats to canonical tuple."""
-    try:
-        if isinstance(val, (list, tuple)) and len(val) == 4:
-            return (float(val[0]), float(val[1]), float(val[2]), float(val[3]))
-    except Exception:
-        pass
-    return None
 
 
 def serialize_component(rec: ComponentRecord) -> Dict[str, Any]:
     """
     Serialize ComponentRecord to dict for JSON storage.
-    
-    Supports both v2 (interface-based) and legacy (type-based) formats.
-    V2 format takes precedence if available.
     
     Image paths are stored as relative paths if within the package,
     otherwise as absolute paths.
@@ -212,41 +144,12 @@ def serialize_component(rec: ComponentRecord) -> Dict[str, Any]:
         "image_path": to_relative_path(rec.image_path),
         "object_height_mm": float(rec.object_height_mm),
         "angle_deg": float(rec.angle_deg),
-        "notes": rec.notes or ""
+        "notes": rec.notes or "",
     }
     
-    # V2 format: Interface-based (new)
-    if rec.is_v2_format() and HAS_INTERFACE_DEFINITION:
-        base["format_version"] = 2
-        base["interfaces_v2"] = [iface.to_dict() for iface in rec.interfaces_v2]
-        # Include computed kind for display
-        base["kind"] = rec.kind
-    else:
-        # Legacy format (v1)
-        base["format_version"] = 1
-        base["kind"] = rec.kind
-        base["line_px"] = [float(x) for x in rec.line_px]
-        
-        # Type-specific fields
-        if rec.kind == "lens":
-            base["efl_mm"] = float(rec.efl_mm)
-        elif rec.kind == "beamsplitter":
-            t, r = rec.split_TR
-            base["split_TR"] = [float(t), float(r)]
-            # Legacy for backward compatibility
-            base["split_T"] = float(t)
-            base["split_R"] = float(r)
-        elif rec.kind == "waveplate":
-            base["phase_shift_deg"] = float(rec.phase_shift_deg)
-            base["fast_axis_deg"] = float(rec.fast_axis_deg)
-        elif rec.kind == "dichroic":
-            base["cutoff_wavelength_nm"] = float(rec.cutoff_wavelength_nm)
-            base["transition_width_nm"] = float(rec.transition_width_nm)
-            base["pass_type"] = str(rec.pass_type)
-        elif rec.kind == "refractive_object":
-            # Store interfaces as list of dicts
-            base["interfaces"] = rec.interfaces if rec.interfaces else []
-        # mirror: no extra fields
+    # Serialize interfaces
+    if rec.interfaces and HAS_INTERFACE_DEFINITION:
+        base["interfaces"] = [iface.to_dict() for iface in rec.interfaces]
     
     return base
 
@@ -255,17 +158,10 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
     """
     Deserialize dict to ComponentRecord.
     
-    Supports both v2 (interface-based) and legacy (v1) formats.
-    Automatically migrates legacy components to v2 format if InterfaceDefinition is available.
-    Handles backward compatibility with all legacy field names.
-    
     Image paths are converted from relative (package-relative) to absolute paths.
     """
     if not isinstance(data, dict):
         return None
-
-    # Detect format version
-    format_version = data.get("format_version", 1)
     
     # Common fields
     name = str(data.get("name", "") or "(unnamed)")
@@ -274,7 +170,7 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
     image_path = to_absolute_path(image_path_raw) if image_path_raw else ""
     
     try:
-        object_height_mm = float(data.get("object_height_mm", data.get("object_height", data.get("length_mm", 25.4))))
+        object_height_mm = float(data.get("object_height_mm", 25.4))
     except Exception:
         object_height_mm = 25.4
     
@@ -285,108 +181,21 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
     
     notes = str(data.get("notes", ""))
     
-    # V2 format: Interface-based
-    if format_version == 2 and "interfaces_v2" in data and HAS_INTERFACE_DEFINITION:
+    # Deserialize interfaces
+    interfaces = None
+    interfaces_data = data.get("interfaces")
+    if interfaces_data and HAS_INTERFACE_DEFINITION:
         try:
             from .interface_definition import InterfaceDefinition
-            interfaces_v2 = [InterfaceDefinition.from_dict(iface_data) for iface_data in data["interfaces_v2"]]
-            kind = data.get("kind", "multi_element")
-        except Exception:
-            # Fallback to legacy if v2 loading fails
-            interfaces_v2 = None
-            kind = data.get("kind", "lens")
-        
-        return ComponentRecord(
-            name=name,
-            image_path=image_path,
-            object_height_mm=object_height_mm,
-            interfaces_v2=interfaces_v2 if interfaces_v2 else None,
-            kind=kind,
-            angle_deg=angle_deg,
-            notes=notes
-        )
+            interfaces = [InterfaceDefinition.from_dict(iface_data) for iface_data in interfaces_data]
+        except Exception as e:
+            print(f"Warning: Failed to deserialize interfaces: {e}")
+            interfaces = None
     
-    # Legacy format (v1): Load type-specific fields
-    kind = str(data.get("kind", "lens"))
-    
-    line_px = _coerce_line_px(data.get("line_px", (0, 0, 100, 100)))
-    if not line_px:
-        line_px = (0.0, 0.0, 100.0, 100.0)
-    
-    # Type-specific fields
-    efl_mm = 0.0
-    split_TR = (50.0, 50.0)
-    phase_shift_deg = 90.0
-    fast_axis_deg = 0.0
-    cutoff_wavelength_nm = 550.0
-    transition_width_nm = 50.0
-    pass_type = "longpass"
-    interfaces = []
-
-    if kind == "lens":
-        try:
-            efl_mm = float(data.get("efl_mm", 100.0))
-        except Exception:
-            efl_mm = 100.0
-    elif kind == "beamsplitter":
-        if "split_TR" in data and isinstance(data["split_TR"], (list, tuple)) and len(data["split_TR"]) == 2:
-            try:
-                split_TR = (float(data["split_TR"][0]), float(data["split_TR"][1]))
-            except Exception:
-                split_TR = (50.0, 50.0)
-        else:
-            # Legacy keys
-            try:
-                t = float(data.get("split_T", 50.0))
-                r = float(data.get("split_R", 50.0))
-                split_TR = (t, r)
-            except Exception:
-                split_TR = (50.0, 50.0)
-    elif kind == "waveplate":
-        try:
-            phase_shift_deg = float(data.get("phase_shift_deg", 90.0))
-        except Exception:
-            phase_shift_deg = 90.0
-        try:
-            fast_axis_deg = float(data.get("fast_axis_deg", 0.0))
-        except Exception:
-            fast_axis_deg = 0.0
-    elif kind == "dichroic":
-        try:
-            cutoff_wavelength_nm = float(data.get("cutoff_wavelength_nm", 550.0))
-        except Exception:
-            cutoff_wavelength_nm = 550.0
-        try:
-            transition_width_nm = float(data.get("transition_width_nm", 50.0))
-        except Exception:
-            transition_width_nm = 50.0
-        try:
-            pass_type = str(data.get("pass_type", "longpass"))
-        except Exception:
-            pass_type = "longpass"
-    elif kind == "refractive_object":
-        # Load interfaces
-        try:
-            interfaces = data.get("interfaces", [])
-            if not isinstance(interfaces, list):
-                interfaces = []
-        except Exception:
-            interfaces = []
-
     return ComponentRecord(
         name=name,
-        kind=kind,
         image_path=image_path,
-        line_px=line_px,
         object_height_mm=object_height_mm,
-        interfaces_v2=None,  # Will be populated by migration if needed
-        efl_mm=efl_mm,
-        split_TR=split_TR,
-        phase_shift_deg=phase_shift_deg,
-        fast_axis_deg=fast_axis_deg,
-        cutoff_wavelength_nm=cutoff_wavelength_nm,
-        transition_width_nm=transition_width_nm,
-        pass_type=pass_type,
         interfaces=interfaces,
         angle_deg=angle_deg,
         notes=notes
@@ -451,8 +260,14 @@ class LensParams:
     object_height_mm: float = 60.0
     image_path: Optional[str] = None
     mm_per_pixel: float = 0.1
-    line_px: Optional[Tuple[float, float, float, float]] = None
     name: Optional[str] = None
+    # Interface-based storage (for multi-interface components like doublets)
+    interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
+    
+    def __post_init__(self):
+        """Ensure interfaces list exists."""
+        if self.interfaces is None:
+            self.interfaces = []
 
 
 @dataclass
@@ -463,8 +278,14 @@ class MirrorParams:
     object_height_mm: float = 80.0
     image_path: Optional[str] = None
     mm_per_pixel: float = 0.1
-    line_px: Optional[Tuple[float, float, float, float]] = None
     name: Optional[str] = None
+    # Interface-based storage (for multi-layer mirrors with AR coatings)
+    interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
+    
+    def __post_init__(self):
+        """Ensure interfaces list exists."""
+        if self.interfaces is None:
+            self.interfaces = []
 
 
 @dataclass
@@ -476,7 +297,6 @@ class SLMParams:
     object_height_mm: float = 80.0
     image_path: Optional[str] = None
     mm_per_pixel: float = 0.1
-    line_px: Optional[Tuple[float, float, float, float]] = None
     name: Optional[str] = None
 
 
@@ -490,12 +310,18 @@ class BeamsplitterParams:
     split_R: float = 50.0
     image_path: Optional[str] = None
     mm_per_pixel: float = 0.1
-    line_px: Optional[Tuple[float, float, float, float]] = None
     name: Optional[str] = None
     # Polarization properties
     is_polarizing: bool = False  # True for PBS (Polarizing Beam Splitter)
     # For PBS: s-polarization (perpendicular) reflects, p-polarization (parallel) transmits
     pbs_transmission_axis_deg: float = 0.0  # ABSOLUTE angle of transmission axis in lab frame (degrees)
+    # Interface-based storage (for beamsplitters with glass substrate surfaces)
+    interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
+    
+    def __post_init__(self):
+        """Ensure interfaces list exists."""
+        if self.interfaces is None:
+            self.interfaces = []
 
 
 @dataclass
@@ -518,8 +344,14 @@ class WaveplateParams:
     fast_axis_deg: float = 0.0  # ABSOLUTE angle of fast axis in lab frame (degrees)
     image_path: Optional[str] = None
     mm_per_pixel: float = 0.1
-    line_px: Optional[Tuple[float, float, float, float]] = None
     name: Optional[str] = None
+    # Interface-based storage (for waveplates with AR coatings or glass substrates)
+    interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
+    
+    def __post_init__(self):
+        """Ensure interfaces list exists."""
+        if self.interfaces is None:
+            self.interfaces = []
 
 
 @dataclass
@@ -542,8 +374,14 @@ class DichroicParams:
     pass_type: str = "longpass"  # "longpass" or "shortpass"
     image_path: Optional[str] = None
     mm_per_pixel: float = 0.1
-    line_px: Optional[Tuple[float, float, float, float]] = None
     name: Optional[str] = None
+    # Interface-based storage (for dichroics with glass substrates)
+    interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
+    
+    def __post_init__(self):
+        """Ensure interfaces list exists."""
+        if self.interfaces is None:
+            self.interfaces = []
 
 
 @dataclass
@@ -553,8 +391,17 @@ class RefractiveInterface:
     
     This represents a planar surface separating two media with different refractive indices.
     Handles both refraction (Snell's law) and partial reflection (Fresnel equations).
+    
+    COORDINATE SYSTEM:
+    - Origin (0,0) is at the IMAGE CENTER
+    - X-axis: positive right, negative left
+    - Y-axis: positive DOWN, negative UP (Y-down, standard Qt/QGraphicsScene convention)
+    - Units: millimeters
+    
+    Note: This matches the InterfaceDefinition coordinate system (Y-down, centered).
+    When displayed on QGraphicsScene, the Y-down convention is preserved.
     """
-    # Interface geometry in local coordinates relative to component origin
+    # Interface geometry in local coordinates relative to image center (Y-down, mm)
     x1_mm: float = 0.0  # Start point x
     y1_mm: float = 0.0  # Start point y
     x2_mm: float = 0.0  # End point x
@@ -562,6 +409,9 @@ class RefractiveInterface:
     # Refractive indices
     n1: float = 1.0  # Refractive index on the "left" side (ray coming from this side)
     n2: float = 1.5  # Refractive index on the "right" side (ray going to this side)
+    # Curved surface properties (for Zemax import)
+    is_curved: bool = False  # True if this is a curved surface
+    radius_of_curvature_mm: float = 0.0  # Radius of curvature (+ or -, 0 = flat)
     # Special properties
     is_beam_splitter: bool = False  # If True, apply beam splitting logic
     split_T: float = 50.0  # Transmission ratio for beam splitter interface
@@ -578,6 +428,8 @@ class RefractiveObjectParams:
     This represents a complex optical component like a beam splitter cube, prism,
     or any object with multiple refracting surfaces. Each interface is defined
     in local coordinates relative to the component's origin.
+    
+    The first interface is used as the reference line for sprite positioning.
     """
     x_mm: float = 0.0  # Component center position
     y_mm: float = 0.0
@@ -586,7 +438,6 @@ class RefractiveObjectParams:
     interfaces: List['RefractiveInterface'] = None  # List of refractive interfaces
     image_path: Optional[str] = None
     mm_per_pixel: float = 0.1
-    line_px: Optional[Tuple[float, float, float, float]] = None  # Optional reference line for calibration
     name: Optional[str] = None
     
     def __post_init__(self):

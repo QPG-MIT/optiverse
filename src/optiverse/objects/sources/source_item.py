@@ -62,8 +62,10 @@ class SourceItem(BaseObj):
     
     def paint(self, p: QtGui.QPainter, opt, widget=None):
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
-        pen1 = QtGui.QPen(self._color, 2)
-        pen2 = QtGui.QPen(self._color, 1.5)
+        pen1 = QtGui.QPen(self._color, 4)
+        pen1.setCosmetic(True)
+        pen2 = QtGui.QPen(self._color, 3)
+        pen2.setCosmetic(True)
         p.setPen(pen1)
         p.drawPath(self._bar)
         p.setPen(pen2)

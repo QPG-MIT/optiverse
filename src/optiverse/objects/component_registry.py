@@ -5,7 +5,7 @@ This module provides centralized definitions for all standard optical components
 that should be available in the component library by default.
 """
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 
 
 def _get_image_path(filename: str) -> str:
@@ -30,13 +30,26 @@ class ComponentRegistry:
         Returns:
             Dictionary with lens parameters including image and calibration
         """
+        object_height_mm = 30.5  # Physical height of optical element
+        x1_mm, y1_mm, x2_mm, y2_mm = 0.0, -15.25, 0.0, 15.25
+        image_path = _get_image_path("lens_1_inch_mounted.png")
+        
         return {
             "name": "Standard Lens (1\" mounted)",
             "kind": "lens",
-            "efl_mm": 100.0,
-            "object_height_mm": 30.5,  # Physical height of optical element (1 inch = 25.4 mm diameter + mount)
-            "image_path": _get_image_path("lens_1_inch_mounted.png"),
-            "line_px": (320, 83, 320, 916),  # Vertical line defining optical axis in normalized 1000px space
+            "type": "optical element",
+            "object_height_mm": object_height_mm,
+            "image_path": image_path,
+            "interfaces": [
+                {
+                    "x1_mm": x1_mm,
+                    "y1_mm": y1_mm,
+                    "x2_mm": x2_mm,
+                    "y2_mm": y2_mm,
+                    "element_type": "lens",
+                    "efl_mm": 100.0,
+                }
+            ],
             "angle_deg": 90,  # Vertical orientation by default
         }
     
@@ -51,10 +64,19 @@ class ComponentRegistry:
         return {
             "name": "Standard Lens (2\" mounted)",
             "kind": "lens",
-            "efl_mm": 100.0,
+            "type": "optical element",
             "object_height_mm": 55.9,  # Physical height of optical element (2 inch mounted)
             "image_path": _get_image_path("lens_1_inch_mounted.png"),
-            "line_px": (320, 83, 320, 916),  # Vertical line defining optical axis in normalized 1000px space
+            "interfaces": [
+                {
+                    "x1_mm": 0.0,
+                    "y1_mm": -27.95,
+                    "x2_mm": 0.0,
+                    "y2_mm": 27.95,
+                    "element_type": "lens",
+                    "efl_mm": 100.0,
+                }
+            ],
             "angle_deg": 90,  # Vertical orientation by default
         }
     
@@ -66,12 +88,25 @@ class ComponentRegistry:
         Returns:
             Dictionary with mirror parameters including image and calibration
         """
+        object_height_mm = 49.4  # Physical height of optical element
+        x1_mm, y1_mm, x2_mm, y2_mm = 0.0, -24.7, 0.0, 24.7
+        image_path = _get_image_path("standard_mirror_1_inch.png")
+        
         return {
             "name": "Standard Mirror (1\")",
             "kind": "mirror",
-            "object_height_mm": 49.4,  # Physical height of optical element (1 inch with mount)
-            "image_path": _get_image_path("standard_mirror_1_inch.png"),
-            "line_px": (5, 220, 5, 780),  # Vertical line defining optical axis in normalized 1000px space
+            "type": "optical element",
+            "object_height_mm": object_height_mm,
+            "image_path": image_path,
+            "interfaces": [
+                {
+                    "x1_mm": x1_mm,
+                    "y1_mm": y1_mm,
+                    "x2_mm": x2_mm,
+                    "y2_mm": y2_mm,
+                    "element_type": "mirror",
+                }
+            ],
             "angle_deg": 0.0,  # Horizontal orientation by default
         }
     
@@ -86,9 +121,18 @@ class ComponentRegistry:
         return {
             "name": "Standard Mirror (2\")",
             "kind": "mirror",
+            "type": "optical element",
             "object_height_mm": 68.6,  # Physical height of optical element (2 inch with mount)
             "image_path": _get_image_path("standard_mirror_1_inch.png"),
-            "line_px": (5, 220, 5, 780),  # Vertical line defining optical axis in normalized 1000px space
+            "interfaces": [
+                {
+                    "x1_mm": 0.0,
+                    "y1_mm": -34.3,
+                    "x2_mm": 0.0,
+                    "y2_mm": 34.3,
+                    "element_type": "mirror",
+                }
+            ],
             "angle_deg": 0.0,  # Horizontal orientation by default
         }
     
@@ -100,15 +144,27 @@ class ComponentRegistry:
         Returns:
             Dictionary with beamsplitter parameters including image and calibration
         """
+        object_height_mm = 25.4  # Physical height of optical element
+        x1_mm, y1_mm, x2_mm, y2_mm = -12.7, -12.7, 12.7, 12.7
+        image_path = _get_image_path("beamsplitter_50_50_1_inch.png")
+        
         return {
             "name": "Standard Beamsplitter (50/50 1\")",
             "kind": "beamsplitter",
-            "split_T": 50.0,
-            "split_R": 50.0,
-            "split_TR": [50.0, 50.0],  # Alternative format for compatibility
-            "object_height_mm": 25.4,  # Physical height of optical element (1 inch = 25.4 mm)
-            "image_path": _get_image_path("beamsplitter_50_50_1_inch.png"),
-            "line_px": (0, 0, 1000, 1000),  # Diagonal line defining optical axis in normalized 1000px space
+            "type": "optical element",
+            "object_height_mm": object_height_mm,
+            "image_path": image_path,
+            "interfaces": [
+                {
+                    "x1_mm": x1_mm,
+                    "y1_mm": y1_mm,
+                    "x2_mm": x2_mm,
+                    "y2_mm": y2_mm,
+                    "element_type": "beam_splitter",
+                    "split_T": 50.0,
+                    "split_R": 50.0,
+                }
+            ],
             "angle_deg": 45,  # 45° orientation for proper beam splitting
         }
     
@@ -123,15 +179,23 @@ class ComponentRegistry:
         return {
             "name": "PBS (2\" Polarizing)",
             "kind": "beamsplitter",
-            "split_T": 0.0,  # s-polarization reflects, p-polarization transmits
-            "split_R": 0.0,
-            "split_TR": [0.0, 0.0],  # Not used for PBS
+            "type": "optical element",
             "object_height_mm": 50.8,  # Physical height of optical element (2 inch = 50.8 mm)
             "image_path": _get_image_path("pbs_2_inch.png"),
-            "line_px": (0, 0, 1000, 1000),  # Diagonal line defining optical axis in normalized 1000px space
+            "interfaces": [
+                {
+                    "x1_mm": -25.4,
+                    "y1_mm": -25.4,
+                    "x2_mm": 25.4,
+                    "y2_mm": 25.4,
+                    "element_type": "beam_splitter",
+                    "split_T": 0.0,  # s-polarization reflects, p-polarization transmits
+                    "split_R": 0.0,
+                    "is_polarizing": True,  # This is a PBS
+                    "pbs_transmission_axis_deg": 0.0,  # Horizontal transmission axis in lab frame (ABSOLUTE angle)
+                }
+            ],
             "angle_deg": 45,  # 45° orientation for proper beam splitting
-            "is_polarizing": True,  # This is a PBS
-            "pbs_transmission_axis_deg": 0.0,  # Horizontal transmission axis in lab frame (ABSOLUTE angle)
         }
     
     @staticmethod
@@ -145,10 +209,19 @@ class ComponentRegistry:
         return {
             "name": "Microscope Objective",
             "kind": "lens",
-            "efl_mm": 4.5,  # Typical short focal length for microscope objective
+            "type": "optical element",
             "object_height_mm": 40.0,  # Physical height of optical element
             "image_path": _get_image_path("objective.png"),
-            "line_px": (500, 100, 500, 900),  # Vertical line defining optical axis in normalized 1000px space
+            "interfaces": [
+                {
+                    "x1_mm": 0.0,
+                    "y1_mm": -20.0,
+                    "x2_mm": 0.0,
+                    "y2_mm": 20.0,
+                    "element_type": "lens",
+                    "efl_mm": 4.5,  # Typical short focal length for microscope objective
+                }
+            ],
             "angle_deg": 90,  # Vertical orientation by default
         }
     
@@ -163,11 +236,20 @@ class ComponentRegistry:
         return {
             "name": "Dichroic Mirror (550nm cutoff)",
             "kind": "dichroic",
-            "cutoff_wavelength_nm": 550.0,
-            "transition_width_nm": 50.0,
+            "type": "optical element",
             "object_height_mm": 25.4,  # Physical height of optical element (1 inch)
             "image_path": _get_image_path("beamsplitter_50_50_1_inch.png"),
-            "line_px": (0, 0, 1000, 1000),  # Diagonal line in normalized 1000px space
+            "interfaces": [
+                {
+                    "x1_mm": -12.7,
+                    "y1_mm": -12.7,
+                    "x2_mm": 12.7,
+                    "y2_mm": 12.7,
+                    "element_type": "dichroic",
+                    "cutoff_wavelength_nm": 550.0,
+                    "transition_width_nm": 50.0,
+                }
+            ],
             "angle_deg": 45,  # 45° orientation for proper beam combining/splitting
         }
     
@@ -182,6 +264,7 @@ class ComponentRegistry:
         return {
             "name": "Standard Source",
             "kind": "source",
+            "type": "optical element",
             "n_rays": 5,
             "spread_deg": 5.0,
             "size_mm": 10.0,
@@ -209,11 +292,20 @@ class ComponentRegistry:
         return {
             "name": "Quarter Waveplate (QWP)",
             "kind": "waveplate",
-            "phase_shift_deg": 90.0,  # π/2 phase shift
-            "fast_axis_deg": 0.0,  # Horizontal fast axis by default
-             "object_height_mm": 30.5,  # Same as 1" lens
+            "type": "optical element",
+            "object_height_mm": 30.5,  # Same as 1" lens
             "image_path": _get_image_path("lens_1_inch_mounted.png"),
-            "line_px": (320, 83, 320, 916),  # Vertical line defining optical axis in normalized 1000px space
+            "interfaces": [
+                {
+                    "x1_mm": 0.0,
+                    "y1_mm": -15.25,
+                    "x2_mm": 0.0,
+                    "y2_mm": 15.25,
+                    "element_type": "waveplate",
+                    "phase_shift_deg": 90.0,  # π/2 phase shift
+                    "fast_axis_deg": 0.0,  # Horizontal fast axis by default
+                }
+            ],
             "angle_deg": 90,  # Vertical orientation by default
         }
     
@@ -231,11 +323,20 @@ class ComponentRegistry:
         return {
             "name": "Half Waveplate (HWP)",
             "kind": "waveplate",
-            "phase_shift_deg": 180.0,  # π phase shift
-            "fast_axis_deg": 0.0,  # Horizontal fast axis by default
-             "object_height_mm": 30.5,  # Same as 1" lens
+            "type": "optical element",
+            "object_height_mm": 30.5,  # Same as 1" lens
             "image_path": _get_image_path("lens_1_inch_mounted.png"),
-            "line_px": (320, 83, 320, 916),  # Vertical line defining optical axis in normalized 1000px space
+            "interfaces": [
+                {
+                    "x1_mm": 0.0,
+                    "y1_mm": -15.25,
+                    "x2_mm": 0.0,
+                    "y2_mm": 15.25,
+                    "element_type": "waveplate",
+                    "phase_shift_deg": 180.0,  # π phase shift
+                    "fast_axis_deg": 0.0,  # Horizontal fast axis by default
+                }
+            ],
             "angle_deg": 90,  # Vertical orientation by default
         }
     
@@ -252,9 +353,38 @@ class ComponentRegistry:
         return {
             "name": "Spatial Light Modulator",
             "kind": "slm",
+            "type": "optical element",
             "object_height_mm": 100.0,  # Typical large SLM size
             "image_path": _get_image_path("slm.png"),
-            "line_px": (220, 515, 780, 515),  # Horizontal line defining optical axis in normalized 1000px space
+            "interfaces": [
+                {
+                    "x1_mm": -50.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 50.0,
+                    "y2_mm": 0.0,
+                    "element_type": "mirror",
+                }
+            ],
+            "angle_deg": 0.0,  # Horizontal orientation by default
+        }
+    
+    @staticmethod
+    def get_laser_table() -> Dict[str, Any]:
+        """
+        Get laser table definition.
+        
+        Laser tables are background elements with no optical interface.
+        Used for setting up optical experiments.
+        
+        Returns:
+            Dictionary with laser table parameters
+        """
+        return {
+            "name": "Laser Table",
+            "kind": "background",
+            "type": "background",
+            "object_height_mm": 1500.0,  # 1.5m height
+            "image_path": _get_image_path("lasertable_1.5m_3m.png"),
             "angle_deg": 0.0,  # Horizontal orientation by default
         }
     
@@ -279,6 +409,7 @@ class ComponentRegistry:
             ComponentRegistry.get_half_waveplate(),
             ComponentRegistry.get_standard_source(),
             ComponentRegistry.get_slm(),
+            ComponentRegistry.get_laser_table(),
         ]
     
     @staticmethod
@@ -311,6 +442,7 @@ class ComponentRegistry:
                 ComponentRegistry.get_half_waveplate(),
             ],
             "Sources": [ComponentRegistry.get_standard_source()],
+            "Background": [ComponentRegistry.get_laser_table()],
             "Misc": [ComponentRegistry.get_slm()],
         }
     
@@ -341,29 +473,32 @@ class ComponentRegistry:
         return kind_map[kind]()
     
     @staticmethod
-    def get_category_for_kind(kind: str, name: str = "") -> str:
+    def get_category_for_element_type(element_type: str, name: str = "") -> str:
         """
-        Get the category name for a component kind.
+        Get the category name for a component based on its interface element_type.
         
         Args:
-            kind: Component kind ('lens', 'mirror', 'beamsplitter', 'dichroic', 'waveplate', 'source', 'slm')
+            element_type: Element type from interface ('lens', 'mirror', 'beam_splitter', 'dichroic', 'waveplate', etc.)
             name: Optional component name to distinguish special cases (e.g., objectives)
         
         Returns:
-            Category name (e.g., 'Lenses', 'Mirrors', 'Dichroics', 'Misc')
+            Category name (e.g., 'Lenses', 'Mirrors', 'Dichroics', 'Background', 'Misc')
         """
         # Special case: Objectives are lenses but in their own category
-        if kind == "lens" and "objective" in name.lower():
+        if element_type == "lens" and "objective" in name.lower():
             return "Objectives"
         
-        kind_to_category = {
+        element_type_to_category = {
             "lens": "Lenses",
             "mirror": "Mirrors",
-            "beamsplitter": "Beamsplitters",
+            "beam_splitter": "Beamsplitters",
+            "beamsplitter": "Beamsplitters",  # Legacy support
             "dichroic": "Dichroics",
             "waveplate": "Waveplates",
             "source": "Sources",
+            "background": "Background",
             "slm": "Misc",
+            "refractive_interface": "Other",  # Generic refractive interfaces
         }
-        return kind_to_category.get(kind, "Other")
+        return element_type_to_category.get(element_type, "Other")
 

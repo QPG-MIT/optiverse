@@ -8,7 +8,7 @@ from typing import List, Tuple
 import numpy as np
 
 from .geometry import (
-    deg2rad, normalize, reflect_vec, ray_hit_element,
+    deg2rad, normalize, reflect_vec, ray_hit_element, ray_hit_curved_element,
     transform_polarization_mirror, transform_polarization_lens,
     transform_polarization_beamsplitter, transform_polarization_waveplate,
     compute_dichroic_reflectance,
@@ -130,7 +130,47 @@ def _trace_single_ray_worker(args):
         # Check refractive interfaces
         for A, B, iface in refractive_interfaces:
             # Don't skip based on last_obj for interfaces - allow multiple hits
-            res = ray_hit_element(P, V, A, B)
+            
+            # Check if this is a curved interface
+            is_curved = getattr(iface, 'is_curved', False)
+            radius = getattr(iface, 'radius_of_curvature_mm', 0.0)
+            
+            if is_curved and abs(radius) > 0.1:
+                # Curved interface - use ray_hit_curved_element
+                # Calculate center of curvature from endpoints and radius
+                mid = (A + B) / 2.0
+                chord = B - A
+                chord_length = float(np.linalg.norm(chord))
+                
+                if chord_length > 1e-6:
+                    # Perpendicular to chord (normalized)
+                    perp = np.array([-chord[1], chord[0]]) / chord_length
+                    
+                    # Distance from midpoint to center
+                    r_abs = abs(radius)
+                    half_chord = chord_length / 2.0
+                    
+                    if r_abs >= half_chord:  # Valid circular arc
+                        d = math.sqrt(r_abs * r_abs - half_chord * half_chord)
+                        
+                        # Center position (direction depends on sign of radius)
+                        if radius > 0:
+                            center = mid + d * perp
+                        else:
+                            center = mid - d * perp
+                        
+                        # Use curved intersection
+                        res = ray_hit_curved_element(P, V, center, r_abs, A, B)
+                    else:
+                        # Degenerate case - fall back to flat
+                        res = ray_hit_element(P, V, A, B)
+                else:
+                    # Degenerate case - fall back to flat
+                    res = ray_hit_element(P, V, A, B)
+            else:
+                # Flat interface - use standard ray_hit_element
+                res = ray_hit_element(P, V, A, B)
+            
             if res is None:
                 continue
             t, X, t_hat, n_hat, C, L = res

@@ -566,3 +566,149 @@ def ray_hit_element(
     return (t, X, t_hat, n_hat, C, L)
 
 
+def ray_hit_curved_element(
+    P: np.ndarray,
+    V: np.ndarray,
+    center: np.ndarray,
+    radius: float,
+    p1: np.ndarray,
+    p2: np.ndarray,
+    tol: float = 1e-9,
+):
+    """
+    Intersect ray (P + t V, t>0) with a curved segment (circular arc).
+    
+    Args:
+        P: Ray start point [x, y]
+        V: Ray direction [x, y] (should be normalized)
+        center: Center of the circle [x, y]
+        radius: Radius of the circle (absolute value)
+        p1, p2: Endpoints of the arc
+        tol: Tolerance for numerical comparisons
+    
+    Returns:
+        Tuple of (t, X, t_hat, n_hat, C, L) or None if no hit
+        - t: Parameter along ray
+        - X: Intersection point
+        - t_hat: Tangent at intersection
+        - n_hat: Normal at intersection (pointing outward from center)
+        - C: Center of arc (same as input center)
+        - L: Arc length
+    """
+    # Ray-circle intersection
+    # Ray: R(t) = P + t*V
+    # Circle: |R - center|² = radius²
+    
+    # Substitute ray equation into circle equation:
+    # |P + t*V - center|² = radius²
+    # Let PC = P - center
+    # |PC + t*V|² = radius²
+    # PC·PC + 2t(PC·V) + t²(V·V) = radius²
+    # (V·V)t² + 2(PC·V)t + (PC·PC - radius²) = 0
+    
+    PC = P - center
+    a = np.dot(V, V)
+    b = 2.0 * np.dot(V, PC)
+    c = np.dot(PC, PC) - radius**2
+    
+    discriminant = b**2 - 4*a*c
+    
+    if discriminant < 0:
+        return None  # No intersection with circle
+    
+    sqrt_disc = math.sqrt(discriminant)
+    t1 = (-b - sqrt_disc) / (2*a)
+    t2 = (-b + sqrt_disc) / (2*a)
+    
+    # Try both intersection points (ray might hit circle twice)
+    for t in [t1, t2]:
+        if t <= tol:
+            continue  # Behind ray start
+        
+        # Calculate intersection point
+        X = P + t * V
+        
+        # Check if this point is within the arc bounds
+        # The arc is defined by the angular range between p1 and p2
+        if not _point_on_arc_bounds(X, center, p1, p2, tol):
+            continue
+        
+        # Calculate normal at this point (radial direction, outward)
+        radial = X - center
+        n_hat = radial / radius
+        
+        # Calculate tangent (perpendicular to normal)
+        # Rotate normal 90° counterclockwise: (x, y) -> (-y, x)
+        t_hat = np.array([-n_hat[1], n_hat[0]])
+        
+        # Calculate arc length (approximate)
+        v1 = p1 - center
+        v2 = p2 - center
+        cos_angle = np.dot(v1, v2) / (radius * radius)
+        cos_angle = np.clip(cos_angle, -1.0, 1.0)
+        arc_angle = math.acos(cos_angle)
+        L = radius * arc_angle
+        
+        return (t, X, t_hat, n_hat, center, L)
+    
+    return None  # No valid intersection within arc bounds
+
+
+def _point_on_arc_bounds(
+    point: np.ndarray,
+    center: np.ndarray,
+    p1: np.ndarray,
+    p2: np.ndarray,
+    tol: float = 1e-6,
+) -> bool:
+    """
+    Check if a point on a circle lies within the arc defined by p1 and p2.
+    
+    Args:
+        point: Point to check (assumed to be on the circle)
+        center: Center of the circle
+        p1, p2: Endpoints defining the arc
+        tol: Angular tolerance in radians
+    
+    Returns:
+        True if point is within the arc bounds
+    """
+    # Calculate angles from center
+    v1 = p1 - center
+    v2 = p2 - center
+    v_point = point - center
+    
+    angle1 = math.atan2(v1[1], v1[0])
+    angle2 = math.atan2(v2[1], v2[0])
+    angle_point = math.atan2(v_point[1], v_point[0])
+    
+    # Normalize to [0, 2π]
+    def normalize_angle(a):
+        while a < 0:
+            a += 2 * math.pi
+        while a >= 2 * math.pi:
+            a -= 2 * math.pi
+        return a
+    
+    angle1 = normalize_angle(angle1)
+    angle2 = normalize_angle(angle2)
+    angle_point = normalize_angle(angle_point)
+    
+    # Calculate angular span
+    # Handle wraparound case
+    if angle2 >= angle1:
+        span = angle2 - angle1
+        in_bounds = (angle1 - tol <= angle_point <= angle2 + tol)
+    else:
+        # Arc wraps around 0
+        span = (2 * math.pi - angle1) + angle2
+        in_bounds = (angle_point >= angle1 - tol) or (angle_point <= angle2 + tol)
+    
+    # Also check that the arc isn't too large (> π means we should use the other arc)
+    if span > math.pi:
+        # Use the complement arc
+        return not in_bounds
+    
+    return in_bounds
+
+

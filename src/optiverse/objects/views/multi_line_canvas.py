@@ -26,11 +26,22 @@ except Exception:
 
 @dataclass
 class InterfaceLine:
-    """A single optical interface line."""
-    x1: float  # Start point X (in millimeters)
-    y1: float  # Start point Y (in millimeters)
-    x2: float  # End point X (in millimeters)
-    y2: float  # End point Y (in millimeters)
+    """
+    A single optical interface line.
+    
+    COORDINATE SYSTEM:
+    - Origin (0,0) is at the IMAGE CENTER
+    - X-axis: positive right, negative left
+    - Y-axis: positive UP, negative DOWN (Y-up for intuitive editing)
+    - Units: millimeters
+    
+    Note: This Y-up coordinate system is ONLY for canvas display.
+    When saving to InterfaceDefinition, coordinates are flipped to Y-down (Qt standard).
+    """
+    x1: float  # Start point X in mm (centered, Y-up)
+    y1: float  # Start point Y in mm (centered, Y-up)
+    x2: float  # End point X in mm (centered, Y-up)
+    y2: float  # End point Y in mm (centered, Y-up)
     color: QtGui.QColor = None  # Line color
     label: str = ""  # Optional label
     properties: Dict[str, Any] = None  # Additional properties (n1, n2, is_BS, etc.)
@@ -46,8 +57,15 @@ class MultiLineCanvas(QtWidgets.QLabel):
     """
     Image canvas with support for multiple draggable colored lines.
     
-    Lines are stored in millimeter coordinates. The canvas handles conversion
-    to screen pixels automatically during rendering and mouse interactions.
+    COORDINATE SYSTEM:
+    - Lines are stored in millimeter coordinates (InterfaceLine)
+    - Origin (0,0) is at the IMAGE CENTER
+    - Y-axis is UP (positive Y is up, negative Y is down) - for intuitive editing
+    - Canvas handles conversion to screen pixels automatically
+    
+    COORDINATE TRANSFORMATIONS:
+    - Screen coords (Y-down) → Canvas mm (Y-up) → Storage mm (Y-down)
+    - The Y-flip happens when saving/loading from InterfaceDefinition
     
     Signals:
         imageDropped: Emitted when image is dropped
@@ -749,4 +767,94 @@ class MultiLineCanvas(QtWidgets.QLabel):
         painter.end()
         
         return pix
+    
+    # ========== Ruler Support ==========
+    
+    def _screen_to_mm_coords(self, screen_pos: QtCore.QPoint) -> Tuple[float, float]:
+        """
+        Convert screen coordinates to mm coordinates.
+        
+        Returns:
+            (x_mm, y_mm) tuple
+        """
+        if not self._pix:
+            return (0.0, 0.0)
+        
+        img_rect = self._target_rect()
+        if not img_rect.isValid():
+            return (0.0, 0.0)
+        
+        # Calculate centered coordinate system parameters
+        img_center_x_px = img_rect.width() / (2 * self._scale_fit)
+        img_center_y_px = img_rect.height() / (2 * self._scale_fit)
+        
+        # Convert screen coordinates to image pixel coordinates (centered system)
+        x_img_px = (screen_pos.x() - img_rect.x()) / self._scale_fit - img_center_x_px
+        y_img_px = img_center_y_px - (screen_pos.y() - img_rect.y()) / self._scale_fit  # Flip Y axis
+        
+        # Convert image pixel coordinates to millimeters
+        x_mm = x_img_px * self._mm_per_px
+        y_mm = y_img_px * self._mm_per_px
+        
+        return (x_mm, y_mm)
+    
+    def _get_ruler_view_params(self) -> dict:
+        """
+        Get view parameters for rulers.
+        
+        Returns:
+            Dictionary with ruler parameters:
+            - h_scale: horizontal scale (screen pixels per mm)
+            - h_offset: horizontal offset (where 0mm appears on screen)
+            - h_range: tuple of (min_mm, max_mm) for horizontal axis
+            - v_scale: vertical scale (screen pixels per mm)
+            - v_offset: vertical offset (where 0mm appears on screen)
+            - v_range: tuple of (min_mm, max_mm) for vertical axis
+            - show_mm: whether to show mm units
+        """
+        if not self._pix or self._mm_per_px <= 0:
+            return {
+                'h_scale': 1.0,
+                'h_offset': 0.0,
+                'h_range': (-50.0, 50.0),
+                'v_scale': 1.0,
+                'v_offset': 0.0,
+                'v_range': (-50.0, 50.0),
+                'show_mm': True
+            }
+        
+        img_rect = self._target_rect()
+        if not img_rect.isValid():
+            return {
+                'h_scale': 1.0,
+                'h_offset': 0.0,
+                'h_range': (-50.0, 50.0),
+                'v_scale': 1.0,
+                'v_offset': 0.0,
+                'v_range': (-50.0, 50.0),
+                'show_mm': True
+            }
+        
+        # Scale: screen pixels per mm
+        scale = self._scale_fit / self._mm_per_px
+        
+        # Offset: where 0mm appears on screen
+        # For centered coordinates, 0mm is at the center of the image
+        h_offset = img_rect.x() + img_rect.width() / 2
+        v_offset = img_rect.y() + img_rect.height() / 2
+        
+        # Range: visible range in mm
+        w, h = self.image_pixel_size()
+        half_width_mm = (w / 2) * self._mm_per_px
+        half_height_mm = (h / 2) * self._mm_per_px
+        
+        return {
+            'h_scale': scale,
+            'h_offset': h_offset,
+            'h_range': (-half_width_mm, half_width_mm),
+            'v_scale': scale,
+            'v_offset': v_offset,
+            'v_range': (-half_height_mm, half_height_mm),
+            'show_mm': True
+        }
 

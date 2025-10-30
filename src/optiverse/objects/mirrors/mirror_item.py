@@ -54,19 +54,62 @@ class MirrorItem(BaseObj):
                 pass
             self._sprite = None
         
-        if self.params.image_path and self.params.line_px:
-            # ComponentSprite handles all denormalization internally
-            # We just pass the normalized coordinates and let it handle the rest
+        # Calculate picked line offset for coordinate transformation
+        self._picked_line_offset_mm = (0.0, 0.0)  # Default: no offset
+        
+        # Check if mirror has interfaces - if so, calculate geometry from first interface
+        interfaces = getattr(self.params, 'interfaces', None)
+        if interfaces and len(interfaces) > 0:
+            # Use first interface to calculate length and offset
+            first_iface = interfaces[0]
+            
+            # Calculate offset from image center to interface center
+            cx_mm = 0.5 * (first_iface.x1_mm + first_iface.x2_mm)
+            cy_mm = 0.5 * (first_iface.y1_mm + first_iface.y2_mm)
+            self._picked_line_offset_mm = (cx_mm, cy_mm)
+            
+            # Calculate interface length
+            dx = first_iface.x2_mm - first_iface.x1_mm
+            dy = first_iface.y2_mm - first_iface.y1_mm
+            interface_length = np.sqrt(dx*dx + dy*dy)
+            
+            # Set _p1/_p2 as HORIZONTAL in item-local space with the correct length
+            # The item's rotation (setRotation) will orient it correctly
+            # This ensures _p1/_p2 match the interface length but in item-local coordinates
+            self.prepareGeometryChange()
+            self._p1 = QtCore.QPointF(-interface_length / 2, 0)
+            self._p2 = QtCore.QPointF(interface_length / 2, 0)
+            self._len = interface_length
+            self._actual_length_mm = interface_length
+        
+        if self.params.image_path:
+            # Check if component has a reference line from interface definition
+            # This allows proper sprite orientation for components from the registry
+            if hasattr(self.params, '_reference_line_mm'):
+                reference_line_mm = self.params._reference_line_mm
+            else:
+                # For simple items without explicit interfaces, use a horizontal line
+                # across the center of the image as the reference line
+                # This represents the optical axis
+                half_width = self.params.object_height_mm / 2.0
+                reference_line_mm = (-half_width, 0.0, half_width, 0.0)
+            
             self._sprite = ComponentSprite(
                 self.params.image_path,
-                self.params.line_px,
+                reference_line_mm,
                 self.params.object_height_mm,
                 self,
             )
             
-            # Update element geometry to match the picked line length (not full image height)
-            self._actual_length_mm = self._sprite.picked_line_length_mm
-            self._update_geom()
+            # If we didn't set geometry from interfaces, update it from sprite
+            if not (interfaces and len(interfaces) > 0):
+                self._actual_length_mm = self._sprite.picked_line_length_mm
+                self._update_geom()
+                
+                # Calculate offset from image center to reference line center
+                cx_mm = 0.5 * (reference_line_mm[0] + reference_line_mm[2])
+                cy_mm = 0.5 * (reference_line_mm[1] + reference_line_mm[3])
+                self._picked_line_offset_mm = (cx_mm, cy_mm)
         
         self.setZValue(0)
     
@@ -88,8 +131,77 @@ class MirrorItem(BaseObj):
     
     def paint(self, p: QtGui.QPainter, opt, widget=None):
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
-        p.setPen(QtGui.QPen(QtGui.QColor("darkslategray"), 3))
+        pen = QtGui.QPen(QtGui.QColor("darkslategray"), 6)
+        pen.setCosmetic(True)
+        p.setPen(pen)
+        
+        # Mirrors use _p1/_p2 for rendering (properly oriented in item's local coordinate system)
+        # Interfaces are stored in image space for raytracing, not for rendering simple mirrors
+        # Note: Curved mirrors would need special handling if we ever support them
         p.drawLine(self._p1, self._p2)
+    
+    def _draw_curved_surface(self, p: QtGui.QPainter, p1: QtCore.QPointF, p2: QtCore.QPointF, radius_mm: float):
+        """
+        Draw a curved mirror surface as an arc.
+        
+        Args:
+            p: QPainter
+            p1, p2: Endpoints in local item coordinates
+            radius_mm: Radius of curvature (positive or negative)
+        """
+        import math
+        
+        # Calculate the center of the arc
+        # Midpoint
+        mid_x = (p1.x() + p2.x()) / 2.0
+        mid_y = (p1.y() + p2.y()) / 2.0
+        
+        # Chord vector
+        dx = p2.x() - p1.x()
+        dy = p2.y() - p1.y()
+        chord_length = math.sqrt(dx*dx + dy*dy)
+        
+        if chord_length < 0.01:
+            p.drawLine(p1, p2)
+            return
+        
+        # Perpendicular to chord
+        perp_x = -dy / chord_length
+        perp_y = dx / chord_length
+        
+        # Distance from midpoint to center
+        r = abs(radius_mm)
+        half_chord = chord_length / 2.0
+        
+        if r < half_chord:
+            # Radius too small, draw straight line
+            p.drawLine(p1, p2)
+            return
+        
+        d = math.sqrt(r*r - half_chord*half_chord)
+        
+        # Center position (direction depends on sign of radius)
+        if radius_mm > 0:
+            center_x = mid_x + d * perp_x
+            center_y = mid_y + d * perp_y
+        else:
+            center_x = mid_x - d * perp_x
+            center_y = mid_y - d * perp_y
+        
+        # Calculate angles
+        angle1 = math.atan2(p1.y() - center_y, p1.x() - center_x) * 180.0 / math.pi
+        angle2 = math.atan2(p2.y() - center_y, p2.x() - center_x) * 180.0 / math.pi
+        
+        # Span angle (always draw shorter arc)
+        span = angle2 - angle1
+        if span > 180:
+            span -= 360
+        elif span < -180:
+            span += 360
+        
+        # Draw arc
+        rect = QtCore.QRectF(center_x - r, center_y - r, 2*r, 2*r)
+        p.drawArc(rect, int(angle1 * 16), int(span * 16))  # Qt uses 1/16th degree units
     
     def open_editor(self):
         """Open editor dialog for mirror parameters."""
@@ -211,6 +323,45 @@ class MirrorItem(BaseObj):
         p1 = self.mapToScene(self._p1)
         p2 = self.mapToScene(self._p2)
         return np.array([p1.x(), p1.y()]), np.array([p2.x(), p2.y()])
+    
+    def get_interfaces_scene(self):
+        """
+        Get all optical interfaces in scene coordinates.
+        
+        Returns:
+            List of (p1, p2, interface) tuples where p1 and p2 are numpy arrays
+            in scene coordinates, and interface is an InterfaceDefinition.
+        """
+        from ...core.interface_definition import InterfaceDefinition
+        
+        # Check if interfaces field exists and has content
+        interfaces = getattr(self.params, 'interfaces', None)
+        if not interfaces or len(interfaces) == 0:
+            # Create default interface from current geometry
+            p1, p2 = self.endpoints_scene()
+            
+            default_interface = InterfaceDefinition(
+                x1_mm=0.0,  # Will be transformed by scene coordinates
+                y1_mm=0.0,
+                x2_mm=0.0,
+                y2_mm=0.0,
+                element_type="mirror",
+                reflectivity=99.0
+            )
+            return [(p1, p2, default_interface)]
+        
+        # For lenses/mirrors with interfaces, use the rendered line (_p1/_p2)
+        # for raytracing to ensure perfect alignment between what you see and what interacts
+        # The interface stores optical properties (reflectivity, etc) but NOT geometry
+        p1, p2 = self.endpoints_scene()
+        
+        result = []
+        for iface in interfaces:
+            # Use the same geometry for all interfaces (single-element mirror)
+            # The interface object carries optical properties only
+            result.append((p1, p2, iface))
+        
+        return result
     
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary."""

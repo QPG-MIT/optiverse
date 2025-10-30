@@ -55,17 +55,26 @@ class SLMItem(BaseObj):
                 pass
             self._sprite = None
         
-        if self.params.image_path and self.params.line_px:
-            # ComponentSprite handles all denormalization internally
-            # We just pass the normalized coordinates and let it handle the rest
+        if self.params.image_path:
+            # Check if component has a reference line from interface definition
+            # This allows proper sprite orientation for components from the registry
+            if hasattr(self.params, '_reference_line_mm'):
+                reference_line_mm = self.params._reference_line_mm
+            else:
+                # For simple items without explicit interfaces, use a horizontal line
+                # across the center of the image as the reference line
+                # This represents the optical axis
+                half_width = self.params.object_height_mm / 2.0
+                reference_line_mm = (-half_width, 0.0, half_width, 0.0)
+            
             self._sprite = ComponentSprite(
                 self.params.image_path,
-                self.params.line_px,
+                reference_line_mm,
                 self.params.object_height_mm,
                 self,
             )
             
-            # Update element geometry to match the picked line length (not full image height)
+            # Update element geometry to match the reference line length
             self._actual_length_mm = self._sprite.picked_line_length_mm
             self._update_geom()
         
@@ -90,7 +99,9 @@ class SLMItem(BaseObj):
     def paint(self, p: QtGui.QPainter, opt, widget=None):
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
         # Use a distinct color for SLM (blue-ish)
-        p.setPen(QtGui.QPen(QtGui.QColor("steelblue"), 3))
+        pen = QtGui.QPen(QtGui.QColor("steelblue"), 6)
+        pen.setCosmetic(True)
+        p.setPen(pen)
         p.drawLine(self._p1, self._p2)
     
     def open_editor(self):

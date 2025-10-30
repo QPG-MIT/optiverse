@@ -8,3 +8,5 @@ bugs:
 feature request:
 - zemax file include
 - zemax black box model
+- isolator
+- beam block

@@ -20,6 +20,16 @@ class RefractiveObjectItem(BaseObj):
     This represents complex optical components like beam splitter cubes, prisms,
     or any component with multiple refracting surfaces. Each interface handles
     refraction according to Snell's law and partial reflection via Fresnel equations.
+    
+    COORDINATE SYSTEM:
+    - Interfaces are stored in RefractiveInterface objects (Y-down, mm, image-center origin)
+    - When displayed, coordinates are transformed from image-center to picked-line-center
+    - The picked line offset accounts for centering the sprite on the reference line
+    - QGraphicsScene uses Y-down (standard Qt), so no Y-flip is needed for display
+    
+    COORDINATE TRANSFORMATION:
+    - Storage: (x, y) relative to image center, Y-down
+    - Display: (x - offset_x, y - offset_y) relative to picked line center, Y-down
     """
     
     def __init__(self, params: RefractiveObjectParams, item_uuid: str | None = None):
@@ -86,44 +96,58 @@ class RefractiveObjectItem(BaseObj):
         # Calculate picked line offset for coordinate transformation
         self._picked_line_offset_mm = (0.0, 0.0)  # Default: no offset
         
-        if self.params.image_path and self.params.line_px:
+        # Use first interface to compute reference line for sprite positioning
+        if self.params.image_path and self.params.interfaces and len(self.params.interfaces) > 0:
+            first_interface = self.params.interfaces[0]
+            
+            # For refractive objects, the interface is perpendicular to the optical axis
+            # We need to create a perpendicular line to represent the optical axis direction
+            # which is what the sprite image shows
+            
+            # Get interface direction and length
+            dx = first_interface.x2_mm - first_interface.x1_mm
+            dy = first_interface.y2_mm - first_interface.y1_mm
+            interface_length = (dx**2 + dy**2)**0.5
+            
+            # Get interface center
+            cx = 0.5 * (first_interface.x1_mm + first_interface.x2_mm)
+            cy = 0.5 * (first_interface.y1_mm + first_interface.y2_mm)
+            
+            # Create perpendicular line (optical axis direction) centered at interface
+            # Rotate 90° counterclockwise: (dx, dy) → (-dy, dx)
+            # Then flip 180° by swapping endpoints to get correct orientation
+            half_length = interface_length / 2.0
+            if interface_length > 0:
+                # Perpendicular (counterclockwise)
+                perp_dx = -dy / interface_length * half_length
+                perp_dy = dx / interface_length * half_length
+            else:
+                # Fallback: horizontal line
+                perp_dx = half_length
+                perp_dy = 0.0
+            
+            # Create reference line with 180° flip (swap endpoints)
+            reference_line_mm = (
+                cx - perp_dx,  # Swapped: was cx + perp_dx
+                cy - perp_dy,  # Swapped: was cy + perp_dy
+                cx + perp_dx,  # Swapped: was cx - perp_dx
+                cy + perp_dy   # Swapped: was cy - perp_dy
+            )
+            
             self._sprite = ComponentSprite(
                 self.params.image_path,
-                self.params.line_px,
+                reference_line_mm,
                 self.params.object_height_mm,
                 self,
             )
             self._actual_length_mm = self._sprite.picked_line_length_mm
             
-            # Calculate offset from image center to picked line center
-            # ComponentSprite centers the component on the picked line, but interfaces
-            # are stored relative to image center. We need to account for this offset.
-            import os
-            from PyQt6 import QtGui
-            if os.path.exists(self.params.image_path):
-                pix = QtGui.QPixmap(self.params.image_path)
-                actual_height = pix.height()
-                actual_width = pix.width()
-                
-                if actual_height > 0:
-                    # Denormalize line_px from 1000px space to actual image space
-                    scale = float(actual_height) / 1000.0
-                    x1_actual = self.params.line_px[0] * scale
-                    y1_actual = self.params.line_px[1] * scale
-                    x2_actual = self.params.line_px[2] * scale
-                    y2_actual = self.params.line_px[3] * scale
-                    
-                    # Picked line center in image pixel coords (top-left origin)
-                    cx_px = 0.5 * (x1_actual + x2_actual)
-                    cy_px = 0.5 * (y1_actual + y2_actual)
-                    
-                    # Convert to centered coordinate system (image center origin)
-                    mm_per_px = self.params.object_height_mm / actual_height
-                    x_picked_mm = (cx_px - actual_width / 2) * mm_per_px
-                    y_picked_mm = (cy_px - actual_height / 2) * mm_per_px
-                    
-                    # Store offset: interfaces are at image center, but item (0,0) is at picked line center
-                    self._picked_line_offset_mm = (x_picked_mm, y_picked_mm)
+            # Calculate offset from image center to reference line center
+            # ComponentSprite centers the component on the reference line center
+            # The reference line center is at (cx, cy) - same as the interface center
+            # since we created the perpendicular line centered at the interface
+            # Store offset: interfaces are at image center, but item (0,0) is at reference line center
+            self._picked_line_offset_mm = (cx, cy)
             
             self._update_geom()
         
@@ -167,23 +191,42 @@ class RefractiveObjectItem(BaseObj):
             # Color coding by interface type
             if iface.is_beam_splitter:
                 color = QtGui.QColor(0, 150, 120)  # Teal for beam splitter
-                width = 3
+                width = 6
             elif iface.n1 != iface.n2:
                 color = QtGui.QColor(100, 100, 255)  # Blue for refractive interface
-                width = 2
+                width = 4
             else:
                 color = QtGui.QColor(150, 150, 150)  # Gray for same index
-                width = 1
+                width = 2
             
-            p.setPen(QtGui.QPen(color, width))
+            pen = QtGui.QPen(color, width)
+            pen.setCosmetic(True)
+            p.setPen(pen)
             
             # Transform from image-center coords to picked-line-center coords
             # Interfaces are stored relative to image center, but item (0,0) is at picked line center
             p1 = QtCore.QPointF(iface.x1_mm - offset_x, iface.y1_mm - offset_y)
             p2 = QtCore.QPointF(iface.x2_mm - offset_x, iface.y2_mm - offset_y)
-            p.drawLine(p1, p2)
             
-            # Draw small normal indicator
+            # Skip drawing if interface is too short (degenerate/invalid)
+            dx_check = p2.x() - p1.x()
+            dy_check = p2.y() - p1.y()
+            length_check = (dx_check**2 + dy_check**2)**0.5
+            if length_check < 0.1:  # Skip very short interfaces
+                continue
+            
+            # Check if this interface is curved
+            is_curved = getattr(iface, 'is_curved', False)
+            radius = getattr(iface, 'radius_of_curvature_mm', 0.0)
+            
+            if is_curved and abs(radius) > 0.1:
+                # Draw curved surface
+                self._draw_curved_surface(p, p1, p2, radius)
+            else:
+                # Draw straight line
+                p.drawLine(p1, p2)
+            
+            # Draw small normal indicator at midpoint
             mid = (p1 + p2) / 2
             dx = p2.x() - p1.x()
             dy = p2.y() - p1.y()
@@ -195,6 +238,69 @@ class RefractiveObjectItem(BaseObj):
                 normal_len = 5.0
                 p.setPen(QtGui.QPen(color, 1, QtCore.Qt.PenStyle.DashLine))
                 p.drawLine(mid, mid + QtCore.QPointF(nx * normal_len, ny * normal_len))
+    
+    def _draw_curved_surface(self, p: QtGui.QPainter, p1: QtCore.QPointF, p2: QtCore.QPointF, radius_mm: float):
+        """
+        Draw a curved surface as an arc.
+        
+        Args:
+            p: QPainter
+            p1, p2: Endpoints in local item coordinates
+            radius_mm: Radius of curvature (positive or negative)
+        """
+        import math
+        
+        # Calculate the center of the arc
+        # Midpoint
+        mid_x = (p1.x() + p2.x()) / 2.0
+        mid_y = (p1.y() + p2.y()) / 2.0
+        
+        # Chord vector
+        dx = p2.x() - p1.x()
+        dy = p2.y() - p1.y()
+        chord_length = math.sqrt(dx*dx + dy*dy)
+        
+        if chord_length < 0.01:
+            p.drawLine(p1, p2)
+            return
+        
+        # Perpendicular to chord
+        perp_x = -dy / chord_length
+        perp_y = dx / chord_length
+        
+        # Distance from midpoint to center
+        r = abs(radius_mm)
+        half_chord = chord_length / 2.0
+        
+        if r < half_chord:
+            # Radius too small, draw straight line
+            p.drawLine(p1, p2)
+            return
+        
+        d = math.sqrt(r*r - half_chord*half_chord)
+        
+        # Center position (direction depends on sign of radius)
+        if radius_mm > 0:
+            center_x = mid_x + d * perp_x
+            center_y = mid_y + d * perp_y
+        else:
+            center_x = mid_x - d * perp_x
+            center_y = mid_y - d * perp_y
+        
+        # Calculate angles
+        angle1 = math.atan2(p1.y() - center_y, p1.x() - center_x) * 180.0 / math.pi
+        angle2 = math.atan2(p2.y() - center_y, p2.x() - center_x) * 180.0 / math.pi
+        
+        # Span angle (always draw shorter arc)
+        span = angle2 - angle1
+        if span > 180:
+            span -= 360
+        elif span < -180:
+            span += 360
+        
+        # Draw arc
+        rect = QtCore.QRectF(center_x - r, center_y - r, 2*r, 2*r)
+        p.drawArc(rect, int(angle1 * 16), int(span * 16))  # Qt uses 1/16th degree units
     
     def open_editor(self):
         """Open editor dialog for refractive object parameters."""
@@ -510,7 +616,6 @@ class RefractiveObjectItem(BaseObj):
             "object_height_mm": self.params.object_height_mm,
             "image_path": to_relative_path(self.params.image_path),
             "mm_per_pixel": self.params.mm_per_pixel,
-            "line_px": self.params.line_px,
             "name": self.params.name,
             "item_uuid": self.item_uuid,
             "interfaces": [asdict(iface) for iface in self.params.interfaces]
@@ -540,7 +645,6 @@ class RefractiveObjectItem(BaseObj):
             interfaces=interfaces,
             image_path=image_path,
             mm_per_pixel=d.get("mm_per_pixel", 0.1),
-            line_px=d.get("line_px"),
             name=d.get("name")
         )
         

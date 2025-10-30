@@ -54,19 +54,41 @@ class BeamsplitterItem(BaseObj):
                 pass
             self._sprite = None
         
-        if self.params.image_path and self.params.line_px:
-            # ComponentSprite handles all denormalization internally
-            # We just pass the normalized coordinates and let it handle the rest
+        # Calculate picked line offset for coordinate transformation
+        self._picked_line_offset_mm = (0.0, 0.0)  # Default: no offset
+        
+        if self.params.image_path:
+            # Check if component has a reference line from interface definition
+            # This allows proper sprite orientation for components from the registry
+            if hasattr(self.params, '_reference_line_mm'):
+                reference_line_mm = self.params._reference_line_mm
+            else:
+                # For simple items without explicit interfaces, use a horizontal line
+                # across the center of the image as the reference line
+                # This represents the optical axis
+                half_width = self.params.object_height_mm / 2.0
+                reference_line_mm = (-half_width, 0.0, half_width, 0.0)
+            
             self._sprite = ComponentSprite(
                 self.params.image_path,
-                self.params.line_px,
+                reference_line_mm,
                 self.params.object_height_mm,
                 self,
             )
             
-            # Update element geometry to match the picked line length (not full image height)
+            # Update element geometry to match the reference line length
             self._actual_length_mm = self._sprite.picked_line_length_mm
             self._update_geom()
+            
+            # Calculate offset from image center to reference line center
+            # ComponentSprite centers the component on the reference line, but interfaces
+            # are stored relative to image center. We need to account for this offset.
+            # Reference line center in mm (centered coordinate system)
+            cx_mm = 0.5 * (reference_line_mm[0] + reference_line_mm[2])
+            cy_mm = 0.5 * (reference_line_mm[1] + reference_line_mm[3])
+            
+            # Store offset: interfaces are at image center, but item (0,0) is at reference line center
+            self._picked_line_offset_mm = (cx_mm, cy_mm)
         
         self.setZValue(0)
     
@@ -88,7 +110,9 @@ class BeamsplitterItem(BaseObj):
     
     def paint(self, p: QtGui.QPainter, opt, widget=None):
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
-        p.setPen(QtGui.QPen(QtGui.QColor(0, 150, 120), 3))
+        pen = QtGui.QPen(QtGui.QColor(0, 150, 120), 6)
+        pen.setCosmetic(True)
+        p.setPen(pen)
         p.drawLine(self._p1, self._p2)
     
     def open_editor(self):
@@ -274,6 +298,54 @@ class BeamsplitterItem(BaseObj):
         p1 = self.mapToScene(self._p1)
         p2 = self.mapToScene(self._p2)
         return np.array([p1.x(), p1.y()]), np.array([p2.x(), p2.y()])
+    
+    def get_interfaces_scene(self):
+        """
+        Get all optical interfaces in scene coordinates.
+        
+        Returns:
+            List of (p1, p2, interface) tuples where p1 and p2 are numpy arrays
+            in scene coordinates, and interface is an InterfaceDefinition.
+        """
+        from ...core.interface_definition import InterfaceDefinition
+        
+        # Check if interfaces field exists and has content
+        interfaces = getattr(self.params, 'interfaces', None)
+        if not interfaces or len(interfaces) == 0:
+            # Create default interface from current geometry
+            p1, p2 = self.endpoints_scene()
+            
+            default_interface = InterfaceDefinition(
+                x1_mm=0.0,  # Will be transformed by scene coordinates
+                y1_mm=0.0,
+                x2_mm=0.0,
+                y2_mm=0.0,
+                element_type="beam_splitter",
+                split_T=self.params.split_T,
+                split_R=self.params.split_R,
+                is_polarizing=self.params.is_polarizing,
+                pbs_transmission_axis_deg=self.params.pbs_transmission_axis_deg
+            )
+            return [(p1, p2, default_interface)]
+        
+        # Get picked line offset for coordinate transformation
+        offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
+        
+        result = []
+        for iface in interfaces:
+            # Transform from image-center coords to picked-line-center coords (item local coords)
+            p1_local = QtCore.QPointF(iface.x1_mm - offset_x, iface.y1_mm - offset_y)
+            p2_local = QtCore.QPointF(iface.x2_mm - offset_x, iface.y2_mm - offset_y)
+            
+            # Transform to scene coordinates
+            p1_scene = self.mapToScene(p1_local)
+            p2_scene = self.mapToScene(p2_local)
+            
+            p1 = np.array([p1_scene.x(), p1_scene.y()])
+            p2 = np.array([p2_scene.x(), p2_scene.y()])
+            result.append((p1, p2, iface))
+        
+        return result
     
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary."""
