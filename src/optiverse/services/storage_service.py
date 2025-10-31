@@ -5,6 +5,7 @@ import os
 from typing import List, Dict, Any
 
 from ..platform.paths import get_library_path
+from ..core.models import serialize_component, deserialize_component
 
 
 class StorageService:
@@ -34,8 +35,27 @@ class StorageService:
             # If library is empty, populate with standard components
             if len(data) == 0:
                 return self._initialize_library()
-            
-            return data
+
+            # Normalize via deserialize (handles paths and migrations)
+            # Note: We preserve absolute image paths for UI display, unlike save operations
+            normalized: List[Dict[str, Any]] = []
+            for row in data:
+                rec = deserialize_component(row)
+                if rec is None:
+                    continue
+                # Create dict manually to preserve absolute image_path
+                # (serialize_component() would convert to relative for portability)
+                component_dict = {
+                    "name": rec.name,
+                    "image_path": rec.image_path,  # Keep absolute for UI thumbnails
+                    "object_height_mm": float(rec.object_height_mm),
+                    "angle_deg": float(rec.angle_deg),
+                    "notes": rec.notes or "",
+                }
+                if rec.interfaces:
+                    component_dict["interfaces"] = [iface.to_dict() for iface in rec.interfaces]
+                normalized.append(component_dict)
+            return normalized if normalized else self._initialize_library()
         except Exception:
             # On error, initialize with standard components
             return self._initialize_library()

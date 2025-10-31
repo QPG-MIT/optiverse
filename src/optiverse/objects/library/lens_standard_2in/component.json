@@ -1,0 +1,17 @@
+{
+  "name": "Standard Lens (2\" mounted)",
+  "image_path": "images/lens_1_inch_mounted.png",
+  "object_height_mm": 55.9,
+  "angle_deg": 0.0,
+  "interfaces": [
+    {
+      "x1_mm": 0.0,
+      "y1_mm": 27.95,
+      "x2_mm": 0.0,
+      "y2_mm": -27.95,
+      "element_type": "lens",
+      "efl_mm": 100.0
+    }
+  ]
+}
+

@@ -484,7 +484,8 @@ class ComponentEditor(QtWidgets.QMainWindow):
         # COORDINATE SYSTEM
         # Storage (InterfaceDefinition): (0,0) at IMAGE CENTER, Y-up (math), in mm
         # Canvas (MultiLineCanvas): (0,0) at IMAGE CENTER, Y-up (math), in mm
-        # No transformation needed.
+        # Qt Display: Y-down conversion happens in ComponentSprite only
+        # No transformation needed here - both use Y-up.
         
         # Add each interface for display
         for i, interface in enumerate(interfaces):
@@ -543,11 +544,11 @@ class ComponentEditor(QtWidgets.QMainWindow):
                     interfaces[i].x2_mm = line.x2
                     interfaces[i].y2_mm = line.y2
                     
-                    # Debug: Log coordinates (both use Y-down)
+                    # Debug: Log coordinates (both use Y-up)
                     if False:  # Set to True for debugging
                         print(f"Interface {i} dragged:")
-                        print(f"  Canvas (Y-down): ({line.x1:.2f}, {line.y1:.2f}) to ({line.x2:.2f}, {line.y2:.2f})")
-                        print(f"  Storage (Y-down): ({interfaces[i].x1_mm:.2f}, {interfaces[i].y1_mm:.2f}) to ({interfaces[i].x2_mm:.2f}, {interfaces[i].y2_mm:.2f})")
+                        print(f"  Canvas (Y-up): ({line.x1:.2f}, {line.y1:.2f}) to ({line.x2:.2f}, {line.y2:.2f})")
+                        print(f"  Storage (Y-up): ({interfaces[i].x1_mm:.2f}, {interfaces[i].y1_mm:.2f}) to ({interfaces[i].x2_mm:.2f}, {interfaces[i].y2_mm:.2f})")
                     
                     # Update the interface in the panel (silently - signals blocked)
                     self.interface_panel.update_interface(i, interfaces[i])

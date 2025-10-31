@@ -20,7 +20,8 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
     COORDINATE SYSTEM:
     - object_height_mm represents the physical size of the FULL IMAGE HEIGHT
     - mm_per_pixel is computed as: object_height_mm / actual_image_height
-    - reference_line_mm is in mm coordinates (centered, Y-down): (x1, y1, x2, y2)
+    - reference_line_mm is in mm coordinates (centered, Y-up): (x1, y1, x2, y2)
+    - Pixmap is flipped in Y to convert from native Y-down to scene Y-up coordinates
     - The reference line defines the OPTICAL AXIS (position and orientation)
     - Reference line's midpoint is aligned to the parent's local origin using setOffset
     - Pre-rotated so reference line lies on +X in local coords
@@ -39,7 +40,8 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
         Args:
             image_path: Path to image file
             reference_line_mm: Reference line in mm coordinates (x1, y1, x2, y2)
-                              Centered at image center (0,0), Y-down
+                              Centered at image center (0,0), Y-up convention
+                              (positive Y = up, negative Y = down)
             object_height_mm: Physical height of full image in mm
             parent_item: Parent graphics item
         """
@@ -78,19 +80,23 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
         # Scale image so that the FULL IMAGE HEIGHT is exactly object_height_mm
         mm_per_pixel = object_height_mm / actual_height
         
-        # Convert reference line from mm (centered, Y-down) to image pixels (top-left origin, Y-down)
+        # Convert reference line from mm (centered, Y-up) to image pixels (top-left origin, Y-up)
         x1_mm, y1_mm, x2_mm, y2_mm = reference_line_mm
         
         # Convert from centered mm to pixel coordinates
+        # Storage: Y-up (positive = up, negative = down)
+        # Pixmap: Y-down (native image format)
+        # We negate Y when mapping mm to pixels, then flip the entire sprite to Y-up
         # Pixel coords: (0,0) at top-left
         # mm coords: (0,0) at center
         image_center_x_px = actual_width / 2.0
         image_center_y_px = actual_height / 2.0
         
+        # Convert mm to pixels - negate Y to map Y-up mm to Y-down pixels
         x1_px = (x1_mm / mm_per_pixel) + image_center_x_px
-        y1_px = (y1_mm / mm_per_pixel) + image_center_y_px
+        y1_px = (-y1_mm / mm_per_pixel) + image_center_y_px  # Negate Y
         x2_px = (x2_mm / mm_per_pixel) + image_center_x_px
-        y2_px = (y2_mm / mm_per_pixel) + image_center_y_px
+        y2_px = (-y2_mm / mm_per_pixel) + image_center_y_px  # Negate Y
         
         # Extract line vector for alignment
         dx_px = x2_px - x1_px
@@ -111,6 +117,11 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
         # Scale uniformly from pixels to mm
         s_px_to_mm = float(mm_per_pixel) if mm_per_pixel > 0 else 1.0
         self.setScale(s_px_to_mm)
+
+        # Flip sprite in Y to convert pixmap from native Y-down to scene Y-up
+        transform = self.transform()
+        transform.scale(1.0, -1.0)
+        self.setTransform(transform)
 
         # Render below the element geometry
         self.setZValue(-100)

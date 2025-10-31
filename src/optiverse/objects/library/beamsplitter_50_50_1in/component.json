@@ -1,0 +1,18 @@
+{
+  "name": "Standard Beamsplitter (50/50 1\")",
+  "image_path": "images/beamsplitter_50_50_1_inch.png",
+  "object_height_mm": 25.4,
+  "angle_deg": 0.0,
+  "interfaces": [
+    {
+      "x1_mm": -12.7,
+      "y1_mm": 12.7,
+      "x2_mm": 12.7,
+      "y2_mm": -12.7,
+      "element_type": "beam_splitter",
+      "split_T": 50.0,
+      "split_R": 50.0
+    }
+  ]
+}
+

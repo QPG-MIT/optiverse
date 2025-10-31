@@ -13,7 +13,7 @@ def test_storage_library_roundtrip(tmp_path, monkeypatch):
     svc = StorageService()
     comp = {
         "name": "lens100",
-        "kind": "lens",
+        "category": "lens",
         "image_path": str(tmp_path / "assets" / "img.png"),
         "mm_per_pixel": 0.1,
         "line_px": [0.0, 0.0, 10.0, 0.0],

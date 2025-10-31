@@ -20,8 +20,10 @@ from ..core.models import (
     SLMParams,
     RefractiveObjectParams,
     RefractiveInterface,
+    BlockParams,
 )
 from ..core.interface_definition import InterfaceDefinition
+from ..platform.paths import to_absolute_path
 from .base_obj import BaseObj
 
 
@@ -64,6 +66,7 @@ class ComponentFactory:
         from .dichroics import DichroicItem
         from .misc import SLMItem
         from .refractive import RefractiveObjectItem
+        from .blocks.block_item import BlockItem
         
         # Extract interfaces (source of truth)
         interfaces_data = data.get("interfaces", [])
@@ -87,7 +90,9 @@ class ComponentFactory:
         
         # Extract common parameters
         name = data.get("name", "Component")
-        image_path = data.get("image_path", "")
+        image_path_raw = data.get("image_path", "")
+        # Convert package-relative paths to absolute filesystem paths
+        image_path = to_absolute_path(image_path_raw) if image_path_raw else ""
         object_height_mm = float(data.get("object_height_mm", data.get("object_height", data.get("length_mm", 60.0))))
         
         # Determine angle (default to 0.0 = native orientation from Component Editor)
@@ -113,9 +118,8 @@ class ComponentFactory:
         all_refractive = all(iface.element_type == "refractive_interface" for iface in interfaces)
         use_refractive_item = all_refractive or (len(interfaces) > 1 and not all_same_type)
         
-        # Create the appropriate item type
+        # Create the appropriate item type using a dispatch table
         if use_refractive_item:
-            # Convert to RefractiveInterface format
             ref_interfaces = []
             for iface_def in interfaces:
                 ref_iface = RefractiveInterface(
@@ -134,9 +138,9 @@ class ComponentFactory:
                     pbs_transmission_axis_deg=iface_def.pbs_transmission_axis_deg,
                 )
                 ref_interfaces.append(ref_iface)
-            
+
             mm_per_pixel = float(data.get("mm_per_pixel", object_height_mm / 1000.0))
-            
+
             params = RefractiveObjectParams(
                 x_mm=x_mm,
                 y_mm=y_mm,
@@ -148,11 +152,9 @@ class ComponentFactory:
                 name=name,
             )
             return RefractiveObjectItem(params)
-        
-        elif element_type == "lens":
-            # Extract lens-specific parameters
-            efl_mm = float(first_interface.efl_mm if hasattr(first_interface, 'efl_mm') else 100.0)
-            
+
+        def build_lens():
+            efl_mm = float(getattr(first_interface, 'efl_mm', 100.0))
             params = LensParams(
                 x_mm=x_mm,
                 y_mm=y_mm,
@@ -166,14 +168,12 @@ class ComponentFactory:
             if reference_line_mm:
                 params._reference_line_mm = reference_line_mm  # type: ignore
             return LensItem(params)
-        
-        elif element_type in ["beam_splitter", "beamsplitter"]:
-            # Extract beamsplitter-specific parameters
-            split_T = float(first_interface.split_T if hasattr(first_interface, 'split_T') else 50.0)
-            split_R = float(first_interface.split_R if hasattr(first_interface, 'split_R') else 50.0)
-            is_polarizing = bool(first_interface.is_polarizing if hasattr(first_interface, 'is_polarizing') else False)
-            pbs_axis = float(first_interface.pbs_transmission_axis_deg if hasattr(first_interface, 'pbs_transmission_axis_deg') else 0.0)
-            
+
+        def build_bs():
+            split_T = float(getattr(first_interface, 'split_T', 50.0))
+            split_R = float(getattr(first_interface, 'split_R', 50.0))
+            is_polarizing = bool(getattr(first_interface, 'is_polarizing', False))
+            pbs_axis = float(getattr(first_interface, 'pbs_transmission_axis_deg', 0.0))
             params = BeamsplitterParams(
                 x_mm=x_mm,
                 y_mm=y_mm,
@@ -190,12 +190,10 @@ class ComponentFactory:
             if reference_line_mm:
                 params._reference_line_mm = reference_line_mm  # type: ignore
             return BeamsplitterItem(params)
-        
-        elif element_type == "waveplate":
-            # Extract waveplate-specific parameters
-            phase_shift_deg = float(first_interface.phase_shift_deg if hasattr(first_interface, 'phase_shift_deg') else 90.0)
-            fast_axis_deg = float(first_interface.fast_axis_deg if hasattr(first_interface, 'fast_axis_deg') else 0.0)
-            
+
+        def build_waveplate():
+            phase_shift_deg = float(getattr(first_interface, 'phase_shift_deg', 90.0))
+            fast_axis_deg = float(getattr(first_interface, 'fast_axis_deg', 0.0))
             params = WaveplateParams(
                 x_mm=x_mm,
                 y_mm=y_mm,
@@ -210,13 +208,11 @@ class ComponentFactory:
             if reference_line_mm:
                 params._reference_line_mm = reference_line_mm  # type: ignore
             return WaveplateItem(params)
-        
-        elif element_type == "dichroic":
-            # Extract dichroic-specific parameters
-            cutoff_wavelength_nm = float(first_interface.cutoff_wavelength_nm if hasattr(first_interface, 'cutoff_wavelength_nm') else 550.0)
-            transition_width_nm = float(first_interface.transition_width_nm if hasattr(first_interface, 'transition_width_nm') else 50.0)
-            pass_type = str(first_interface.pass_type if hasattr(first_interface, 'pass_type') else "longpass")
-            
+
+        def build_dichroic():
+            cutoff_wavelength_nm = float(getattr(first_interface, 'cutoff_wavelength_nm', 550.0))
+            transition_width_nm = float(getattr(first_interface, 'transition_width_nm', 50.0))
+            pass_type = str(getattr(first_interface, 'pass_type', "longpass"))
             params = DichroicParams(
                 x_mm=x_mm,
                 y_mm=y_mm,
@@ -232,8 +228,8 @@ class ComponentFactory:
             if reference_line_mm:
                 params._reference_line_mm = reference_line_mm  # type: ignore
             return DichroicItem(params)
-        
-        elif element_type == "slm":
+
+        def build_slm():
             params = SLMParams(
                 x_mm=x_mm,
                 y_mm=y_mm,
@@ -245,8 +241,8 @@ class ComponentFactory:
             if reference_line_mm:
                 params._reference_line_mm = reference_line_mm  # type: ignore
             return SLMItem(params)
-        
-        elif element_type == "mirror":
+
+        def build_mirror():
             params = MirrorParams(
                 x_mm=x_mm,
                 y_mm=y_mm,
@@ -259,18 +255,32 @@ class ComponentFactory:
             if reference_line_mm:
                 params._reference_line_mm = reference_line_mm  # type: ignore
             return MirrorItem(params)
-        
-        else:
-            # Unknown element type - default to mirror
-            params = MirrorParams(
+
+        def build_block():
+            params = BlockParams(
                 x_mm=x_mm,
                 y_mm=y_mm,
                 angle_deg=angle_deg,
                 object_height_mm=object_height_mm,
                 image_path=image_path,
                 name=name,
+                interfaces=interfaces,
             )
             if reference_line_mm:
                 params._reference_line_mm = reference_line_mm  # type: ignore
-            return MirrorItem(params)
+            return BlockItem(params)
+
+        dispatch = {
+            "lens": build_lens,
+            "beam_splitter": build_bs,
+            "beamsplitter": build_bs,
+            "waveplate": build_waveplate,
+            "dichroic": build_dichroic,
+            "slm": build_slm,
+            "mirror": build_mirror,
+            "beam_block": build_block,
+        }
+
+        builder = dispatch.get(element_type, build_mirror)
+        return builder()
 

@@ -1,0 +1,14 @@
+{
+  "name": "Standard Source",
+  "image_path": "",
+  "object_height_mm": 10.0,
+  "angle_deg": 0.0,
+  "n_rays": 5,
+  "spread_deg": 5.0,
+  "size_mm": 10.0,
+  "ray_length_mm": 500.0,
+  "color_hex": "#FF0000",
+  "wavelength_nm": 0.0,
+  "interfaces": []
+}
+

@@ -9,15 +9,15 @@ This document outlines the strategy to generalize the component editor from a **
 ### Current Architecture
 
 **Component-centric design:**
-- Component has a single `kind` (lens, mirror, beamsplitter, dichroic, refractive_object)
+- Component has a single `category` (lens, mirror, beamsplitter, dichroic, refractive_object)
 - Simple components: 1 calibration line with type-specific properties
 - Refractive objects: Multiple interfaces with refraction/BS properties
-- Type-specific UI fields shown/hidden based on component kind
+- Type-specific UI fields shown/hidden based on component category
 
 **Current Data Model:**
 ```python
 ComponentRecord:
-  - kind: str  # Component type
+  - category: str  # Component type
   - line_px: Tuple[float, float, float, float]  # For simple components
   - interfaces: List[Dict]  # For refractive objects
   - efl_mm: float  # Lens-specific

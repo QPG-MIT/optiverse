@@ -8,7 +8,7 @@ from ..ui.views.main_window import MainWindow
 def get_dark_stylesheet() -> str:
     """Get the dark mode stylesheet."""
     return """
-    QMainWindow, QWidget {
+    QMainWindow {
         background-color: #1a1c21;
         color: white;
     }
@@ -18,15 +18,23 @@ def get_dark_stylesheet() -> str:
         border: none;
     }
     
-    QMenu {
+
+    QMenuBar {
         background-color: #1a1c21;
         color: white;
-        border: 1px solid #3d3f46;
+        border: none;
+    }
+    QMenuBar::item {
+        background: transparent;
+        padding: 4px 8px;
+        color: white;
+    }
+    QMenuBar::item:selected {
+        background-color: #2d2f36;
+        border-radius: 3px;
     }
     
-    QMenu::item:selected {
-        background-color: #2d2f36;
-    }
+    
     
     QToolBar {
         background-color: #1a1c21;
@@ -215,7 +223,7 @@ def get_dark_stylesheet() -> str:
 def get_light_stylesheet() -> str:
     """Get the light mode stylesheet."""
     return """
-    QMainWindow, QWidget {
+    QMainWindow {
         background-color: white;
         color: black;
     }
@@ -225,15 +233,23 @@ def get_light_stylesheet() -> str:
         border: none;
     }
     
-    QMenu {
-        background-color: white;
+
+    QMenuBar {
+        background-color: #f0f0f0;
         color: black;
-        border: 1px solid #c0c0c0;
+        border: none;
+    }
+    QMenuBar::item {
+        background: transparent;
+        padding: 4px 8px;
+        color: black;
+    }
+    QMenuBar::item:selected {
+        background-color: #e0e0e0;
+        border-radius: 3px;
     }
     
-    QMenu::item:selected {
-        background-color: #e0e0e0;
-    }
+    
     
     QToolBar {
         background-color: #f0f0f0;

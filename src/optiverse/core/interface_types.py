@@ -127,6 +127,17 @@ INTERFACE_TYPES: Dict[str, Dict[str, Any]] = {
             'radius_of_curvature_mm': 0.0,
         },
     },
+    'beam_block': {
+        'name': 'Beam Block',
+        'description': 'Absorbs incident rays (no transmission/reflection)',
+        'color': (30, 30, 30),
+        'emoji': '⬛',
+        'properties': [],
+        'property_labels': {},
+        'property_units': {},
+        'property_ranges': {},
+        'property_defaults': {},
+    },
 }
 
 

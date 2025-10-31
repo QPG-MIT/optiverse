@@ -1,0 +1,20 @@
+{
+  "name": "PBS (2\" Polarizing)",
+  "image_path": "images/pbs_2_inch.png",
+  "object_height_mm": 50.8,
+  "angle_deg": 0.0,
+  "interfaces": [
+    {
+      "x1_mm": -25.4,
+      "y1_mm": 25.4,
+      "x2_mm": 25.4,
+      "y2_mm": -25.4,
+      "element_type": "beam_splitter",
+      "split_T": 0.0,
+      "split_R": 0.0,
+      "is_polarizing": true,
+      "pbs_transmission_axis_deg": 0.0
+    }
+  ]
+}
+

@@ -1,0 +1,16 @@
+{
+  "name": "Standard Mirror (2\")",
+  "image_path": "images/standard_mirror_1_inch.png",
+  "object_height_mm": 68.6,
+  "angle_deg": 0.0,
+  "interfaces": [
+    {
+      "x1_mm": -25.7,
+      "y1_mm": -19.2,
+      "x2_mm": -25.7,
+      "y2_mm": 19.2,
+      "element_type": "mirror"
+    }
+  ]
+}
+

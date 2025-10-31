@@ -553,7 +553,7 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         interface = InterfaceDefinition(element_type=element_type)
         
         # Set default geometry (centered in image, horizontal line)
-        # Coordinate system: (0, 0) at IMAGE CENTER, Y-down (Qt standard)
+        # Coordinate system: (0, 0) at IMAGE CENTER, Y-up (mathematical convention)
         # Default interface: horizontal line at center, 10mm long
         y_center = 0.0  # mm - at vertical center
         x_center = 0.0  # mm - at horizontal center

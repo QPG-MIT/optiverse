@@ -27,7 +27,7 @@ def graphics_view(qtbot):
 def sample_lens_record():
     """Sample lens record for drag/drop testing."""
     return {
-        "kind": "lens",
+        "category": "lens",
         "name": "Test Lens",
         "efl_mm": 100.0,
         "length_mm": 60.0,
@@ -42,7 +42,7 @@ def sample_lens_record():
 def sample_mirror_record():
     """Sample mirror record for drag/drop testing."""
     return {
-        "kind": "mirror",
+        "category": "mirror",
         "name": "Test Mirror",
         "length_mm": 80.0,
         "angle_deg": 0.0,
@@ -56,7 +56,7 @@ def sample_mirror_record():
 def sample_beamsplitter_record():
     """Sample beamsplitter record for drag/drop testing."""
     return {
-        "kind": "beamsplitter",
+        "category": "beamsplitter",
         "name": "Test BS",
         "length_mm": 80.0,
         "angle_deg": 45.0,

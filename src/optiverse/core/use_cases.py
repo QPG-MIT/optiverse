@@ -41,7 +41,7 @@ def _trace_single_ray_worker(args):
     P_init, V_init, remaining_init, pol_init, wl_init, base_rgb = ray_state
     
     # Unpack element lists (each is a list of (obj, p1, p2) tuples or (p1, p2, interface) for refractive)
-    mirrors, lenses, bss, waveplates, dichroics, refractive_interfaces = element_lists
+    mirrors, lenses, bss, waveplates, dichroics, refractive_interfaces, blocks = element_lists
     
     # Unpack configuration
     max_events = config['max_events']
@@ -126,6 +126,19 @@ def _trace_single_ray_worker(args):
                 continue
             if nearest[0] is None or t < nearest[0]:
                 nearest = (t, X, "dichroic", obj, t_hat, n_hat, C, L)
+
+        # Check absorbers (beam blocks)
+        for obj, A, B in blocks:
+            if last_obj is obj:
+                continue
+            res = ray_hit_element(P, V, A, B)
+            if res is None:
+                continue
+            t, X, t_hat, n_hat, C, L = res
+            if t * vnorm > remaining:
+                continue
+            if nearest[0] is None or t < nearest[0]:
+                nearest = (t, X, "block", obj, t_hat, n_hat, C, L)
         
         # Check refractive interfaces
         for A, B, iface in refractive_interfaces:
@@ -192,6 +205,12 @@ def _trace_single_ray_worker(args):
         pts = pts + [P.copy()]
         remaining -= step
 
+        # Save originals for refractive-side logic before any orientation normalization
+        n_hat_orig = n_hat.copy()
+        t_hat_orig = t_hat.copy()
+        dot_v_n_orig = float(np.dot(V, n_hat_orig))
+
+        # Existing orientation normalization for non-refractive elements
         if float(np.dot(V, n_hat)) < 0:
             n_hat = -n_hat
             t_hat = -t_hat
@@ -310,6 +329,13 @@ def _trace_single_ray_worker(args):
                 pol_r = transform_polarization_mirror(pol, V, n_hat)
                 stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, obj, events + 1, Ir, pol_r, wl))
             continue
+
+        if kind == "block":
+            # Absorber: terminate the ray at hit point (pts already includes P)
+            if len(pts) >= 2:
+                a = int(255 * max(0.0, min(1.0, I)))
+                paths.append(RayPath(pts, (base_rgb[0], base_rgb[1], base_rgb[2], a), pol, wl))
+            continue
         
         if kind == "refractive":
             # obj here is actually a RefractiveInterface
@@ -352,30 +378,30 @@ def _trace_single_ray_worker(args):
                 continue
             
             # Regular refractive interface - apply Snell's law and Fresnel equations
-            # Determine which direction the ray is traveling
-            dot_v_n = float(np.dot(V, n_hat))
-            if dot_v_n < 0:
-                # Ray traveling in direction of normal (n1 -> n2)
+            # Determine which direction the ray is traveling using ORIGINAL normal
+            if dot_v_n_orig < 0:
+                # Ray traveling in direction of original normal (n1 -> n2)
                 n1 = iface.n1
                 n2 = iface.n2
+                n_hat_ref = n_hat_orig
             else:
-                # Ray traveling against normal (n2 -> n1)
+                # Ray traveling against original normal (n2 -> n1)
                 n1 = iface.n2
                 n2 = iface.n1
-                n_hat = -n_hat  # Flip normal to point in ray direction
+                n_hat_ref = -n_hat_orig
             
-            # Apply Snell's law
-            V_refracted, is_total_reflection = refract_vector_snell(V, n_hat, n1, n2)
+            # Apply Snell's law with reference normal
+            V_refracted, is_total_reflection = refract_vector_snell(V, n_hat_ref, n1, n2)
             
             if is_total_reflection:
                 # Total internal reflection - all light reflects
                 Vr = V_refracted
                 Pr = P + Vr * EPS_ADV
-                pol_r = transform_polarization_mirror(pol, V, n_hat)
+                pol_r = transform_polarization_mirror(pol, V, n_hat_ref)
                 stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, iface, events + 1, I, pol_r, wl))
             else:
                 # Partial reflection and transmission - compute Fresnel coefficients
-                theta1 = abs(math.acos(max(-1.0, min(1.0, -np.dot(V, n_hat)))))
+                theta1 = abs(math.acos(max(-1.0, min(1.0, -np.dot(V, n_hat_ref)))))
                 R, T = fresnel_coefficients(theta1, n1, n2)
                 
                 # Transmitted (refracted) ray
@@ -387,11 +413,11 @@ def _trace_single_ray_worker(args):
                     stack.append((pts + [Pt.copy()], Pt.copy(), Vt, remaining - EPS_ADV, iface, events + 1, It, pol, wl))
                 
                 # Reflected ray (Fresnel reflection)
-                Vr = normalize(reflect_vec(V, n_hat))
+                Vr = normalize(reflect_vec(V, n_hat_ref))
                 Pr = P + Vr * EPS_ADV
                 Ir = I * R
                 if Ir >= MIN_I:
-                    pol_r = transform_polarization_mirror(pol, V, n_hat)
+                    pol_r = transform_polarization_mirror(pol, V, n_hat_ref)
                     stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, iface, events + 1, Ir, pol_r, wl))
             continue
 
@@ -446,12 +472,13 @@ def trace_rays(
     bss = [(e, e.p1, e.p2) for e in elements if e.kind == "bs"]
     waveplates = [(e, e.p1, e.p2) for e in elements if e.kind == "waveplate"]
     dichroics = [(e, e.p1, e.p2) for e in elements if e.kind == "dichroic"]
+    blocks = [(e, e.p1, e.p2) for e in elements if e.kind == "block"]
     
     # Refractive interfaces are passed directly as (p1, p2, interface) tuples
     # They are collected separately from refractive objects in the main window
     refractive_interfaces = [(e.p1, e.p2, e) for e in elements if e.kind == "refractive_interface"]
     
-    element_lists = (mirrors, lenses, bss, waveplates, dichroics, refractive_interfaces)
+    element_lists = (mirrors, lenses, bss, waveplates, dichroics, refractive_interfaces, blocks)
     
     # Configuration
     config = {

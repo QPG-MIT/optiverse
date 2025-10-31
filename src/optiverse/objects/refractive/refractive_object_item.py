@@ -22,14 +22,15 @@ class RefractiveObjectItem(BaseObj):
     refraction according to Snell's law and partial reflection via Fresnel equations.
     
     COORDINATE SYSTEM:
-    - Interfaces are stored in RefractiveInterface objects (Y-down, mm, image-center origin)
+    - Interfaces are stored in RefractiveInterface objects (Y-up, mm, image-center origin)
     - When displayed, coordinates are transformed from image-center to picked-line-center
     - The picked line offset accounts for centering the sprite on the reference line
-    - QGraphicsScene uses Y-down (standard Qt), so no Y-flip is needed for display
+    - ComponentSprite handles Y-up to Y-down conversion for Qt display
     
     COORDINATE TRANSFORMATION:
-    - Storage: (x, y) relative to image center, Y-down
-    - Display: (x - offset_x, y - offset_y) relative to picked line center, Y-down
+    - Storage: (x, y) relative to image center, Y-up (positive = up)
+    - Display: (x - offset_x, y - offset_y) relative to picked line center, Y-up in item coords
+    - Qt converts to Y-down at rendering boundary
     """
     
     def __init__(self, params: RefractiveObjectParams, item_uuid: str | None = None):

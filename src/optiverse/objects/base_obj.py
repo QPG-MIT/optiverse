@@ -275,10 +275,6 @@ class BaseObj(QtWidgets.QGraphicsObject):
             # Calculate rotation delta
             angle_delta = current_angle - self._rotation_start_angle
             
-            # Shift+Ctrl: snap to 45-degree increments (0, 45, 90, 135, 180, etc.)
-            if ev.modifiers() & QtCore.Qt.KeyboardModifier.ShiftModifier:
-                angle_delta = round(angle_delta / 45.0) * 45.0
-            
             # Apply rotation
             if getattr(self, '_group_rotating', False):
                 # Group rotation
@@ -295,12 +291,23 @@ class BaseObj(QtWidgets.QGraphicsObject):
                     
                     # Rotate the item itself
                     initial_rotation = self._group_initial_rotations[item]
-                    item.setRotation(initial_rotation + angle_delta)
+                    new_rotation = initial_rotation + angle_delta
+                    
+                    # Shift+Ctrl: snap to absolute 45-degree increments (0, 45, 90, 135, 180, etc.)
+                    if ev.modifiers() & QtCore.Qt.KeyboardModifier.ShiftModifier:
+                        new_rotation = round(new_rotation / 45.0) * 45.0
+                    
+                    item.setRotation(new_rotation)
                     # Emit edited signal during drag for live editor updates
                     item.edited.emit()
             else:
                 # Single item rotation
                 new_rotation = self._rotation_initial + angle_delta
+                
+                # Shift+Ctrl: snap to absolute 45-degree increments (0, 45, 90, 135, 180, etc.)
+                if ev.modifiers() & QtCore.Qt.KeyboardModifier.ShiftModifier:
+                    new_rotation = round(new_rotation / 45.0) * 45.0
+                
                 self.setRotation(new_rotation)
                 # Emit edited signal during drag for live editor updates
                 self.edited.emit()

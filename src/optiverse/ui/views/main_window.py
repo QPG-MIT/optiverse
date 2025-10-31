@@ -356,6 +356,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.act_add_text = QtGui.QAction("Text", self, checkable=True)
         self.act_add_text.toggled.connect(lambda on: self._toggle_placement_mode("text", on))
+        
+        self.act_add_rectangle = QtGui.QAction("Rectangle", self, checkable=True)
+        self.act_add_rectangle.toggled.connect(lambda on: self._toggle_placement_mode("rectangle", on))
 
         # --- Tools ---
         self.act_pipet = QtGui.QAction("Pipet", self, checkable=True)
@@ -517,6 +520,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_add_text.setIcon(text_icon)
         toolbar.addAction(self.act_add_text)
 
+        # Rectangle button
+        rect_icon = QtGui.QIcon(_get_icon_path("rectangle.png"))
+        self.act_add_rectangle.setIcon(rect_icon)
+        toolbar.addAction(self.act_add_rectangle)
+
     def _build_menubar(self):
         """Build menu bar."""
         mb = self.menuBar()
@@ -545,6 +553,7 @@ class MainWindow(QtWidgets.QMainWindow):
         mInsert.addSeparator()
         mInsert.addAction(self.act_add_ruler)
         mInsert.addAction(self.act_add_text)
+        mInsert.addAction(self.act_add_rectangle)
 
         # View menu
         mView = mb.addMenu("&View")
@@ -752,8 +761,9 @@ class MainWindow(QtWidgets.QMainWindow):
         items_to_delete = []
         
         for item in selected:
-            # Only delete optical components, rulers, and text notes (not grid lines or rays)
-            if isinstance(item, (BaseObj, RulerItem, TextNoteItem)):
+            # Only delete optical components and annotations (not grid lines or rays)
+            from ...objects import RectangleItem
+            if isinstance(item, (BaseObj, RulerItem, TextNoteItem, RectangleItem)):
                 items_to_delete.append(item)
                 # Broadcast deletion to collaboration
                 self.collaboration_manager.broadcast_remove_item(item)
@@ -779,8 +789,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._clipboard = []
         
         for item in selected:
-            # Only copy optical components, rulers, and text notes
-            if isinstance(item, (BaseObj, RulerItem, TextNoteItem)):
+            # Only copy optical components and annotations
+            from ...objects import RectangleItem
+            if isinstance(item, (BaseObj, RulerItem, TextNoteItem, RectangleItem)):
                 try:
                     # Serialize the item to dictionary
                     item_data = item.to_dict()
@@ -895,6 +906,23 @@ class MainWindow(QtWidgets.QMainWindow):
                     item = TextNoteItem.from_dict(data)
                     # Offset the text note position
                     item.setPos(item.pos() + paste_offset)
+                    pasted_items.append(item)
+                
+                elif item_type == 'RectangleItem':
+                    data = {k: v for k, v in item_data.items() if k != '_item_type'}
+                    from ...objects import RectangleItem
+                    item = RectangleItem.from_dict(data)
+                    item.setPos(item.pos() + paste_offset)
+                    pasted_items.append(item)
+
+                elif item_type == 'BlockItem':
+                    from ...core.models import BlockParams
+                    from ...objects import BlockItem
+                    params = BlockParams(**{k: v for k, v in item_data.items() if k not in excluded_fields})
+                    params.x_mm += paste_offset.x()
+                    params.y_mm += paste_offset.y()
+                    item = BlockItem(params)
+                    item.edited.connect(self._maybe_retrace)
                     pasted_items.append(item)
                 
                 else:
@@ -1238,6 +1266,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 elem.pbs_transmission_axis_deg = getattr(iface, 'pbs_transmission_axis_deg', 0.0)
             return elem
         
+        elif element_type == "beam_block":
+            return OpticalElement(
+                kind="block",
+                p1=p1,
+                p2=p2
+            )
+
         else:
             print(f"Warning: Unknown interface type: {element_type}")
             return None
@@ -1266,6 +1301,8 @@ class MainWindow(QtWidgets.QMainWindow):
             "slms": [],
             "rulers": [],
             "texts": [],
+            "rectangles": [],
+            "blocks": [],
         }
 
         for it in self.scene.items():
@@ -1287,6 +1324,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 data["rulers"].append(it.to_dict())
             elif isinstance(it, TextNoteItem):
                 data["texts"].append(it.to_dict())
+            else:
+                # Optional: serialize non-BaseObj annotations
+                from ...objects import RectangleItem, BlockItem
+                if isinstance(it, RectangleItem):
+                    data["rectangles"].append(it.to_dict())
+                elif isinstance(it, BlockItem):
+                    data["blocks"].append(it.to_dict())
 
         try:
             with open(path, "w", encoding="utf-8") as f:
@@ -1415,6 +1459,17 @@ class MainWindow(QtWidgets.QMainWindow):
         for d in data.get("texts", []):
             T = TextNoteItem.from_dict(d)
             self.scene.addItem(T)
+        # Rectangles
+        for d in data.get("rectangles", []):
+            from ...objects import RectangleItem
+            R2 = RectangleItem.from_dict(d)
+            self.scene.addItem(R2)
+        # Blocks
+        for d in data.get("blocks", []):
+            from ...objects import BlockItem
+            from ...core.models import BlockParams
+            b = BlockItem(BlockParams(**d))
+            self.scene.addItem(b)
 
         # Clear undo history after loading
         self.undo_stack.clear()
@@ -1569,6 +1624,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.act_add_bs.setChecked(False)
             elif prev_type == "text":
                 self.act_add_text.setChecked(False)
+            elif prev_type == "rectangle":
+                self.act_add_rectangle.setChecked(False)
     
     def _create_placement_ghost(self, component_type: str, scene_pos: QtCore.QPointF):
         """Create a ghost preview for the component being placed."""
@@ -1623,6 +1680,10 @@ class MainWindow(QtWidgets.QMainWindow):
             ghost = BeamsplitterItem(params)
         elif component_type == "text":
             ghost = TextNoteItem("Text")
+            ghost.setPos(scene_pos)
+        elif component_type == "rectangle":
+            from ...objects import RectangleItem
+            ghost = RectangleItem(width_mm=60.0, height_mm=40.0)
             ghost.setPos(scene_pos)
         else:
             return
@@ -1699,11 +1760,15 @@ class MainWindow(QtWidgets.QMainWindow):
         elif component_type == "text":
             item = TextNoteItem("Text")
             item.setPos(scene_pos)
+        elif component_type == "rectangle":
+            from ...objects import RectangleItem
+            item = RectangleItem(width_mm=60.0, height_mm=40.0)
+            item.setPos(scene_pos)
         else:
             return
         
-        # Connect signals for optical components (not text notes)
-        if component_type != "text":
+        # Connect signals for optical components (skip annotations like text/rectangle)
+        if component_type not in ("text", "rectangle") and hasattr(item, 'edited'):
             item.edited.connect(self._maybe_retrace)
             item.edited.connect(lambda: self.collaboration_manager.broadcast_update_item(item))
         
@@ -1712,12 +1777,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.undo_stack.push(cmd)
         item.setSelected(True)
         
-        # Broadcast addition to collaboration (for optical components)
-        if component_type != "text":
+        # Broadcast addition to collaboration (for optical components only)
+        if component_type not in ("text", "rectangle"):
             self.collaboration_manager.broadcast_add_item(item)
         
         # Retrace if enabled (only for optical components)
-        if self.autotrace and component_type != "text":
+        if self.autotrace and component_type not in ("text", "rectangle"):
             self.retrace()
         
         # Force Qt to update its internal mouse position tracking by sending a synthetic mouse move
@@ -2032,7 +2097,7 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
 
         # --- Track item positions and rotations on mouse press ---
         if et == QtCore.QEvent.Type.GraphicsSceneMousePress:
-            from ...objects import BaseObj
+            from ...objects import BaseObj, RectangleItem
             mev = ev
             # Check if this is a rotation operation (Ctrl modifier)
             is_rotation_mode = mev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier
@@ -2043,13 +2108,13 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
             self._item_group_states.clear()
             
             selected_items = [it for it in self.scene.selectedItems() 
-                            if isinstance(it, (BaseObj, RulerItem, TextNoteItem))]
+                            if isinstance(it, (BaseObj, RulerItem, TextNoteItem, RectangleItem))]
             
             for it in selected_items:
                 self._item_positions[it] = QtCore.QPointF(it.pos())
                 
-                # Track rotations if in rotation mode
-                if is_rotation_mode and isinstance(it, BaseObj):
+                # Track rotations if in rotation mode (for BaseObj and RectangleItem)
+                if is_rotation_mode and isinstance(it, (BaseObj, RectangleItem)):
                     self._item_rotations[it] = it.rotation()
             
             # For group rotation, also track initial positions for orbit calculation
@@ -2057,7 +2122,7 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
                 self._item_group_states = {
                     'items': selected_items,
                     'initial_positions': {it: QtCore.QPointF(it.pos()) for it in selected_items},
-                    'initial_rotations': {it: it.rotation() for it in selected_items if isinstance(it, BaseObj)}
+                    'initial_rotations': {it: it.rotation() for it in selected_items if isinstance(it, (BaseObj, RectangleItem))}
                 }
 
         # --- Snap to grid and create move/rotate commands on mouse release ---
@@ -2096,11 +2161,12 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
             
             elif was_group_rotation:
                 # Group rotation - check if any items changed
+                from ...objects import RectangleItem
                 items = self._item_group_states['items']
                 old_positions = self._item_group_states['initial_positions']
                 old_rotations = self._item_group_states['initial_rotations']
                 new_positions = {it: it.pos() for it in items}
-                new_rotations = {it: it.rotation() for it in items if isinstance(it, BaseObj)}
+                new_rotations = {it: it.rotation() for it in items if isinstance(it, (BaseObj, RectangleItem))}
                 
                 # Check if anything actually changed
                 position_changed = any(
@@ -2109,12 +2175,12 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
                 )
                 rotation_changed = any(
                     abs(old_rotations.get(it, 0) - new_rotations.get(it, 0)) > 0.01
-                    for it in items if isinstance(it, BaseObj)
+                    for it in items if isinstance(it, (BaseObj, RectangleItem))
                 )
                 
                 if position_changed or rotation_changed:
-                    # Filter to only BaseObj items that have rotation
-                    rotatable_items = [it for it in items if isinstance(it, BaseObj)]
+                    # Filter to only items that have rotation (BaseObj and RectangleItem)
+                    rotatable_items = [it for it in items if isinstance(it, (BaseObj, RectangleItem))]
                     if rotatable_items:
                         cmd = RotateItemsCommand(
                             rotatable_items,

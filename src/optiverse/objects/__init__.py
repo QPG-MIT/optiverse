@@ -25,12 +25,13 @@ from .dichroics import DichroicItem
 from .waveplates import WaveplateItem
 from .sources import SourceItem
 from .refractive import RefractiveObjectItem
+from .blocks.block_item import BlockItem
 
 # Miscellaneous
 from .misc import SLMItem
 
 # Annotations
-from .annotations import RulerItem, TextNoteItem
+from .annotations import RulerItem, TextNoteItem, RectangleItem
 
 # Views
 from .views import GraphicsView, ImageCanvas
@@ -49,11 +50,13 @@ __all__ = [
     "WaveplateItem",
     "SourceItem",
     "RefractiveObjectItem",
+    "BlockItem",
     # Miscellaneous
     "SLMItem",
     # Annotations
     "RulerItem",
     "TextNoteItem",
+    "RectangleItem",
     # Views
     "GraphicsView",
     "ImageCanvas",

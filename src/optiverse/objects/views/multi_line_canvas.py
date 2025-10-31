@@ -32,15 +32,15 @@ class InterfaceLine:
     COORDINATE SYSTEM:
     - Origin (0,0) is at the IMAGE CENTER
     - X-axis: positive right, negative left
-    - Y-axis: positive DOWN, negative UP (Y-down, standard Qt/screen coordinates)
+    - Y-axis: positive UP, negative DOWN (Y-up, mathematical convention)
     - Units: millimeters
     
-    Note: Y-down coordinate system matches both storage and screen coordinates (no flipping needed).
+    Note: Y-up storage coordinates. MultiLineCanvas converts to Y-down for Qt display.
     """
-    x1: float  # Start point X in mm (centered, Y-down)
-    y1: float  # Start point Y in mm (centered, Y-down)
-    x2: float  # End point X in mm (centered, Y-down)
-    y2: float  # End point Y in mm (centered, Y-down)
+    x1: float  # Start point X in mm (centered, Y-up)
+    y1: float  # Start point Y in mm (centered, Y-up)
+    x2: float  # End point X in mm (centered, Y-up)
+    y2: float  # End point Y in mm (centered, Y-up)
     color: QtGui.QColor = None  # Line color
     label: str = ""  # Optional label
     properties: Dict[str, Any] = None  # Additional properties (n1, n2, is_BS, etc.)
@@ -59,12 +59,13 @@ class MultiLineCanvas(QtWidgets.QLabel):
     COORDINATE SYSTEM:
     - Lines are stored in millimeter coordinates (InterfaceLine)
     - Origin (0,0) is at the IMAGE CENTER
-    - Y-axis is DOWN (positive Y is down, negative Y is up) - standard Qt/screen coordinates
-    - Canvas handles conversion to screen pixels automatically
+    - Y-axis is UP (positive Y is up, negative Y is down) - mathematical convention
+    - Canvas handles conversion to screen pixels (Y-down) automatically for display
     
     COORDINATE TRANSFORMATIONS:
-    - Screen coords (Y-down) → Canvas mm (Y-down) → Storage mm (Y-down) [all consistent]
-    - No Y-axis flipping needed since all systems use Y-down
+    - Storage/Logic: Y-up (mathematical convention)
+    - Qt Display: Y-down (screen coordinates)
+    - Canvas converts Y-up storage ↔ Y-down display at the Qt boundary
     
     Signals:
         imageDropped: Emitted when image is dropped

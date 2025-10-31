@@ -5,12 +5,7 @@ from typing import List, Tuple, Optional, Dict, Any
 
 import numpy as np
 
-# Import new interface definition
-try:
-    from .interface_definition import InterfaceDefinition
-    HAS_INTERFACE_DEFINITION = True
-except ImportError:
-    HAS_INTERFACE_DEFINITION = False
+from .interface_definition import InterfaceDefinition
 
 # Import path utilities for relative/absolute path conversion
 from ..platform.paths import to_relative_path, to_absolute_path
@@ -112,7 +107,7 @@ class ComponentRecord:
     INTERFACE-BASED DESIGN:
     - Component can contain multiple interfaces, each with its own type
     - interfaces: List of InterfaceDefinition objects
-    - Coordinates stored in mm in local coordinate system (centered, Y-down)
+    - Coordinates stored in mm in local coordinate system (centered, Y-up)
     - Interfaces can be reordered, optical effect determined by spatial position
     - First interface is used as reference line for sprite positioning
     
@@ -145,13 +140,10 @@ def serialize_component(rec: ComponentRecord) -> Dict[str, Any]:
         "object_height_mm": float(rec.object_height_mm),
         "angle_deg": float(rec.angle_deg),
         "notes": rec.notes or "",
-        # Coordinate system metadata (v2): persist as Y_UP
-        "schema_version": 2,
-        "coord_system": "Y_UP",
     }
     
     # Serialize interfaces
-    if rec.interfaces and HAS_INTERFACE_DEFINITION:
+    if rec.interfaces:
         base["interfaces"] = [iface.to_dict() for iface in rec.interfaces]
     
     return base
@@ -184,35 +176,11 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
     
     notes = str(data.get("notes", ""))
     
-    # Deserialize interfaces
-    interfaces = None
+    # Deserialize interfaces (single current schema, Y-up; no legacy fallback)
+    interfaces: List[InterfaceDefinition] = []
     interfaces_data = data.get("interfaces")
-    if interfaces_data and HAS_INTERFACE_DEFINITION:
-        try:
-            from .interface_definition import InterfaceDefinition
-            # Detect legacy coordinate system (default to Y_DOWN if missing)
-            coord_system = str(data.get("coord_system", "Y_DOWN")).upper()
-            schema_version = int(data.get("schema_version", 1))
-
-            normalized_ifaces: list[Dict[str, Any]] = []
-            if coord_system == "Y_UP":
-                normalized_ifaces = interfaces_data  # already Y-up
-            else:
-                # Legacy Y_DOWN: flip Y coordinates to Y_UP during load
-                for iface in interfaces_data:
-                    if not isinstance(iface, dict):
-                        continue
-                    y1 = iface.get("y1_mm", 0.0)
-                    y2 = iface.get("y2_mm", 0.0)
-                    flipped = dict(iface)
-                    flipped["y1_mm"] = -float(y1)
-                    flipped["y2_mm"] = -float(y2)
-                    normalized_ifaces.append(flipped)
-
-            interfaces = [InterfaceDefinition.from_dict(iface_data) for iface_data in normalized_ifaces]
-        except Exception as e:
-            print(f"Warning: Failed to deserialize interfaces: {e}")
-            interfaces = None
+    if isinstance(interfaces_data, list):
+        interfaces = [InterfaceDefinition.from_dict(iface_data) for iface_data in interfaces_data if isinstance(iface_data, dict)]
     
     return ComponentRecord(
         name=name,
@@ -302,6 +270,24 @@ class MirrorParams:
     mm_per_pixel: float = 0.1
     name: Optional[str] = None
     # Interface-based storage (for multi-layer mirrors with AR coatings)
+    interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
+    
+    def __post_init__(self):
+        """Ensure interfaces list exists."""
+        if self.interfaces is None:
+            self.interfaces = []
+
+
+@dataclass
+class BlockParams:
+    x_mm: float = 0.0
+    y_mm: float = 0.0
+    angle_deg: float = 0.0
+    object_height_mm: float = 80.0
+    image_path: Optional[str] = None
+    mm_per_pixel: float = 0.1
+    name: Optional[str] = None
+    # Interface-based storage (for beam block line definition)
     interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
     
     def __post_init__(self):
@@ -417,13 +403,13 @@ class RefractiveInterface:
     COORDINATE SYSTEM:
     - Origin (0,0) is at the IMAGE CENTER
     - X-axis: positive right, negative left
-    - Y-axis: positive DOWN, negative UP (Y-down, standard Qt/QGraphicsScene convention)
+    - Y-axis: positive UP, negative DOWN (Y-up, mathematical convention)
     - Units: millimeters
     
-    Note: This matches the InterfaceDefinition coordinate system (Y-down, centered).
-    When displayed on QGraphicsScene, the Y-down convention is preserved.
+    Note: This matches the InterfaceDefinition coordinate system (Y-up, centered).
+    Conversion to Qt's Y-down display happens in ComponentSprite.
     """
-    # Interface geometry in local coordinates relative to image center (Y-down, mm)
+    # Interface geometry in local coordinates relative to image center (Y-up, mm)
     x1_mm: float = 0.0  # Start point x
     y1_mm: float = 0.0  # Start point y
     x2_mm: float = 0.0  # End point x
