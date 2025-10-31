@@ -66,53 +66,74 @@ class InterfaceDefinition:
     # Negative radius: center is to the left (concave from left)
     
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize to dictionary."""
-        return {
+        """
+        Serialize to dictionary.
+        
+        Only serializes properties relevant to the element type to avoid
+        cluttering saved files with irrelevant default values.
+        """
+        from . import interface_types
+        
+        # Always include geometry and type info
+        result = {
             'x1_mm': self.x1_mm,
             'y1_mm': self.y1_mm,
             'x2_mm': self.x2_mm,
             'y2_mm': self.y2_mm,
             'element_type': self.element_type,
             'name': self.name,
-            'efl_mm': self.efl_mm,
-            'reflectivity': self.reflectivity,
-            'split_T': self.split_T,
-            'split_R': self.split_R,
-            'is_polarizing': self.is_polarizing,
-            'pbs_transmission_axis_deg': self.pbs_transmission_axis_deg,
-            'cutoff_wavelength_nm': self.cutoff_wavelength_nm,
-            'transition_width_nm': self.transition_width_nm,
-            'pass_type': self.pass_type,
-            'n1': self.n1,
-            'n2': self.n2,
-            'is_curved': self.is_curved,
-            'radius_of_curvature_mm': self.radius_of_curvature_mm,
         }
+        
+        # Get relevant properties for this element type
+        relevant_props = interface_types.get_type_properties(self.element_type)
+        
+        # Add only relevant properties
+        for prop_name in relevant_props:
+            if hasattr(self, prop_name):
+                result[prop_name] = getattr(self, prop_name)
+        
+        # Always include curvature info if surface is curved (for Zemax compatibility)
+        if self.is_curved:
+            result['is_curved'] = self.is_curved
+            result['radius_of_curvature_mm'] = self.radius_of_curvature_mm
+        
+        return result
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'InterfaceDefinition':
-        """Deserialize from dictionary."""
-        return cls(
-            x1_mm=data.get('x1_mm', 0.0),
-            y1_mm=data.get('y1_mm', 0.0),
-            x2_mm=data.get('x2_mm', 10.0),
-            y2_mm=data.get('y2_mm', 0.0),
-            element_type=data.get('element_type', 'refractive_interface'),
-            name=data.get('name', ''),
-            efl_mm=data.get('efl_mm', 100.0),
-            reflectivity=data.get('reflectivity', 99.0),
-            split_T=data.get('split_T', 50.0),
-            split_R=data.get('split_R', 50.0),
-            is_polarizing=data.get('is_polarizing', False),
-            pbs_transmission_axis_deg=data.get('pbs_transmission_axis_deg', 0.0),
-            cutoff_wavelength_nm=data.get('cutoff_wavelength_nm', 550.0),
-            transition_width_nm=data.get('transition_width_nm', 50.0),
-            pass_type=data.get('pass_type', 'longpass'),
-            n1=data.get('n1', 1.0),
-            n2=data.get('n2', 1.5),
-            is_curved=data.get('is_curved', False),
-            radius_of_curvature_mm=data.get('radius_of_curvature_mm', 0.0),
-        )
+        """
+        Deserialize from dictionary.
+        
+        Only loads properties relevant to the element type, ignoring irrelevant fields.
+        This makes deserialization symmetric with serialization.
+        """
+        from . import interface_types
+        
+        # Load geometry and type info (always present)
+        element_type = data.get('element_type', 'refractive_interface')
+        kwargs = {
+            'x1_mm': data.get('x1_mm', 0.0),
+            'y1_mm': data.get('y1_mm', 0.0),
+            'x2_mm': data.get('x2_mm', 10.0),
+            'y2_mm': data.get('y2_mm', 0.0),
+            'element_type': element_type,
+            'name': data.get('name', ''),
+        }
+        
+        # Get relevant properties for this element type
+        relevant_props = interface_types.get_type_properties(element_type)
+        
+        # Load only relevant properties from data, using defaults for missing ones
+        for prop_name in relevant_props:
+            default_value = interface_types.get_property_default(element_type, prop_name)
+            kwargs[prop_name] = data.get(prop_name, default_value)
+        
+        # Load curvature info if present (for Zemax compatibility)
+        if 'is_curved' in data:
+            kwargs['is_curved'] = data.get('is_curved', False)
+            kwargs['radius_of_curvature_mm'] = data.get('radius_of_curvature_mm', 0.0)
+        
+        return cls(**kwargs)
     
     def get_color(self) -> Tuple[int, int, int]:
         """
