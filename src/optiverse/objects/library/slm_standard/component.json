@@ -1,14 +1,14 @@
 {
   "name": "Spatial Light Modulator",
-  "image_path": "images/slm.png",
-  "object_height_mm": 100.0,
+  "image_path": "images/slm_200.png",
+  "object_height_mm": 77.5,
   "angle_deg": 0.0,
   "interfaces": [
     {
-      "x1_mm": -50.0,
-      "y1_mm": 0.0,
-      "x2_mm": 50.0,
-      "y2_mm": 0.0,
+      "x1_mm": -24.87,
+      "y1_mm": 11.1,
+      "x2_mm": -24.87,
+      "y2_mm": -4.26,
       "element_type": "mirror"
     }
   ]

@@ -7,12 +7,18 @@
   "interfaces": [
     {
       "x1_mm": -25.0,
-      "y1_mm": 0.0,
+      "y1_mm": 13.1,
       "x2_mm": 25.0,
-      "y2_mm": 0.0,
+      "y2_mm": 13.1,
+      "element_type": "beam_block"
+    },
+    {
+      "x1_mm": -25.0,
+      "y1_mm": -13.1,
+      "x2_mm": 25.0,
+      "y2_mm": -13.1,
       "element_type": "beam_block"
     }
   ],
   "angle_deg": 0
 }
-
