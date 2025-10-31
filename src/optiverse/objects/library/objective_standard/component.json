@@ -1,5 +1,6 @@
 {
   "name": "Microscope Objective",
+  "category": "objectives",
   "image_path": "images/objective.png",
   "object_height_mm": 40.0,
   "angle_deg": 0.0,

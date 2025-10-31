@@ -321,6 +321,17 @@ class LensItem(BaseObj):
         # Connect to item's edited signal to sync spinboxes
         self.edited.connect(sync_from_item)
         
+        # Lock checkbox
+        lock_cb = QtWidgets.QCheckBox("Lock position/rotation/deletion")
+        lock_cb.setChecked(self.is_locked())
+        lock_cb.toggled.connect(self.set_locked)
+        f.addRow("", lock_cb)
+        
+        # Add separator
+        separator = QtWidgets.QFrame()
+        separator.setFrameShape(QtWidgets.QFrame.Shape.HLine)
+        f.addRow(separator)
+        
         f.addRow("X Position", x)
         f.addRow("Y Position", y)
         f.addRow("Optical Axis Angle", ang)
@@ -415,6 +426,7 @@ class LensItem(BaseObj):
         d["y_mm"] = float(self.pos().y())
         d["angle_deg"] = float(self.rotation())
         d["item_uuid"] = self.item_uuid
+        d["locked"] = self._locked  # Save lock state
         # Convert image path to relative if within package
         if "image_path" in d:
             d["image_path"] = to_relative_path(d["image_path"])
@@ -424,6 +436,8 @@ class LensItem(BaseObj):
         """Deserialize from dictionary."""
         if "item_uuid" in d:
             self.item_uuid = d["item_uuid"]
+        # Restore locked state (call parent's from_dict)
+        super().from_dict(d)
         # Convert relative image path to absolute
         if "image_path" in d:
             d["image_path"] = to_absolute_path(d["image_path"])

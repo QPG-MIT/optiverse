@@ -655,13 +655,31 @@ class MainWindow(QtWidgets.QMainWindow):
         
         for rec in records:
             name = rec.get("name", "")
-            # Determine category from first interface element_type
-            interfaces = rec.get("interfaces", [])
-            if interfaces and len(interfaces) > 0:
-                element_type = interfaces[0].get("element_type", "lens")
-                category = ComponentRegistry.get_category_for_element_type(element_type, name)
+            
+            # Check for explicit category field first (preferred method)
+            if "category" in rec:
+                category_key = rec["category"].lower()
+                # Map to UI category names
+                category_map = {
+                    "lenses": "Lenses",
+                    "objectives": "Objectives",
+                    "mirrors": "Mirrors",
+                    "beamsplitters": "Beamsplitters",
+                    "dichroics": "Dichroics",
+                    "waveplates": "Waveplates",
+                    "sources": "Sources",
+                    "background": "Background",
+                    "misc": "Misc",
+                }
+                category = category_map.get(category_key, "Other")
             else:
-                category = "Other"
+                # Fallback: Determine category from first interface element_type
+                interfaces = rec.get("interfaces", [])
+                if interfaces and len(interfaces) > 0:
+                    element_type = interfaces[0].get("element_type", "lens")
+                    category = ComponentRegistry.get_category_for_element_type(element_type, name)
+                else:
+                    category = "Other"
             categories[category].append(rec)
         
         # Create category nodes with components
@@ -759,14 +777,28 @@ class MainWindow(QtWidgets.QMainWindow):
         
         selected = self.scene.selectedItems()
         items_to_delete = []
+        locked_items = []
         
         for item in selected:
             # Only delete optical components and annotations (not grid lines or rays)
             from ...objects import RectangleItem
             if isinstance(item, (BaseObj, RulerItem, TextNoteItem, RectangleItem)):
-                items_to_delete.append(item)
-                # Broadcast deletion to collaboration
-                self.collaboration_manager.broadcast_remove_item(item)
+                # Check if item is locked (BaseObj has is_locked method)
+                if isinstance(item, BaseObj) and item.is_locked():
+                    locked_items.append(item)
+                else:
+                    items_to_delete.append(item)
+                    # Broadcast deletion to collaboration
+                    self.collaboration_manager.broadcast_remove_item(item)
+        
+        # Warn user if trying to delete locked items
+        if locked_items:
+            locked_count = len(locked_items)
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Locked Items",
+                f"Cannot delete {locked_count} locked item(s).\nUnlock them first in the edit dialog."
+            )
         
         # Use a single command for all deletions so undo/redo works correctly
         if items_to_delete:

@@ -27,6 +27,9 @@ class BaseObj(QtWidgets.QGraphicsObject):
         # Generate or use provided UUID for collaboration
         self.item_uuid = item_uuid if item_uuid else str(uuid.uuid4())
         
+        # Lock state (prevents movement, rotation, and deletion)
+        self._locked = False
+        
         self.setFlags(
             QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable
             | QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
@@ -57,6 +60,11 @@ class BaseObj(QtWidgets.QGraphicsObject):
 
     def itemChange(self, change, value):
         """Sync params when position or rotation changes, and apply magnetic snap."""
+        
+        # Block position changes if locked
+        if change == QtWidgets.QGraphicsItem.GraphicsItemChange.ItemPositionChange:
+            if self._locked:
+                return self.pos()  # Return current position (no change)
         
         # Magnetic snap: intercept position changes during interactive moves
         if change == QtWidgets.QGraphicsItem.GraphicsItemChange.ItemPositionChange:
@@ -131,6 +139,27 @@ class BaseObj(QtWidgets.QGraphicsObject):
         Override in subclasses that have params.
         """
         pass
+    
+    def is_locked(self) -> bool:
+        """Check if item is locked (prevents movement, rotation, deletion)."""
+        return self._locked
+    
+    def set_locked(self, locked: bool):
+        """Set lock state (prevents movement, rotation, deletion)."""
+        self._locked = locked
+        # Update cursor to indicate locked state
+        if locked:
+            self.setCursor(QtCore.Qt.CursorShape.ForbiddenCursor)
+        else:
+            self.setCursor(QtCore.Qt.CursorShape.OpenHandCursor)
+        # Update visual appearance
+        self.update()
+    
+    def setRotation(self, angle: float):
+        """Override setRotation to block when locked."""
+        if not self._locked:
+            super().setRotation(angle)
+        # If locked, do nothing (rotation blocked)
 
     # ----- Sprite Helper Methods (Phase 1.2: Clickable Sprites) -----
     def _sprite_rect_in_item(self) -> QtCore.QRectF | None:
@@ -215,6 +244,11 @@ class BaseObj(QtWidgets.QGraphicsObject):
     
     def mousePressEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
         """Handle mouse press for rotation mode (Ctrl+drag) or normal drag."""
+        # Block rotation if locked
+        if self._locked and (ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
+            ev.ignore()
+            return
+        
         if self.isSelected() and (ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
             # Enter rotation mode
             self._rotating = True
@@ -341,6 +375,11 @@ class BaseObj(QtWidgets.QGraphicsObject):
 
     def wheelEvent(self, ev: QtWidgets.QGraphicsSceneWheelEvent):
         """Ctrl + wheel → rotate element(s)."""
+        # Block rotation if locked
+        if self._locked and (ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
+            ev.ignore()
+            return
+        
         if self.isSelected() and (ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
             dy = ev.angleDelta().y()
             steps = dy / 120.0
@@ -455,10 +494,16 @@ class BaseObj(QtWidgets.QGraphicsObject):
         m = QtWidgets.QMenu()
         act_edit = m.addAction("Edit…")
         act_delete = m.addAction("Delete")
+        
+        # Disable delete if locked
+        if self._locked:
+            act_delete.setEnabled(False)
+            act_delete.setToolTip("Item is locked")
+        
         a = m.exec(ev.screenPos())
         if a == act_edit:
             self.open_editor()
-        elif a == act_delete and self.scene():
+        elif a == act_delete and self.scene() and not self._locked:
             self.scene().removeItem(self)
 
     # Abstract interface methods (subclasses should override)
@@ -468,9 +513,14 @@ class BaseObj(QtWidgets.QGraphicsObject):
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize element to dictionary."""
-        return {"item_uuid": self.item_uuid}
+        return {
+            "item_uuid": self.item_uuid,
+            "locked": self._locked,
+        }
 
     def from_dict(self, d: dict[str, Any]):
         """Deserialize element from dictionary."""
-        pass
+        # Restore locked state if present
+        if "locked" in d:
+            self.set_locked(d["locked"])
 

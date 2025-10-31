@@ -124,6 +124,7 @@ class ComponentRecord:
     
     # Common properties
     angle_deg: float = 0.0  # optical axis angle (degrees)
+    category: str = ""  # Component category (e.g., "background", "lenses", "mirrors")
     notes: str = ""
 
 
@@ -141,6 +142,10 @@ def serialize_component(rec: ComponentRecord) -> Dict[str, Any]:
         "angle_deg": float(rec.angle_deg),
         "notes": rec.notes or "",
     }
+    
+    # Include category if present
+    if rec.category:
+        base["category"] = rec.category
     
     # Serialize interfaces
     if rec.interfaces:
@@ -174,6 +179,7 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
     except Exception:
         angle_deg = 0.0
     
+    category = str(data.get("category", ""))
     notes = str(data.get("notes", ""))
     
     # Deserialize interfaces (single current schema, Y-up; no legacy fallback)
@@ -188,6 +194,7 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
         object_height_mm=object_height_mm,
         interfaces=interfaces,
         angle_deg=angle_deg,
+        category=category,
         notes=notes
     )
 

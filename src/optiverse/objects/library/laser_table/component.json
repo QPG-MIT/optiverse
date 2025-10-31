@@ -1,6 +1,7 @@
 {
   "name": "Laser Table",
-  "image_path": "images/lasertable_1.5m_3m.png",
+  "category": "background",
+  "image_path": "images/lasertable_1.5m_3m.svg",
   "object_height_mm": 1500.0,
   "angle_deg": 0.0,
   "interfaces": []

@@ -30,6 +30,9 @@ from .blocks.block_item import BlockItem
 # Miscellaneous
 from .misc import SLMItem
 
+# Background/decorative items
+from .background import BackgroundItem
+
 # Annotations
 from .annotations import RulerItem, TextNoteItem, RectangleItem
 
@@ -53,6 +56,8 @@ __all__ = [
     "BlockItem",
     # Miscellaneous
     "SLMItem",
+    # Background/decorative items
+    "BackgroundItem",
     # Annotations
     "RulerItem",
     "TextNoteItem",

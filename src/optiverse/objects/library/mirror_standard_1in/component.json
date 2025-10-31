@@ -1,5 +1,6 @@
 {
   "name": "Standard Mirror (1\")",
+  "category": "mirrors",
   "image_path": "images/standard_mirror_1_inch.png",
   "object_height_mm": 49.4,
   "angle_deg": 0.0,

@@ -67,11 +67,33 @@ class ComponentFactory:
         from .misc import SLMItem
         from .refractive import RefractiveObjectItem
         from .blocks.block_item import BlockItem
+        from .background import BackgroundItem
+        from .background.background_item import BackgroundParams
         
-        # Extract interfaces (source of truth)
+        # Check for background category first (preferred method)
+        category = data.get("category", "").lower()
+        if category == "background":
+            # Create background/decorative item regardless of interfaces
+            name = data.get("name", "Background")
+            image_path_raw = data.get("image_path", "")
+            image_path = to_absolute_path(image_path_raw) if image_path_raw else ""
+            object_height_mm = float(data.get("object_height_mm", data.get("object_height", data.get("length_mm", 100.0))))
+            angle_deg = float(data.get("angle_deg", 0.0))
+            
+            params = BackgroundParams(
+                x_mm=x_mm,
+                y_mm=y_mm,
+                angle_deg=angle_deg,
+                object_height_mm=object_height_mm,
+                name=name,
+                image_path=image_path,
+            )
+            return BackgroundItem(params)
+        
+        # Extract interfaces (source of truth for optical elements)
         interfaces_data = data.get("interfaces", [])
         if not interfaces_data or len(interfaces_data) == 0:
-            # No interfaces defined - invalid component
+            # No interfaces defined and not background - invalid component
             return None
         
         # Convert interface data to InterfaceDefinition objects

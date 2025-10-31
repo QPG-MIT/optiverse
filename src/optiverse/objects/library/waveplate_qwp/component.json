@@ -1,5 +1,6 @@
 {
   "name": "Quarter Waveplate (QWP)",
+  "category": "waveplates",
   "image_path": "images/lens_1_inch_mounted.png",
   "object_height_mm": 30.5,
   "angle_deg": 0.0,

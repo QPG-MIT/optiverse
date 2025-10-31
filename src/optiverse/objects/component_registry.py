@@ -45,12 +45,32 @@ class ComponentRegistry:
 
         for rec in ComponentRegistry.get_standard_components():
             name = rec.get("name", "")
-            interfaces = rec.get("interfaces", [])
-            if interfaces and len(interfaces) > 0:
-                element_type = interfaces[0].get("element_type", "lens")
-                category = ComponentRegistry.get_category_for_element_type(element_type, name)
+            
+            # Check for top-level category field first (preferred method)
+            if "category" in rec:
+                category_key = rec["category"].lower()
+                # Map to UI category names
+                category_map = {
+                    "lenses": "Lenses",
+                    "objectives": "Objectives",
+                    "mirrors": "Mirrors",
+                    "beamsplitters": "Beamsplitters",
+                    "dichroics": "Dichroics",
+                    "waveplates": "Waveplates",
+                    "sources": "Sources",
+                    "background": "Background",
+                    "misc": "Misc",
+                }
+                category = category_map.get(category_key, "Other")
             else:
-                category = "Other"
+                # Fallback to element_type for legacy support
+                interfaces = rec.get("interfaces", [])
+                if interfaces and len(interfaces) > 0:
+                    element_type = interfaces[0].get("element_type", "lens")
+                    category = ComponentRegistry.get_category_for_element_type(element_type, name)
+                else:
+                    category = "Other"
+            
             categories.setdefault(category, []).append(rec)
 
         return categories

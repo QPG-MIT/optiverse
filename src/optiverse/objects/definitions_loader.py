@@ -69,6 +69,10 @@ def load_component_dicts() -> List[Dict[str, Any]]:
                 "notes": rec.notes or "",
             }
             
+            # Include category if present
+            if rec.category:
+                component_dict["category"] = rec.category
+            
             # Serialize interfaces
             if rec.interfaces:
                 component_dict["interfaces"] = [iface.to_dict() for iface in rec.interfaces]

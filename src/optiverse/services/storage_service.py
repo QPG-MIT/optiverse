@@ -52,6 +52,9 @@ class StorageService:
                     "angle_deg": float(rec.angle_deg),
                     "notes": rec.notes or "",
                 }
+                # Include category if present
+                if rec.category:
+                    component_dict["category"] = rec.category
                 if rec.interfaces:
                     component_dict["interfaces"] = [iface.to_dict() for iface in rec.interfaces]
                 normalized.append(component_dict)

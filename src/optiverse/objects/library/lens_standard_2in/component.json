@@ -1,5 +1,6 @@
 {
   "name": "Standard Lens (2\" mounted)",
+  "category": "lenses",
   "image_path": "images/lens_1_inch_mounted.png",
   "object_height_mm": 55.9,
   "angle_deg": 0.0,
