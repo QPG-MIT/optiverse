@@ -41,18 +41,6 @@ class ComponentFactory:
         real_item = ComponentFactory.create_item_from_dict(data, x, y)
     """
     
-    # Default angles for each element type
-    DEFAULT_ANGLES = {
-        "lens": 90.0,           # Vertical
-        "waveplate": 90.0,      # Vertical
-        "beam_splitter": 45.0,  # Diagonal
-        "beamsplitter": 45.0,   # Diagonal (alternative spelling)
-        "dichroic": 45.0,       # Diagonal
-        "mirror": 0.0,          # Horizontal
-        "slm": 90.0,            # Vertical
-        "refractive_interface": 90.0,  # Default for pure refractive
-    }
-    
     @staticmethod
     def create_item_from_dict(data: dict, x_mm: float, y_mm: float) -> Optional[BaseObj]:
         """
@@ -102,12 +90,11 @@ class ComponentFactory:
         image_path = data.get("image_path", "")
         object_height_mm = float(data.get("object_height_mm", data.get("object_height", data.get("length_mm", 60.0))))
         
-        # Determine angle (explicit > default based on type)
+        # Determine angle (default to 0.0 = native orientation from Component Editor)
         if "angle_deg" in data:
             angle_deg = float(data["angle_deg"])
         else:
-            # Use default angle for this element type
-            angle_deg = ComponentFactory.DEFAULT_ANGLES.get(element_type, 90.0)
+            angle_deg = 0.0
         
         # Extract reference line from first interface for sprite positioning
         reference_line_mm = None

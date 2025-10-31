@@ -314,6 +314,9 @@ class DichroicItem(BaseObj):
         """
         Get all optical interfaces in scene coordinates.
         
+        Uses the exact same coordinate transformation as paint() to ensure
+        perfect alignment between what you see and what interacts with rays.
+        
         Returns:
             List of (p1, p2, interface) tuples where p1 and p2 are numpy arrays
             in scene coordinates, and interface is an InterfaceDefinition.
@@ -338,12 +341,12 @@ class DichroicItem(BaseObj):
             )
             return [(p1, p2, default_interface)]
         
-        # Get picked line offset for coordinate transformation
+        # Get offset for coordinate transformation (same as paint())
         offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
         
         result = []
         for iface in interfaces:
-            # Transform from image-center coords to picked-line-center coords (item local coords)
+            # Transform from image-center coords to item local coords (same as paint())
             p1_local = QtCore.QPointF(iface.x1_mm - offset_x, iface.y1_mm - offset_y)
             p2_local = QtCore.QPointF(iface.x2_mm - offset_x, iface.y2_mm - offset_y)
             

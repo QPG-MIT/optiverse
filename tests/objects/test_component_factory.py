@@ -377,7 +377,7 @@ class TestComponentFactoryAngleDefaults:
     """Tests for default angle assignment."""
     
     def test_lens_default_angle(self):
-        """Lens gets default angle of 90° (vertical)."""
+        """Lens gets default angle of 0° (native orientation)."""
         data = {
             "name": "Lens",
             "object_height_mm": 50.0,
@@ -394,10 +394,10 @@ class TestComponentFactoryAngleDefaults:
         }
         
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
-        assert item.params.angle_deg == 90.0
+        assert item.params.angle_deg == 0.0
     
     def test_beamsplitter_default_angle(self):
-        """Beamsplitter gets default angle of 45° (diagonal)."""
+        """Beamsplitter gets default angle of 0° (native orientation)."""
         data = {
             "name": "BS",
             "object_height_mm": 60.0,
@@ -417,10 +417,10 @@ class TestComponentFactoryAngleDefaults:
         }
         
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
-        assert item.params.angle_deg == 45.0
+        assert item.params.angle_deg == 0.0
     
     def test_dichroic_default_angle(self):
-        """Dichroic gets default angle of 45° (diagonal)."""
+        """Dichroic gets default angle of 0° (native orientation)."""
         data = {
             "name": "Dichroic",
             "object_height_mm": 60.0,
@@ -439,10 +439,10 @@ class TestComponentFactoryAngleDefaults:
         }
         
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
-        assert item.params.angle_deg == 45.0
+        assert item.params.angle_deg == 0.0
     
     def test_mirror_default_angle(self):
-        """Mirror gets default angle of 0° (horizontal)."""
+        """Mirror gets default angle of 0° (native orientation)."""
         data = {
             "name": "Mirror",
             "object_height_mm": 80.0,
@@ -465,7 +465,7 @@ class TestComponentFactoryAngleDefaults:
         data = {
             "name": "Lens",
             "object_height_mm": 50.0,
-            "angle_deg": 45.0,  # Override default (90°)
+            "angle_deg": 45.0,  # Override default (0°)
             "interfaces": [{
                 "element_type": "lens",
                 "name": "Surface",

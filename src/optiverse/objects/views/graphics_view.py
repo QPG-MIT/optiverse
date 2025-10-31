@@ -606,18 +606,6 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 self.setTransformationAnchor(self._saved_anchor)
                 delattr(self, '_saved_anchor')
 
-            # Ensure we drop with the same default angle we previewed
-            if "angle_deg" not in rec:
-                kind = (rec.get("kind") or "lens").lower()
-                if kind == "lens":
-                    rec["angle_deg"] = 90.0
-                elif kind == "beamsplitter":
-                    rec["angle_deg"] = 45.0
-                elif kind == "mirror":
-                    rec["angle_deg"] = 0.0
-                else:
-                    rec["angle_deg"] = 0.0
-
             self.parent().on_drop_component(rec, scene_pos)
             
             # Force Qt to update its internal mouse position tracking by sending a synthetic mouse move

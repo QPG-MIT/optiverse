@@ -358,6 +358,9 @@ class LensItem(BaseObj):
         """
         Get all optical interfaces in scene coordinates.
         
+        Uses the exact same coordinate transformation as paint() to ensure
+        perfect alignment between what you see and what interacts with rays.
+        
         Returns:
             List of (p1, p2, interface) tuples where p1 and p2 are numpy arrays
             in scene coordinates, and interface is an InterfaceDefinition.
@@ -380,15 +383,21 @@ class LensItem(BaseObj):
             )
             return [(p1, p2, default_interface)]
         
-        # For lenses/mirrors with interfaces, use the rendered line (_p1/_p2)
-        # for raytracing to ensure perfect alignment between what you see and what interacts
-        # The interface stores optical properties (efl, etc) but NOT geometry
-        p1, p2 = self.endpoints_scene()
+        # Get offset for coordinate transformation (same as paint())
+        offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
         
         result = []
         for iface in interfaces:
-            # Use the same geometry for all interfaces (single-element lens)
-            # The interface object carries optical properties only
+            # Transform from image-center coords to item local coords (same as paint())
+            p1_local = QtCore.QPointF(iface.x1_mm - offset_x, iface.y1_mm - offset_y)
+            p2_local = QtCore.QPointF(iface.x2_mm - offset_x, iface.y2_mm - offset_y)
+            
+            # Transform to scene coordinates
+            p1_scene = self.mapToScene(p1_local)
+            p2_scene = self.mapToScene(p2_local)
+            
+            p1 = np.array([p1_scene.x(), p1_scene.y()])
+            p2 = np.array([p2_scene.x(), p2_scene.y()])
             result.append((p1, p2, iface))
         
         return result
