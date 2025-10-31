@@ -188,34 +188,26 @@ class RefractiveObjectItem(BaseObj):
         offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
         
         for iface in self.params.interfaces:
-            # Color coding by interface type
-            if iface.is_beam_splitter:
-                color = QtGui.QColor(0, 150, 120)  # Teal for beam splitter
-                width = 6
-            elif iface.n1 != iface.n2:
-                color = QtGui.QColor(100, 100, 255)  # Blue for refractive interface
-                width = 4
-            else:
-                color = QtGui.QColor(150, 150, 150)  # Gray for same index
-                width = 2
+            # Simple color for all interfaces
+            color = QtGui.QColor(150, 100, 255)  # Purple
+            width = 2
             
             pen = QtGui.QPen(color, width)
             pen.setCosmetic(True)
             p.setPen(pen)
             
             # Transform from image-center coords to picked-line-center coords
-            # Interfaces are stored relative to image center, but item (0,0) is at picked line center
             p1 = QtCore.QPointF(iface.x1_mm - offset_x, iface.y1_mm - offset_y)
             p2 = QtCore.QPointF(iface.x2_mm - offset_x, iface.y2_mm - offset_y)
             
-            # Skip drawing if interface is too short (degenerate/invalid)
+            # Skip if interface is too short
             dx_check = p2.x() - p1.x()
             dy_check = p2.y() - p1.y()
             length_check = (dx_check**2 + dy_check**2)**0.5
-            if length_check < 0.1:  # Skip very short interfaces
+            if length_check < 0.1:
                 continue
             
-            # Check if this interface is curved
+            # Check if curved
             is_curved = getattr(iface, 'is_curved', False)
             radius = getattr(iface, 'radius_of_curvature_mm', 0.0)
             
@@ -225,19 +217,6 @@ class RefractiveObjectItem(BaseObj):
             else:
                 # Draw straight line
                 p.drawLine(p1, p2)
-            
-            # Draw small normal indicator at midpoint
-            mid = (p1 + p2) / 2
-            dx = p2.x() - p1.x()
-            dy = p2.y() - p1.y()
-            length = np.sqrt(dx*dx + dy*dy)
-            if length > 1e-6:
-                # Normal direction
-                nx = -dy / length
-                ny = dx / length
-                normal_len = 5.0
-                p.setPen(QtGui.QPen(color, 1, QtCore.Qt.PenStyle.DashLine))
-                p.drawLine(mid, mid + QtCore.QPointF(nx * normal_len, ny * normal_len))
     
     def _draw_curved_surface(self, p: QtGui.QPainter, p1: QtCore.QPointF, p2: QtCore.QPointF, radius_mm: float):
         """

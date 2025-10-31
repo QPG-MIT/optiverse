@@ -97,12 +97,9 @@ class SLMItem(BaseObj):
         return self._shape_union_sprite(shp)
     
     def paint(self, p: QtGui.QPainter, opt, widget=None):
-        p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
-        # Use a distinct color for SLM (blue-ish)
-        pen = QtGui.QPen(QtGui.QColor("steelblue"), 6)
-        pen.setCosmetic(True)
-        p.setPen(pen)
-        p.drawLine(self._p1, self._p2)
+        """Paint optical interfaces."""
+        # SLM typically doesn't have interface data, just show nothing
+        pass
     
     def open_editor(self):
         """Open editor dialog for SLM parameters."""

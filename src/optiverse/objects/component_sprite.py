@@ -85,18 +85,12 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
         dy_mm = y2_mm - y1_mm
         self.picked_line_length_mm = math.hypot(dx_mm, dy_mm)
 
-        # Calculate angle of reference line (defines optical axis orientation)
-        angle_img_deg = math.degrees(math.atan2(dy_px, dx_px))
-
         # Center point of reference line (in pixel coordinates)
         cx_px = 0.5 * (x1_px + x2_px)
         cy_px = 0.5 * (y1_px + y2_px)
 
         # Offset pixmap so line center aligns with parent's origin
         self.setOffset(-cx_px, -cy_px)
-
-        # Rotate to align reference line with +X axis in parent coords
-        self.setRotation(-angle_img_deg)
 
         # Scale uniformly from pixels to mm
         s_px_to_mm = float(mm_per_pixel) if mm_per_pixel > 0 else 1.0

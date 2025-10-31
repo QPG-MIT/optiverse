@@ -50,7 +50,7 @@ class ComponentRegistry:
                     "efl_mm": 100.0,
                 }
             ],
-            "angle_deg": 90,  # Vertical orientation by default
+            "angle_deg": 0,
         }
     
     @staticmethod
@@ -77,7 +77,7 @@ class ComponentRegistry:
                     "efl_mm": 100.0,
                 }
             ],
-            "angle_deg": 90,  # Vertical orientation by default
+            "angle_deg": 0,  # Vertical orientation by default
         }
     
     @staticmethod
@@ -165,7 +165,7 @@ class ComponentRegistry:
                     "split_R": 50.0,
                 }
             ],
-            "angle_deg": 45,  # 45° orientation for proper beam splitting
+            "angle_deg": 0,
         }
     
     @staticmethod
@@ -195,7 +195,7 @@ class ComponentRegistry:
                     "pbs_transmission_axis_deg": 0.0,  # Horizontal transmission axis in lab frame (ABSOLUTE angle)
                 }
             ],
-            "angle_deg": 45,  # 45° orientation for proper beam splitting
+            "angle_deg": 0,
         }
     
     @staticmethod
@@ -222,7 +222,7 @@ class ComponentRegistry:
                     "efl_mm": 4.5,  # Typical short focal length for microscope objective
                 }
             ],
-            "angle_deg": 90,  # Vertical orientation by default
+            "angle_deg": 0, 
         }
     
     @staticmethod
@@ -250,7 +250,7 @@ class ComponentRegistry:
                     "transition_width_nm": 50.0,
                 }
             ],
-            "angle_deg": 45,  # 45° orientation for proper beam combining/splitting
+            "angle_deg": 0, 
         }
     
     @staticmethod
@@ -306,7 +306,7 @@ class ComponentRegistry:
                     "fast_axis_deg": 0.0,  # Horizontal fast axis by default
                 }
             ],
-            "angle_deg": 90,  # Vertical orientation by default
+            "angle_deg": 0, 
         }
     
     @staticmethod
@@ -337,7 +337,7 @@ class ComponentRegistry:
                     "fast_axis_deg": 0.0,  # Horizontal fast axis by default
                 }
             ],
-            "angle_deg": 90,  # Vertical orientation by default
+            "angle_deg": 0, 
         }
     
     @staticmethod

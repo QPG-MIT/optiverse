@@ -477,186 +477,25 @@ class GraphicsView(QtWidgets.QGraphicsView):
         Build a semi-transparent ghost preview item for drag operation.
         
         The ghost shows exactly what will be dropped and where.
+        Uses ComponentFactory to ensure ghost matches the actual dropped component.
         """
         # Clear any existing ghost first
         if self._ghost_item is not None:
             self._clear_ghost()
 
-        # Import here to avoid circular imports
-        from ...core.models import BeamsplitterParams, LensParams, MirrorParams, SLMParams, WaveplateParams, RefractiveObjectParams
-        from ..beamsplitters import BeamsplitterItem
-        from ..lenses import LensItem
-        from ..mirrors import MirrorItem
-        from ..misc import SLMItem
-        from ..waveplates import WaveplateItem
-        from ..refractive import RefractiveObjectItem
-
-        # Determine default angle for this component type
-        kind = (rec.get("kind") or "lens").lower()
-        if "angle_deg" in rec:
-            angle = float(rec["angle_deg"])
-        else:
-            # Default angles per component type
-            if kind == "lens":
-                angle = 90.0
-            elif kind == "beamsplitter":
-                angle = 45.0
-            elif kind == "waveplate":
-                angle = 90.0
-            elif kind == "mirror":
-                angle = 0.0
-            else:
-                angle = 0.0
-
-        # Extract common parameters
-        name = rec.get("name")
-        img = rec.get("image_path")
-        # Support new object_height_mm and legacy object_height/length_mm
-        object_height_mm = float(rec.get("object_height_mm", rec.get("object_height", rec.get("length_mm", 60.0))))
-
-        # Extract reference line from first interface if available
-        # This allows proper sprite orientation for components from the registry
-        reference_line_mm = None
-        interfaces_data = rec.get("interfaces", [])
-        has_interfaces = interfaces_data and len(interfaces_data) > 0
+        # Import ComponentFactory
+        from ..component_factory import ComponentFactory
         
-        if has_interfaces:
-            first_iface = interfaces_data[0]
-            reference_line_mm = (
-                float(first_iface.get("x1_mm", 0.0)),
-                float(first_iface.get("y1_mm", 0.0)),
-                float(first_iface.get("x2_mm", 0.0)),
-                float(first_iface.get("y2_mm", 0.0)),
-            )
+        # Use factory to create the item (same logic as actual drop)
+        item = ComponentFactory.create_item_from_dict(
+            rec,
+            scene_pos.x(),
+            scene_pos.y()
+        )
         
-        # Check if this should be a RefractiveObjectItem (for multi-interface Zemax imports)
-        use_refractive_item = False
-        if has_interfaces:
-            # Get interface types
-            interface_types = [iface.get("element_type", "lens") for iface in interfaces_data]
-            first_type = interface_types[0]
-            
-            # Check if all are refractive_interface or mixed types
-            all_refractive = all(t == "refractive_interface" for t in interface_types)
-            all_same_type = all(t == first_type for t in interface_types)
-            
-            # Use RefractiveObjectItem for all refractive OR mixed types
-            use_refractive_item = all_refractive or (len(interfaces_data) > 1 and not all_same_type)
-
-        # Create the appropriate item type with images for visual feedback
-        if use_refractive_item:
-            # Import RefractiveObjectParams and RefractiveInterface
-            from ...core.models import RefractiveObjectParams, RefractiveInterface
-            from ...core.interface_definition import InterfaceDefinition
-            
-            # Convert interfaces
-            ref_interfaces = []
-            for iface_data in interfaces_data:
-                if isinstance(iface_data, dict):
-                    iface_def = InterfaceDefinition.from_dict(iface_data)
-                    ref_iface = RefractiveInterface(
-                        x1_mm=iface_def.x1_mm,
-                        y1_mm=iface_def.y1_mm,
-                        x2_mm=iface_def.x2_mm,
-                        y2_mm=iface_def.y2_mm,
-                        n1=iface_def.n1,
-                        n2=iface_def.n2,
-                        is_curved=iface_def.is_curved,
-                        radius_of_curvature_mm=iface_def.radius_of_curvature_mm,
-                        is_beam_splitter=iface_def.element_type == 'beam_splitter',
-                        split_T=iface_def.split_T,
-                        split_R=iface_def.split_R,
-                        is_polarizing=iface_def.is_polarizing,
-                        pbs_transmission_axis_deg=iface_def.pbs_transmission_axis_deg
-                    )
-                    ref_interfaces.append(ref_iface)
-            
-            mm_per_pixel = float(rec.get("mm_per_pixel", object_height_mm / 1000.0))
-            params = RefractiveObjectParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                angle_deg=angle,
-                object_height_mm=object_height_mm,
-                interfaces=ref_interfaces,
-                image_path=img,
-                mm_per_pixel=mm_per_pixel,
-                name=name,
-            )
-            item = RefractiveObjectItem(params)
-        elif kind == "lens":
-            efl_mm = float(rec.get("efl_mm", 100.0))
-            params = LensParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                angle_deg=angle,
-                efl_mm=efl_mm,
-                object_height_mm=object_height_mm,
-                image_path=img,
-                name=name
-            )
-            if reference_line_mm:
-                params._reference_line_mm = reference_line_mm  # type: ignore
-            item = LensItem(params)
-        elif kind == "beamsplitter":
-            if "split_TR" in rec and isinstance(rec["split_TR"], (list, tuple)) and len(rec["split_TR"]) == 2:
-                T, R = float(rec["split_TR"][0]), float(rec["split_TR"][1])
-            else:
-                T, R = float(rec.get("split_T", 50.0)), float(rec.get("split_R", 50.0))
-            params = BeamsplitterParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                angle_deg=angle,
-                object_height_mm=object_height_mm,
-                split_T=T,
-                split_R=R,
-                image_path=img,
-                name=name,
-                is_polarizing=bool(rec.get("is_polarizing", False)),
-                pbs_transmission_axis_deg=float(rec.get("pbs_transmission_axis_deg", 0.0)),
-            )
-            if reference_line_mm:
-                params._reference_line_mm = reference_line_mm  # type: ignore
-            item = BeamsplitterItem(params)
-        elif kind == "waveplate":
-            phase_shift_deg = float(rec.get("phase_shift_deg", 90.0))
-            fast_axis_deg = float(rec.get("fast_axis_deg", 0.0))
-            params = WaveplateParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                angle_deg=angle,
-                object_height_mm=object_height_mm,
-                phase_shift_deg=phase_shift_deg,
-                fast_axis_deg=fast_axis_deg,
-                image_path=img,
-                name=name
-            )
-            if reference_line_mm:
-                params._reference_line_mm = reference_line_mm  # type: ignore
-            item = WaveplateItem(params)
-        elif kind == "slm":
-            params = SLMParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                angle_deg=angle,
-                object_height_mm=object_height_mm,
-                image_path=img,
-                name=name
-            )
-            if reference_line_mm:
-                params._reference_line_mm = reference_line_mm  # type: ignore
-            item = SLMItem(params)
-        else:  # mirror (default)
-            params = MirrorParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                angle_deg=angle,
-                object_height_mm=object_height_mm,
-                image_path=img,
-                name=name
-            )
-            if reference_line_mm:
-                params._reference_line_mm = reference_line_mm  # type: ignore
-            item = MirrorItem(params)
+        if not item:
+            # No valid component (missing interfaces, etc.)
+            return
 
         # Make it a non-interactive "ghost"
         item.setAcceptedMouseButtons(QtCore.Qt.MouseButton.NoButton)
@@ -725,6 +564,19 @@ class GraphicsView(QtWidgets.QGraphicsView):
         if hasattr(self, '_saved_anchor'):
             self.setTransformationAnchor(self._saved_anchor)
             delattr(self, '_saved_anchor')
+        
+        # Force Qt to update its internal mouse position tracking
+        # This ensures zoom-to-cursor works correctly if drag is cancelled
+        cursor_pos = self.mapFromGlobal(QtGui.QCursor.pos())
+        move_event = QtGui.QMouseEvent(
+            QtCore.QEvent.Type.MouseMove,
+            QtCore.QPointF(cursor_pos),
+            QtCore.Qt.MouseButton.NoButton,
+            QtCore.Qt.MouseButton.NoButton,
+            QtCore.Qt.KeyboardModifier.NoModifier
+        )
+        QtWidgets.QApplication.sendEvent(self.viewport(), move_event)
+        
         e.accept()
 
     def dropEvent(self, e: QtGui.QDropEvent):
@@ -767,6 +619,20 @@ class GraphicsView(QtWidgets.QGraphicsView):
                     rec["angle_deg"] = 0.0
 
             self.parent().on_drop_component(rec, scene_pos)
+            
+            # Force Qt to update its internal mouse position tracking by sending a synthetic mouse move
+            # This ensures zoom-to-cursor works correctly after drag-and-drop operations
+            # Without this, Qt's internal mouse tracking can get stuck, causing buggy zoom behavior
+            cursor_pos = self.mapFromGlobal(QtGui.QCursor.pos())
+            move_event = QtGui.QMouseEvent(
+                QtCore.QEvent.Type.MouseMove,
+                QtCore.QPointF(cursor_pos),
+                QtCore.Qt.MouseButton.NoButton,
+                QtCore.Qt.MouseButton.NoButton,
+                QtCore.Qt.KeyboardModifier.NoModifier
+            )
+            QtWidgets.QApplication.sendEvent(self.viewport(), move_event)
+            
             e.acceptProposedAction()
             return
 
@@ -787,6 +653,18 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 if hasattr(self, '_saved_anchor'):
                     self.setTransformationAnchor(self._saved_anchor)
                     delattr(self, '_saved_anchor')
+                
+                # Force Qt to update mouse position tracking after drop
+                cursor_pos = self.mapFromGlobal(QtGui.QCursor.pos())
+                move_event = QtGui.QMouseEvent(
+                    QtCore.QEvent.Type.MouseMove,
+                    QtCore.QPointF(cursor_pos),
+                    QtCore.Qt.MouseButton.NoButton,
+                    QtCore.Qt.MouseButton.NoButton,
+                    QtCore.Qt.KeyboardModifier.NoModifier
+                )
+                QtWidgets.QApplication.sendEvent(self.viewport(), move_event)
+                
                 e.acceptProposedAction()
                 return
 
@@ -805,6 +683,18 @@ class GraphicsView(QtWidgets.QGraphicsView):
                             if hasattr(self, '_saved_anchor'):
                                 self.setTransformationAnchor(self._saved_anchor)
                                 delattr(self, '_saved_anchor')
+                            
+                            # Force Qt to update mouse position tracking after drop
+                            cursor_pos = self.mapFromGlobal(QtGui.QCursor.pos())
+                            move_event = QtGui.QMouseEvent(
+                                QtCore.QEvent.Type.MouseMove,
+                                QtCore.QPointF(cursor_pos),
+                                QtCore.Qt.MouseButton.NoButton,
+                                QtCore.Qt.MouseButton.NoButton,
+                                QtCore.Qt.KeyboardModifier.NoModifier
+                            )
+                            QtWidgets.QApplication.sendEvent(self.viewport(), move_event)
+                            
                             e.acceptProposedAction()
                             return
         
@@ -812,6 +702,18 @@ class GraphicsView(QtWidgets.QGraphicsView):
         if hasattr(self, '_saved_anchor'):
             self.setTransformationAnchor(self._saved_anchor)
             delattr(self, '_saved_anchor')
+        
+        # Force Qt to update mouse position tracking even if drop is rejected
+        cursor_pos = self.mapFromGlobal(QtGui.QCursor.pos())
+        move_event = QtGui.QMouseEvent(
+            QtCore.QEvent.Type.MouseMove,
+            QtCore.QPointF(cursor_pos),
+            QtCore.Qt.MouseButton.NoButton,
+            QtCore.Qt.MouseButton.NoButton,
+            QtCore.Qt.KeyboardModifier.NoModifier
+        )
+        QtWidgets.QApplication.sendEvent(self.viewport(), move_event)
+        
         e.ignore()
 
     # ----- Pan Controls (Phase 3.1: Space + Middle Button) -----

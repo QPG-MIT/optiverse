@@ -130,19 +130,31 @@ class LensItem(BaseObj):
         return self._shape_union_sprite(shp)
     
     def paint(self, p: QtGui.QPainter, opt, widget=None):
+        """Paint optical interfaces."""
+        if not hasattr(self.params, 'interfaces') or not self.params.interfaces:
+            return
+        
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
-        pen = QtGui.QPen(QtGui.QColor("royalblue"), 4)
-        pen.setCosmetic(True)
-        p.setPen(pen)
         
-        # Lenses are always drawn as straight lines (thin lens approximation)
-        # Use _p1/_p2 which are in the item's local coordinate system and properly oriented
-        # (Interfaces are stored in image space for raytracing, not for rendering)
-        p.drawLine(self._p1, self._p2)
+        # Get offset for coordinate transformation
+        offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
         
-        # Draw center point
-        p.setBrush(QtGui.QColor("royalblue"))
-        p.drawEllipse(QtCore.QPointF(0, 0), 2, 2)
+        for iface in self.params.interfaces:
+            # Draw interface line
+            color = QtGui.QColor(100, 100, 255)  # Blue
+            pen = QtGui.QPen(color, 2)
+            pen.setCosmetic(True)
+            p.setPen(pen)
+            
+            # Transform coordinates
+            p1 = QtCore.QPointF(iface.x1_mm - offset_x, iface.y1_mm - offset_y)
+            p2 = QtCore.QPointF(iface.x2_mm - offset_x, iface.y2_mm - offset_y)
+            
+            # Check if curved
+            if iface.is_curved and abs(iface.radius_of_curvature_mm) > 0.1:
+                self._draw_curved_surface(p, p1, p2, iface.radius_of_curvature_mm)
+            else:
+                p.drawLine(p1, p2)
     
     def _draw_curved_surface(self, p: QtGui.QPainter, p1: QtCore.QPointF, p2: QtCore.QPointF, radius_mm: float):
         """

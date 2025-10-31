@@ -113,16 +113,27 @@ class DichroicItem(BaseObj):
         return self._shape_union_sprite(shp)
     
     def paint(self, p: QtGui.QPainter, opt, widget=None):
+        """Paint optical interfaces."""
+        if not hasattr(self.params, 'interfaces') or not self.params.interfaces:
+            return
+        
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
-        # Use a distinctive color gradient to indicate dichroic nature
-        # Blue to red gradient representing wavelength-dependent behavior
-        gradient = QtGui.QLinearGradient(self._p1, self._p2)
-        gradient.setColorAt(0.0, QtGui.QColor(100, 100, 255))  # Blue (short wavelength)
-        gradient.setColorAt(1.0, QtGui.QColor(255, 100, 100))  # Red (long wavelength)
-        pen = QtGui.QPen(QtGui.QBrush(gradient), 6)
-        pen.setCosmetic(True)
-        p.setPen(pen)
-        p.drawLine(self._p1, self._p2)
+        
+        # Get offset for coordinate transformation
+        offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
+        
+        for iface in self.params.interfaces:
+            # Draw interface line
+            color = QtGui.QColor(100, 100, 255)  # Blue
+            pen = QtGui.QPen(color, 2)
+            pen.setCosmetic(True)
+            p.setPen(pen)
+            
+            # Transform coordinates
+            p1 = QtCore.QPointF(iface.x1_mm - offset_x, iface.y1_mm - offset_y)
+            p2 = QtCore.QPointF(iface.x2_mm - offset_x, iface.y2_mm - offset_y)
+            
+            p.drawLine(p1, p2)
     
     def open_editor(self):
         """Open editor dialog for dichroic mirror parameters."""

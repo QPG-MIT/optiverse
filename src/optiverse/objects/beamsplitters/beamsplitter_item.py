@@ -109,11 +109,27 @@ class BeamsplitterItem(BaseObj):
         return self._shape_union_sprite(shp)
     
     def paint(self, p: QtGui.QPainter, opt, widget=None):
+        """Paint optical interfaces."""
+        if not hasattr(self.params, 'interfaces') or not self.params.interfaces:
+            return
+        
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
-        pen = QtGui.QPen(QtGui.QColor(0, 150, 120), 6)
-        pen.setCosmetic(True)
-        p.setPen(pen)
-        p.drawLine(self._p1, self._p2)
+        
+        # Get offset for coordinate transformation
+        offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
+        
+        for iface in self.params.interfaces:
+            # Draw interface line
+            color = QtGui.QColor(0, 150, 120)  # Green
+            pen = QtGui.QPen(color, 2)
+            pen.setCosmetic(True)
+            p.setPen(pen)
+            
+            # Transform coordinates
+            p1 = QtCore.QPointF(iface.x1_mm - offset_x, iface.y1_mm - offset_y)
+            p2 = QtCore.QPointF(iface.x2_mm - offset_x, iface.y2_mm - offset_y)
+            
+            p.drawLine(p1, p2)
     
     def open_editor(self):
         """Open editor dialog for beamsplitter parameters."""

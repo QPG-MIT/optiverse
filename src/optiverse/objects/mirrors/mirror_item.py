@@ -130,15 +130,31 @@ class MirrorItem(BaseObj):
         return self._shape_union_sprite(shp)
     
     def paint(self, p: QtGui.QPainter, opt, widget=None):
-        p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
-        pen = QtGui.QPen(QtGui.QColor("darkslategray"), 6)
-        pen.setCosmetic(True)
-        p.setPen(pen)
+        """Paint optical interfaces."""
+        if not hasattr(self.params, 'interfaces') or not self.params.interfaces:
+            return
         
-        # Mirrors use _p1/_p2 for rendering (properly oriented in item's local coordinate system)
-        # Interfaces are stored in image space for raytracing, not for rendering simple mirrors
-        # Note: Curved mirrors would need special handling if we ever support them
-        p.drawLine(self._p1, self._p2)
+        p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
+        
+        # Get offset for coordinate transformation
+        offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
+        
+        for iface in self.params.interfaces:
+            # Draw interface line
+            color = QtGui.QColor(150, 150, 150)  # Grey
+            pen = QtGui.QPen(color, 2)
+            pen.setCosmetic(True)
+            p.setPen(pen)
+            
+            # Transform coordinates
+            p1 = QtCore.QPointF(iface.x1_mm - offset_x, iface.y1_mm - offset_y)
+            p2 = QtCore.QPointF(iface.x2_mm - offset_x, iface.y2_mm - offset_y)
+            
+            # Check if curved
+            if iface.is_curved and abs(iface.radius_of_curvature_mm) > 0.1:
+                self._draw_curved_surface(p, p1, p2, iface.radius_of_curvature_mm)
+            else:
+                p.drawLine(p1, p2)
     
     def _draw_curved_surface(self, p: QtGui.QPainter, p1: QtCore.QPointF, p2: QtCore.QPointF, radius_mm: float):
         """

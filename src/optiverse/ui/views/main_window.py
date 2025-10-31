@@ -696,240 +696,48 @@ class MainWindow(QtWidgets.QMainWindow):
         self.libraryTree.expandAll()
 
     def on_drop_component(self, rec: dict, scene_pos: QtCore.QPointF):
-        """Handle component drop from library."""
+        """
+        Handle component drop from library.
+        Uses ComponentFactory to ensure dropped item matches ghost preview.
+        """
         # Apply snap to grid if enabled
         if self.snap_to_grid:
             scene_pos = QtCore.QPointF(round(scene_pos.x()), round(scene_pos.y()))
         
-        # Get common properties
-        name = rec.get("name")
-        img = rec.get("image_path")
-        object_height_mm = float(rec.get("object_height_mm", rec.get("object_height", rec.get("length_mm", 60.0))))
+        # Use ComponentFactory to create the item (same logic as ghost)
+        from ...objects.component_factory import ComponentFactory
+        item = ComponentFactory.create_item_from_dict(
+            rec,
+            scene_pos.x(),
+            scene_pos.y()
+        )
         
-        # Extract interfaces if available
-        interfaces_data = rec.get("interfaces", [])
-        has_interfaces = interfaces_data and len(interfaces_data) > 0
-        
-        # Get optical axis angle from library (with sensible defaults)
-        if "angle_deg" in rec:
-            angle_deg = float(rec.get("angle_deg"))
-        else:
-            # Default based on first interface type
-            if has_interfaces:
-                first_type = interfaces_data[0].get("element_type", "lens")
-                if first_type in ["beam_splitter", "beamsplitter", "dichroic"]:
-                    angle_deg = 45.0
-                else:
-                    angle_deg = 90.0
-            else:
-                # No interfaces - assume lens-like (vertical)
-                angle_deg = 90.0
-
-        # Extract reference line from first interface if available
-        reference_line_mm = None
-        if has_interfaces:
-            first_iface = interfaces_data[0]
-            reference_line_mm = (
-                float(first_iface.get("x1_mm", 0.0)),
-                float(first_iface.get("y1_mm", 0.0)),
-                float(first_iface.get("x2_mm", 0.0)),
-                float(first_iface.get("y2_mm", 0.0)),
+        if not item:
+            # Invalid component (missing interfaces, etc.)
+            name = rec.get("name", "Unknown")
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Invalid Component",
+                f"Cannot create component '{name}': Missing or invalid interface definitions."
             )
-
-        # INTERFACE-BASED ROUTING: Check interfaces to determine component type
-        # All components must have at least one interface defined
+            return
         
-        if not has_interfaces:
-            raise ValueError(f"Component '{name}' has no interfaces defined. All components must have at least one interface.")
-        
-        # Convert all interface data to InterfaceDefinition objects
-        from ...core.interface_definition import InterfaceDefinition
-        interfaces = []
-        for iface_data in interfaces_data:
-            if isinstance(iface_data, dict):
-                iface_def = InterfaceDefinition.from_dict(iface_data)
-            else:
-                iface_def = iface_data
-            interfaces.append(iface_def)
-        
-        # Get first interface type to determine component category
-        first_interface = interfaces_data[0]
-        element_type = first_interface.get("element_type", "lens")
-        
-        # Determine if this should be a specialized item type or RefractiveObjectItem
-        # Use RefractiveObjectItem only if interfaces are mixed types or all refractive_interface
-        all_same_type = all(iface.element_type == element_type for iface in interfaces)
-        all_refractive = all(iface.element_type == "refractive_interface" for iface in interfaces)
-        
-        # If all interfaces are refractive_interface OR mixed types, use RefractiveObjectItem
-        if all_refractive or (len(interfaces) > 1 and not all_same_type):
-            from ...core.models import RefractiveInterface
-            
-            # Convert to RefractiveInterface format for RefractiveObjectItem
-            ref_interfaces = []
-            for iface_def in interfaces:
-                ref_iface = RefractiveInterface(
-                    x1_mm=iface_def.x1_mm,
-                    y1_mm=iface_def.y1_mm,
-                    x2_mm=iface_def.x2_mm,
-                    y2_mm=iface_def.y2_mm,
-                    n1=iface_def.n1,
-                    n2=iface_def.n2,
-                    is_curved=iface_def.is_curved,  # ✅ PRESERVE CURVATURE!
-                    radius_of_curvature_mm=iface_def.radius_of_curvature_mm,  # ✅ PRESERVE RADIUS!
-                    is_beam_splitter=iface_def.element_type == 'beam_splitter',
-                    split_T=iface_def.split_T,
-                    split_R=iface_def.split_R,
-                    is_polarizing=iface_def.is_polarizing,
-                    pbs_transmission_axis_deg=iface_def.pbs_transmission_axis_deg
-                )
-                ref_interfaces.append(ref_iface)
-            
-            mm_per_pixel = float(rec.get("mm_per_pixel", object_height_mm / 1000.0))
-            
-            params = RefractiveObjectParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                angle_deg=angle_deg,
-                object_height_mm=object_height_mm,
-                interfaces=ref_interfaces,
-                image_path=img,
-                mm_per_pixel=mm_per_pixel,
-                name=name,
-            )
-            item = RefractiveObjectItem(params)
-        
-        # Specialized item types with ALL interfaces preserved
-        elif element_type == "lens":
-            efl_mm = first_interface.get("efl_mm", 100.0)
-            params = LensParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                angle_deg=angle_deg,
-                efl_mm=efl_mm,
-                object_height_mm=object_height_mm,
-                image_path=img,
-                name=name,
-                interfaces=interfaces,  # ✅ PRESERVE ALL INTERFACES!
-            )
-            if reference_line_mm:
-                params._reference_line_mm = reference_line_mm  # type: ignore
-            item = LensItem(params)
-        
-        elif element_type in ["beam_splitter", "beamsplitter"]:
-            T = first_interface.get("split_T", 50.0)
-            R = first_interface.get("split_R", 50.0)
-            is_polarizing = first_interface.get("is_polarizing", False)
-            pbs_axis = first_interface.get("pbs_transmission_axis_deg", 0.0)
-            
-            params = BeamsplitterParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                angle_deg=angle_deg,
-                object_height_mm=object_height_mm,
-                split_T=T,
-                split_R=R,
-                image_path=img,
-                name=name,
-                is_polarizing=is_polarizing,
-                pbs_transmission_axis_deg=pbs_axis,
-                interfaces=interfaces,  # ✅ PRESERVE ALL INTERFACES!
-            )
-            if reference_line_mm:
-                params._reference_line_mm = reference_line_mm  # type: ignore
-            item = BeamsplitterItem(params)
-        
-        elif element_type == "waveplate":
-            phase_shift_deg = first_interface.get("phase_shift_deg", 90.0)
-            fast_axis_deg = first_interface.get("fast_axis_deg", 0.0)
-            
-            params = WaveplateParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                angle_deg=angle_deg,
-                object_height_mm=object_height_mm,
-                phase_shift_deg=phase_shift_deg,
-                fast_axis_deg=fast_axis_deg,
-                image_path=img,
-                name=name,
-                interfaces=interfaces,  # ✅ PRESERVE ALL INTERFACES!
-            )
-            if reference_line_mm:
-                params._reference_line_mm = reference_line_mm  # type: ignore
-            item = WaveplateItem(params)
-        
-        elif element_type == "dichroic":
-            cutoff_wavelength_nm = first_interface.get("cutoff_wavelength_nm", 550.0)
-            transition_width_nm = first_interface.get("transition_width_nm", 50.0)
-            pass_type = first_interface.get("pass_type", "longpass")
-            
-            params = DichroicParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                angle_deg=angle_deg,
-                object_height_mm=object_height_mm,
-                cutoff_wavelength_nm=cutoff_wavelength_nm,
-                transition_width_nm=transition_width_nm,
-                pass_type=pass_type,
-                image_path=img,
-                name=name,
-                interfaces=interfaces,  # ✅ PRESERVE ALL INTERFACES!
-            )
-            if reference_line_mm:
-                params._reference_line_mm = reference_line_mm  # type: ignore
-            item = DichroicItem(params)
-        
-        elif element_type == "slm":
-            params = SLMParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                angle_deg=angle_deg,
-                object_height_mm=object_height_mm,
-                image_path=img,
-                name=name,
-            )
-            if reference_line_mm:
-                params._reference_line_mm = reference_line_mm  # type: ignore
-            item = SLMItem(params)
-        
-        elif element_type == "mirror":
-            params = MirrorParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                angle_deg=angle_deg,
-                object_height_mm=object_height_mm,
-                image_path=img,
-                name=name,
-                interfaces=interfaces,  # ✅ PRESERVE ALL INTERFACES!
-            )
-            if reference_line_mm:
-                params._reference_line_mm = reference_line_mm  # type: ignore
-            item = MirrorItem(params)
-        
-        else:
-            # Unknown element type - default to mirror
-            params = MirrorParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                angle_deg=angle_deg,
-                object_height_mm=object_height_mm,
-                image_path=img,
-                name=name,
-            )
-            if reference_line_mm:
-                params._reference_line_mm = reference_line_mm  # type: ignore
-            item = MirrorItem(params)
-
-        # Sprite is automatically attached in constructor, no need to call again
+        # Connect signals
         item.edited.connect(self._maybe_retrace)
         item.edited.connect(lambda: self.collaboration_manager.broadcast_update_item(item))
+        
+        # Add to scene with undo support
         cmd = AddItemCommand(self.scene, item)
         self.undo_stack.push(cmd)
+        
         # Clear previous selection and select only the newly dropped item
         self.scene.clearSelection()
         item.setSelected(True)
+        
         # Broadcast addition to collaboration
         self.collaboration_manager.broadcast_add_item(item)
+        
+        # Trigger ray tracing if enabled
         if self.autotrace:
             self.retrace()
 
