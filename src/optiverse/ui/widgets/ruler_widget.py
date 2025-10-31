@@ -252,9 +252,8 @@ class RulerWidget(QtWidgets.QWidget):
         return self._offset + mm * self._scale
     
     def _mm_to_screen_y(self, mm: float) -> float:
-        """Convert mm coordinate to screen Y coordinate."""
-        # For vertical ruler, map mm position to screen position
-        # Note: Y-axis is flipped (positive mm goes up, but screen Y goes down)
+        """Convert mm (Y-up) to screen Y (pixels down)."""
+        # Vertical ruler maps math Y-up to screen coordinates by inverting sign
         return self._offset - mm * self._scale
     
     def _calculate_tick_interval(self) -> float:

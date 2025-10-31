@@ -18,19 +18,14 @@ class InterfaceDefinition:
     COORDINATE SYSTEM (STORAGE FORMAT):
     - Origin (0,0) is at the IMAGE CENTER
     - X-axis: positive right, negative left
-    - Y-axis: positive DOWN, negative UP (Y-down, standard Qt convention)
+    - Y-axis: positive UP, negative DOWN (Y-up, math/engineering convention)
     - Units: millimeters
-    
-    Note: When displayed in the component editor canvas (MultiLineCanvas),
-    coordinates are flipped to Y-up for intuitive editing. The transformation is:
-        Canvas Y (Y-up) = -Storage Y (Y-down)
-        Storage Y (Y-down) = -Canvas Y (Y-up)
     
     The optical effect is determined by the spatial position (x, y) of the interface,
     not by the order in the list.
     """
     
-    # Geometry (in millimeters, centered coordinate system, Y-down)
+    # Geometry (in millimeters, centered coordinate system, Y-up)
     x1_mm: float = 0.0
     y1_mm: float = 0.0
     x2_mm: float = 10.0

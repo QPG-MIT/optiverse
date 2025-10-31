@@ -361,11 +361,11 @@ class MultiLineCanvas(QtWidgets.QLabel):
         img_center_x_px = img_rect.width() / (2 * self._scale_fit)
         img_center_y_px = img_rect.height() / (2 * self._scale_fit)
         
-        # Convert image pixel coordinates to screen coordinates (with centered origin)
+        # Convert image pixel coordinates to screen coordinates (centered origin, Y-up)
         x1_screen = img_rect.x() + (x1_img_px + img_center_x_px) * self._scale_fit
-        y1_screen = img_rect.y() + (y1_img_px + img_center_y_px) * self._scale_fit  # Y-down (no flip)
+        y1_screen = img_rect.y() + (img_center_y_px - y1_img_px) * self._scale_fit
         x2_screen = img_rect.x() + (x2_img_px + img_center_x_px) * self._scale_fit
-        y2_screen = img_rect.y() + (y2_img_px + img_center_y_px) * self._scale_fit  # Y-down (no flip)
+        y2_screen = img_rect.y() + (img_center_y_px - y2_img_px) * self._scale_fit
         
         # Determine appearance
         is_selected = (index in self._selected_lines)
@@ -1121,9 +1121,9 @@ class MultiLineCanvas(QtWidgets.QLabel):
                 else:
                     delta_x_screen = 0
             
-            # Convert delta to millimeters
+            # Convert delta to millimeters (Y-up: screen +y is down → invert sign)
             delta_x_mm = (delta_x_screen / self._scale_fit) * self._mm_per_px
-            delta_y_mm = (delta_y_screen / self._scale_fit) * self._mm_per_px  # Y-down (no flip)
+            delta_y_mm = (-(delta_y_screen) / self._scale_fit) * self._mm_per_px
             
             # Update all selected lines
             selected_indices = sorted(list(self._selected_lines))
@@ -1152,9 +1152,9 @@ class MultiLineCanvas(QtWidgets.QLabel):
             img_center_x_px = img_rect.width() / (2 * self._scale_fit)
             img_center_y_px = img_rect.height() / (2 * self._scale_fit)
             
-            # Convert screen coordinates to image pixel coordinates (centered system)
+            # Convert screen coordinates to image pixel coordinates (centered, Y-up)
             x_img_px = (e.pos().x() - img_rect.x()) / self._scale_fit - img_center_x_px
-            y_img_px = (e.pos().y() - img_rect.y()) / self._scale_fit - img_center_y_px  # Y-down (no flip)
+            y_img_px = img_center_y_px - (e.pos().y() - img_rect.y()) / self._scale_fit
             
             # Clamp to image bounds (in centered coordinates)
             w, h = self.image_pixel_size()
@@ -1325,9 +1325,9 @@ class MultiLineCanvas(QtWidgets.QLabel):
         img_center_x_px = img_rect.width() / (2 * self._scale_fit)
         img_center_y_px = img_rect.height() / (2 * self._scale_fit)
         
-        # Convert screen coordinates to image pixel coordinates (centered system)
+        # Convert screen coordinates to image pixel coordinates (centered, Y-up)
         x_img_px = (screen_pos.x() - img_rect.x()) / self._scale_fit - img_center_x_px
-        y_img_px = (screen_pos.y() - img_rect.y()) / self._scale_fit - img_center_y_px  # Y-down (no flip)
+        y_img_px = img_center_y_px - (screen_pos.y() - img_rect.y()) / self._scale_fit
         
         # Convert image pixel coordinates to millimeters
         x_mm = x_img_px * self._mm_per_px

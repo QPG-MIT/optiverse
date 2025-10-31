@@ -145,6 +145,9 @@ def serialize_component(rec: ComponentRecord) -> Dict[str, Any]:
         "object_height_mm": float(rec.object_height_mm),
         "angle_deg": float(rec.angle_deg),
         "notes": rec.notes or "",
+        # Coordinate system metadata (v2): persist as Y_UP
+        "schema_version": 2,
+        "coord_system": "Y_UP",
     }
     
     # Serialize interfaces
@@ -187,7 +190,26 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
     if interfaces_data and HAS_INTERFACE_DEFINITION:
         try:
             from .interface_definition import InterfaceDefinition
-            interfaces = [InterfaceDefinition.from_dict(iface_data) for iface_data in interfaces_data]
+            # Detect legacy coordinate system (default to Y_DOWN if missing)
+            coord_system = str(data.get("coord_system", "Y_DOWN")).upper()
+            schema_version = int(data.get("schema_version", 1))
+
+            normalized_ifaces: list[Dict[str, Any]] = []
+            if coord_system == "Y_UP":
+                normalized_ifaces = interfaces_data  # already Y-up
+            else:
+                # Legacy Y_DOWN: flip Y coordinates to Y_UP during load
+                for iface in interfaces_data:
+                    if not isinstance(iface, dict):
+                        continue
+                    y1 = iface.get("y1_mm", 0.0)
+                    y2 = iface.get("y2_mm", 0.0)
+                    flipped = dict(iface)
+                    flipped["y1_mm"] = -float(y1)
+                    flipped["y2_mm"] = -float(y2)
+                    normalized_ifaces.append(flipped)
+
+            interfaces = [InterfaceDefinition.from_dict(iface_data) for iface_data in normalized_ifaces]
         except Exception as e:
             print(f"Warning: Failed to deserialize interfaces: {e}")
             interfaces = None

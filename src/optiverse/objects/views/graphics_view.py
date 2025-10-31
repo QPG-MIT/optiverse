@@ -37,6 +37,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
         # Enable scrollbars to support panning (visible when scene larger than viewport)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        # Use Y-up world coordinates (invert Y once at the view level)
+        self.scale(1.0, -1.0)
         
         # Enable gesture support for Mac trackpad
         if is_macos():
@@ -258,15 +261,19 @@ class GraphicsView(QtWidgets.QGraphicsView):
         else:
             painter.fillRect(rect, QtGui.QColor(255, 255, 255))  # White background
         
-        # Get visible area in scene coordinates
+        # Get visible area in scene coordinates (normalize for Y-up flip)
         visible_rect = self.mapToScene(self.viewport().rect()).boundingRect()
         
         # Add small margin
         margin = 500  # Reduced margin for better performance
-        xmin = int(visible_rect.left()) - margin
-        xmax = int(visible_rect.right()) + margin
-        ymin = int(visible_rect.top()) - margin
-        ymax = int(visible_rect.bottom()) + margin
+        left = float(visible_rect.left())
+        right = float(visible_rect.right())
+        top = float(visible_rect.top())
+        bottom = float(visible_rect.bottom())
+        xmin = int(min(left, right)) - margin
+        xmax = int(max(left, right)) + margin
+        ymin = int(min(top, bottom)) - margin
+        ymax = int(max(top, bottom)) + margin
         
         # Adaptive grid density based on zoom
         zoom_scale = self.transform().m11()
