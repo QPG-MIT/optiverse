@@ -190,3 +190,144 @@ class TestMoveItemCommand:
         cmd1.undo()
         assert source_item.pos() == pos1
 
+
+class TestRotateItemCommand:
+    """Test RotateItemCommand for rotating items."""
+
+    @pytest.fixture
+    def scene(self, qapp):
+        """Create a QGraphicsScene."""
+        return QtWidgets.QGraphicsScene()
+
+    @pytest.fixture
+    def source_item(self, scene):
+        """Create and add a SourceItem to scene."""
+        item = SourceItem(SourceParams(x_mm=0, y_mm=0))
+        item.setPos(10, 20)
+        item.setRotation(0)
+        scene.addItem(item)
+        return item
+
+    def test_execute_rotates_item_to_new_angle(self, source_item):
+        """Execute should rotate item to new angle."""
+        from optiverse.core.undo_commands import RotateItemCommand
+        
+        old_rotation = 0.0
+        new_rotation = 45.0
+        
+        cmd = RotateItemCommand(source_item, old_rotation, new_rotation)
+        cmd.execute()
+        
+        assert source_item.rotation() == new_rotation
+
+    def test_undo_rotates_item_to_old_angle(self, source_item):
+        """Undo should rotate item back to old angle."""
+        from optiverse.core.undo_commands import RotateItemCommand
+        
+        old_rotation = 0.0
+        new_rotation = 90.0
+        
+        source_item.setRotation(old_rotation)
+        cmd = RotateItemCommand(source_item, old_rotation, new_rotation)
+        
+        cmd.execute()
+        assert source_item.rotation() == new_rotation
+        
+        cmd.undo()
+        assert source_item.rotation() == old_rotation
+
+    def test_multiple_rotations(self, source_item):
+        """Test multiple sequential rotations."""
+        from optiverse.core.undo_commands import RotateItemCommand
+        
+        rot1 = 0.0
+        rot2 = 45.0
+        rot3 = 90.0
+        
+        source_item.setRotation(rot1)
+        cmd1 = RotateItemCommand(source_item, rot1, rot2)
+        cmd2 = RotateItemCommand(source_item, rot2, rot3)
+        
+        cmd1.execute()
+        assert source_item.rotation() == rot2
+        
+        cmd2.execute()
+        assert source_item.rotation() == rot3
+        
+        cmd2.undo()
+        assert source_item.rotation() == rot2
+        
+        cmd1.undo()
+        assert source_item.rotation() == rot1
+
+
+class TestRotateItemsCommand:
+    """Test RotateItemsCommand for group rotation."""
+
+    @pytest.fixture
+    def scene(self, qapp):
+        """Create a QGraphicsScene."""
+        return QtWidgets.QGraphicsScene()
+
+    @pytest.fixture
+    def source_items(self, scene):
+        """Create and add multiple SourceItems to scene."""
+        items = []
+        for i in range(3):
+            item = SourceItem(SourceParams(x_mm=i * 10, y_mm=0))
+            item.setPos(i * 10, 0)
+            item.setRotation(0)
+            scene.addItem(item)
+            items.append(item)
+        return items
+
+    def test_execute_rotates_all_items(self, source_items):
+        """Execute should rotate all items to new positions and angles."""
+        from optiverse.core.undo_commands import RotateItemsCommand
+        from PyQt6.QtCore import QPointF
+        
+        old_positions = {item: QPointF(item.pos()) for item in source_items}
+        old_rotations = {item: item.rotation() for item in source_items}
+        
+        # Simulate rotation
+        new_positions = {
+            source_items[0]: QPointF(5, 5),
+            source_items[1]: QPointF(10, 10),
+            source_items[2]: QPointF(15, 15),
+        }
+        new_rotations = {item: 45.0 for item in source_items}
+        
+        cmd = RotateItemsCommand(source_items, old_positions, new_positions, old_rotations, new_rotations)
+        cmd.execute()
+        
+        for item in source_items:
+            assert item.pos() == new_positions[item]
+            assert item.rotation() == new_rotations[item]
+
+    def test_undo_restores_all_items(self, source_items):
+        """Undo should restore all items to old positions and angles."""
+        from optiverse.core.undo_commands import RotateItemsCommand
+        from PyQt6.QtCore import QPointF
+        
+        old_positions = {item: QPointF(item.pos()) for item in source_items}
+        old_rotations = {item: item.rotation() for item in source_items}
+        
+        new_positions = {
+            source_items[0]: QPointF(5, 5),
+            source_items[1]: QPointF(10, 10),
+            source_items[2]: QPointF(15, 15),
+        }
+        new_rotations = {item: 45.0 for item in source_items}
+        
+        cmd = RotateItemsCommand(source_items, old_positions, new_positions, old_rotations, new_rotations)
+        
+        cmd.execute()
+        for item in source_items:
+            assert item.pos() == new_positions[item]
+            assert item.rotation() == 45.0
+        
+        cmd.undo()
+        for item in source_items:
+            assert item.pos() == old_positions[item]
+            assert item.rotation() == old_rotations[item]
+

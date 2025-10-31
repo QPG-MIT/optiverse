@@ -3,10 +3,9 @@ bugs:
 - check control+z and control + Y
 - check dichroic
 - check multiplayer
-- check refractive element
+- y coordinates in component editor
 
 feature request:
-- zemax file include
 - zemax black box model
 - isolator
 - beam block

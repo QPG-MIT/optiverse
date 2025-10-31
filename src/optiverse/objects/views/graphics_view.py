@@ -114,7 +114,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
                     factor = max(0.5, min(2.0, factor))  # Limit zoom per event
                     
                     # Zoom centered on mouse cursor using scrollbar adjustment
-                    self._zoom_at_point(e.position().toPoint(), factor)
+                    # Use actual cursor position instead of event position to avoid stale cache issues
+                    cursor_pos = self.mapFromGlobal(QtGui.QCursor.pos())
+                    self._zoom_at_point(cursor_pos, factor)
                     
                     self.zoomChanged.emit()
                     # Force viewport update for clean grid rendering
@@ -140,7 +142,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 factor = 1.15 if delta_y > 0 else 1 / 1.15
                 
                 # Zoom centered on mouse cursor using scrollbar adjustment
-                self._zoom_at_point(e.position().toPoint(), factor)
+                # Use actual cursor position instead of event position to avoid stale cache issues
+                cursor_pos = self.mapFromGlobal(QtGui.QCursor.pos())
+                self._zoom_at_point(cursor_pos, factor)
                 
                 self.zoomChanged.emit()
                 self.viewport().update()
@@ -218,15 +222,21 @@ class GraphicsView(QtWidgets.QGraphicsView):
             center_point = gesture.centerPoint().toPoint()
             
             # Map to scene coordinates for proper anchor
-            old_pos = self.mapToScene(center_point)
+            scene_pos = self.mapToScene(center_point)
             
             # Apply scale
             self.scale(scale_factor, scale_factor)
             
-            # Adjust to keep the point under the gesture center
-            new_pos = self.mapToScene(center_point)
-            delta = new_pos - old_pos
-            self.translate(delta.x(), delta.y())
+            # Adjust to keep the point under the gesture center using scrollbars
+            # This is more robust than translate() which can accumulate errors
+            new_viewport_pos = self.mapFromScene(scene_pos)
+            delta = new_viewport_pos - center_point
+            
+            # Use scrollbars instead of translate() to avoid transform matrix corruption
+            h_bar = self.horizontalScrollBar()
+            v_bar = self.verticalScrollBar()
+            h_bar.setValue(h_bar.value() + int(delta.x()))
+            v_bar.setValue(v_bar.value() + int(delta.y()))
             
             self.zoomChanged.emit()
             # Force viewport update for clean grid rendering

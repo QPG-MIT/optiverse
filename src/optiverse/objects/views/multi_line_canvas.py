@@ -32,16 +32,15 @@ class InterfaceLine:
     COORDINATE SYSTEM:
     - Origin (0,0) is at the IMAGE CENTER
     - X-axis: positive right, negative left
-    - Y-axis: positive UP, negative DOWN (Y-up for intuitive editing)
+    - Y-axis: positive DOWN, negative UP (Y-down, standard Qt/screen coordinates)
     - Units: millimeters
     
-    Note: This Y-up coordinate system is ONLY for canvas display.
-    When saving to InterfaceDefinition, coordinates are flipped to Y-down (Qt standard).
+    Note: Y-down coordinate system matches both storage and screen coordinates (no flipping needed).
     """
-    x1: float  # Start point X in mm (centered, Y-up)
-    y1: float  # Start point Y in mm (centered, Y-up)
-    x2: float  # End point X in mm (centered, Y-up)
-    y2: float  # End point Y in mm (centered, Y-up)
+    x1: float  # Start point X in mm (centered, Y-down)
+    y1: float  # Start point Y in mm (centered, Y-down)
+    x2: float  # End point X in mm (centered, Y-down)
+    y2: float  # End point Y in mm (centered, Y-down)
     color: QtGui.QColor = None  # Line color
     label: str = ""  # Optional label
     properties: Dict[str, Any] = None  # Additional properties (n1, n2, is_BS, etc.)
@@ -60,12 +59,12 @@ class MultiLineCanvas(QtWidgets.QLabel):
     COORDINATE SYSTEM:
     - Lines are stored in millimeter coordinates (InterfaceLine)
     - Origin (0,0) is at the IMAGE CENTER
-    - Y-axis is UP (positive Y is up, negative Y is down) - for intuitive editing
+    - Y-axis is DOWN (positive Y is down, negative Y is up) - standard Qt/screen coordinates
     - Canvas handles conversion to screen pixels automatically
     
     COORDINATE TRANSFORMATIONS:
-    - Screen coords (Y-down) → Canvas mm (Y-up) → Storage mm (Y-down)
-    - The Y-flip happens when saving/loading from InterfaceDefinition
+    - Screen coords (Y-down) → Canvas mm (Y-down) → Storage mm (Y-down) [all consistent]
+    - No Y-axis flipping needed since all systems use Y-down
     
     Signals:
         imageDropped: Emitted when image is dropped
@@ -74,7 +73,9 @@ class MultiLineCanvas(QtWidgets.QLabel):
     """
     imageDropped = QtCore.pyqtSignal(QtGui.QPixmap, str)
     linesChanged = QtCore.pyqtSignal()  # Any line changed
-    lineSelected = QtCore.pyqtSignal(int)  # Line index selected
+    lineSelected = QtCore.pyqtSignal(int)  # Line index selected (single)
+    linesSelected = QtCore.pyqtSignal(list)  # Multiple line indices selected
+    linesMoved = QtCore.pyqtSignal(list, list, list)  # (indices, old_positions, new_positions) for undo
     
     def __init__(self):
         super().__init__()
@@ -88,16 +89,25 @@ class MultiLineCanvas(QtWidgets.QLabel):
         
         # Multiple lines support (all coordinates in millimeters)
         self._lines: List[InterfaceLine] = []
-        self._selected_line: int = -1  # Currently selected line index
+        self._selected_lines: set = set()  # Set of selected line indices (multi-selection)
         
         # Coordinate conversion factor
         self._mm_per_px: float = 1.0  # Millimeters per image pixel
         
         # Drag state
-        self._dragging_line: int = -1  # Index of line being dragged
+        self._dragging_line: int = -1  # Index of line being dragged (endpoint mode)
         self._dragging_point: int = 0  # 1 for start point, 2 for end point
+        self._dragging_entire_lines: bool = False  # True when dragging whole line(s)
+        self._drag_start_pos: Optional[QtCore.QPointF] = None  # Initial drag position
+        self._drag_initial_lines: List[Tuple[float, float, float, float]] = []  # Initial line positions
+        self._drag_moved_indices: List[int] = []  # Indices of lines that were moved (for undo)
         self._hover_line: int = -1  # Line being hovered
         self._hover_point: int = 0  # Point being hovered (1 or 2)
+        
+        # Rectangle selection
+        self._rect_selecting: bool = False  # True when drawing selection rectangle
+        self._rect_start: Optional[QtCore.QPoint] = None  # Rectangle start position
+        self._rect_end: Optional[QtCore.QPoint] = None  # Rectangle end position
         
         # Drag lock (restrict dragging to specific line)
         self._drag_locked_line: int = -1  # -1 means no lock, otherwise only this line can be dragged
@@ -155,10 +165,15 @@ class MultiLineCanvas(QtWidgets.QLabel):
         """Remove line at index."""
         if 0 <= index < len(self._lines):
             del self._lines[index]
-            if self._selected_line == index:
-                self._selected_line = -1
-            elif self._selected_line > index:
-                self._selected_line -= 1
+            # Update selected lines (remove deleted, adjust indices)
+            new_selected = set()
+            for sel_idx in self._selected_lines:
+                if sel_idx < index:
+                    new_selected.add(sel_idx)
+                elif sel_idx > index:
+                    new_selected.add(sel_idx - 1)
+                # Skip if sel_idx == index (deleted line)
+            self._selected_lines = new_selected
             self.update()
             self.linesChanged.emit()
     
@@ -182,33 +197,59 @@ class MultiLineCanvas(QtWidgets.QLabel):
     def clear_lines(self):
         """Remove all lines."""
         self._lines.clear()
-        self._selected_line = -1
+        self._selected_lines.clear()
         self.update()
         self.linesChanged.emit()
     
     def set_lines(self, lines: List[InterfaceLine]):
         """Set all lines at once."""
         self._lines = list(lines)
-        self._selected_line = -1
+        self._selected_lines.clear()
         self.update()
         self.linesChanged.emit()
     
     def get_selected_line_index(self) -> int:
-        """Get currently selected line index (-1 if none)."""
-        return self._selected_line
+        """Get currently selected line index (-1 if none). Returns first selected for backward compatibility."""
+        if len(self._selected_lines) > 0:
+            return min(self._selected_lines)
+        return -1
     
-    def select_line(self, index: int):
-        """Select a line by index."""
-        if -1 <= index < len(self._lines):
-            self._selected_line = index
-            self.update()
-            if index >= 0:
-                self.lineSelected.emit(index)
+    def get_selected_line_indices(self) -> List[int]:
+        """Get all selected line indices."""
+        return sorted(list(self._selected_lines))
+    
+    def select_line(self, index: int, add_to_selection: bool = False):
+        """
+        Select a line by index.
+        
+        Args:
+            index: Line index to select (-1 to clear selection)
+            add_to_selection: If True, add to existing selection; if False, replace selection
+        """
+        if index == -1:
+            self._selected_lines.clear()
+        elif 0 <= index < len(self._lines):
+            if not add_to_selection:
+                self._selected_lines.clear()
+            self._selected_lines.add(index)
+            self.lineSelected.emit(index)
+        
+        self.update()
+        self.linesSelected.emit(sorted(list(self._selected_lines)))
+    
+    def select_lines(self, indices: List[int]):
+        """Select multiple lines by indices."""
+        self._selected_lines.clear()
+        for idx in indices:
+            if 0 <= idx < len(self._lines):
+                self._selected_lines.add(idx)
+        self.update()
+        self.linesSelected.emit(sorted(list(self._selected_lines)))
     
     def set_drag_lock(self, line_index: int):
         """Lock dragging to only the specified line."""
         self._drag_locked_line = line_index
-        self._selected_line = line_index
+        self.select_line(line_index, add_to_selection=False)
         self.update()
     
     def clear_drag_lock(self):
@@ -295,6 +336,17 @@ class MultiLineCanvas(QtWidgets.QLabel):
         # Draw all lines
         for i, line in enumerate(self._lines):
             self._draw_line(p, target, line, i)
+        
+        # Draw selection rectangle
+        if self._rect_selecting and self._rect_start and self._rect_end:
+            rect = QtCore.QRect(self._rect_start, self._rect_end).normalized()
+            p.setPen(QtGui.QPen(QtGui.QColor(100, 150, 255), 2, QtCore.Qt.PenStyle.DashLine))
+            p.setBrush(QtGui.QBrush(QtGui.QColor(100, 150, 255, 30)))
+            p.drawRect(rect)
+        
+        # Draw bounding box around selected lines
+        if len(self._selected_lines) > 1 and not self._rect_selecting:
+            self._draw_bounding_box(p, target)
     
     def _draw_line(self, p: QtGui.QPainter, img_rect: QtCore.QRect, line: InterfaceLine, index: int):
         """Draw a single interface line."""
@@ -311,12 +363,12 @@ class MultiLineCanvas(QtWidgets.QLabel):
         
         # Convert image pixel coordinates to screen coordinates (with centered origin)
         x1_screen = img_rect.x() + (x1_img_px + img_center_x_px) * self._scale_fit
-        y1_screen = img_rect.y() + (img_center_y_px - y1_img_px) * self._scale_fit  # Flip Y axis
+        y1_screen = img_rect.y() + (y1_img_px + img_center_y_px) * self._scale_fit  # Y-down (no flip)
         x2_screen = img_rect.x() + (x2_img_px + img_center_x_px) * self._scale_fit
-        y2_screen = img_rect.y() + (img_center_y_px - y2_img_px) * self._scale_fit  # Flip Y axis
+        y2_screen = img_rect.y() + (y2_img_px + img_center_y_px) * self._scale_fit  # Y-down (no flip)
         
         # Determine appearance
-        is_selected = (index == self._selected_line)
+        is_selected = (index in self._selected_lines)
         is_hovering = (index == self._hover_line)
         is_locked = (self._drag_locked_line >= 0 and index == self._drag_locked_line)
         is_dimmed = (self._drag_locked_line >= 0 and index != self._drag_locked_line)
@@ -348,6 +400,17 @@ class MultiLineCanvas(QtWidgets.QLabel):
             # Draw straight line
             p.drawLine(QtCore.QPointF(x1_screen, y1_screen), 
                        QtCore.QPointF(x2_screen, y2_screen))
+        
+        # Draw refractive index indicator (half-circle) for refractive interfaces
+        if not is_dimmed and line.properties:
+            interface = line.properties.get('interface')
+            if interface and interface.element_type == 'refractive_interface':
+                # Only show indicator if indices are different (meaningful refraction)
+                if abs(interface.n1 - interface.n2) > 0.01:
+                    self._draw_refractive_index_indicator(
+                        p, x1_screen, y1_screen, x2_screen, y2_screen,
+                        interface, img_rect
+                    )
         
         # Draw endpoints (skip if dimmed)
         if not is_dimmed:
@@ -462,6 +525,132 @@ class MultiLineCanvas(QtWidgets.QLabel):
         p.drawText(rect1, QtCore.Qt.AlignmentFlag.AlignCenter, label1_text)
         p.drawText(rect2, QtCore.Qt.AlignmentFlag.AlignCenter, label2_text)
     
+    def _draw_refractive_index_indicator(self, p: QtGui.QPainter,
+                                         x1: float, y1: float,
+                                         x2: float, y2: float,
+                                         interface, img_rect: QtCore.QRect):
+        """
+        Draw a half-and-half colored circle at the midpoint of a refractive interface.
+        
+        The circle is split perpendicular to the line direction (or tangent for curved lines):
+        - Left half (toward n₁ endpoint): Yellow
+        - Right half (toward n₂ endpoint): Purple
+        
+        Args:
+            p: QPainter instance
+            x1, y1: First endpoint (screen coordinates) - n₁ side
+            x2, y2: Second endpoint (screen coordinates) - n₂ side
+            interface: InterfaceDefinition object with curvature info
+            img_rect: Image rectangle for coordinate conversion
+        """
+        # Check if this is a curved interface
+        is_curved = interface and hasattr(interface, 'is_curved') and interface.is_curved
+        has_curvature = is_curved and hasattr(interface, 'radius_of_curvature_mm') and abs(interface.radius_of_curvature_mm) > 0.1
+        
+        # Calculate chord properties
+        dx = x2 - x1
+        dy = y2 - y1
+        chord_length = math.sqrt(dx*dx + dy*dy)
+        
+        if chord_length < 1:
+            return  # Line too short, skip indicator
+        
+        # Default to chord midpoint and direction
+        mid_x = (x1 + x2) / 2
+        mid_y = (y1 + y2) / 2
+        tangent_angle_rad = math.atan2(dy, dx)
+        
+        # For curved lines, calculate arc midpoint and tangent
+        if has_curvature:
+            radius_mm = interface.radius_of_curvature_mm
+            radius_px = abs(radius_mm) / self._mm_per_px * self._scale_fit
+            
+            # Only adjust for curves if radius is reasonable relative to chord
+            if radius_px >= chord_length / 2:
+                # Calculate arc center (using SAME logic as _draw_curved_line)
+                half_chord = chord_length / 2
+                sag = radius_px - math.sqrt(radius_px**2 - half_chord**2)
+                
+                # Perpendicular direction to chord (normalized)
+                perp_x = -dy / chord_length
+                perp_y = dx / chord_length
+                
+                # Chord midpoint
+                chord_mid_x = (x1 + x2) / 2
+                chord_mid_y = (y1 + y2) / 2
+                
+                # Arc center position (same calculation as _draw_curved_line)
+                if radius_mm > 0:
+                    center_x = chord_mid_x + perp_x * (radius_px - sag)
+                    center_y = chord_mid_y + perp_y * (radius_px - sag)
+                else:
+                    center_x = chord_mid_x - perp_x * (radius_px - sag)
+                    center_y = chord_mid_y - perp_y * (radius_px - sag)
+                
+                # Calculate angles from center to endpoints
+                angle1 = math.atan2(y1 - center_y, x1 - center_x)
+                angle2 = math.atan2(y2 - center_y, x2 - center_x)
+                
+                # Arc midpoint angle (average of endpoint angles)
+                # Need to handle wraparound correctly
+                angle_diff = angle2 - angle1
+                while angle_diff > math.pi:
+                    angle_diff -= 2 * math.pi
+                while angle_diff < -math.pi:
+                    angle_diff += 2 * math.pi
+                    
+                mid_angle = angle1 + angle_diff / 2
+                
+                # Arc midpoint position (point on circle at mid_angle)
+                mid_x = center_x + radius_px * math.cos(mid_angle)
+                mid_y = center_y + radius_px * math.sin(mid_angle)
+                
+                # Tangent at arc midpoint is perpendicular to radial direction
+                tangent_angle_rad = mid_angle + math.pi / 2
+        
+        # Circle properties
+        circle_radius = 8  # pixels
+        
+        # Define colors (matching plan specification)
+        yellow_n1 = QtGui.QColor(255, 215, 0)  # Yellow for n₁ side
+        purple_n2 = QtGui.QColor(147, 112, 219)  # Purple for n₂ side
+        
+        # Save painter state
+        p.save()
+        
+        # Draw the circle split ALONG the line direction
+        # The split line runs parallel to the interface
+        # Yellow on the n₁ side (toward point 1), Purple on the n₂ side (toward point 2)
+        
+        p.setPen(QtCore.Qt.PenStyle.NoPen)
+        
+        # The split should align with the line direction
+        # For a vertical line (90°), split should be vertical
+        # For a horizontal line (0°), split should be horizontal
+        # To split ALONG the line (not perpendicular), we rotate by 90° and negate to fix direction
+        
+        # Draw n₁ half (Yellow) - the half toward point 1
+        p.setBrush(QtGui.QBrush(yellow_n1))
+        start_angle_deg = 180 - math.degrees(tangent_angle_rad)
+        span_angle_deg = 180
+        
+        rect = QtCore.QRectF(mid_x - circle_radius, mid_y - circle_radius, 
+                             circle_radius * 2, circle_radius * 2)
+        p.drawPie(rect, int(start_angle_deg * 16), int(span_angle_deg * 16))
+        
+        # Draw n₂ half (Purple) - the half toward point 2  
+        p.setBrush(QtGui.QBrush(purple_n2))
+        start_angle_deg = 360 - math.degrees(tangent_angle_rad)
+        p.drawPie(rect, int(start_angle_deg * 16), int(span_angle_deg * 16))
+        
+        # Draw outline for better visibility
+        p.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0, 180), 1))
+        p.setBrush(QtCore.Qt.BrushStyle.NoBrush)
+        p.drawEllipse(QtCore.QPointF(mid_x, mid_y), circle_radius, circle_radius)
+        
+        # Restore painter state
+        p.restore()
+    
     def _draw_curved_line(self, p: QtGui.QPainter, x1_screen: float, y1_screen: float, 
                           x2_screen: float, y2_screen: float, 
                           radius_mm: float, img_rect: QtCore.QRect):
@@ -515,14 +704,12 @@ class MultiLineCanvas(QtWidgets.QLabel):
         perp_y = dx / chord_len
         
         # Determine arc direction based on sign of radius
-        # Positive radius: convex from left (center to the right)
-        # Negative radius: concave from left (center to the left)
         if radius_mm > 0:
-            # Convex from left: arc bulges toward positive perpendicular
+            # Positive radius: center in positive perpendicular direction
             center_x = mid_x + perp_x * (radius_px - sag)
             center_y = mid_y + perp_y * (radius_px - sag)
         else:
-            # Concave from left: arc bulges toward negative perpendicular
+            # Negative radius: center in negative perpendicular direction
             center_x = mid_x - perp_x * (radius_px - sag)
             center_y = mid_y - perp_y * (radius_px - sag)
         
@@ -563,6 +750,51 @@ class MultiLineCanvas(QtWidgets.QLabel):
         
         p.drawArc(rect, start_angle_16th, span_angle_16th)
     
+    def _draw_bounding_box(self, p: QtGui.QPainter, img_rect: QtCore.QRect):
+        """Draw a bounding box around all selected lines."""
+        if not self._selected_lines:
+            return
+        
+        # Calculate bounds in screen coordinates
+        min_x, min_y = float('inf'), float('inf')
+        max_x, max_y = float('-inf'), float('-inf')
+        
+        img_center_x_px = img_rect.width() / (2 * self._scale_fit)
+        img_center_y_px = img_rect.height() / (2 * self._scale_fit)
+        
+        for idx in self._selected_lines:
+            if 0 <= idx < len(self._lines):
+                line = self._lines[idx]
+                
+                # Convert to screen coordinates
+                x1_img_px = line.x1 / self._mm_per_px
+                y1_img_px = line.y1 / self._mm_per_px
+                x2_img_px = line.x2 / self._mm_per_px
+                y2_img_px = line.y2 / self._mm_per_px
+                
+                x1_screen = img_rect.x() + (x1_img_px + img_center_x_px) * self._scale_fit
+                y1_screen = img_rect.y() + (y1_img_px + img_center_y_px) * self._scale_fit
+                x2_screen = img_rect.x() + (x2_img_px + img_center_x_px) * self._scale_fit
+                y2_screen = img_rect.y() + (y2_img_px + img_center_y_px) * self._scale_fit
+                
+                min_x = min(min_x, x1_screen, x2_screen)
+                max_x = max(max_x, x1_screen, x2_screen)
+                min_y = min(min_y, y1_screen, y2_screen)
+                max_y = max(max_y, y1_screen, y2_screen)
+        
+        if min_x < float('inf'):
+            # Add padding
+            padding = 10
+            bbox = QtCore.QRectF(
+                min_x - padding, min_y - padding,
+                max_x - min_x + 2 * padding, max_y - min_y + 2 * padding
+            )
+            
+            # Draw bounding box
+            p.setPen(QtGui.QPen(QtGui.QColor(100, 150, 255), 2, QtCore.Qt.PenStyle.DashLine))
+            p.setBrush(QtCore.Qt.BrushStyle.NoBrush)
+            p.drawRect(bbox)
+    
     # ========== Mouse Interaction ==========
     
     def _get_line_and_point_at(self, screen_pos: QtCore.QPoint, threshold: float = 10.0) -> Tuple[int, int]:
@@ -579,12 +811,15 @@ class MultiLineCanvas(QtWidgets.QLabel):
         if not img_rect.contains(screen_pos):
             return (-1, 0)
         
-        # Check all lines (prioritize selected line)
+        # Check all lines (prioritize selected lines)
         search_order = list(range(len(self._lines)))
-        if self._selected_line >= 0:
-            # Check selected line first
-            search_order.remove(self._selected_line)
-            search_order.insert(0, self._selected_line)
+        if self._selected_lines:
+            # Check selected lines first (in order)
+            selected_sorted = sorted(list(self._selected_lines), reverse=True)
+            for sel_idx in selected_sorted:
+                if sel_idx in search_order:
+                    search_order.remove(sel_idx)
+                    search_order.insert(0, sel_idx)
         
         # Calculate centered coordinate system parameters
         img_center_x_px = img_rect.width() / (2 * self._scale_fit)
@@ -619,39 +854,296 @@ class MultiLineCanvas(QtWidgets.QLabel):
         
         return (-1, 0)
     
+    def _get_line_at_position(self, screen_pos: QtCore.QPoint, threshold: float = 5.0) -> int:
+        """
+        Find line body at screen position (not just endpoints).
+        
+        Returns:
+            Line index, or -1 if no line is near the position
+        """
+        if not self._pix:
+            return -1
+        
+        img_rect = self._target_rect()
+        if not img_rect.contains(screen_pos):
+            return -1
+        
+        img_center_x_px = img_rect.width() / (2 * self._scale_fit)
+        img_center_y_px = img_rect.height() / (2 * self._scale_fit)
+        
+        # Check all lines in reverse order (prioritize top lines)
+        for i in range(len(self._lines) - 1, -1, -1):
+            line = self._lines[i]
+            
+            # Convert to screen coordinates
+            x1_img_px = line.x1 / self._mm_per_px
+            y1_img_px = line.y1 / self._mm_per_px
+            x2_img_px = line.x2 / self._mm_per_px
+            y2_img_px = line.y2 / self._mm_per_px
+            
+            x1_screen = img_rect.x() + (x1_img_px + img_center_x_px) * self._scale_fit
+            y1_screen = img_rect.y() + (img_center_y_px - y1_img_px) * self._scale_fit
+            x2_screen = img_rect.x() + (x2_img_px + img_center_x_px) * self._scale_fit
+            y2_screen = img_rect.y() + (img_center_y_px - y2_img_px) * self._scale_fit
+            
+            # Calculate distance from point to line segment
+            px, py = screen_pos.x(), screen_pos.y()
+            
+            # Vector from line start to end
+            dx = x2_screen - x1_screen
+            dy = y2_screen - y1_screen
+            
+            # Squared length of line
+            len_sq = dx*dx + dy*dy
+            
+            if len_sq < 0.01:  # Degenerate line (too short)
+                continue
+            
+            # Parameter t along line (clamped to [0, 1])
+            t = max(0.0, min(1.0, ((px - x1_screen) * dx + (py - y1_screen) * dy) / len_sq))
+            
+            # Closest point on line segment
+            closest_x = x1_screen + t * dx
+            closest_y = y1_screen + t * dy
+            
+            # Distance to closest point
+            dist_sq = (px - closest_x)**2 + (py - closest_y)**2
+            
+            if dist_sq <= threshold * threshold:
+                return i
+        
+        return -1
+    
+    def _segments_intersect(self, x1: float, y1: float, x2: float, y2: float,
+                           x3: float, y3: float, x4: float, y4: float) -> bool:
+        """
+        Check if two line segments intersect.
+        
+        Args:
+            (x1, y1) - (x2, y2): First line segment
+            (x3, y3) - (x4, y4): Second line segment
+            
+        Returns:
+            True if segments intersect
+        """
+        # Calculate direction vectors
+        dx1 = x2 - x1
+        dy1 = y2 - y1
+        dx2 = x4 - x3
+        dy2 = y4 - y3
+        
+        # Calculate determinant
+        det = dx1 * dy2 - dy1 * dx2
+        
+        if abs(det) < 1e-10:  # Lines are parallel
+            return False
+        
+        # Calculate intersection parameters
+        t1 = ((x3 - x1) * dy2 - (y3 - y1) * dx2) / det
+        t2 = ((x3 - x1) * dy1 - (y3 - y1) * dx1) / det
+        
+        # Check if intersection is within both segments
+        return 0 <= t1 <= 1 and 0 <= t2 <= 1
+    
+    def _line_intersects_rect(self, x1: float, y1: float, x2: float, y2: float,
+                              rect: QtCore.QRect) -> bool:
+        """
+        Check if line segment intersects with rectangle.
+        
+        Args:
+            (x1, y1) - (x2, y2): Line segment in screen coordinates
+            rect: Rectangle to check
+            
+        Returns:
+            True if line intersects or is inside rectangle
+        """
+        # Check if either endpoint is inside rectangle
+        if rect.contains(QtCore.QPoint(int(x1), int(y1))):
+            return True
+        if rect.contains(QtCore.QPoint(int(x2), int(y2))):
+            return True
+        
+        # Get rectangle edges
+        left = float(rect.left())
+        top = float(rect.top())
+        right = float(rect.right())
+        bottom = float(rect.bottom())
+        
+        # Check intersection with each rectangle edge
+        # Top edge
+        if self._segments_intersect(x1, y1, x2, y2, left, top, right, top):
+            return True
+        # Right edge
+        if self._segments_intersect(x1, y1, x2, y2, right, top, right, bottom):
+            return True
+        # Bottom edge
+        if self._segments_intersect(x1, y1, x2, y2, right, bottom, left, bottom):
+            return True
+        # Left edge
+        if self._segments_intersect(x1, y1, x2, y2, left, bottom, left, top):
+            return True
+        
+        return False
+    
+    def _get_lines_in_rect(self, rect: QtCore.QRect) -> List[int]:
+        """
+        Find all lines that intersect with the given rectangle.
+        
+        Returns:
+            List of line indices
+        """
+        if not self._pix:
+            return []
+        
+        img_rect = self._target_rect()
+        img_center_x_px = img_rect.width() / (2 * self._scale_fit)
+        img_center_y_px = img_rect.height() / (2 * self._scale_fit)
+        
+        result = []
+        
+        for i, line in enumerate(self._lines):
+            # Convert to screen coordinates
+            x1_img_px = line.x1 / self._mm_per_px
+            y1_img_px = line.y1 / self._mm_per_px
+            x2_img_px = line.x2 / self._mm_per_px
+            y2_img_px = line.y2 / self._mm_per_px
+            
+            x1_screen = img_rect.x() + (x1_img_px + img_center_x_px) * self._scale_fit
+            y1_screen = img_rect.y() + (img_center_y_px - y1_img_px) * self._scale_fit
+            x2_screen = img_rect.x() + (x2_img_px + img_center_x_px) * self._scale_fit
+            y2_screen = img_rect.y() + (img_center_y_px - y2_img_px) * self._scale_fit
+            
+            # Check if line intersects with rectangle
+            if self._line_intersects_rect(x1_screen, y1_screen, x2_screen, y2_screen, rect):
+                result.append(i)
+        
+        return result
+    
     def mousePressEvent(self, e: QtMouseEvent):
         """Handle mouse press."""
         if not self._pix or e.button() != QtCore.Qt.MouseButton.LeftButton:
             return
         
+        # Check if clicking on an endpoint
         line_idx, point_num = self._get_line_and_point_at(e.pos())
         
         if line_idx >= 0:
+            # Clicked on an endpoint
+            
             # Check drag lock
             if self._drag_locked_line >= 0 and line_idx != self._drag_locked_line:
-                # Trying to drag a different line than the locked one - ignore
                 return
             
-            # Start dragging
+            # Start dragging endpoint
             self._dragging_line = line_idx
             self._dragging_point = point_num
-            self.select_line(line_idx)
+            self._dragging_entire_lines = False
+            self.select_line(line_idx, add_to_selection=False)
+            
+            # Track initial position for undo
+            line = self._lines[line_idx]
+            self._drag_initial_lines = [(line.x1, line.y1, line.x2, line.y2)]
+            self._drag_moved_indices = [line_idx]
+            
             self.setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
-        else:
-            # Click on empty space - add new point or select line
-            img_rect = self._target_rect()
-            if img_rect.contains(e.pos()):
-                # If drag locked, clicking empty space clears the lock
-                if self._drag_locked_line >= 0:
-                    self.clear_drag_lock()
-                else:
-                    # For now, just deselect
-                    self.select_line(-1)
+            return
+        
+        # Check if clicking on a line body
+        line_body_idx = self._get_line_at_position(e.pos())
+        
+        if line_body_idx >= 0:
+            # Clicked on a line body - start translation drag
+            
+            # Check drag lock
+            if self._drag_locked_line >= 0 and line_body_idx != self._drag_locked_line:
+                return
+            
+            # If not already selected, select this line
+            if line_body_idx not in self._selected_lines:
+                self.select_line(line_body_idx, add_to_selection=False)
+            
+            # Start dragging entire line(s)
+            self._dragging_entire_lines = True
+            self._drag_start_pos = e.pos()
+            
+            # Store initial positions of all selected lines for undo
+            self._drag_initial_lines.clear()
+            self._drag_moved_indices = []
+            for idx in sorted(self._selected_lines):
+                if 0 <= idx < len(self._lines):
+                    line = self._lines[idx]
+                    self._drag_initial_lines.append((line.x1, line.y1, line.x2, line.y2))
+                    self._drag_moved_indices.append(idx)
+            
+            self.setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
+            return
+        
+        # Click on empty space - start rectangle selection or clear selection
+        img_rect = self._target_rect()
+        if img_rect.contains(e.pos()):
+            # If drag locked, clicking empty space clears the lock
+            if self._drag_locked_line >= 0:
+                self.clear_drag_lock()
+            else:
+                # Start rectangle selection
+                self._rect_selecting = True
+                self._rect_start = e.pos()
+                self._rect_end = e.pos()
+                self.update()
     
     def mouseMoveEvent(self, e: QtGui.QMouseEvent):
         """Handle mouse move."""
+        if self._rect_selecting:
+            # Update rectangle selection
+            self._rect_end = e.pos()
+            self.update()
+            return
+        
+        if self._dragging_entire_lines:
+            # Dragging entire line(s) - translation mode
+            if not self._drag_start_pos or not self._drag_initial_lines:
+                return
+            
+            img_rect = self._target_rect()
+            if not img_rect.isValid():
+                return
+            
+            # Calculate drag delta in screen coordinates
+            delta_x_screen = e.pos().x() - self._drag_start_pos.x()
+            delta_y_screen = e.pos().y() - self._drag_start_pos.y()
+            
+            # Apply axis lock if Ctrl/Cmd is pressed
+            modifiers = e.modifiers()
+            if modifiers & QtCore.Qt.KeyboardModifier.ControlModifier:
+                # Lock to primary axis
+                if abs(delta_x_screen) > abs(delta_y_screen):
+                    delta_y_screen = 0
+                else:
+                    delta_x_screen = 0
+            
+            # Convert delta to millimeters
+            delta_x_mm = (delta_x_screen / self._scale_fit) * self._mm_per_px
+            delta_y_mm = (delta_y_screen / self._scale_fit) * self._mm_per_px  # Y-down (no flip)
+            
+            # Update all selected lines
+            selected_indices = sorted(list(self._selected_lines))
+            for i, idx in enumerate(selected_indices):
+                if i < len(self._drag_initial_lines) and 0 <= idx < len(self._lines):
+                    initial_x1, initial_y1, initial_x2, initial_y2 = self._drag_initial_lines[i]
+                    line = self._lines[idx]
+                    
+                    # Move both endpoints by the same delta (preserves angle)
+                    line.x1 = initial_x1 + delta_x_mm
+                    line.y1 = initial_y1 + delta_y_mm
+                    line.x2 = initial_x2 + delta_x_mm
+                    line.y2 = initial_y2 + delta_y_mm
+            
+            self.update()
+            self.linesChanged.emit()
+            return
+        
         if self._dragging_line >= 0:
-            # Dragging a point
+            # Dragging an endpoint
             img_rect = self._target_rect()
             if not img_rect.isValid():
                 return
@@ -662,7 +1154,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
             
             # Convert screen coordinates to image pixel coordinates (centered system)
             x_img_px = (e.pos().x() - img_rect.x()) / self._scale_fit - img_center_x_px
-            y_img_px = img_center_y_px - (e.pos().y() - img_rect.y()) / self._scale_fit  # Flip Y axis
+            y_img_px = (e.pos().y() - img_rect.y()) / self._scale_fit - img_center_y_px  # Y-down (no flip)
             
             # Clamp to image bounds (in centered coordinates)
             w, h = self.image_pixel_size()
@@ -701,17 +1193,62 @@ class MultiLineCanvas(QtWidgets.QLabel):
                 self._hover_point = point_num
                 self.setCursor(QtCore.Qt.CursorShape.OpenHandCursor)
             else:
-                self._hover_line = -1
-                self._hover_point = 0
-                self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+                # Check if hovering over line body
+                line_body_idx = self._get_line_at_position(e.pos())
+                if line_body_idx >= 0:
+                    self._hover_line = line_body_idx
+                    self._hover_point = 0
+                    self.setCursor(QtCore.Qt.CursorShape.OpenHandCursor)
+                else:
+                    self._hover_line = -1
+                    self._hover_point = 0
+                    self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
             
             self.update()
     
     def mouseReleaseEvent(self, e: QtGui.QMouseEvent):
         """Handle mouse release."""
         if e.button() == QtCore.Qt.MouseButton.LeftButton:
+            # Handle rectangle selection completion
+            if self._rect_selecting:
+                self._rect_selecting = False
+                if self._rect_start and self._rect_end:
+                    rect = QtCore.QRect(self._rect_start, self._rect_end).normalized()
+                    selected_lines = self._get_lines_in_rect(rect)
+                    if selected_lines:
+                        self.select_lines(selected_lines)
+                    else:
+                        # Empty selection - clear selection
+                        self.select_line(-1)
+                self._rect_start = None
+                self._rect_end = None
+                self.update()
+                return
+            
+            # Handle drag release
+            # Check if anything was actually moved (for undo)
+            if self._drag_initial_lines and self._drag_moved_indices:
+                # Capture new positions
+                new_positions = []
+                for idx in self._drag_moved_indices:
+                    if 0 <= idx < len(self._lines):
+                        line = self._lines[idx]
+                        new_positions.append((line.x1, line.y1, line.x2, line.y2))
+                
+                # Only emit if positions actually changed
+                if new_positions != self._drag_initial_lines:
+                    self.linesMoved.emit(
+                        self._drag_moved_indices,
+                        self._drag_initial_lines,
+                        new_positions
+                    )
+            
             self._dragging_line = -1
             self._dragging_point = 0
+            self._dragging_entire_lines = False
+            self._drag_start_pos = None
+            self._drag_initial_lines.clear()
+            self._drag_moved_indices.clear()
             self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
     
     # ========== Drag & Drop ==========
@@ -790,7 +1327,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
         
         # Convert screen coordinates to image pixel coordinates (centered system)
         x_img_px = (screen_pos.x() - img_rect.x()) / self._scale_fit - img_center_x_px
-        y_img_px = img_center_y_px - (screen_pos.y() - img_rect.y()) / self._scale_fit  # Flip Y axis
+        y_img_px = (screen_pos.y() - img_rect.y()) / self._scale_fit - img_center_y_px  # Y-down (no flip)
         
         # Convert image pixel coordinates to millimeters
         x_mm = x_img_px * self._mm_per_px

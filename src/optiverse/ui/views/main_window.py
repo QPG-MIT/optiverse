@@ -19,7 +19,7 @@ from ...core.models import (
     SourceParams,
 )
 from ...core.snap_helper import SnapHelper
-from ...core.undo_commands import AddItemCommand, MoveItemCommand, RemoveItemCommand, RemoveMultipleItemsCommand, PasteItemsCommand
+from ...core.undo_commands import AddItemCommand, MoveItemCommand, RemoveItemCommand, RemoveMultipleItemsCommand, PasteItemsCommand, RotateItemCommand, RotateItemsCommand
 from ...core.undo_stack import UndoStack
 from ...core.use_cases import trace_rays
 from ...services.settings_service import SettingsService
@@ -183,6 +183,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Undo/Redo tracking
         self._item_positions: dict[QtWidgets.QGraphicsItem, QtCore.QPointF] = {}
+        self._item_rotations: dict[QtWidgets.QGraphicsItem, float] = {}
+        self._item_group_states: dict = {}  # For group rotation tracking
 
         # Services
         self.storage_service = StorageService()
@@ -1527,14 +1529,9 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Restore cursor and mouse tracking (after state reset)
         if should_restore:
-            # Restore to default arrow cursor
-            self.view.unsetCursor()
-            # Disable mouse tracking (GraphicsView doesn't use it by default)
-            self.view.setMouseTracking(False)
-            self.view.viewport().setMouseTracking(False)
-            
-            # Force Qt to update its internal mouse position tracking by sending a synthetic mouse move
-            # This ensures zoom-to-cursor works correctly after placement mode
+            # CRITICAL FIX: Send synthetic mouse move event BEFORE disabling tracking
+            # Qt needs mouse tracking to be ACTIVE when processing position updates
+            # wheelEvent is received by the VIEW (not viewport), so we must update the view's position cache
             cursor_pos = self.view.mapFromGlobal(QtGui.QCursor.pos())
             move_event = QtGui.QMouseEvent(
                 QtCore.QEvent.Type.MouseMove,
@@ -1543,7 +1540,22 @@ class MainWindow(QtWidgets.QMainWindow):
                 QtCore.Qt.MouseButton.NoButton,
                 QtCore.Qt.KeyboardModifier.NoModifier
             )
+            # Send to VIEW first (critical for wheelEvent which is received by the view)
+            QtWidgets.QApplication.sendEvent(self.view, move_event)
+            # Also send to viewport (for completeness)
             QtWidgets.QApplication.sendEvent(self.view.viewport(), move_event)
+            
+            # Process events to ensure the mouse position update completes
+            # before we disable tracking
+            QtWidgets.QApplication.processEvents()
+            
+            # Restore to default arrow cursor
+            self.view.unsetCursor()
+            
+            # Disable mouse tracking AFTER position update is complete
+            # (GraphicsView doesn't use it by default)
+            self.view.setMouseTracking(False)
+            self.view.viewport().setMouseTracking(False)
         
         # Uncheck toolbar buttons (except the one we're toggling to)
         if prev_type != except_type:
@@ -1707,6 +1719,22 @@ class MainWindow(QtWidgets.QMainWindow):
         # Retrace if enabled (only for optical components)
         if self.autotrace and component_type != "text":
             self.retrace()
+        
+        # Force Qt to update its internal mouse position tracking by sending a synthetic mouse move
+        # This ensures zoom-to-cursor works correctly after placing a component
+        # wheelEvent is received by the VIEW, so we must send to the view (not just viewport)
+        cursor_pos = self.view.mapFromGlobal(QtGui.QCursor.pos())
+        move_event = QtGui.QMouseEvent(
+            QtCore.QEvent.Type.MouseMove,
+            QtCore.QPointF(cursor_pos),
+            QtCore.Qt.MouseButton.NoButton,
+            QtCore.Qt.MouseButton.NoButton,
+            QtCore.Qt.KeyboardModifier.NoModifier
+        )
+        # Send to VIEW first (critical for wheelEvent position cache)
+        QtWidgets.QApplication.sendEvent(self.view, move_event)
+        # Also send to viewport (for completeness)
+        QtWidgets.QApplication.sendEvent(self.view.viewport(), move_event)
     
     def _point_to_segment_distance(self, point, seg_start, seg_end):
         """
@@ -2002,29 +2030,53 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
                 self._finish_place_ruler()
                 return True
 
-        # --- Track item positions on mouse press ---
+        # --- Track item positions and rotations on mouse press ---
         if et == QtCore.QEvent.Type.GraphicsSceneMousePress:
             from ...objects import BaseObj
+            mev = ev
+            # Check if this is a rotation operation (Ctrl modifier)
+            is_rotation_mode = mev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier
+            
             # Store initial positions of selected items
             self._item_positions.clear()
-            for it in self.scene.selectedItems():
-                if isinstance(it, (BaseObj, RulerItem, TextNoteItem)):
-                    self._item_positions[it] = QtCore.QPointF(it.pos())
+            self._item_rotations.clear()
+            self._item_group_states.clear()
+            
+            selected_items = [it for it in self.scene.selectedItems() 
+                            if isinstance(it, (BaseObj, RulerItem, TextNoteItem))]
+            
+            for it in selected_items:
+                self._item_positions[it] = QtCore.QPointF(it.pos())
+                
+                # Track rotations if in rotation mode
+                if is_rotation_mode and isinstance(it, BaseObj):
+                    self._item_rotations[it] = it.rotation()
+            
+            # For group rotation, also track initial positions for orbit calculation
+            if is_rotation_mode and len(selected_items) > 1:
+                self._item_group_states = {
+                    'items': selected_items,
+                    'initial_positions': {it: QtCore.QPointF(it.pos()) for it in selected_items},
+                    'initial_rotations': {it: it.rotation() for it in selected_items if isinstance(it, BaseObj)}
+                }
 
-        # --- Snap to grid and create move commands on mouse release ---
+        # --- Snap to grid and create move/rotate commands on mouse release ---
         if et == QtCore.QEvent.Type.GraphicsSceneMouseRelease:
             from ...objects import BaseObj
 
             # Clear snap guides
             self.view.clear_snap_guides()
             
+            # Check if this was a group rotation
+            was_group_rotation = bool(self._item_group_states and 'items' in self._item_group_states)
+            
             for it in self.scene.selectedItems():
                 if isinstance(it, BaseObj) and self.snap_to_grid:
                     p = it.pos()
                     it.setPos(round(p.x()), round(p.y()))
                 
-                # Create move command if item was moved
-                if it in self._item_positions:
+                # Create move command if item was moved (and not rotated)
+                if it in self._item_positions and it not in self._item_rotations:
                     old_pos = self._item_positions[it]
                     new_pos = it.pos()
                     # Only create command if position actually changed
@@ -2032,7 +2084,50 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
                         cmd = MoveItemCommand(it, old_pos, new_pos)
                         self.undo_stack.push(cmd)
             
+            # Handle rotation commands
+            if self._item_rotations and not was_group_rotation:
+                # Single item rotation(s)
+                for it, old_rotation in self._item_rotations.items():
+                    new_rotation = it.rotation()
+                    # Only create command if rotation actually changed
+                    if abs(new_rotation - old_rotation) > 0.01:  # Small threshold for floating point comparison
+                        cmd = RotateItemCommand(it, old_rotation, new_rotation)
+                        self.undo_stack.push(cmd)
+            
+            elif was_group_rotation:
+                # Group rotation - check if any items changed
+                items = self._item_group_states['items']
+                old_positions = self._item_group_states['initial_positions']
+                old_rotations = self._item_group_states['initial_rotations']
+                new_positions = {it: it.pos() for it in items}
+                new_rotations = {it: it.rotation() for it in items if isinstance(it, BaseObj)}
+                
+                # Check if anything actually changed
+                position_changed = any(
+                    old_positions[it] != new_positions[it] 
+                    for it in items if it in old_positions
+                )
+                rotation_changed = any(
+                    abs(old_rotations.get(it, 0) - new_rotations.get(it, 0)) > 0.01
+                    for it in items if isinstance(it, BaseObj)
+                )
+                
+                if position_changed or rotation_changed:
+                    # Filter to only BaseObj items that have rotation
+                    rotatable_items = [it for it in items if isinstance(it, BaseObj)]
+                    if rotatable_items:
+                        cmd = RotateItemsCommand(
+                            rotatable_items,
+                            old_positions,
+                            new_positions,
+                            old_rotations,
+                            new_rotations
+                        )
+                        self.undo_stack.push(cmd)
+            
             self._item_positions.clear()
+            self._item_rotations.clear()
+            self._item_group_states.clear()
             if self.autotrace:
                 QtCore.QTimer.singleShot(0, self.retrace)
         elif et in (

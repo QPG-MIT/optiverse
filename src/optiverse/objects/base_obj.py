@@ -48,6 +48,12 @@ class BaseObj(QtWidgets.QGraphicsObject):
         self._group_initial_positions = {}
         self._group_initial_rotations = {}
         self._group_center = QtCore.QPointF(0, 0)
+        
+        # Wheel rotation tracking for undo (batch multiple scroll events)
+        self._wheel_rotation_timer = None
+        self._wheel_rotation_start_rotation = None
+        self._wheel_rotation_start_positions = None
+        self._wheel_rotation_items = None
 
     def itemChange(self, change, value):
         """Sync params when position or rotation changes, and apply magnetic snap."""
@@ -338,6 +344,12 @@ class BaseObj(QtWidgets.QGraphicsObject):
                 selected_items = [item for item in self.scene().selectedItems() 
                                 if isinstance(item, BaseObj)]
                 
+                # Track initial state for undo (first wheel event in sequence)
+                if self._wheel_rotation_start_rotation is None:
+                    self._wheel_rotation_start_rotation = {item: item.rotation() for item in selected_items}
+                    self._wheel_rotation_start_positions = {item: QtCore.QPointF(item.pos()) for item in selected_items}
+                    self._wheel_rotation_items = selected_items
+                
                 if len(selected_items) > 1:
                     # Group rotation around common center
                     self._rotate_group(selected_items, rotation_delta)
@@ -347,12 +359,89 @@ class BaseObj(QtWidgets.QGraphicsObject):
                     self.edited.emit()
             else:
                 # Fallback to single rotation
+                # Track initial state for undo
+                if self._wheel_rotation_start_rotation is None:
+                    self._wheel_rotation_start_rotation = {self: self.rotation()}
+                    self._wheel_rotation_start_positions = {self: QtCore.QPointF(self.pos())}
+                    self._wheel_rotation_items = [self]
+                
                 self.setRotation(self.rotation() + rotation_delta)
                 self.edited.emit()
+            
+            # Reset timer - create undo command after 300ms of no wheel events
+            if self._wheel_rotation_timer:
+                self._wheel_rotation_timer.stop()
+            self._wheel_rotation_timer = QtCore.QTimer()
+            self._wheel_rotation_timer.setSingleShot(True)
+            self._wheel_rotation_timer.timeout.connect(self._finalize_wheel_rotation)
+            self._wheel_rotation_timer.start(300)  # 300ms delay
             
             ev.accept()
         else:
             ev.ignore()
+    
+    def _finalize_wheel_rotation(self):
+        """Create undo command for completed wheel rotation sequence."""
+        if self._wheel_rotation_start_rotation is None:
+            return
+        
+        # Get main window and undo stack
+        if not self.scene():
+            self._wheel_rotation_start_rotation = None
+            self._wheel_rotation_start_positions = None
+            self._wheel_rotation_items = None
+            return
+        
+        # Find the main window through the scene's views
+        views = self.scene().views()
+        if not views:
+            self._wheel_rotation_start_rotation = None
+            self._wheel_rotation_start_positions = None
+            self._wheel_rotation_items = None
+            return
+        
+        # Get the MainWindow (parent of GraphicsView)
+        view = views[0]
+        main_window = view.parent() if hasattr(view, 'parent') and callable(view.parent) else None
+        if not main_window or not hasattr(main_window, 'undo_stack'):
+            self._wheel_rotation_start_rotation = None
+            self._wheel_rotation_start_positions = None
+            self._wheel_rotation_items = None
+            return
+        
+        # Import commands here to avoid circular imports
+        from ..core.undo_commands import RotateItemCommand, RotateItemsCommand
+        
+        items = self._wheel_rotation_items
+        old_rotations = self._wheel_rotation_start_rotation
+        old_positions = self._wheel_rotation_start_positions
+        new_rotations = {item: item.rotation() for item in items}
+        new_positions = {item: item.pos() for item in items}
+        
+        # Check if anything actually changed
+        rotation_changed = any(
+            abs(old_rotations.get(item, 0) - new_rotations.get(item, 0)) > 0.01
+            for item in items
+        )
+        position_changed = any(
+            old_positions.get(item) != new_positions.get(item)
+            for item in items if item in old_positions
+        )
+        
+        if rotation_changed or position_changed:
+            if len(items) == 1 and not position_changed:
+                # Single item rotation only
+                cmd = RotateItemCommand(items[0], old_rotations[items[0]], new_rotations[items[0]])
+                main_window.undo_stack.push(cmd)
+            elif len(items) > 1 or position_changed:
+                # Group rotation or single item with position change
+                cmd = RotateItemsCommand(items, old_positions, new_positions, old_rotations, new_rotations)
+                main_window.undo_stack.push(cmd)
+        
+        # Clear tracking state
+        self._wheel_rotation_start_rotation = None
+        self._wheel_rotation_start_positions = None
+        self._wheel_rotation_items = None
 
     def contextMenuEvent(self, ev: QtWidgets.QGraphicsSceneContextMenuEvent):
         """Right-click context menu with Edit and Delete."""

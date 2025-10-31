@@ -5,6 +5,13 @@ import os
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
+# Optional QtSvg for SVG support
+try:
+    from PyQt6 import QtSvg
+    HAVE_QTSVG = True
+except Exception:
+    HAVE_QTSVG = False
+
 
 class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
     """
@@ -45,11 +52,20 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
             self.setVisible(False)
             return
 
-        # Load pixmap and ensure device pixel ratio = 1.0
-        pix0 = QtGui.QPixmap(image_path)
-        img = pix0.toImage()
-        img.setDevicePixelRatio(1.0)
-        pix = QtGui.QPixmap.fromImage(img)
+        # Load pixmap - handle SVG or raster images
+        if image_path.lower().endswith('.svg') and HAVE_QTSVG:
+            # Render SVG to pixmap at appropriate resolution
+            pix = self._render_svg_to_pixmap(image_path, object_height_mm)
+            if not pix or pix.isNull():
+                self.setVisible(False)
+                return
+        else:
+            # Load raster image and ensure device pixel ratio = 1.0
+            pix0 = QtGui.QPixmap(image_path)
+            img = pix0.toImage()
+            img.setDevicePixelRatio(1.0)
+            pix = QtGui.QPixmap.fromImage(img)
+        
         self.setPixmap(pix)
         
         actual_width = pix.width()
@@ -120,4 +136,47 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
             p.setPen(QtCore.Qt.PenStyle.NoPen)
             p.setBrush(QtGui.QColor(30, 144, 255, 70))  # Translucent blue
             p.drawRect(self.boundingRect())
+    
+    @staticmethod
+    def _render_svg_to_pixmap(svg_path: str, object_height_mm: float) -> QtGui.QPixmap | None:
+        """
+        Render SVG to pixmap at appropriate resolution.
+        
+        Args:
+            svg_path: Path to SVG file
+            object_height_mm: Physical height of object in mm (used to calculate target pixel size)
+        
+        Returns:
+            QPixmap with rendered SVG, or None if rendering fails
+        """
+        if not HAVE_QTSVG:
+            return None
+        
+        renderer = QtSvg.QSvgRenderer(svg_path)
+        if not renderer.isValid():
+            return None
+        
+        # Get SVG's default size and aspect ratio
+        default_size = renderer.defaultSize()
+        if default_size.height() <= 0:
+            return None
+        
+        aspect = default_size.width() / default_size.height()
+        
+        # Target resolution: balance quality vs memory
+        # Use ~2000 pixels for the height as a reasonable default
+        # This gives good quality while avoiding memory issues
+        target_height = 2000
+        target_width = int(target_height * aspect)
+        target_size = QtCore.QSize(target_width, target_height)
+        
+        # Create pixmap and render SVG
+        pix = QtGui.QPixmap(target_size)
+        pix.fill(QtCore.Qt.GlobalColor.transparent)
+        
+        painter = QtGui.QPainter(pix)
+        renderer.render(painter)
+        painter.end()
+        
+        return pix
 

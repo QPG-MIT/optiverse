@@ -131,10 +131,16 @@ class MirrorItem(BaseObj):
     
     def paint(self, p: QtGui.QPainter, opt, widget=None):
         """Paint optical interfaces."""
-        if not hasattr(self.params, 'interfaces') or not self.params.interfaces:
-            return
-        
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
+        
+        if not hasattr(self.params, 'interfaces') or not self.params.interfaces:
+            # Draw default line when no interfaces defined (backward compatibility)
+            color = QtGui.QColor(150, 150, 150)  # Grey
+            pen = QtGui.QPen(color, 4)
+            pen.setCosmetic(True)
+            p.setPen(pen)
+            p.drawLine(self._p1, self._p2)
+            return
         
         # Get offset for coordinate transformation
         offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
@@ -142,7 +148,7 @@ class MirrorItem(BaseObj):
         for iface in self.params.interfaces:
             # Draw interface line
             color = QtGui.QColor(150, 150, 150)  # Grey
-            pen = QtGui.QPen(color, 2)
+            pen = QtGui.QPen(color, 4)
             pen.setCosmetic(True)
             p.setPen(pen)
             

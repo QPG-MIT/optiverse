@@ -11,6 +11,26 @@ from ...core.interface_definition import InterfaceDefinition
 from ...core import interface_types
 
 
+class InterfaceTreeWidget(QtWidgets.QTreeWidget):
+    """Custom QTreeWidget that handles Delete/Backspace keys for interface deletion."""
+    
+    deleteKeyPressed = QtCore.pyqtSignal()
+    
+    def keyPressEvent(self, event: QtGui.QKeyEvent):
+        """Override to handle Delete/Backspace keys."""
+        # Check if Delete or Backspace key is pressed
+        if event.key() in (QtCore.Qt.Key.Key_Delete, QtCore.Qt.Key.Key_Backspace):
+            # Only handle if we're not currently editing an item
+            if self.state() != QtWidgets.QAbstractItemView.State.EditingState:
+                # Emit signal so parent panel can handle deletion
+                self.deleteKeyPressed.emit()
+                event.accept()
+                return
+        
+        # Pass to parent for all other keys or when editing
+        super().keyPressEvent(event)
+
+
 class EditableLabel(QtWidgets.QWidget):
     """
     A label that becomes editable when double-clicked.
@@ -95,6 +115,21 @@ class EditableLabel(QtWidgets.QWidget):
     def setPlaceholderText(self, text: str):
         """Set placeholder text for edit mode."""
         self._edit.setPlaceholderText(text)
+
+
+class ColoredCircleLabel(QtWidgets.QLabel):
+    """A small colored circle indicator."""
+    
+    def __init__(self, color: str, size: int = 12, parent: Optional[QtWidgets.QWidget] = None):
+        super().__init__(parent)
+        self.setFixedSize(size, size)
+        self.setStyleSheet(f"""
+            QLabel {{
+                background-color: {color};
+                border: 1px solid rgba(0, 0, 0, 0.3);
+                border-radius: {size // 2}px;
+            }}
+        """)
 
 
 class PropertyListWidget(QtWidgets.QWidget):
@@ -194,7 +229,32 @@ class PropertyListWidget(QtWidgets.QWidget):
             widget.setPlaceholderText("0.000")
             widget.valueChanged.connect(lambda val, p=prop_name: self._on_numeric_property_changed(p))
             self._property_widgets[prop_name] = widget
-            self._form.addRow(f"{label_text}:", widget)
+            
+            # Add colored circle indicator for n1 and n2 (refractive index properties)
+            if prop_name in ('n1', 'n2'):
+                # Create horizontal layout with color indicator and value
+                h_layout = QtWidgets.QHBoxLayout()
+                h_layout.setContentsMargins(0, 0, 0, 0)
+                h_layout.setSpacing(5)
+                
+                # Add colored circle (yellow for n1, purple for n2)
+                if prop_name == 'n1':
+                    circle = ColoredCircleLabel('#FFD700', size=10)  # Yellow for n₁
+                    circle.setToolTip("n₁ side (yellow)")
+                else:  # n2
+                    circle = ColoredCircleLabel('#9370DB', size=10)  # Purple for n₂
+                    circle.setToolTip("n₂ side (purple)")
+                
+                h_layout.addWidget(circle)
+                h_layout.addWidget(widget, 1)  # Stretch factor 1
+                
+                # Create container widget
+                container = QtWidgets.QWidget()
+                container.setLayout(h_layout)
+                
+                self._form.addRow(f"{label_text}:", container)
+            else:
+                self._form.addRow(f"{label_text}:", widget)
         
         elif isinstance(value, str):
             if prop_name == 'pass_type':
@@ -383,11 +443,13 @@ class InterfaceTreePanel(QtWidgets.QWidget):
     
     Signals:
         interfacesChanged: Emitted when interfaces list changes
-        interfaceSelected: Emitted when an interface is selected (index)
+        interfaceSelected: Emitted when an interface is selected (index) - for single selection
+        interfacesSelected: Emitted when multiple interfaces are selected (list of indices)
     """
     
     interfacesChanged = QtCore.pyqtSignal()
-    interfaceSelected = QtCore.pyqtSignal(int)
+    interfaceSelected = QtCore.pyqtSignal(int)  # Single selection (backward compatibility)
+    interfacesSelected = QtCore.pyqtSignal(list)  # Multi-selection
     
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
@@ -431,12 +493,15 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         
         layout.addWidget(header)
         
-        # Tree widget
-        self._tree = QtWidgets.QTreeWidget()
+        # Tree widget (custom subclass for keyboard handling)
+        self._tree = InterfaceTreeWidget()
         self._tree.setHeaderHidden(True)
         self._tree.setIndentation(10)
         self._tree.setRootIsDecorated(True)
         self._tree.setAnimated(True)
+        
+        # Enable multi-selection
+        self._tree.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
         
         # Fix scrolling behavior
         self._tree.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollMode.ScrollPerPixel)
@@ -455,6 +520,9 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         self._tree.itemExpanded.connect(self._on_item_expanded)
         self._tree.itemCollapsed.connect(self._on_item_collapsed)
         self._tree.itemChanged.connect(self._on_item_renamed)
+        
+        # Connect Delete/Backspace key handler
+        self._tree.deleteKeyPressed.connect(self._handle_delete_key)
         
         # Allow clicking on white space to deselect
         self._tree.viewport().installEventFilter(self)
@@ -532,14 +600,27 @@ class InterfaceTreePanel(QtWidgets.QWidget):
     
     def _on_item_clicked(self, item: QtWidgets.QTreeWidgetItem, column: int):
         """Handle tree item clicks."""
-        # Find the top-level item
-        while item.parent() is not None:
-            item = item.parent()
+        # Get all selected top-level items
+        selected_items = self._tree.selectedItems()
+        selected_indices = []
         
-        # Get index
-        index = self._tree.indexOfTopLevelItem(item)
-        if index >= 0:
-            self.interfaceSelected.emit(index)
+        for sel_item in selected_items:
+            # Find the top-level item
+            while sel_item.parent() is not None:
+                sel_item = sel_item.parent()
+            
+            # Get index
+            index = self._tree.indexOfTopLevelItem(sel_item)
+            if index >= 0 and index not in selected_indices:
+                selected_indices.append(index)
+        
+        selected_indices.sort()
+        
+        # Emit signals
+        if len(selected_indices) == 1:
+            self.interfaceSelected.emit(selected_indices[0])
+        
+        self.interfacesSelected.emit(selected_indices)
     
     def _on_item_expanded(self, item: QtWidgets.QTreeWidgetItem):
         """Handle item expansion - update scroll."""
@@ -567,8 +648,54 @@ class InterfaceTreePanel(QtWidgets.QWidget):
             # Emit change signal
             self.interfacesChanged.emit()
     
+    def _handle_delete_key(self):
+        """Handle Delete/Backspace key press - delete selected interface(s)."""
+        # Get selected items
+        selected_items = self._tree.selectedItems()
+        if not selected_items:
+            return
+        
+        # Get all top-level selected indices
+        indices = []
+        for sel_item in selected_items:
+            # Find the top-level item
+            while sel_item.parent() is not None:
+                sel_item = sel_item.parent()
+            
+            index = self._tree.indexOfTopLevelItem(sel_item)
+            if index >= 0 and index not in indices:
+                indices.append(index)
+        
+        if not indices:
+            return
+        
+        # Sort indices in descending order so we can delete from end to start
+        indices.sort(reverse=True)
+        
+        # Confirm deletion
+        if len(indices) == 1:
+            reply = QtWidgets.QMessageBox.question(
+                self,
+                "Delete Interface",
+                f"Delete interface {indices[0] + 1}?",
+                QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
+            )
+        else:
+            reply = QtWidgets.QMessageBox.question(
+                self,
+                "Delete Interfaces",
+                f"Delete {len(indices)} interfaces?",
+                QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
+            )
+        
+        if reply == QtWidgets.QMessageBox.StandardButton.Yes:
+            # Delete from highest index to lowest to avoid index shifting issues
+            for index in indices:
+                self.remove_interface(index)
+    
     def eventFilter(self, obj: QtCore.QObject, event: QtCore.QEvent) -> bool:
         """Filter events to allow deselection by clicking on white space."""
+        # Handle mouse clicks on viewport
         if obj == self._tree.viewport() and event.type() == QtCore.QEvent.Type.MouseButtonPress:
             mouse_event = event
             # Check if click is on empty space (no item at position)
@@ -696,14 +823,30 @@ class InterfaceTreePanel(QtWidgets.QWidget):
             self.interfacesChanged.emit()
     
     def select_interface(self, index: int):
-        """Select an interface by index."""
+        """Select an interface by index (single selection)."""
         if 0 <= index < len(self._tree_items):
             self._tree.setCurrentItem(self._tree_items[index])
         else:
             self._tree.setCurrentItem(None)
     
+    def select_interfaces(self, indices: List[int]):
+        """Select multiple interfaces by indices."""
+        # Block signals during programmatic selection
+        self._tree.blockSignals(True)
+        
+        # Clear selection first
+        self._tree.clearSelection()
+        
+        # Select all specified items
+        for index in indices:
+            if 0 <= index < len(self._tree_items):
+                self._tree_items[index].setSelected(True)
+        
+        # Unblock signals
+        self._tree.blockSignals(False)
+    
     def get_selected_index(self) -> int:
-        """Get currently selected interface index."""
+        """Get currently selected interface index (backward compatibility)."""
         item = self._tree.currentItem()
         if item is None:
             return -1
@@ -713,6 +856,22 @@ class InterfaceTreePanel(QtWidgets.QWidget):
             item = item.parent()
         
         return self._tree.indexOfTopLevelItem(item)
+    
+    def get_selected_indices(self) -> List[int]:
+        """Get all selected interface indices."""
+        selected_items = self._tree.selectedItems()
+        indices = []
+        
+        for sel_item in selected_items:
+            # Find the top-level item
+            while sel_item.parent() is not None:
+                sel_item = sel_item.parent()
+            
+            index = self._tree.indexOfTopLevelItem(sel_item)
+            if index >= 0 and index not in indices:
+                indices.append(index)
+        
+        return sorted(indices)
     
     def count(self) -> int:
         """Get number of interfaces."""

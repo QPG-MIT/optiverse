@@ -171,3 +171,73 @@ class PasteItemsCommand(Command):
             for item in self.items:
                 self.scene.removeItem(item)
             self._executed = False
+
+
+class RotateItemCommand(Command):
+    """Command to rotate an item to a new angle."""
+
+    def __init__(
+        self,
+        item: QtWidgets.QGraphicsItem,
+        old_rotation: float,
+        new_rotation: float,
+    ):
+        """
+        Initialize RotateItemCommand.
+
+        Args:
+            item: The graphics item to rotate
+            old_rotation: The original rotation in degrees
+            new_rotation: The new rotation in degrees
+        """
+        self.item = item
+        self.old_rotation = old_rotation
+        self.new_rotation = new_rotation
+
+    def execute(self) -> None:
+        """Rotate the item to the new angle."""
+        self.item.setRotation(self.new_rotation)
+
+    def undo(self) -> None:
+        """Rotate the item back to the old angle."""
+        self.item.setRotation(self.old_rotation)
+
+
+class RotateItemsCommand(Command):
+    """Command to rotate multiple items together (group rotation)."""
+
+    def __init__(
+        self,
+        items: list[QtWidgets.QGraphicsItem],
+        old_positions: dict[QtWidgets.QGraphicsItem, QtCore.QPointF],
+        new_positions: dict[QtWidgets.QGraphicsItem, QtCore.QPointF],
+        old_rotations: dict[QtWidgets.QGraphicsItem, float],
+        new_rotations: dict[QtWidgets.QGraphicsItem, float],
+    ):
+        """
+        Initialize RotateItemsCommand for group rotation.
+
+        Args:
+            items: The list of graphics items to rotate
+            old_positions: Dict mapping items to their original positions
+            new_positions: Dict mapping items to their new positions
+            old_rotations: Dict mapping items to their original rotations
+            new_rotations: Dict mapping items to their new rotations
+        """
+        self.items = items
+        self.old_positions = {item: QtCore.QPointF(pos) for item, pos in old_positions.items()}
+        self.new_positions = {item: QtCore.QPointF(pos) for item, pos in new_positions.items()}
+        self.old_rotations = dict(old_rotations)
+        self.new_rotations = dict(new_rotations)
+
+    def execute(self) -> None:
+        """Apply new positions and rotations to all items."""
+        for item in self.items:
+            item.setPos(self.new_positions[item])
+            item.setRotation(self.new_rotations[item])
+
+    def undo(self) -> None:
+        """Restore old positions and rotations for all items."""
+        for item in self.items:
+            item.setPos(self.old_positions[item])
+            item.setRotation(self.old_rotations[item])

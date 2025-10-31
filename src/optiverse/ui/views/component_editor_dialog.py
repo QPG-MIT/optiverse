@@ -26,6 +26,56 @@ def slugify(name: str) -> str:
     return s or "component"
 
 
+class MoveInterfaceCommand(QtGui.QUndoCommand):
+    """Undo command for moving one or more interfaces."""
+    
+    def __init__(self, editor: 'ComponentEditor', interface_indices: List[int], 
+                 old_positions: List[Tuple[float, float, float, float]], 
+                 new_positions: List[Tuple[float, float, float, float]]):
+        """
+        Initialize move command.
+        
+        Args:
+            editor: ComponentEditor instance
+            interface_indices: List of interface indices that were moved
+            old_positions: List of (x1, y1, x2, y2) tuples for original positions
+            new_positions: List of (x1, y1, x2, y2) tuples for new positions
+        """
+        if len(interface_indices) == 1:
+            super().__init__(f"Move Interface {interface_indices[0] + 1}")
+        else:
+            super().__init__(f"Move {len(interface_indices)} Interfaces")
+        
+        self.editor = editor
+        self.indices = interface_indices
+        self.old_positions = old_positions
+        self.new_positions = new_positions
+    
+    def undo(self):
+        """Restore old positions."""
+        self._apply_positions(self.old_positions)
+    
+    def redo(self):
+        """Apply new positions."""
+        self._apply_positions(self.new_positions)
+    
+    def _apply_positions(self, positions: List[Tuple[float, float, float, float]]):
+        """Apply given positions to interfaces."""
+        interfaces = self.editor.interface_panel.get_interfaces()
+        
+        for i, idx in enumerate(self.indices):
+            if 0 <= idx < len(interfaces) and i < len(positions):
+                x1, y1, x2, y2 = positions[i]
+                interfaces[idx].x1_mm = x1
+                interfaces[idx].y1_mm = y1
+                interfaces[idx].x2_mm = x2
+                interfaces[idx].y2_mm = y2
+                self.editor.interface_panel.update_interface(idx, interfaces[idx])
+        
+        # Sync to canvas
+        self.editor._sync_interfaces_to_canvas()
+
+
 class ComponentEditor(QtWidgets.QMainWindow):
     """
     Full-featured component editor with library management.
@@ -39,12 +89,17 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.resize(1100, 680)
         self.storage = storage
 
+        # Create undo stack
+        self.undo_stack = QtGui.QUndoStack(self)
+
         self.canvas = MultiLineCanvas()
         self.canvas_with_rulers = CanvasWithRulers(self.canvas)
         self.setCentralWidget(self.canvas_with_rulers)
         self.canvas.imageDropped.connect(self._on_image_dropped)
         self.canvas.linesChanged.connect(self._on_canvas_lines_changed)
         self.canvas.lineSelected.connect(self._on_canvas_line_selected)
+        self.canvas.linesSelected.connect(self._on_canvas_lines_selected)
+        self.canvas.linesMoved.connect(self._on_canvas_lines_moved)
 
         self._build_side_dock()
         self._build_library_dock()
@@ -122,6 +177,15 @@ class ComponentEditor(QtWidgets.QMainWindow):
         sc_paste = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Paste, self)
         sc_paste.setContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
         sc_paste.activated.connect(self._smart_paste)
+        
+        # Undo/Redo shortcuts
+        sc_undo = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Undo, self)
+        sc_undo.setContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
+        sc_undo.activated.connect(self.undo_stack.undo)
+        
+        sc_redo = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Redo, self)
+        sc_redo.setContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
+        sc_redo.activated.connect(self.undo_stack.redo)
 
     def _build_side_dock(self):
         """Build side dock with component settings (v2 interface-based)."""
@@ -161,6 +225,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.interface_panel = InterfaceTreePanel()
         self.interface_panel.interfacesChanged.connect(self._on_interfaces_changed)
         self.interface_panel.interfaceSelected.connect(self._on_interface_panel_selection)
+        self.interface_panel.interfacesSelected.connect(self._on_interface_panel_multi_selection)
         layout.addWidget(self.interface_panel, 1)  # Stretch factor 1
         
         # Separator
@@ -207,10 +272,29 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self._sync_interfaces_to_canvas()
     
     def _on_interface_panel_selection(self, index: int):
-        """Handle interface selection in panel."""
+        """Handle interface selection in panel (single)."""
         # Highlight corresponding line on canvas
         if 0 <= index < len(self.canvas.get_all_lines()):
             self.canvas.select_line(index)
+    
+    def _on_interface_panel_multi_selection(self, indices: List[int]):
+        """Handle multiple interface selection in panel."""
+        # Highlight corresponding lines on canvas
+        self.canvas.select_lines(indices)
+    
+    def _on_canvas_lines_selected(self, indices: List[int]):
+        """Handle multiple line selection on canvas."""
+        # Sync selection to interface panel
+        self.interface_panel.select_interfaces(indices)
+    
+    def _on_canvas_lines_moved(self, indices: List[int], 
+                                old_positions: List[Tuple[float, float, float, float]], 
+                                new_positions: List[Tuple[float, float, float, float]]):
+        """Handle line movement completion - create undo command."""
+        if indices and old_positions and new_positions:
+            # Create and push undo command
+            command = MoveInterfaceCommand(self, indices, old_positions, new_positions)
+            self.undo_stack.push(command)
     
     # ---------- Legacy Helpers (deprecated but kept for compatibility) ----------
 
@@ -399,11 +483,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
         
         # COORDINATE SYSTEM TRANSFORMATION
         # Storage (InterfaceDefinition): (0,0) at IMAGE CENTER, Y-down (standard Qt), in mm
-        # Canvas (MultiLineCanvas): (0,0) at IMAGE CENTER, Y-up (for intuitive editing), in mm
+        # Canvas (MultiLineCanvas): (0,0) at IMAGE CENTER, Y-down (standard Qt), in mm
         # 
-        # Transformation: Flip Y-axis only (both use centered origin)
-        #   Canvas Y = -Storage Y
-        #   Storage Y = -Canvas Y
+        # Both use Y-down coordinates - no transformation needed!
         
         # Add each interface for display
         for i, interface in enumerate(interfaces):
@@ -411,12 +493,11 @@ class ComponentEditor(QtWidgets.QMainWindow):
             r, g, b = interface.get_color()
             color = QtGui.QColor(r, g, b)
             
-            # Convert from storage coords (Y-down) to canvas display coords (Y-up)
-            # X remains the same, only Y is flipped
+            # Use coords directly (both storage and canvas use Y-down)
             x1_canvas = interface.x1_mm
-            y1_canvas = -interface.y1_mm  # Flip Y: storage Y-down → canvas Y-up
+            y1_canvas = interface.y1_mm  # No flip - both Y-down
             x2_canvas = interface.x2_mm
-            y2_canvas = -interface.y2_mm  # Flip Y: storage Y-down → canvas Y-up
+            y2_canvas = interface.y2_mm  # No flip - both Y-down
             
             # Debug validation: Check if coordinates are reasonable
             max_coord = object_height * 2  # Sanity check: coords shouldn't exceed 2x object height
@@ -450,29 +531,23 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.interface_panel.blockSignals(True)
         
         try:
-            # COORDINATE SYSTEM TRANSFORMATION
-            # Canvas (MultiLineCanvas): (0,0) at IMAGE CENTER, Y-up (for intuitive editing), in mm
-            # Storage (InterfaceDefinition): (0,0) at IMAGE CENTER, Y-down (standard Qt), in mm
-            #
-            # Transformation: Flip Y-axis only (both use centered origin)
-            #   Storage Y = -Canvas Y
-            #   Canvas Y = -Storage Y
+            # COORDINATE SYSTEM
+            # Both Canvas and Storage use Y-down coordinates - no transformation needed!
             
             # Update interface coordinates from canvas
             lines = self.canvas.get_all_lines()
             for i, line in enumerate(lines):
                 if i < len(interfaces):
-                    # Convert from canvas display coords (Y-up) to storage coords (Y-down)
-                    # X remains the same, only Y is flipped
+                    # Use coords directly (both canvas and storage use Y-down)
                     interfaces[i].x1_mm = line.x1
-                    interfaces[i].y1_mm = -line.y1  # Flip Y: canvas Y-up → storage Y-down
+                    interfaces[i].y1_mm = line.y1  # No flip - both Y-down
                     interfaces[i].x2_mm = line.x2
-                    interfaces[i].y2_mm = -line.y2  # Flip Y: canvas Y-up → storage Y-down
+                    interfaces[i].y2_mm = line.y2  # No flip - both Y-down
                     
-                    # Debug: Log coordinate transformation
+                    # Debug: Log coordinates (both use Y-down)
                     if False:  # Set to True for debugging
                         print(f"Interface {i} dragged:")
-                        print(f"  Canvas (Y-up): ({line.x1:.2f}, {line.y1:.2f}) to ({line.x2:.2f}, {line.y2:.2f})")
+                        print(f"  Canvas (Y-down): ({line.x1:.2f}, {line.y1:.2f}) to ({line.x2:.2f}, {line.y2:.2f})")
                         print(f"  Storage (Y-down): ({interfaces[i].x1_mm:.2f}, {interfaces[i].y1_mm:.2f}) to ({interfaces[i].x2_mm:.2f}, {interfaces[i].y2_mm:.2f})")
                     
                     # Update the interface in the panel (silently - signals blocked)
