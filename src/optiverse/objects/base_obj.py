@@ -563,6 +563,39 @@ class BaseObj(QtWidgets.QGraphicsObject):
         """Open editor dialog for this element."""
         pass
 
+    def clone(self, offset_mm: tuple[float, float] = (20.0, 20.0)) -> 'BaseObj':
+        """
+        Create a deep copy of this item with optional position offset.
+        
+        This method creates a proper in-memory clone without using file serialization,
+        making it robust for copy/paste operations. Sprites, interfaces, and all other
+        properties are preserved.
+        
+        Args:
+            offset_mm: (x_offset, y_offset) in millimeters to offset the cloned item
+            
+        Returns:
+            A new instance of the same type with all properties copied
+        """
+        import copy
+        
+        # Deep copy the params to get all nested structures (interfaces, etc.)
+        new_params = copy.deepcopy(self.params)
+        
+        # Apply position offset
+        new_params.x_mm += offset_mm[0]
+        new_params.y_mm += offset_mm[1]
+        
+        # Create new instance of same type with copied params
+        # This will automatically handle sprite attachment, interface setup, etc.
+        new_item = type(self)(new_params)
+        
+        # Copy item-level properties that aren't in params
+        new_item._locked = self._locked
+        new_item.setZValue(self.zValue())
+        
+        return new_item
+
     def to_dict(self) -> dict[str, Any]:
         """Serialize element to dictionary."""
         return {

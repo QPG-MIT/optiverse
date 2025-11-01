@@ -105,6 +105,24 @@ class TextNoteItem(QtWidgets.QGraphicsTextItem):
         # Apply z-order change
         apply_z_order_change(items, operation, self.scene(), undo_stack)
     
+    def clone(self, offset_mm: tuple[float, float] = (20.0, 20.0)) -> 'TextNoteItem':
+        """Create a deep copy of this text note with optional position offset."""
+        from PyQt6.QtCore import QPointF
+        
+        # Create new text note with same text
+        new_item = TextNoteItem(self.toPlainText())
+        
+        # Copy properties
+        new_item.setDefaultTextColor(self.defaultTextColor())
+        new_item.setFont(self.font())
+        new_item.setZValue(self.zValue())
+        
+        # Set offset position
+        new_pos = self.scenePos() + QPointF(offset_mm[0], offset_mm[1])
+        new_item.setPos(new_pos)
+        
+        return new_item
+    
     def to_dict(self) -> Dict[str, Any]:
         """Serialize text note to dictionary."""
         return {

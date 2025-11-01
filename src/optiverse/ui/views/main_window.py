@@ -192,7 +192,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.undo_stack = UndoStack()
         self.collaboration_manager = CollaborationManager(self)
         self.log_service = get_log_service()
+        self.log_service.debug("MainWindow.__init__ called", "Init")
         self.collab_server_process = None  # Track hosted server process
+        
+        # Initialize clipboard for copy/paste
+        self._clipboard = []
+        self.log_service.debug("Clipboard initialized", "Copy/Paste")
         
         # Track unsaved changes
         self._is_modified = False
@@ -821,22 +826,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self._clipboard = []
         
         for item in selected:
-            # Only copy optical components and annotations
+            # Only copy optical components and annotations that have a clone method
             from ...objects import RectangleItem
             if isinstance(item, (BaseObj, RulerItem, TextNoteItem, RectangleItem)):
-                try:
-                    # Serialize the item to dictionary
-                    item_data = item.to_dict()
-                    # Store the type of the item for reconstruction
-                    item_data['_item_type'] = type(item).__name__
-                    self._clipboard.append(item_data)
-                except Exception as e:
-                    # Log error but continue with other items
-                    import traceback
-                    self.log_service.error(
-                        f"Could not copy {type(item).__name__}: {e}\n{traceback.format_exc()}",
-                        "Copy/Paste"
-                    )
+                # Store reference to the item itself, not serialized data
+                # The clone() method will handle proper copying when pasting
+                self._clipboard.append(item)
         
         # Enable paste action if we have items in clipboard
         self.act_paste.setEnabled(len(self._clipboard) > 0)
@@ -846,147 +841,33 @@ class MainWindow(QtWidgets.QMainWindow):
             self.log_service.info(f"Copied {len(self._clipboard)} item(s) to clipboard", "Copy/Paste")
 
     def paste_items(self):
-        """Paste items from clipboard."""
+        """Paste items from clipboard using clone() method."""
         if not self._clipboard:
             self.log_service.warning("Cannot paste - clipboard is empty", "Copy/Paste")
             return
         
-        self.log_service.debug(f"Pasting {len(self._clipboard)} item(s) from clipboard", "Copy/Paste")
-        
         # Offset for pasted items so they're visible
-        paste_offset = QtCore.QPointF(20.0, 20.0)
+        paste_offset = (20.0, 20.0)
         pasted_items = []
         
-        # Fields to exclude when pasting (these get recalculated or belong to item, not params)
-        excluded_fields = {'_item_type', 'mm_per_pixel', 'item_uuid'}
-        
-        for item_data in self._clipboard:
+        for item in self._clipboard:
             try:
-                item_type = item_data.get('_item_type')
+                # Use the clone() method to create a proper deep copy
+                # This automatically handles sprites, interfaces, and all properties
+                cloned_item = item.clone(paste_offset)
                 
-                # Create new item based on type
-                if item_type == 'SourceItem':
-                    params = SourceParams(**{k: v for k, v in item_data.items() if k not in excluded_fields})
-                    params.x_mm += paste_offset.x()
-                    params.y_mm += paste_offset.y()
-                    item = SourceItem(params)
-                    item.edited.connect(self._maybe_retrace)
-                    pasted_items.append(item)
-                    
-                elif item_type == 'LensItem':
-                    params = LensParams(**{k: v for k, v in item_data.items() if k not in excluded_fields})
-                    params.x_mm += paste_offset.x()
-                    params.y_mm += paste_offset.y()
-                    item = LensItem(params)
-                    # Sprite is automatically attached in constructor
-                    item.edited.connect(self._maybe_retrace)
-                    pasted_items.append(item)
-                    
-                elif item_type == 'MirrorItem':
-                    params = MirrorParams(**{k: v for k, v in item_data.items() if k not in excluded_fields})
-                    params.x_mm += paste_offset.x()
-                    params.y_mm += paste_offset.y()
-                    item = MirrorItem(params)
-                    # Sprite is automatically attached in constructor
-                    item.edited.connect(self._maybe_retrace)
-                    pasted_items.append(item)
-                    
-                elif item_type == 'BeamsplitterItem':
-                    params = BeamsplitterParams(**{k: v for k, v in item_data.items() if k not in excluded_fields})
-                    params.x_mm += paste_offset.x()
-                    params.y_mm += paste_offset.y()
-                    item = BeamsplitterItem(params)
-                    # Sprite is automatically attached in constructor
-                    item.edited.connect(self._maybe_retrace)
-                    pasted_items.append(item)
+                # Connect signals for optical components
+                from ...objects import BaseObj
+                if isinstance(cloned_item, BaseObj):
+                    cloned_item.edited.connect(self._maybe_retrace)
                 
-                elif item_type == 'DichroicItem':
-                    params = DichroicParams(**{k: v for k, v in item_data.items() if k not in excluded_fields})
-                    params.x_mm += paste_offset.x()
-                    params.y_mm += paste_offset.y()
-                    item = DichroicItem(params)
-                    item.edited.connect(self._maybe_retrace)
-                    pasted_items.append(item)
+                pasted_items.append(cloned_item)
                 
-                elif item_type == 'WaveplateItem':
-                    params = WaveplateParams(**{k: v for k, v in item_data.items() if k not in excluded_fields})
-                    params.x_mm += paste_offset.x()
-                    params.y_mm += paste_offset.y()
-                    item = WaveplateItem(params)
-                    item.edited.connect(self._maybe_retrace)
-                    pasted_items.append(item)
-                
-                elif item_type == 'SLMItem':
-                    params = SLMParams(**{k: v for k, v in item_data.items() if k not in excluded_fields})
-                    params.x_mm += paste_offset.x()
-                    params.y_mm += paste_offset.y()
-                    item = SLMItem(params)
-                    item.edited.connect(self._maybe_retrace)
-                    pasted_items.append(item)
-                    
-                elif item_type == 'RulerItem':
-                    # Remove _item_type and reconstruct ruler
-                    data = {k: v for k, v in item_data.items() if k != '_item_type'}
-                    item = RulerItem.from_dict(data)
-                    # Offset the ruler position
-                    item.setPos(item.pos() + paste_offset)
-                    pasted_items.append(item)
-                    
-                elif item_type == 'TextNoteItem':
-                    # Remove _item_type and reconstruct text note
-                    data = {k: v for k, v in item_data.items() if k != '_item_type'}
-                    item = TextNoteItem.from_dict(data)
-                    # Offset the text note position
-                    item.setPos(item.pos() + paste_offset)
-                    pasted_items.append(item)
-                
-                elif item_type == 'RectangleItem':
-                    data = {k: v for k, v in item_data.items() if k != '_item_type'}
-                    from ...objects import RectangleItem
-                    item = RectangleItem.from_dict(data)
-                    item.setPos(item.pos() + paste_offset)
-                    pasted_items.append(item)
-
-                elif item_type == 'BlockItem':
-                    from ...core.models import BlockParams
-                    from ...objects import BlockItem
-                    params = BlockParams(**{k: v for k, v in item_data.items() if k not in excluded_fields})
-                    params.x_mm += paste_offset.x()
-                    params.y_mm += paste_offset.y()
-                    item = BlockItem(params)
-                    item.edited.connect(self._maybe_retrace)
-                    pasted_items.append(item)
-                
-                elif item_type == 'RefractiveObjectItem':
-                    # Reconstruct RefractiveInterface objects from serialized dicts
-                    interfaces = []
-                    for iface_dict in item_data.get("interfaces", []):
-                        from ...core.models import RefractiveInterface
-                        interfaces.append(RefractiveInterface(**iface_dict))
-                    
-                    # Create params with reconstructed interfaces
-                    params = RefractiveObjectParams(
-                        x_mm=item_data.get("x_mm", 0.0) + paste_offset.x(),
-                        y_mm=item_data.get("y_mm", 0.0) + paste_offset.y(),
-                        angle_deg=item_data.get("angle_deg", 45.0),
-                        object_height_mm=item_data.get("object_height_mm", 80.0),
-                        interfaces=interfaces,
-                        image_path=item_data.get("image_path"),
-                        mm_per_pixel=item_data.get("mm_per_pixel", 0.1),
-                        name=item_data.get("name")
-                    )
-                    item = RefractiveObjectItem(params)
-                    item.edited.connect(self._maybe_retrace)
-                    pasted_items.append(item)
-                
-                else:
-                    self.log_service.warning(f"Unknown item type '{item_type}' - skipping", "Copy/Paste")
-                    
             except Exception as e:
                 # Log error but continue with other items
                 import traceback
                 self.log_service.error(
-                    f"Error pasting {item_type}: {e}\n{traceback.format_exc()}",
+                    f"Error pasting {type(item).__name__}: {e}\n{traceback.format_exc()}",
                     "Copy/Paste"
                 )
         

@@ -189,6 +189,26 @@ class RectangleItem(QtWidgets.QGraphicsObject):
         else:
             super().wheelEvent(ev)
     
+    def clone(self, offset_mm: tuple[float, float] = (20.0, 20.0)) -> 'RectangleItem':
+        """Create a deep copy of this rectangle with optional position offset."""
+        from PyQt6.QtCore import QPointF
+        
+        # Create new rectangle with same dimensions
+        new_item = RectangleItem(self._rect)
+        
+        # Copy properties
+        new_item._color = self._color
+        new_item._border_color = self._border_color
+        new_item._border_width = self._border_width
+        new_item.setRotation(self.rotation())
+        new_item.setZValue(self.zValue())
+        
+        # Set offset position
+        new_pos = self.scenePos() + QPointF(offset_mm[0], offset_mm[1])
+        new_item.setPos(new_pos)
+        
+        return new_item
+    
     def to_dict(self) -> Dict[str, Any]:
         r = self.boundingRect()
         return {

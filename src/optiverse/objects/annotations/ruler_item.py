@@ -221,6 +221,25 @@ class RulerItem(QtWidgets.QGraphicsObject):
         # Apply z-order change
         apply_z_order_change(items, operation, self.scene(), undo_stack)
     
+    def clone(self, offset_mm: tuple[float, float] = (20.0, 20.0)) -> 'RulerItem':
+        """Create a deep copy of this ruler with optional position offset."""
+        from PyQt6.QtCore import QPointF
+        
+        # Get scene coordinates of endpoints
+        p1_scene = self.mapToScene(self._p1)
+        p2_scene = self.mapToScene(self._p2)
+        
+        # Create new ruler with offset positions
+        new_p1 = QPointF(p1_scene.x() + offset_mm[0], p1_scene.y() + offset_mm[1])
+        new_p2 = QPointF(p2_scene.x() + offset_mm[0], p2_scene.y() + offset_mm[1])
+        new_ruler = RulerItem(new_p1, new_p2)
+        
+        # Copy properties
+        new_ruler._color = self._color
+        new_ruler.setZValue(self.zValue())
+        
+        return new_ruler
+    
     def to_dict(self) -> Dict[str, Any]:
         """Serialize ruler to dictionary."""
         # Save absolute endpoints in scene space so reopening is exact
