@@ -241,3 +241,35 @@ class RotateItemsCommand(Command):
         for item in self.items:
             item.setPos(self.old_positions[item])
             item.setRotation(self.old_rotations[item])
+
+
+class ZOrderCommand(Command):
+    """Command to change z-order (stacking order) of items."""
+
+    def __init__(
+        self,
+        items: list[QtWidgets.QGraphicsItem],
+        old_z_values: dict[QtWidgets.QGraphicsItem, float],
+        new_z_values: dict[QtWidgets.QGraphicsItem, float],
+    ):
+        """
+        Initialize ZOrderCommand.
+
+        Args:
+            items: The list of graphics items to change z-order for
+            old_z_values: Dict mapping items to their original z-values
+            new_z_values: Dict mapping items to their new z-values
+        """
+        self.items = items
+        self.old_z_values = dict(old_z_values)
+        self.new_z_values = dict(new_z_values)
+
+    def execute(self) -> None:
+        """Apply new z-values to all items."""
+        for item in self.items:
+            item.setZValue(self.new_z_values[item])
+
+    def undo(self) -> None:
+        """Restore old z-values for all items."""
+        for item in self.items:
+            item.setZValue(self.old_z_values[item])

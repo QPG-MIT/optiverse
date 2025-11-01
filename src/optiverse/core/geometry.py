@@ -534,7 +534,8 @@ def ray_hit_element(
     Returns (t, X, t_hat, n_hat, C, L) or None if no hit.
     """
     # Compute segment direction and length
-    diff = B - A
+    # NOTE: Direction is B->A (reversed) to flip normal 180° for correct n1/n2 sides
+    diff = A - B
     L = math.sqrt(diff[0]**2 + diff[1]**2)
     if L < tol:
         return None

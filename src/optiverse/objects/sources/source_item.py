@@ -367,6 +367,7 @@ class SourceItem(BaseObj):
         d["angle_deg"] = float(self.rotation())
         d["color_hex"] = hex_from_qcolor(self._color)
         d["item_uuid"] = self.item_uuid
+        d["z_value"] = float(self.zValue())  # Save z-order
         return d
     
     def from_dict(self, d: Dict[str, Any]):

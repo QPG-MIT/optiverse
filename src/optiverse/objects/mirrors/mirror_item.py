@@ -10,7 +10,7 @@ from ...core.models import MirrorParams
 from ...platform.paths import to_relative_path, to_absolute_path
 from ...ui.smart_spinbox import SmartDoubleSpinBox
 from ..base_obj import BaseObj
-from ..component_sprite import ComponentSprite
+from ..component_sprite import create_component_sprite
 
 
 class MirrorItem(BaseObj):
@@ -94,7 +94,7 @@ class MirrorItem(BaseObj):
                 half_width = self.params.object_height_mm / 2.0
                 reference_line_mm = (-half_width, 0.0, half_width, 0.0)
             
-            self._sprite = ComponentSprite(
+            self._sprite = create_component_sprite(
                 self.params.image_path,
                 reference_line_mm,
                 self.params.object_height_mm,
@@ -410,6 +410,7 @@ class MirrorItem(BaseObj):
         d["angle_deg"] = float(self.rotation())
         d["item_uuid"] = self.item_uuid
         d["locked"] = self._locked  # Save lock state
+        d["z_value"] = float(self.zValue())  # Save z-order
         # Convert image path to relative if within package
         if "image_path" in d:
             d["image_path"] = to_relative_path(d["image_path"])

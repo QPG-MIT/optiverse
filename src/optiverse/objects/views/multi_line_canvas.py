@@ -83,6 +83,9 @@ class MultiLineCanvas(QtWidgets.QLabel):
         self.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
         self._pix: Optional[QtGui.QPixmap] = None
+        self._svg_renderer: Optional[QtSvg.QSvgRenderer] = None  # Native SVG renderer
+        self._svg_cache_pixmap: Optional[QtGui.QPixmap] = None  # Cached pre-rendered SVG
+        self._svg_cache_size: QtCore.QSize = QtCore.QSize()  # Size of cached render
         self._scale_fit = 1.0
         self._src_path: Optional[str] = None
         self.setAcceptDrops(True)
@@ -127,6 +130,22 @@ class MultiLineCanvas(QtWidgets.QLabel):
         
         self._pix = pix
         self._src_path = source_path
+        
+        # If source is SVG, store renderer and pre-render cache
+        self._svg_renderer = None
+        self._svg_cache_pixmap = None
+        self._svg_cache_size = QtCore.QSize()
+        
+        if source_path and source_path.lower().endswith('.svg') and HAVE_QTSVG:
+            try:
+                renderer = QtSvg.QSvgRenderer(source_path)
+                if renderer.isValid():
+                    self._svg_renderer = renderer
+                    # Pre-render SVG to cache at high resolution
+                    self._update_svg_cache()
+            except Exception:
+                pass
+        
         self.update()
     
     def source_path(self) -> Optional[str]:
@@ -332,7 +351,19 @@ class MultiLineCanvas(QtWidgets.QLabel):
         
         # Draw image
         target = self._target_rect()
-        p.drawPixmap(target, self._pix)
+        
+        # Use cached SVG pixmap if available for better performance
+        if self._svg_renderer is not None and self._svg_cache_pixmap is not None:
+            # Check if we need to update cache due to significant resize
+            if target.width() > self._svg_cache_size.width() * 1.2 or \
+               target.height() > self._svg_cache_size.height() * 1.2:
+                self._update_svg_cache()
+            
+            # Draw cached pixmap with smooth transformation
+            p.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform, True)
+            p.drawPixmap(target, self._svg_cache_pixmap)
+        else:
+            p.drawPixmap(target, self._pix)
         
         # Draw all lines
         for i, line in enumerate(self._lines):
@@ -1283,6 +1314,40 @@ class MultiLineCanvas(QtWidgets.QLabel):
                     if pix and not pix.isNull():
                         self.imageDropped.emit(pix, path)
     
+    def _update_svg_cache(self):
+        """Update the cached SVG pixmap at optimal resolution."""
+        if not self._svg_renderer or not self._pix:
+            return
+        
+        # Calculate target size (2x current display size for quality)
+        tgt = self._target_rect()
+        target_width = max(tgt.width() * 2, 800)
+        target_height = max(tgt.height() * 2, 600)
+        
+        # Get SVG aspect ratio
+        default_size = self._svg_renderer.defaultSize()
+        if default_size.width() > 0 and default_size.height() > 0:
+            aspect = default_size.width() / default_size.height()
+            # Maintain aspect ratio
+            if target_width / target_height > aspect:
+                target_width = int(target_height * aspect)
+            else:
+                target_height = int(target_width / aspect)
+        
+        cache_size = QtCore.QSize(int(target_width), int(target_height))
+        
+        # Render SVG to cache
+        self._svg_cache_pixmap = QtGui.QPixmap(cache_size)
+        self._svg_cache_pixmap.fill(QtCore.Qt.GlobalColor.transparent)
+        
+        painter = QtGui.QPainter(self._svg_cache_pixmap)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform, True)
+        self._svg_renderer.render(painter)
+        painter.end()
+        
+        self._svg_cache_size = cache_size
+
     @staticmethod
     def _render_svg_to_pixmap(svg_path: str, size: int = 1000) -> Optional[QtGui.QPixmap]:
         """Render SVG to pixmap at normalized height."""

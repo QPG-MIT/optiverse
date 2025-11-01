@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from PyQt6 import QtCore, QtGui, QtWidgets
 from ..ui.views.main_window import MainWindow
@@ -497,6 +498,11 @@ def apply_theme(dark_mode: bool):
 
 
 def main() -> int:
+    # Increase Qt's image allocation limit to support large SVG cache files
+    # Default is 256MB, we set to 1GB to allow high-resolution cached PNGs
+    # This must be set BEFORE creating QApplication
+    os.environ['QT_IMAGEIO_MAXALLOC'] = '1024'  # In MB
+    
     # On macOS, change sys.argv[0] to set the app name in the menu bar
     # This must be done BEFORE creating QApplication
     original_argv0 = sys.argv[0]

@@ -56,12 +56,18 @@ class LineSegment:
         """
         Get normalized normal vector (perpendicular to line).
         
-        Normal points 90° counterclockwise from the direction vector.
-        For a horizontal line pointing right, normal points up.
+        Normal points 90° counterclockwise from p2→p1 direction (reversed).
+        This makes n1 on the "right" side and n2 on the "left" side when looking p1→p2.
+        For a horizontal line from left to right (p1→p2), normal points down.
         """
-        direction = self.direction()
+        # Use reversed direction (p2→p1) to flip normal 180° for correct n1/n2 interpretation
+        vec = self.p1 - self.p2
+        length = np.linalg.norm(vec)
+        if length < 1e-12:
+            return np.array([0.0, 1.0])
+        direction_reversed = vec / length
         # Rotate 90° counterclockwise: (x, y) -> (-y, x)
-        return np.array([-direction[1], direction[0]])
+        return np.array([-direction_reversed[1], direction_reversed[0]])
     
     def tangent(self) -> np.ndarray:
         """Get normalized tangent vector (same as direction)"""
@@ -208,6 +214,7 @@ class CurvedSegment:
         Get average normal vector (perpendicular to tangent).
         
         For curved surfaces, this is the radial direction at the midpoint.
+        Direction is reversed to match the n1/n2 convention (n1 on "right", n2 on "left").
         """
         mid = 0.5 * (self.p1 + self.p2)
         radial = mid - self._center
@@ -216,11 +223,12 @@ class CurvedSegment:
         if length < 1e-12:
             return np.array([0.0, 1.0])
         
-        # Normal points outward from center (for positive radius)
+        # Normal direction reversed to match flat surface convention
+        # Normal points inward toward center (for positive radius)
         if self.radius_of_curvature_mm > 0:
-            return radial / length
-        else:
             return -radial / length
+        else:
+            return radial / length
     
     def normal_at_point(self, point: np.ndarray) -> np.ndarray:
         """
@@ -238,11 +246,12 @@ class CurvedSegment:
         if length < 1e-12:
             return np.array([0.0, 1.0])
         
-        # Normal points outward from center
+        # Normal direction reversed to match flat surface convention
+        # Normal points inward toward center (for positive radius)
         if self.radius_of_curvature_mm > 0:
-            return radial / length
-        else:
             return -radial / length
+        else:
+            return radial / length
     
     def tangent(self) -> np.ndarray:
         """Get average tangent vector (same as direction)"""

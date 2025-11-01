@@ -10,7 +10,7 @@ from ...core.models import RefractiveObjectParams, RefractiveInterface
 from ...platform.paths import to_relative_path, to_absolute_path
 from ...ui.smart_spinbox import SmartDoubleSpinBox
 from ..base_obj import BaseObj
-from ..component_sprite import ComponentSprite
+from ..component_sprite import create_component_sprite
 
 
 class RefractiveObjectItem(BaseObj):
@@ -135,7 +135,7 @@ class RefractiveObjectItem(BaseObj):
                 cy + perp_dy   # Swapped: was cy - perp_dy
             )
             
-            self._sprite = ComponentSprite(
+            self._sprite = create_component_sprite(
                 self.params.image_path,
                 reference_line_mm,
                 self.params.object_height_mm,
@@ -610,6 +610,7 @@ class RefractiveObjectItem(BaseObj):
             "name": self.params.name,
             "item_uuid": self.item_uuid,
             "locked": self._locked,  # Save lock state
+            "z_value": float(self.zValue()),  # Save z-order
             "interfaces": [asdict(iface) for iface in self.params.interfaces]
         }
         return d

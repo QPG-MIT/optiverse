@@ -47,6 +47,13 @@ def assets_dir() -> str:
     return str(d)
 
 
+def svg_cache_dir() -> str:
+    """Get the SVG rendering cache directory."""
+    d = _app_data_root() / "svg_cache"
+    d.mkdir(parents=True, exist_ok=True)
+    return str(d)
+
+
 def get_library_path() -> str:
     return str(Path(library_root_dir()) / "components_library.json")
 

@@ -1400,16 +1400,20 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Re-create everything
         for d in data.get("sources", []):
-            # Remove item_uuid before passing to Params (it's for collaboration)
+            # Remove item_uuid and z_value before passing to Params (they're set separately)
             item_uuid = d.pop("item_uuid", None)
+            z_value = d.pop("z_value", None)
             s = SourceItem(SourceParams(**d))
             if item_uuid:
                 s.item_uuid = item_uuid
+            if z_value is not None:
+                s.setZValue(z_value)
             self.scene.addItem(s)
             s.edited.connect(self._maybe_retrace)
         for d in data.get("lenses", []):
-            # Remove item_uuid before passing to Params (it's for collaboration)
+            # Remove item_uuid and z_value before passing to Params (they're set separately)
             item_uuid = d.pop("item_uuid", None)
+            z_value = d.pop("z_value", None)
             # Convert relative image paths to absolute
             if "image_path" in d and d["image_path"]:
                 from ...platform.paths import to_absolute_path
@@ -1417,12 +1421,15 @@ class MainWindow(QtWidgets.QMainWindow):
             L = LensItem(LensParams(**d))
             if item_uuid:
                 L.item_uuid = item_uuid
+            if z_value is not None:
+                L.setZValue(z_value)
             self.scene.addItem(L)
             # Sprite is automatically attached in constructor
             L.edited.connect(self._maybe_retrace)
         for d in data.get("mirrors", []):
-            # Remove item_uuid before passing to Params (it's for collaboration)
+            # Remove item_uuid and z_value before passing to Params (they're set separately)
             item_uuid = d.pop("item_uuid", None)
+            z_value = d.pop("z_value", None)
             # Convert relative image paths to absolute
             if "image_path" in d and d["image_path"]:
                 from ...platform.paths import to_absolute_path
@@ -1430,12 +1437,15 @@ class MainWindow(QtWidgets.QMainWindow):
             M = MirrorItem(MirrorParams(**d))
             if item_uuid:
                 M.item_uuid = item_uuid
+            if z_value is not None:
+                M.setZValue(z_value)
             self.scene.addItem(M)
             # Sprite is automatically attached in constructor
             M.edited.connect(self._maybe_retrace)
         for d in data.get("beamsplitters", []):
-            # Remove item_uuid before passing to Params (it's for collaboration)
+            # Remove item_uuid and z_value before passing to Params (they're set separately)
             item_uuid = d.pop("item_uuid", None)
+            z_value = d.pop("z_value", None)
             # Convert relative image paths to absolute
             if "image_path" in d and d["image_path"]:
                 from ...platform.paths import to_absolute_path
@@ -1443,12 +1453,15 @@ class MainWindow(QtWidgets.QMainWindow):
             B = BeamsplitterItem(BeamsplitterParams(**d))
             if item_uuid:
                 B.item_uuid = item_uuid
+            if z_value is not None:
+                B.setZValue(z_value)
             self.scene.addItem(B)
             # Sprite is automatically attached in constructor
             B.edited.connect(self._maybe_retrace)
         for d in data.get("dichroics", []):
-            # Remove item_uuid before passing to Params (it's for collaboration)
+            # Remove item_uuid and z_value before passing to Params (they're set separately)
             item_uuid = d.pop("item_uuid", None)
+            z_value = d.pop("z_value", None)
             # Convert relative image paths to absolute
             if "image_path" in d and d["image_path"]:
                 from ...platform.paths import to_absolute_path
@@ -1456,12 +1469,15 @@ class MainWindow(QtWidgets.QMainWindow):
             D = DichroicItem(DichroicParams(**d))
             if item_uuid:
                 D.item_uuid = item_uuid
+            if z_value is not None:
+                D.setZValue(z_value)
             self.scene.addItem(D)
             # Sprite is automatically attached in constructor
             D.edited.connect(self._maybe_retrace)
         for d in data.get("waveplates", []):
-            # Remove item_uuid before passing to Params (it's for collaboration)
+            # Remove item_uuid and z_value before passing to Params (they're set separately)
             item_uuid = d.pop("item_uuid", None)
+            z_value = d.pop("z_value", None)
             # Convert relative image paths to absolute
             if "image_path" in d and d["image_path"]:
                 from ...platform.paths import to_absolute_path
@@ -1469,12 +1485,15 @@ class MainWindow(QtWidgets.QMainWindow):
             W = WaveplateItem(WaveplateParams(**d))
             if item_uuid:
                 W.item_uuid = item_uuid
+            if z_value is not None:
+                W.setZValue(z_value)
             self.scene.addItem(W)
             # Sprite is automatically attached in constructor
             W.edited.connect(self._maybe_retrace)
         for d in data.get("slms", []):
-            # Remove item_uuid before passing to Params (it's for collaboration)
+            # Remove item_uuid and z_value before passing to Params (they're set separately)
             item_uuid = d.pop("item_uuid", None)
+            z_value = d.pop("z_value", None)
             # Convert relative image paths to absolute
             if "image_path" in d and d["image_path"]:
                 from ...platform.paths import to_absolute_path
@@ -1482,6 +1501,8 @@ class MainWindow(QtWidgets.QMainWindow):
             S = SLMItem(SLMParams(**d))
             if item_uuid:
                 S.item_uuid = item_uuid
+            if z_value is not None:
+                S.setZValue(z_value)
             self.scene.addItem(S)
             # Sprite is automatically attached in constructor
             S.edited.connect(self._maybe_retrace)
@@ -1500,7 +1521,14 @@ class MainWindow(QtWidgets.QMainWindow):
         for d in data.get("blocks", []):
             from ...objects import BlockItem
             from ...core.models import BlockParams
+            # Remove item_uuid and z_value before passing to Params (they're set separately)
+            item_uuid = d.pop("item_uuid", None)
+            z_value = d.pop("z_value", None)
             b = BlockItem(BlockParams(**d))
+            if item_uuid:
+                b.item_uuid = item_uuid
+            if z_value is not None:
+                b.setZValue(z_value)
             self.scene.addItem(b)
 
         # Clear undo history after loading

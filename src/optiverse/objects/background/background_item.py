@@ -7,7 +7,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...ui.smart_spinbox import SmartDoubleSpinBox
 from ..base_obj import BaseObj
-from ..component_sprite import ComponentSprite
+from ..component_sprite import create_component_sprite
 
 
 @dataclass
@@ -41,7 +41,7 @@ class BackgroundItem(BaseObj):
                 half_height = self.params.object_height_mm / 2.0
                 reference_line = (0.0, -half_height, 0.0, half_height)
                 
-                self._sprite = ComponentSprite(
+                self._sprite = create_component_sprite(
                     image_path=self.params.image_path,
                     reference_line_mm=reference_line,
                     object_height_mm=self.params.object_height_mm,
@@ -219,6 +219,7 @@ class BackgroundItem(BaseObj):
         d["angle_deg"] = float(self.rotation())
         d["item_uuid"] = self.item_uuid
         d["locked"] = self._locked  # Save lock state
+        d["z_value"] = float(self.zValue())  # Save z-order
         return d
     
     def from_dict(self, d: Dict[str, Any]):

@@ -55,25 +55,34 @@ The labels are designed for clarity and readability:
 
 The convention for refractive interfaces:
 
-- **First endpoint (x1, y1)**: Has refractive index **n₁**
-- **Second endpoint (x2, y2)**: Has refractive index **n₂**
+When you draw a line from **p1** to **p2**, imagine standing at p1 and looking toward p2:
+- **n₁** is the medium on your **RIGHT** side
+- **n₂** is the medium on your **LEFT** side
+
+Technically, the normal vector points 90° counterclockwise from the reversed direction (p2→p1), which determines:
+- **n₁** = medium on the side the normal points toward
+- **n₂** = medium on the side the normal points away from
 
 This matches the physical interpretation where:
-- **n₁** is the "incident" or "incoming" medium
-- **n₂** is the "transmitted" or "outgoing" medium
+- **n₁** is typically the "incident" or "incoming" medium
+- **n₂** is typically the "transmitted" or "outgoing" medium
 
 ### Example: Glass Plate
 
-For a parallel-sided glass plate in air:
+For a parallel-sided glass plate in air with horizontal light:
 
 ```
-Entry Surface:
-  n₁ = 1.000 (air, left side)
-  n₂ = 1.517 (glass, right side)
+Entry Surface (vertical line, drawn top to bottom):
+  p1 = (x, y_top), p2 = (x, y_bottom)
+  Looking top→bottom: right side is air, left side is glass
+  n₁ = 1.000 (air, right/incident side)
+  n₂ = 1.517 (glass, left/transmitted side)
 
-Exit Surface:
-  n₁ = 1.517 (glass, left side)
-  n₂ = 1.000 (air, right side)
+Exit Surface (vertical line, drawn top to bottom):
+  p1 = (x, y_top), p2 = (x, y_bottom)  
+  Looking top→bottom: right side is glass, left side is air
+  n₁ = 1.517 (glass, right/incident side)
+  n₂ = 1.000 (air, left/transmitted side)
 ```
 
 The labels make it immediately clear which side is which!
@@ -134,9 +143,10 @@ For reference, here are common optical materials:
 ### Tip 1: Check Your Convention
 
 When creating an interface:
-- Think about the light path direction
-- Set n₁ as the medium the light comes from
-- Set n₂ as the medium the light goes to
+- Draw the line from p1 to p2
+- Stand at p1 and look toward p2
+- n₁ is on your RIGHT, n₂ is on your LEFT
+- For light going left-to-right: draw vertical line top-to-bottom, put air (n₁) on right
 - The labels will help you verify this visually
 
 ### Tip 2: Use Presets

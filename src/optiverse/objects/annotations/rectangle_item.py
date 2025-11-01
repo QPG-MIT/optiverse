@@ -57,11 +57,63 @@ class RectangleItem(QtWidgets.QGraphicsObject):
         m = QtWidgets.QMenu()
         act_edit = m.addAction("Edit")
         act_del = m.addAction("Delete")
+        
+        # Add z-order options
+        m.addSeparator()
+        act_bring_to_front = m.addAction("Bring to Front")
+        act_bring_forward = m.addAction("Bring Forward")
+        act_send_backward = m.addAction("Send Backward")
+        act_send_to_back = m.addAction("Send to Back")
+        
         a = m.exec(ev.screenPos())
         if a == act_edit:
             self.open_editor()
         elif a == act_del and self.scene():
             self.scene().removeItem(self)
+        elif a in (act_bring_to_front, act_bring_forward, act_send_backward, act_send_to_back):
+            self._handle_z_order_action(a, act_bring_to_front, act_bring_forward,
+                                       act_send_backward, act_send_to_back)
+    
+    def _handle_z_order_action(self, selected_action, act_bring_to_front, act_bring_forward,
+                               act_send_backward, act_send_to_back):
+        """Handle z-order menu actions."""
+        from optiverse.core.zorder_utils import apply_z_order_change
+        
+        if not self.scene():
+            return
+        
+        # Get items to operate on: if this item is selected, use all selected items
+        # Otherwise, just use this item
+        if self.isSelected():
+            items = [item for item in self.scene().selectedItems() 
+                    if hasattr(item, 'setZValue')]
+        else:
+            items = [self]
+        
+        if not items:
+            return
+        
+        # Determine operation
+        if selected_action == act_bring_to_front:
+            operation = "bring_to_front"
+        elif selected_action == act_bring_forward:
+            operation = "bring_forward"
+        elif selected_action == act_send_backward:
+            operation = "send_backward"
+        elif selected_action == act_send_to_back:
+            operation = "send_to_back"
+        else:
+            return
+        
+        # Get undo stack from main window
+        undo_stack = None
+        if self.scene().views():
+            main_window = self.scene().views()[0].window()
+            if hasattr(main_window, 'undo_stack'):
+                undo_stack = main_window.undo_stack
+        
+        # Apply z-order change
+        apply_z_order_change(items, operation, self.scene(), undo_stack)
     
     def mousePressEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
         """Handle mouse press for rotation mode (Ctrl+drag) or normal drag."""
@@ -147,6 +199,7 @@ class RectangleItem(QtWidgets.QGraphicsObject):
             "height_mm": float(r.height()),
             "angle_deg": float(self.rotation()),
             "item_uuid": self.item_uuid,
+            "z_value": float(self.zValue()),
         }
     
     @staticmethod
@@ -158,6 +211,11 @@ class RectangleItem(QtWidgets.QGraphicsObject):
         item.setPos(float(d.get("x", 0.0)), float(d.get("y", 0.0)))
         ang = float(d.get("angle_deg", 0.0))
         item.setRotation(ang)
+        
+        # Restore z-value if present
+        if "z_value" in d:
+            item.setZValue(float(d["z_value"]))
+        
         return item
 
     def open_editor(self):

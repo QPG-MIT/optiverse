@@ -129,3 +129,6 @@ dmypy.json
 .DS_Store
 Thumbs.db
 
+# App cache
+svg_cache/
+
