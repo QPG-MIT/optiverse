@@ -957,6 +957,28 @@ class MainWindow(QtWidgets.QMainWindow):
                     item.edited.connect(self._maybe_retrace)
                     pasted_items.append(item)
                 
+                elif item_type == 'RefractiveObjectItem':
+                    # Reconstruct RefractiveInterface objects from serialized dicts
+                    interfaces = []
+                    for iface_dict in item_data.get("interfaces", []):
+                        from ...core.models import RefractiveInterface
+                        interfaces.append(RefractiveInterface(**iface_dict))
+                    
+                    # Create params with reconstructed interfaces
+                    params = RefractiveObjectParams(
+                        x_mm=item_data.get("x_mm", 0.0) + paste_offset.x(),
+                        y_mm=item_data.get("y_mm", 0.0) + paste_offset.y(),
+                        angle_deg=item_data.get("angle_deg", 45.0),
+                        object_height_mm=item_data.get("object_height_mm", 80.0),
+                        interfaces=interfaces,
+                        image_path=item_data.get("image_path"),
+                        mm_per_pixel=item_data.get("mm_per_pixel", 0.1),
+                        name=item_data.get("name")
+                    )
+                    item = RefractiveObjectItem(params)
+                    item.edited.connect(self._maybe_retrace)
+                    pasted_items.append(item)
+                
                 else:
                     self.log_service.warning(f"Unknown item type '{item_type}' - skipping", "Copy/Paste")
                     

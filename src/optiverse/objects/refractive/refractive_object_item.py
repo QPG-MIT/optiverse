@@ -8,8 +8,10 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import RefractiveObjectParams, RefractiveInterface
 from ...core.geometry import user_angle_to_qt, qt_angle_to_user
+from ...core.interface_definition import InterfaceDefinition
 from ...platform.paths import to_relative_path, to_absolute_path
 from ...ui.smart_spinbox import SmartDoubleSpinBox
+from ...ui.widgets.interface_properties_widget import InterfacePropertiesWidget
 from ..base_obj import BaseObj
 from ..component_sprite import create_component_sprite
 
@@ -299,6 +301,10 @@ class RefractiveObjectItem(BaseObj):
         # Convert Qt angle to user angle (CW from up)
         initial_ang = qt_angle_to_user(self.rotation())
         
+        # Save initial interface states (deep copy)
+        from copy import deepcopy
+        initial_interfaces = [deepcopy(iface) for iface in self.params.interfaces] if self.params.interfaces else []
+        
         x = SmartDoubleSpinBox()
         x.setRange(-1e6, 1e6)
         x.setDecimals(3)
@@ -367,70 +373,59 @@ class RefractiveObjectItem(BaseObj):
         
         layout.addLayout(form)
         
-        # Interfaces list
-        layout.addWidget(QtWidgets.QLabel("<b>Optical Interfaces:</b>"))
-        
-        interfaces_list = QtWidgets.QListWidget()
-        interfaces_list.setMaximumHeight(200)
-        
-        def update_interface_list():
-            interfaces_list.clear()
-            for i, iface in enumerate(self.params.interfaces):
-                desc = f"Interface {i+1}: "
-                if iface.is_beam_splitter:
-                    desc += "Beam Splitter "
-                desc += f"n={iface.n1:.3f}→{iface.n2:.3f}"
-                interfaces_list.addItem(desc)
-        
-        update_interface_list()
-        layout.addWidget(interfaces_list)
-        
-        # Interface editing buttons
-        btn_layout = QtWidgets.QHBoxLayout()
-        
-        btn_add = QtWidgets.QPushButton("Add Interface")
-        btn_edit = QtWidgets.QPushButton("Edit Selected")
-        btn_delete = QtWidgets.QPushButton("Delete Selected")
-        
-        def add_interface():
-            # Add a default interface
-            iface = RefractiveInterface(
-                x1_mm=-20.0, y1_mm=-20.0,
-                x2_mm=20.0, y2_mm=-20.0,
-                n1=1.0, n2=1.5
+        # Convert RefractiveInterface objects to InterfaceDefinition for the widget
+        interface_definitions = []
+        for iface in self.params.interfaces:
+            idef = InterfaceDefinition(
+                x1_mm=iface.x1_mm,
+                y1_mm=iface.y1_mm,
+                x2_mm=iface.x2_mm,
+                y2_mm=iface.y2_mm,
+                element_type="refractive_interface",
+                n1=iface.n1,
+                n2=iface.n2,
+                is_curved=iface.is_curved,
+                radius_of_curvature_mm=iface.radius_of_curvature_mm
             )
-            self.params.interfaces.append(iface)
-            update_interface_list()
-            self._update_geom()
-            self.update()
-            self.edited.emit()
+            # Copy beam splitter properties if present
+            if iface.is_beam_splitter:
+                idef.split_T = iface.split_T
+                idef.split_R = iface.split_R
+                idef.is_polarizing = iface.is_polarizing
+                idef.pbs_transmission_axis_deg = iface.pbs_transmission_axis_deg
+            interface_definitions.append(idef)
         
-        def edit_interface():
-            row = interfaces_list.currentRow()
-            if row >= 0 and row < len(self.params.interfaces):
-                self._open_interface_editor(row)
-                update_interface_list()
-                self._update_geom()
-                self.update()
+        # Add interface properties section
+        if interface_definitions:
+            # Add separator before interfaces
+            separator2 = QtWidgets.QFrame()
+            separator2.setFrameShape(QtWidgets.QFrame.Shape.HLine)
+            layout.addWidget(separator2)
+            
+            # Add interface properties widget
+            interface_widget = InterfacePropertiesWidget(interface_definitions)
+            
+            # Sync changes back to RefractiveInterface objects
+            def sync_interface_properties():
+                for i, idef in enumerate(interface_definitions):
+                    if i < len(self.params.interfaces):
+                        self.params.interfaces[i].n1 = idef.n1
+                        self.params.interfaces[i].n2 = idef.n2
+                        self.params.interfaces[i].is_curved = idef.is_curved
+                        self.params.interfaces[i].radius_of_curvature_mm = idef.radius_of_curvature_mm
+                        # Sync beam splitter properties
+                        if hasattr(idef, 'split_T'):
+                            self.params.interfaces[i].split_T = idef.split_T
+                        if hasattr(idef, 'split_R'):
+                            self.params.interfaces[i].split_R = idef.split_R
+                        if hasattr(idef, 'is_polarizing'):
+                            self.params.interfaces[i].is_polarizing = idef.is_polarizing
+                        if hasattr(idef, 'pbs_transmission_axis_deg'):
+                            self.params.interfaces[i].pbs_transmission_axis_deg = idef.pbs_transmission_axis_deg
                 self.edited.emit()
-        
-        def delete_interface():
-            row = interfaces_list.currentRow()
-            if row >= 0 and row < len(self.params.interfaces):
-                del self.params.interfaces[row]
-                update_interface_list()
-                self._update_geom()
-                self.update()
-                self.edited.emit()
-        
-        btn_add.clicked.connect(add_interface)
-        btn_edit.clicked.connect(edit_interface)
-        btn_delete.clicked.connect(delete_interface)
-        
-        btn_layout.addWidget(btn_add)
-        btn_layout.addWidget(btn_edit)
-        btn_layout.addWidget(btn_delete)
-        layout.addLayout(btn_layout)
+            
+            interface_widget.propertiesChanged.connect(sync_interface_properties)
+            layout.addWidget(interface_widget)
         
         # Dialog buttons
         btn_box = QtWidgets.QDialogButtonBox(
@@ -451,6 +446,11 @@ class RefractiveObjectItem(BaseObj):
             self.params.y_mm = initial_y
             self.setRotation(user_angle_to_qt(initial_ang))
             self.params.angle_deg = initial_ang
+            
+            # Restore initial interface states
+            if initial_interfaces:
+                self.params.interfaces = initial_interfaces
+            
             self.edited.emit()
     
     def _open_interface_editor(self, index: int):

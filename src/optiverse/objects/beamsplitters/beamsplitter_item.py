@@ -8,8 +8,10 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import BeamsplitterParams
 from ...core.geometry import user_angle_to_qt, qt_angle_to_user
+from ...core.interface_definition import InterfaceDefinition
 from ...platform.paths import to_relative_path, to_absolute_path
 from ...ui.smart_spinbox import SmartDoubleSpinBox
+from ...ui.widgets.interface_properties_widget import InterfacePropertiesWidget
 from ..base_obj import BaseObj
 from ..component_sprite import create_component_sprite
 
@@ -151,6 +153,14 @@ class BeamsplitterItem(BaseObj):
         # Convert Qt angle to user angle (CW from up)
         initial_ang = qt_angle_to_user(self.rotation())
         initial_length = self.params.object_height_mm
+        initial_split_T = self.params.split_T
+        initial_split_R = self.params.split_R
+        initial_is_polarizing = self.params.is_polarizing
+        initial_pbs_axis = self.params.pbs_transmission_axis_deg
+        
+        # Save initial interface states (deep copy)
+        from copy import deepcopy
+        initial_interfaces = [deepcopy(iface) for iface in self.params.interfaces] if self.params.interfaces else []
         
         x = SmartDoubleSpinBox()
         x.setRange(-1e6, 1e6)
@@ -222,58 +232,6 @@ class BeamsplitterItem(BaseObj):
         # Connect to item's edited signal to sync spinboxes
         self.edited.connect(sync_from_item)
         
-        t = QtWidgets.QDoubleSpinBox()
-        t.setRange(0, 100)
-        t.setDecimals(1)
-        t.setSuffix(" %")
-        t.setValue(self.params.split_T)
-        
-        r = QtWidgets.QDoubleSpinBox()
-        r.setRange(0, 100)
-        r.setDecimals(1)
-        r.setSuffix(" %")
-        r.setValue(self.params.split_R)
-        
-        # Sync T and R values
-        def sync_from_t(val):
-            r.blockSignals(True)
-            r.setValue(max(0.0, min(100.0, 100.0 - val)))
-            r.blockSignals(False)
-        
-        def sync_from_r(val):
-            t.blockSignals(True)
-            t.setValue(max(0.0, min(100.0, 100.0 - val)))
-            t.blockSignals(False)
-        
-        t.valueChanged.connect(sync_from_t)
-        r.valueChanged.connect(sync_from_r)
-        
-        # Polarization controls
-        is_pbs = QtWidgets.QCheckBox("Polarizing Beam Splitter (PBS)")
-        is_pbs.setChecked(self.params.is_polarizing)
-        
-        pbs_axis = QtWidgets.QDoubleSpinBox()
-        pbs_axis.setRange(-180, 180)
-        pbs_axis.setDecimals(1)
-        pbs_axis.setSuffix(" °")
-        pbs_axis.setValue(self.params.pbs_transmission_axis_deg)
-        pbs_axis.setEnabled(self.params.is_polarizing)
-        pbs_axis.setToolTip("ABSOLUTE angle of transmission axis in lab frame\n"
-                           "(0° = horizontal, 90° = vertical)\n"
-                           "p-polarization (parallel) transmits, s-polarization (perpendicular) reflects")
-        
-        # Enable/disable T/R controls and PBS axis based on PBS mode
-        def on_pbs_toggled(checked):
-            t.setEnabled(not checked)
-            r.setEnabled(not checked)
-            pbs_axis.setEnabled(checked)
-        is_pbs.toggled.connect(on_pbs_toggled)
-        
-        # Disable T/R controls if PBS mode is active
-        if self.params.is_polarizing:
-            t.setEnabled(False)
-            r.setEnabled(False)
-        
         # Lock checkbox
         lock_cb = QtWidgets.QCheckBox("Lock position/rotation/deletion")
         lock_cb.setChecked(self.is_locked())
@@ -289,10 +247,18 @@ class BeamsplitterItem(BaseObj):
         f.addRow("Y Position", y)
         f.addRow("Optical Axis Angle", ang)
         f.addRow("Length", length)
-        f.addRow("Split T", t)
-        f.addRow("Split R", r)
-        f.addRow("", is_pbs)
-        f.addRow("PBS transmission axis", pbs_axis)
+        
+        # Add interface properties section
+        if self.params.interfaces:
+            # Add separator before interfaces
+            separator2 = QtWidgets.QFrame()
+            separator2.setFrameShape(QtWidgets.QFrame.Shape.HLine)
+            f.addRow(separator2)
+            
+            # Add interface properties widget
+            interface_widget = InterfacePropertiesWidget(self.params.interfaces)
+            interface_widget.propertiesChanged.connect(self.edited.emit)
+            f.addRow(interface_widget)
         
         btn = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.StandardButton.Ok
@@ -308,14 +274,7 @@ class BeamsplitterItem(BaseObj):
         # Disconnect the sync signal to prevent memory leaks
         self.edited.disconnect(sync_from_item)
         
-        if result:
-            # Save T/R and PBS settings (x, y, angle, length already applied live)
-            self.params.split_T = t.value()
-            self.params.split_R = r.value()
-            self.params.is_polarizing = is_pbs.isChecked()
-            self.params.pbs_transmission_axis_deg = pbs_axis.value()
-            self.edited.emit()
-        else:
+        if not result:
             # User clicked Cancel - restore initial values
             self.setPos(initial_x, initial_y)
             self.params.x_mm = initial_x
@@ -323,6 +282,15 @@ class BeamsplitterItem(BaseObj):
             self.setRotation(user_angle_to_qt(initial_ang))
             self.params.angle_deg = initial_ang
             self.params.object_height_mm = initial_length
+            self.params.split_T = initial_split_T
+            self.params.split_R = initial_split_R
+            self.params.is_polarizing = initial_is_polarizing
+            self.params.pbs_transmission_axis_deg = initial_pbs_axis
+            
+            # Restore initial interface states
+            if initial_interfaces:
+                self.params.interfaces = initial_interfaces
+            
             self._update_geom()
             self._maybe_attach_sprite()
             self.edited.emit()

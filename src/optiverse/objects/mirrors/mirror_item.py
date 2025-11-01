@@ -8,8 +8,10 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import MirrorParams
 from ...core.geometry import user_angle_to_qt, qt_angle_to_user
+from ...core.interface_definition import InterfaceDefinition
 from ...platform.paths import to_relative_path, to_absolute_path
 from ...ui.smart_spinbox import SmartDoubleSpinBox
+from ...ui.widgets.interface_properties_widget import InterfacePropertiesWidget
 from ..base_obj import BaseObj
 from ..component_sprite import create_component_sprite
 
@@ -240,6 +242,10 @@ class MirrorItem(BaseObj):
         initial_ang = qt_angle_to_user(self.rotation())
         initial_length = self.params.object_height_mm
         
+        # Save initial interface states (deep copy)
+        from copy import deepcopy
+        initial_interfaces = [deepcopy(iface) for iface in self.params.interfaces] if self.params.interfaces else []
+        
         x = SmartDoubleSpinBox()
         x.setRange(-1e6, 1e6)
         x.setDecimals(3)
@@ -326,6 +332,18 @@ class MirrorItem(BaseObj):
         f.addRow("Optical Axis Angle", ang)
         f.addRow("Length", length)
         
+        # Add interface properties section
+        if self.params.interfaces:
+            # Add separator before interfaces
+            separator2 = QtWidgets.QFrame()
+            separator2.setFrameShape(QtWidgets.QFrame.Shape.HLine)
+            f.addRow(separator2)
+            
+            # Add interface properties widget
+            interface_widget = InterfacePropertiesWidget(self.params.interfaces)
+            interface_widget.propertiesChanged.connect(self.edited.emit)
+            f.addRow(interface_widget)
+        
         btn = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.StandardButton.Ok
             | QtWidgets.QDialogButtonBox.StandardButton.Cancel
@@ -348,6 +366,11 @@ class MirrorItem(BaseObj):
             self.setRotation(user_angle_to_qt(initial_ang))
             self.params.angle_deg = initial_ang
             self.params.object_height_mm = initial_length
+            
+            # Restore initial interface states
+            if initial_interfaces:
+                self.params.interfaces = initial_interfaces
+            
             self._update_geom()
             self._maybe_attach_sprite()
             self.edited.emit()

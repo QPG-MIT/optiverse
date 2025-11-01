@@ -171,20 +171,20 @@ class ComponentEditor(QtWidgets.QMainWindow):
     def _build_shortcuts(self):
         """Setup keyboard shortcuts."""
         sc_copy = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Copy, self)
-        sc_copy.setContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
+        sc_copy.setContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         sc_copy.activated.connect(self.copy_component_json)
 
         sc_paste = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Paste, self)
-        sc_paste.setContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
+        sc_paste.setContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         sc_paste.activated.connect(self._smart_paste)
         
         # Undo/Redo shortcuts
         sc_undo = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Undo, self)
-        sc_undo.setContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
+        sc_undo.setContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         sc_undo.activated.connect(self.undo_stack.undo)
         
         sc_redo = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Redo, self)
-        sc_redo.setContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
+        sc_redo.setContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         sc_redo.activated.connect(self.undo_stack.redo)
 
     def _build_side_dock(self):

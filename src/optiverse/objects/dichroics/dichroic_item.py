@@ -8,8 +8,10 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import DichroicParams
 from ...core.geometry import user_angle_to_qt, qt_angle_to_user
+from ...core.interface_definition import InterfaceDefinition
 from ...platform.paths import to_relative_path, to_absolute_path
 from ...ui.smart_spinbox import SmartDoubleSpinBox
+from ...ui.widgets.interface_properties_widget import InterfacePropertiesWidget
 from ..base_obj import BaseObj
 from ..component_sprite import create_component_sprite
 
@@ -149,6 +151,13 @@ class DichroicItem(BaseObj):
         # Convert Qt angle to user angle (CW from up)
         initial_ang = qt_angle_to_user(self.rotation())
         initial_length = self.params.object_height_mm
+        initial_cutoff = self.params.cutoff_wavelength_nm
+        initial_transition = self.params.transition_width_nm
+        initial_pass_type = getattr(self.params, "pass_type", "longpass")
+        
+        # Save initial interface states (deep copy)
+        from copy import deepcopy
+        initial_interfaces = [deepcopy(iface) for iface in self.params.interfaces] if self.params.interfaces else []
         
         x = SmartDoubleSpinBox()
         x.setRange(-1e6, 1e6)
@@ -220,38 +229,6 @@ class DichroicItem(BaseObj):
         # Connect to item's edited signal to sync spinboxes
         self.edited.connect(sync_from_item)
         
-        cutoff = QtWidgets.QDoubleSpinBox()
-        cutoff.setRange(200, 2000)
-        cutoff.setDecimals(1)
-        cutoff.setSuffix(" nm")
-        cutoff.setValue(self.params.cutoff_wavelength_nm)
-        
-        transition = QtWidgets.QDoubleSpinBox()
-        transition.setRange(1, 200)
-        transition.setDecimals(1)
-        transition.setSuffix(" nm")
-        transition.setValue(self.params.transition_width_nm)
-        transition.setToolTip("Width of transition region between reflection and transmission")
-        
-        pass_type = QtWidgets.QComboBox()
-        pass_type.addItems(["longpass", "shortpass"])
-        # Set current value
-        current_pass_type = getattr(self.params, "pass_type", "longpass")
-        idx = pass_type.findText(current_pass_type)
-        if idx >= 0:
-            pass_type.setCurrentIndex(idx)
-        
-        # Update cutoff tooltip based on pass type
-        def update_cutoff_tooltip(text):
-            if text == "longpass":
-                cutoff.setToolTip("Wavelengths below this reflect, above this transmit")
-            else:  # shortpass
-                cutoff.setToolTip("Wavelengths above this reflect, below this transmit")
-        
-        # Set initial tooltip
-        update_cutoff_tooltip(pass_type.currentText())
-        pass_type.currentTextChanged.connect(update_cutoff_tooltip)
-        
         # Lock checkbox
         lock_cb = QtWidgets.QCheckBox("Lock position/rotation/deletion")
         lock_cb.setChecked(self.is_locked())
@@ -267,22 +244,18 @@ class DichroicItem(BaseObj):
         f.addRow("Y Position", y)
         f.addRow("Optical Axis Angle", ang)
         f.addRow("Length", length)
-        f.addRow("Pass Type", pass_type)
-        f.addRow("Cutoff Wavelength", cutoff)
-        f.addRow("Transition Width", transition)
         
-        # Add info label
-        info = QtWidgets.QLabel(
-            "Dichroic mirrors selectively reflect or transmit based on wavelength.\n"
-            "Long pass: reflects short wavelengths, transmits long wavelengths.\n"
-            "Short pass: reflects long wavelengths, transmits short wavelengths."
-        )
-        info.setWordWrap(True)
-        # Adapt color to theme
-        palette = d.palette()
-        is_dark = palette.color(QtGui.QPalette.ColorRole.Window).lightness() < 128
-        info.setStyleSheet(f"color: {'#888' if is_dark else '#666'}; font-size: 10px;")
-        f.addRow("", info)
+        # Add interface properties section
+        if self.params.interfaces:
+            # Add separator before interfaces
+            separator2 = QtWidgets.QFrame()
+            separator2.setFrameShape(QtWidgets.QFrame.Shape.HLine)
+            f.addRow(separator2)
+            
+            # Add interface properties widget
+            interface_widget = InterfacePropertiesWidget(self.params.interfaces)
+            interface_widget.propertiesChanged.connect(self.edited.emit)
+            f.addRow(interface_widget)
         
         btn = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.StandardButton.Ok
@@ -298,13 +271,7 @@ class DichroicItem(BaseObj):
         # Disconnect the sync signal to prevent memory leaks
         self.edited.disconnect(sync_from_item)
         
-        if result:
-            # Save dichroic parameters (x, y, angle, length already applied live)
-            self.params.cutoff_wavelength_nm = cutoff.value()
-            self.params.transition_width_nm = transition.value()
-            self.params.pass_type = pass_type.currentText()
-            self.edited.emit()
-        else:
+        if not result:
             # User clicked Cancel - restore initial values
             self.setPos(initial_x, initial_y)
             self.params.x_mm = initial_x
@@ -312,6 +279,14 @@ class DichroicItem(BaseObj):
             self.setRotation(user_angle_to_qt(initial_ang))
             self.params.angle_deg = initial_ang
             self.params.object_height_mm = initial_length
+            self.params.cutoff_wavelength_nm = initial_cutoff
+            self.params.transition_width_nm = initial_transition
+            self.params.pass_type = initial_pass_type
+            
+            # Restore initial interface states
+            if initial_interfaces:
+                self.params.interfaces = initial_interfaces
+            
             self._update_geom()
             self._maybe_attach_sprite()
             self.edited.emit()
