@@ -1164,8 +1164,34 @@ class MainWindow(QtWidgets.QMainWindow):
                 pass_type=iface.pass_type
             )
         
+        elif element_type == "polarizing_interface":
+            # Handle polarizing interface based on subtype
+            polarizer_subtype = getattr(iface, 'polarizer_subtype', 'waveplate')
+            
+            if polarizer_subtype == "waveplate":
+                # Get waveplate-specific properties
+                phase_shift_deg = iface.phase_shift_deg
+                fast_axis_deg = iface.fast_axis_deg
+                
+                # angle_deg is needed for directionality detection - get from parent item
+                angle_deg = 0.0
+                if hasattr(parent_item, 'params') and hasattr(parent_item.params, 'angle_deg'):
+                    angle_deg = parent_item.params.angle_deg
+                
+                return OpticalElement(
+                    kind="waveplate",
+                    p1=p1,
+                    p2=p2,
+                    phase_shift_deg=phase_shift_deg,
+                    fast_axis_deg=fast_axis_deg,
+                    angle_deg=angle_deg
+                )
+            else:
+                # Future: handle other polarizer subtypes (linear_polarizer, faraday_rotator, etc.)
+                return None
+        
         elif element_type == "waveplate":
-            # Get waveplate-specific properties from interface or parent item
+            # Legacy support for old "waveplate" element_type
             phase_shift_deg = getattr(iface, 'phase_shift_deg', 90.0)
             fast_axis_deg = getattr(iface, 'fast_axis_deg', 0.0)
             

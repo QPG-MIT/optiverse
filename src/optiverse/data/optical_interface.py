@@ -166,8 +166,19 @@ class OpticalInterface:
                 transition_width_nm=old_interface.transition_width_nm,
                 pass_type=old_interface.pass_type
             )
+        elif element_type == "polarizing_interface":
+            # Handle polarizing interface based on subtype
+            polarizer_subtype = getattr(old_interface, 'polarizer_subtype', 'waveplate')
+            if polarizer_subtype == "waveplate":
+                properties = WaveplateProperties(
+                    phase_shift_deg=old_interface.phase_shift_deg,
+                    fast_axis_deg=old_interface.fast_axis_deg
+                )
+            else:
+                # Future: handle other polarizer subtypes
+                raise ValueError(f"Unsupported polarizer subtype: {polarizer_subtype}")
         elif element_type == "waveplate":
-            # Note: waveplate properties might be stored as attributes
+            # Legacy support: old "waveplate" element_type
             phase_shift = getattr(old_interface, 'phase_shift_deg', 90.0)
             fast_axis = getattr(old_interface, 'fast_axis_deg', 0.0)
             properties = WaveplateProperties(

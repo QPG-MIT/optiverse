@@ -1,9 +1,10 @@
 bugs:
-- check waveplate polarization
 - check control+z and control + Y
 - check dichroic
 - check multiplayer
-- y coordinates in component editor
+- refraction at interfaces is not always correct (side of refractive index does not change with rotation)
+- beam splitter color sometimes purple
+- beam splitter rotation is going there
 
 feature request:
 - zemax black box model

@@ -168,7 +168,7 @@ class PropertyListWidget(QtWidgets.QWidget):
         # Set proper size policy for smooth scrolling
         self.setSizePolicy(
             QtWidgets.QSizePolicy.Policy.Preferred,
-            QtWidgets.QSizePolicy.Policy.Minimum
+            QtWidgets.QSizePolicy.Policy.MinimumExpanding  # Allow vertical growth for many properties
         )
     
     def _populate_form(self):
@@ -200,6 +200,7 @@ class PropertyListWidget(QtWidgets.QWidget):
         
         # Type-specific properties (no separator)
         props = interface_types.get_type_properties(self.interface.element_type)
+        
         if props:
             for prop_name in props:
                 self._add_property_field(prop_name)
@@ -260,6 +261,15 @@ class PropertyListWidget(QtWidgets.QWidget):
             if prop_name == 'pass_type':
                 widget = QtWidgets.QComboBox()
                 widget.addItems(['longpass', 'shortpass'])
+                idx = widget.findText(value)
+                if idx >= 0:
+                    widget.setCurrentIndex(idx)
+                widget.currentTextChanged.connect(lambda v: self._on_property_changed(prop_name, v))
+                self._property_widgets[prop_name] = widget
+            elif prop_name == 'polarizer_subtype':
+                # Dropdown for polarizer subtype (no rebuild - all properties always shown)
+                widget = QtWidgets.QComboBox()
+                widget.addItems(['waveplate', 'linear_polarizer', 'faraday_rotator'])
                 idx = widget.findText(value)
                 if idx >= 0:
                     widget.setCurrentIndex(idx)
@@ -339,6 +349,13 @@ class PropertyListWidget(QtWidgets.QWidget):
         
         # Repopulate with new properties
         self._populate_form()
+        
+        # Update size hint for proper space allocation
+        self.updateGeometry()
+        
+        # Notify that geometry changed (will update tree item size)
+        if hasattr(self, 'geometryChanged'):
+            QtCore.QTimer.singleShot(10, self.geometryChanged)
     
     def _on_numeric_property_changed(self, prop_name: str):
         """Handle numeric property text field changes."""
@@ -457,6 +474,7 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         self._interfaces: List[InterfaceDefinition] = []
         self._tree_items: List[QtWidgets.QTreeWidgetItem] = []
         self._property_widgets: List[PropertyListWidget] = []
+        self._child_items: List[QtWidgets.QTreeWidgetItem] = []  # Store child items for size updates
         
         self._setup_ui()
     
@@ -583,12 +601,19 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         # Create property list widget
         prop_widget = PropertyListWidget(interface)
         prop_widget.propertyChanged.connect(self.interfacesChanged.emit)
+        # Connect to geometry changed signal to update tree item size
+        prop_widget.geometryChanged = lambda: self._update_child_item_size(index)
         
         self._tree.addTopLevelItem(item)
         
         # Add child item to hold the widget
         child_item = QtWidgets.QTreeWidgetItem(item)
         self._tree.setItemWidget(child_item, 0, prop_widget)
+        
+        # Store child item for later size updates
+        if index >= len(self._child_items):
+            self._child_items.extend([None] * (index + 1 - len(self._child_items)))
+        self._child_items[index] = child_item
         
         # Adjust child item size to fit widget
         child_item.setSizeHint(0, prop_widget.sizeHint())
@@ -621,6 +646,17 @@ class InterfaceTreePanel(QtWidgets.QWidget):
             self.interfaceSelected.emit(selected_indices[0])
         
         self.interfacesSelected.emit(selected_indices)
+    
+    def _update_child_item_size(self, index: int):
+        """Update the size hint for a child item after widget size changes."""
+        if 0 <= index < len(self._child_items) and 0 <= index < len(self._property_widgets):
+            child_item = self._child_items[index]
+            prop_widget = self._property_widgets[index]
+            if child_item and prop_widget:
+                # Update size hint to match widget's new size
+                child_item.setSizeHint(0, prop_widget.sizeHint())
+                # Force tree to update geometries
+                QtCore.QTimer.singleShot(0, self._tree.updateGeometries)
     
     def _on_item_expanded(self, item: QtWidgets.QTreeWidgetItem):
         """Handle item expansion - update scroll."""

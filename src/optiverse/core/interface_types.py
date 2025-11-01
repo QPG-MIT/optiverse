@@ -127,6 +127,50 @@ INTERFACE_TYPES: Dict[str, Dict[str, Any]] = {
             'radius_of_curvature_mm': 0.0,
         },
     },
+    'polarizing_interface': {
+        'name': 'Polarizing Interface',
+        'description': 'Polarization-modifying element (waveplate, polarizer, rotator)',
+        'color': (255, 215, 0),  # Gold
+        'emoji': '🟡',
+        'properties': [
+            'polarizer_subtype',
+            'phase_shift_deg',
+            'fast_axis_deg',
+            'transmission_axis_deg',
+            'extinction_ratio_db',
+            'rotation_angle_deg',
+        ],
+        'property_labels': {
+            'polarizer_subtype': 'Polarizer Type',
+            'phase_shift_deg': 'Phase Shift',
+            'fast_axis_deg': 'Fast Axis Angle',
+            'transmission_axis_deg': 'Transmission Axis',
+            'extinction_ratio_db': 'Extinction Ratio',
+            'rotation_angle_deg': 'Rotation Angle',
+        },
+        'property_units': {
+            'phase_shift_deg': '°',
+            'fast_axis_deg': '°',
+            'transmission_axis_deg': '°',
+            'extinction_ratio_db': 'dB',
+            'rotation_angle_deg': '°',
+        },
+        'property_ranges': {
+            'phase_shift_deg': (0.0, 360.0),
+            'fast_axis_deg': (-180.0, 180.0),
+            'transmission_axis_deg': (-180.0, 180.0),
+            'extinction_ratio_db': (10.0, 100.0),
+            'rotation_angle_deg': (-180.0, 180.0),
+        },
+        'property_defaults': {
+            'polarizer_subtype': 'waveplate',
+            'phase_shift_deg': 90.0,
+            'fast_axis_deg': 0.0,
+            'transmission_axis_deg': 0.0,
+            'extinction_ratio_db': 40.0,
+            'rotation_angle_deg': 45.0,
+        },
+    },
     'beam_block': {
         'name': 'Beam Block',
         'description': 'Absorbs incident rays (no transmission/reflection)',
@@ -264,6 +308,33 @@ def get_type_emoji(element_type: str) -> str:
 def get_type_properties(element_type: str) -> List[str]:
     """Get list of property names for an interface type."""
     return get_type_info(element_type).get('properties', [])
+
+
+def get_polarizing_interface_properties(polarizer_subtype: str) -> List[str]:
+    """
+    Get properties relevant to a specific polarizer subtype.
+    
+    This filters the full property list to show only relevant properties
+    for the current polarizer subtype, providing a clean UI.
+    
+    Args:
+        polarizer_subtype: The subtype of polarizer ('waveplate', 'linear_polarizer', etc.)
+    
+    Returns:
+        List of property names relevant to this subtype
+    """
+    # Always show the subtype selector
+    base_props = ['polarizer_subtype']
+    
+    if polarizer_subtype == 'waveplate':
+        return base_props + ['phase_shift_deg', 'fast_axis_deg']
+    elif polarizer_subtype == 'linear_polarizer':
+        return base_props + ['transmission_axis_deg', 'extinction_ratio_db']
+    elif polarizer_subtype == 'faraday_rotator':
+        return base_props + ['rotation_angle_deg']
+    else:
+        # Unknown subtype - show just the selector
+        return base_props
 
 
 def validate_property_value(element_type: str, prop_name: str, value: Any) -> bool:

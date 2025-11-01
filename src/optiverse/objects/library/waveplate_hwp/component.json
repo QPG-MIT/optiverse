@@ -10,7 +10,8 @@
       "y1_mm": 15.25,
       "x2_mm": 0.0,
       "y2_mm": -15.25,
-      "element_type": "waveplate",
+      "element_type": "polarizing_interface",
+      "polarizer_subtype": "waveplate",
       "phase_shift_deg": 180.0,
       "fast_axis_deg": 0.0
     }

@@ -94,14 +94,33 @@ class TestLegacyToOpticalInterface:
         assert new_iface.properties.pbs_transmission_axis_deg == 45.0
     
     def test_convert_waveplate_interface(self):
-        """Test converting a legacy waveplate interface."""
+        """Test converting a polarizing_interface (waveplate) interface."""
+        legacy = InterfaceDefinition(
+            x1_mm=0.0, y1_mm=-10.0,
+            x2_mm=0.0, y2_mm=10.0,
+            element_type="polarizing_interface",
+            polarizer_subtype="waveplate",
+            name="QWP",
+            phase_shift_deg=90.0,
+            fast_axis_deg=45.0
+        )
+        
+        new_iface = OpticalInterface.from_legacy_interface_definition(legacy)
+        
+        assert new_iface.get_element_type() == "waveplate"
+        assert isinstance(new_iface.properties, WaveplateProperties)
+        assert new_iface.properties.phase_shift_deg == 90.0
+        assert new_iface.properties.fast_axis_deg == 45.0
+    
+    def test_convert_legacy_waveplate_element_type(self):
+        """Test converting a legacy 'waveplate' element_type for backward compatibility."""
         legacy = InterfaceDefinition(
             x1_mm=0.0, y1_mm=-10.0,
             x2_mm=0.0, y2_mm=10.0,
             element_type="waveplate",
             name="QWP"
         )
-        # Waveplate properties might be set as attributes
+        # Old style: properties set as attributes
         legacy.phase_shift_deg = 90.0
         legacy.fast_axis_deg = 45.0
         

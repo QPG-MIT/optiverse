@@ -258,16 +258,39 @@ def create_legacy_optical_element_from_interface(
             pass_type=iface.pass_type
         )
     
+    elif element_type == "polarizing_interface":
+        # Handle polarizing interface (currently only waveplates are implemented)
+        if iface.polarizer_subtype == "waveplate":
+            # Get angle_deg from parent item if available
+            angle_deg = 0.0
+            if hasattr(iface, 'angle_deg'):
+                angle_deg = iface.angle_deg
+            
+            return OpticalElement(
+                kind="waveplate",
+                p1=p1,
+                p2=p2,
+                phase_shift_deg=iface.phase_shift_deg,
+                fast_axis_deg=iface.fast_axis_deg,
+                angle_deg=angle_deg
+            )
+        else:
+            # Future: handle other polarizer subtypes
+            raise ValueError(f"Unsupported polarizer subtype: {iface.polarizer_subtype}")
+    
     elif element_type == "waveplate":
+        # Legacy support for old "waveplate" element type
         phase_shift_deg = getattr(iface, 'phase_shift_deg', 90.0)
         fast_axis_deg = getattr(iface, 'fast_axis_deg', 0.0)
+        angle_deg = 0.0
         
         return OpticalElement(
             kind="waveplate",
             p1=p1,
             p2=p2,
             phase_shift_deg=phase_shift_deg,
-            fast_axis_deg=fast_axis_deg
+            fast_axis_deg=fast_axis_deg,
+            angle_deg=angle_deg
         )
     
     elif element_type == "refractive_interface":

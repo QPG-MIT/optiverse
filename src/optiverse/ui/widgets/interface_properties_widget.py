@@ -120,6 +120,15 @@ class InterfacePropertiesWidget(QtWidgets.QWidget):
                         widget.setCurrentIndex(idx_combo)
                     widget.currentTextChanged.connect(lambda v, i=idx, p=prop_name: self._on_property_changed(i, p, v))
                     self._property_widgets[idx][prop_name] = widget
+                elif prop_name == 'polarizer_subtype':
+                    # Dropdown for polarizer subtype
+                    widget = QtWidgets.QComboBox()
+                    widget.addItems(['waveplate', 'linear_polarizer', 'faraday_rotator'])
+                    idx_combo = widget.findText(value)
+                    if idx_combo >= 0:
+                        widget.setCurrentIndex(idx_combo)
+                    widget.currentTextChanged.connect(lambda v, i=idx, p=prop_name: self._on_property_changed(i, p, v))
+                    self._property_widgets[idx][prop_name] = widget
                 else:
                     widget = QtWidgets.QLineEdit(value)
                     widget.textChanged.connect(lambda v, i=idx, p=prop_name: self._on_property_changed(i, p, v))

@@ -32,7 +32,7 @@ class InterfaceDefinition:
     y2_mm: float = 0.0
     
     # Element type
-    element_type: str = "refractive_interface"  # lens, mirror, beam_splitter, dichroic, refractive_interface
+    element_type: str = "refractive_interface"  # lens, mirror, beam_splitter, dichroic, polarizing_interface, refractive_interface
     
     # Common properties
     name: str = ""  # Optional user-defined name
@@ -57,6 +57,20 @@ class InterfaceDefinition:
     # Refractive interface properties
     n1: float = 1.0  # Incident refractive index
     n2: float = 1.5  # Transmitted refractive index
+    
+    # Polarizing interface properties
+    polarizer_subtype: str = "waveplate"  # "waveplate", "linear_polarizer", "circular_polarizer", "faraday_rotator"
+    
+    # Waveplate properties
+    phase_shift_deg: float = 90.0  # Phase shift in degrees (90° for QWP, 180° for HWP)
+    fast_axis_deg: float = 0.0  # Fast axis angle in lab frame (degrees)
+    
+    # Linear polarizer properties (future)
+    transmission_axis_deg: float = 0.0  # Transmission axis angle (degrees)
+    extinction_ratio_db: float = 40.0  # How well it blocks orthogonal polarization (dB)
+    
+    # Faraday rotator properties (future)
+    rotation_angle_deg: float = 45.0  # Rotation angle in degrees (non-reciprocal)
     
     # Curved surface properties (for Zemax import)
     is_curved: bool = False  # True if this is a curved surface
@@ -152,6 +166,8 @@ class InterfaceDefinition:
                 return (0, 150, 120)  # Green (BS)
         elif self.element_type == 'dichroic':
             return (255, 0, 255)  # Magenta
+        elif self.element_type == 'polarizing_interface':
+            return (255, 215, 0)  # Gold
         elif self.element_type == 'refractive_interface':
             # Blue for refractive, gray if same index
             if abs(self.n1 - self.n2) > 0.01:
@@ -182,6 +198,20 @@ class InterfaceDefinition:
                 return f'BS ({self.split_T:.0f}/{self.split_R:.0f})'
         elif self.element_type == 'dichroic':
             return f'Dichroic ({self.cutoff_wavelength_nm:.0f}nm)'
+        elif self.element_type == 'polarizing_interface':
+            if self.polarizer_subtype == 'waveplate':
+                if self.phase_shift_deg == 90.0:
+                    return f'QWP ({self.fast_axis_deg:.0f}°)'
+                elif self.phase_shift_deg == 180.0:
+                    return f'HWP ({self.fast_axis_deg:.0f}°)'
+                else:
+                    return f'Waveplate ({self.phase_shift_deg:.0f}°, {self.fast_axis_deg:.0f}°)'
+            elif self.polarizer_subtype == 'linear_polarizer':
+                return f'Lin. Pol. ({self.transmission_axis_deg:.0f}°)'
+            elif self.polarizer_subtype == 'faraday_rotator':
+                return f'Faraday ({self.rotation_angle_deg:.0f}°)'
+            else:
+                return 'Polarizer'
         elif self.element_type == 'refractive_interface':
             return f'n={self.n1:.3f}→{self.n2:.3f}'
         else:

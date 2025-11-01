@@ -213,15 +213,13 @@ class TestComponentFactoryWaveplate:
             "object_height_mm": 50.0,
             "angle_deg": 90.0,
             "interfaces": [{
-                "element_type": "waveplate",
+                "element_type": "polarizing_interface",
+                "polarizer_subtype": "waveplate",
                 "name": "QWP Surface",
                 "x1_mm": -25.0, "y1_mm": 0.0,
                 "x2_mm": 25.0, "y2_mm": 0.0,
-                "n1": 1.0, "n2": 1.0,
                 "phase_shift_deg": 90.0,
                 "fast_axis_deg": 0.0,
-                "is_curved": False,
-                "radius_of_curvature_mm": 0.0,
             }]
         }
         

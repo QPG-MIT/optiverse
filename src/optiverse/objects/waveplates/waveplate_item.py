@@ -300,20 +300,17 @@ class WaveplateItem(BaseObj):
             # Create default interface from current geometry
             p1, p2 = self.endpoints_scene()
             
-            # Note: Waveplates use "waveplate" as element_type in InterfaceDefinition
-            # (not in the original interface_types.py)
+            # Use polarizing_interface element type with waveplate subtype
             default_interface = InterfaceDefinition(
                 x1_mm=0.0,  # Will be transformed by scene coordinates
                 y1_mm=0.0,
                 x2_mm=0.0,
                 y2_mm=0.0,
-                element_type="waveplate",
-                # Waveplate-specific properties (stored in InterfaceDefinition but not all used by base class)
-                # These will be accessed directly by raytracing
+                element_type="polarizing_interface",
+                polarizer_subtype="waveplate",
+                phase_shift_deg=self.params.phase_shift_deg,
+                fast_axis_deg=self.params.fast_axis_deg
             )
-            # Store waveplate-specific params as attributes (for raytracing compatibility)
-            default_interface.phase_shift_deg = self.params.phase_shift_deg
-            default_interface.fast_axis_deg = self.params.fast_axis_deg
             
             return [(p1, p2, default_interface)]
         
