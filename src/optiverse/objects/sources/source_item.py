@@ -6,6 +6,7 @@ from typing import Dict, Any
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import SourceParams
+from ...core.geometry import user_angle_to_qt, qt_angle_to_user
 from ...core.color_utils import qcolor_from_hex, hex_from_qcolor, wavelength_to_hex, LASER_WAVELENGTHS
 from ...ui.smart_spinbox import SmartDoubleSpinBox
 from ..base_obj import BaseObj
@@ -27,14 +28,14 @@ class SourceItem(BaseObj):
         self._color = qcolor_from_hex(self.params.color_hex)
         self._update_shape()
         self.setPos(self.params.x_mm, self.params.y_mm)
-        self.setRotation(self.params.angle_deg)
+        self.setRotation(user_angle_to_qt(self.params.angle_deg))
         self._ready = True  # Enable position sync
     
     def _sync_params_from_item(self):
         """Sync params from item position/rotation."""
         self.params.x_mm = float(self.pos().x())
         self.params.y_mm = float(self.pos().y())
-        self.params.angle_deg = float(self.rotation())
+        self.params.angle_deg = qt_angle_to_user(self.rotation())
     
     def _update_shape(self):
         """Update geometry based on aperture size."""
@@ -81,7 +82,8 @@ class SourceItem(BaseObj):
         # Save initial state for rollback on cancel (x, y, angle)
         initial_x = self.pos().x()
         initial_y = self.pos().y()
-        initial_ang = self.rotation()
+        # Convert Qt angle to user angle (CW from up)
+        initial_ang = qt_angle_to_user(self.rotation())
         
         # Position and orientation
         x = SmartDoubleSpinBox()
@@ -101,7 +103,7 @@ class SourceItem(BaseObj):
         ang.setDecimals(2)
         ang.setSuffix(" °")
         ang.setValue(initial_ang)
-        ang.setToolTip("Optical axis angle - direction rays emit (0° = horizontal →, 90° = vertical ↑)")
+        ang.setToolTip("Optical axis angle - direction rays emit (0° = right →, 90° = down ↓, 180° = left ←)")
         
         # Live update connections
         def update_position():
@@ -111,8 +113,9 @@ class SourceItem(BaseObj):
             self.edited.emit()
         
         def update_angle():
-            self.setRotation(ang.value())
-            self.params.angle_deg = ang.value()
+            user_angle = ang.value()
+            self.setRotation(user_angle_to_qt(user_angle))
+            self.params.angle_deg = user_angle
             self.edited.emit()
         
         # Update spinboxes when item is modified externally (e.g., Ctrl+drag rotation)
@@ -122,14 +125,12 @@ class SourceItem(BaseObj):
             y.blockSignals(True)
             ang.blockSignals(True)
             
-            # Normalize angle to 0 to 360 range
-            angle = self.rotation() % 360
-            if angle < 0:
-                angle += 360
+            # Convert Qt angle to user angle
+            user_angle = qt_angle_to_user(self.rotation())
             
             x.setValue(self.pos().x())
             y.setValue(self.pos().y())
-            ang.setValue(angle)
+            ang.setValue(user_angle)
             
             x.blockSignals(False)
             y.blockSignals(False)
@@ -354,7 +355,7 @@ class SourceItem(BaseObj):
             self.setPos(initial_x, initial_y)
             self.params.x_mm = initial_x
             self.params.y_mm = initial_y
-            self.setRotation(initial_ang)
+            self.setRotation(user_angle_to_qt(initial_ang))
             self.params.angle_deg = initial_ang
             self.edited.emit()
     
@@ -364,7 +365,7 @@ class SourceItem(BaseObj):
         # Force live pose + color
         d["x_mm"] = float(self.pos().x())
         d["y_mm"] = float(self.pos().y())
-        d["angle_deg"] = float(self.rotation())
+        d["angle_deg"] = qt_angle_to_user(self.rotation())
         d["color_hex"] = hex_from_qcolor(self._color)
         d["item_uuid"] = self.item_uuid
         d["z_value"] = float(self.zValue())  # Save z-order
@@ -378,6 +379,6 @@ class SourceItem(BaseObj):
         self.params = SourceParams(**d)
         self._color = qcolor_from_hex(self.params.color_hex)
         self.setPos(self.params.x_mm, self.params.y_mm)
-        self.setRotation(self.params.angle_deg)
+        self.setRotation(user_angle_to_qt(self.params.angle_deg))
         self._update_shape()
         self.edited.emit()

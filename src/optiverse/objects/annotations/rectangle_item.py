@@ -226,7 +226,10 @@ class RectangleItem(QtWidgets.QGraphicsObject):
         # Save initial state for rollback on cancel
         initial_x = self.pos().x()
         initial_y = self.pos().y()
-        initial_ang = self.rotation()
+        # Normalize angle to 0-360 range (same as sync_from_item())
+        initial_ang = self.rotation() % 360
+        if initial_ang < 0:
+            initial_ang += 360
         initial_w = self._w
         initial_h = self._h
         

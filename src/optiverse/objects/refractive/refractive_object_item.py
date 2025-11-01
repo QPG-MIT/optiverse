@@ -7,6 +7,7 @@ import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import RefractiveObjectParams, RefractiveInterface
+from ...core.geometry import user_angle_to_qt, qt_angle_to_user
 from ...platform.paths import to_relative_path, to_absolute_path
 from ...ui.smart_spinbox import SmartDoubleSpinBox
 from ..base_obj import BaseObj
@@ -40,7 +41,7 @@ class RefractiveObjectItem(BaseObj):
         self._actual_length_mm: Optional[float] = None
         self._update_geom()
         self.setPos(self.params.x_mm, self.params.y_mm)
-        self.setRotation(self.params.angle_deg)
+        self.setRotation(user_angle_to_qt(self.params.angle_deg))
         self._maybe_attach_sprite()
         self._ready = True
     
@@ -48,7 +49,7 @@ class RefractiveObjectItem(BaseObj):
         """Sync params from item position/rotation."""
         self.params.x_mm = float(self.pos().x())
         self.params.y_mm = float(self.pos().y())
-        self.params.angle_deg = float(self.rotation())
+        self.params.angle_deg = qt_angle_to_user(self.rotation())
     
     def _update_geom(self):
         """Update geometry based on interfaces."""
@@ -295,7 +296,8 @@ class RefractiveObjectItem(BaseObj):
         
         initial_x = self.pos().x()
         initial_y = self.pos().y()
-        initial_ang = self.rotation()
+        # Convert Qt angle to user angle (CW from up)
+        initial_ang = qt_angle_to_user(self.rotation())
         
         x = SmartDoubleSpinBox()
         x.setRange(-1e6, 1e6)
@@ -322,8 +324,9 @@ class RefractiveObjectItem(BaseObj):
             self.edited.emit()
         
         def update_angle():
-            self.setRotation(ang.value())
-            self.params.angle_deg = ang.value()
+            user_angle = ang.value()
+            self.setRotation(user_angle_to_qt(user_angle))
+            self.params.angle_deg = user_angle
             self.edited.emit()
         
         def sync_from_item():
@@ -331,13 +334,12 @@ class RefractiveObjectItem(BaseObj):
             y.blockSignals(True)
             ang.blockSignals(True)
             
-            angle = self.rotation() % 360
-            if angle < 0:
-                angle += 360
+            # Convert Qt angle to user angle
+            user_angle = qt_angle_to_user(self.rotation())
             
             x.setValue(self.pos().x())
             y.setValue(self.pos().y())
-            ang.setValue(angle)
+            ang.setValue(user_angle)
             
             x.blockSignals(False)
             y.blockSignals(False)
@@ -447,7 +449,7 @@ class RefractiveObjectItem(BaseObj):
             self.setPos(initial_x, initial_y)
             self.params.x_mm = initial_x
             self.params.y_mm = initial_y
-            self.setRotation(initial_ang)
+            self.setRotation(user_angle_to_qt(initial_ang))
             self.params.angle_deg = initial_ang
             self.edited.emit()
     
@@ -603,7 +605,7 @@ class RefractiveObjectItem(BaseObj):
         d = {
             "x_mm": float(self.pos().x()),
             "y_mm": float(self.pos().y()),
-            "angle_deg": float(self.rotation()),
+            "angle_deg": qt_angle_to_user(self.rotation()),
             "object_height_mm": self.params.object_height_mm,
             "image_path": to_relative_path(self.params.image_path),
             "mm_per_pixel": self.params.mm_per_pixel,
@@ -644,7 +646,7 @@ class RefractiveObjectItem(BaseObj):
         )
         
         self.setPos(self.params.x_mm, self.params.y_mm)
-        self.setRotation(self.params.angle_deg)
+        self.setRotation(user_angle_to_qt(self.params.angle_deg))
         self._update_geom()
         self._maybe_attach_sprite()
         self.edited.emit()

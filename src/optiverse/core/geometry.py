@@ -38,6 +38,39 @@ def normalize(v: np.ndarray) -> np.ndarray:
         return v / n
 
 
+def user_angle_to_qt(user_deg: float) -> float:
+    """
+    Convert user angle (CW from right) to Qt angle (CCW from right).
+    
+    User convention (clockwise):
+    - 0° = right (→)
+    - 90° = down (↓)
+    - 180° = left (←)
+    - 270° = up (↑)
+    
+    Qt convention (counter-clockwise):
+    - 0° = right (→)
+    - 90° = up (↑)
+    - 180° = left (←)
+    - 270° = down (↓)
+    """
+    return -user_deg
+
+
+def qt_angle_to_user(qt_deg: float) -> float:
+    """
+    Convert Qt angle (CCW from right) to user angle (CW from right).
+    
+    Returns angle normalized to 0-360 range.
+    """
+    angle = -qt_deg
+    # Normalize to 0-360
+    angle = angle % 360
+    if angle < 0:
+        angle += 360
+    return angle
+
+
 @jit(nopython=True, cache=True)
 def reflect_vec(v: np.ndarray, n_hat: np.ndarray) -> np.ndarray:
     """Reflect vector v across normal n_hat. JIT-compiled for performance when numba is available."""

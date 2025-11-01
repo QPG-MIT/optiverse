@@ -7,6 +7,7 @@ import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import DichroicParams
+from ...core.geometry import user_angle_to_qt, qt_angle_to_user
 from ...platform.paths import to_relative_path, to_absolute_path
 from ...ui.smart_spinbox import SmartDoubleSpinBox
 from ..base_obj import BaseObj
@@ -29,7 +30,7 @@ class DichroicItem(BaseObj):
         self._actual_length_mm: Optional[float] = None  # Calculated from picked line
         self._update_geom()
         self.setPos(self.params.x_mm, self.params.y_mm)
-        self.setRotation(self.params.angle_deg)
+        self.setRotation(user_angle_to_qt(self.params.angle_deg))
         self._maybe_attach_sprite()
         self._ready = True
     
@@ -37,7 +38,7 @@ class DichroicItem(BaseObj):
         """Sync params from item position/rotation."""
         self.params.x_mm = float(self.pos().x())
         self.params.y_mm = float(self.pos().y())
-        self.params.angle_deg = float(self.rotation())
+        self.params.angle_deg = qt_angle_to_user(self.rotation())
     
     def _update_geom(self):
         """Update geometry based on length."""
@@ -145,7 +146,8 @@ class DichroicItem(BaseObj):
         # Save initial state for rollback on cancel
         initial_x = self.pos().x()
         initial_y = self.pos().y()
-        initial_ang = self.rotation()
+        # Convert Qt angle to user angle (CW from up)
+        initial_ang = qt_angle_to_user(self.rotation())
         initial_length = self.params.object_height_mm
         
         x = SmartDoubleSpinBox()
@@ -165,7 +167,7 @@ class DichroicItem(BaseObj):
         ang.setDecimals(2)
         ang.setSuffix(" °")
         ang.setValue(initial_ang)
-        ang.setToolTip("Optical axis angle (0° = horizontal →, 90° = vertical ↑)")
+        ang.setToolTip("Optical axis angle (0° = right →, 90° = down ↓, 180° = left ←)")
         
         length = SmartDoubleSpinBox()
         length.setRange(1, 1e7)
@@ -181,8 +183,9 @@ class DichroicItem(BaseObj):
             self.edited.emit()
         
         def update_angle():
-            self.setRotation(ang.value())
-            self.params.angle_deg = ang.value()
+            user_angle = ang.value()
+            self.setRotation(user_angle_to_qt(user_angle))
+            self.params.angle_deg = user_angle
             self.edited.emit()
         
         def update_length():
@@ -198,14 +201,12 @@ class DichroicItem(BaseObj):
             y.blockSignals(True)
             ang.blockSignals(True)
             
-            # Normalize angle to 0 to 360 range
-            angle = self.rotation() % 360
-            if angle < 0:
-                angle += 360
+            # Convert Qt angle to user angle
+            user_angle = qt_angle_to_user(self.rotation())
             
             x.setValue(self.pos().x())
             y.setValue(self.pos().y())
-            ang.setValue(angle)
+            ang.setValue(user_angle)
             
             x.blockSignals(False)
             y.blockSignals(False)
@@ -308,7 +309,7 @@ class DichroicItem(BaseObj):
             self.setPos(initial_x, initial_y)
             self.params.x_mm = initial_x
             self.params.y_mm = initial_y
-            self.setRotation(initial_ang)
+            self.setRotation(user_angle_to_qt(initial_ang))
             self.params.angle_deg = initial_ang
             self.params.object_height_mm = initial_length
             self._update_geom()
@@ -376,7 +377,7 @@ class DichroicItem(BaseObj):
         d = asdict(self.params)
         d["x_mm"] = float(self.pos().x())
         d["y_mm"] = float(self.pos().y())
-        d["angle_deg"] = float(self.rotation())
+        d["angle_deg"] = qt_angle_to_user(self.rotation())
         d["item_uuid"] = self.item_uuid
         d["locked"] = self._locked  # Save lock state
         d["z_value"] = float(self.zValue())  # Save z-order
@@ -396,7 +397,7 @@ class DichroicItem(BaseObj):
             d["image_path"] = to_absolute_path(d["image_path"])
         self.params = DichroicParams(**d)
         self.setPos(self.params.x_mm, self.params.y_mm)
-        self.setRotation(self.params.angle_deg)
+        self.setRotation(user_angle_to_qt(self.params.angle_deg))
         self._update_geom()
         self._maybe_attach_sprite()
         self.edited.emit()

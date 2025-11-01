@@ -25,6 +25,10 @@ class TextNoteItem(QtWidgets.QGraphicsTextItem):
         f.setPointSizeF(11.0)
         self.setFont(f)
         self.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.NoTextInteraction)
+        
+        # Compensate for the view's Y-axis inversion (view has scale(1, -1))
+        # Apply scale(1, -1) to flip text back to readable orientation
+        self.setTransform(QtGui.QTransform.fromScale(1.0, -1.0))
 
     def mouseDoubleClickEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
         self.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextEditorInteraction)

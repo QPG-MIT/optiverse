@@ -97,11 +97,20 @@ class RulerItem(QtWidgets.QGraphicsObject):
         # label (same anti-smear method; uses QRectF overload)
         mid = (self._p1 + self._p2) * 0.5
         txt = f"{L:.1f} mm"
-        angle = math.degrees(math.atan2(dy, dx))
+        
+        # Ensure we calculate angle with positive dx for readable text
+        dx_calc = dx
+        dy_calc = dy
+        if dx < 0:
+            # Swap direction so angle is always readable
+            dx_calc, dy_calc = -dx, -dy
+        angle = math.degrees(math.atan2(dy_calc, dx_calc))
         
         p.save()
         p.translate(mid)
         p.rotate(angle)
+        # Compensate for view's Y-axis inversion to keep text readable
+        p.scale(1.0, -1.0)
         fm = QtGui.QFontMetrics(p.font())
         w = fm.horizontalAdvance(txt) + 12
         h = fm.height() + 6

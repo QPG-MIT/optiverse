@@ -7,6 +7,7 @@ import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import BlockParams
+from ...core.geometry import user_angle_to_qt, qt_angle_to_user
 from ...platform.paths import to_relative_path, to_absolute_path
 from ..base_obj import BaseObj
 from ..component_sprite import create_component_sprite
@@ -24,14 +25,14 @@ class BlockItem(BaseObj):
         self._actual_length_mm: Optional[float] = None
         self._update_geom()
         self.setPos(self.params.x_mm, self.params.y_mm)
-        self.setRotation(self.params.angle_deg)
+        self.setRotation(user_angle_to_qt(self.params.angle_deg))
         self._maybe_attach_sprite()
         self._ready = True
     
     def _sync_params_from_item(self):
         self.params.x_mm = float(self.pos().x())
         self.params.y_mm = float(self.pos().y())
-        self.params.angle_deg = float(self.rotation())
+        self.params.angle_deg = qt_angle_to_user(self.rotation())
     
     def _update_geom(self):
         self.prepareGeometryChange()
@@ -154,7 +155,7 @@ class BlockItem(BaseObj):
         d = asdict(self.params)
         d["x_mm"] = float(self.pos().x())
         d["y_mm"] = float(self.pos().y())
-        d["angle_deg"] = float(self.rotation())
+        d["angle_deg"] = qt_angle_to_user(self.rotation())
         d["item_uuid"] = self.item_uuid
         d["z_value"] = float(self.zValue())  # Save z-order
         if "image_path" in d:
@@ -168,7 +169,7 @@ class BlockItem(BaseObj):
             d["image_path"] = to_absolute_path(d["image_path"])
         self.params = BlockParams(**d)
         self.setPos(self.params.x_mm, self.params.y_mm)
-        self.setRotation(self.params.angle_deg)
+        self.setRotation(user_angle_to_qt(self.params.angle_deg))
         self._update_geom()
         self._maybe_attach_sprite()
         self.edited.emit()
