@@ -490,10 +490,16 @@ class BaseObj(QtWidgets.QGraphicsObject):
         self._wheel_rotation_items = None
 
     def contextMenuEvent(self, ev: QtWidgets.QGraphicsSceneContextMenuEvent):
-        """Right-click context menu with Edit, Delete, and Z-Order options."""
+        """Right-click context menu with Edit, Delete, Lock, and Z-Order options."""
         m = QtWidgets.QMenu()
         act_edit = m.addAction("Edit…")
         act_delete = m.addAction("Delete")
+        
+        # Add Lock action (checkable)
+        m.addSeparator()
+        act_lock = m.addAction("Lock")
+        act_lock.setCheckable(True)
+        act_lock.setChecked(self._locked)
         
         # Disable delete if locked
         if self._locked:
@@ -510,6 +516,8 @@ class BaseObj(QtWidgets.QGraphicsObject):
         a = m.exec(ev.screenPos())
         if a == act_edit:
             self.open_editor()
+        elif a == act_lock:
+            self.set_locked(act_lock.isChecked())
         elif a == act_delete and self.scene() and not self._locked:
             self.scene().removeItem(self)
         elif a in (act_bring_to_front, act_bring_forward, act_send_backward, act_send_to_back):

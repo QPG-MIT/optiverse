@@ -356,17 +356,6 @@ class RefractiveObjectItem(BaseObj):
         ang.valueChanged.connect(update_angle)
         self.edited.connect(sync_from_item)
         
-        # Lock checkbox
-        lock_cb = QtWidgets.QCheckBox("Lock position/rotation/deletion")
-        lock_cb.setChecked(self.is_locked())
-        lock_cb.toggled.connect(self.set_locked)
-        form.addRow("", lock_cb)
-        
-        # Add separator
-        separator = QtWidgets.QFrame()
-        separator.setFrameShape(QtWidgets.QFrame.Shape.HLine)
-        form.addRow(separator)
-        
         form.addRow("X Position", x)
         form.addRow("Y Position", y)
         form.addRow("Rotation Angle", ang)

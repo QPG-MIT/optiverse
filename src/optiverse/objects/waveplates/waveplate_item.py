@@ -228,17 +228,6 @@ class WaveplateItem(BaseObj):
         # Connect to item's edited signal to sync spinboxes
         self.edited.connect(sync_from_item)
         
-        # Lock checkbox
-        lock_cb = QtWidgets.QCheckBox("Lock position/rotation/deletion")
-        lock_cb.setChecked(self.is_locked())
-        lock_cb.toggled.connect(self.set_locked)
-        f.addRow("", lock_cb)
-        
-        # Add separator
-        separator = QtWidgets.QFrame()
-        separator.setFrameShape(QtWidgets.QFrame.Shape.HLine)
-        f.addRow(separator)
-        
         f.addRow("X Position", x)
         f.addRow("Y Position", y)
         f.addRow("Element Angle", ang)
