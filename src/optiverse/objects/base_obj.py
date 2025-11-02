@@ -256,8 +256,8 @@ class BaseObj(QtWidgets.QGraphicsObject):
     
     def mousePressEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
         """Handle mouse press for rotation mode (Ctrl+drag) or normal drag."""
-        # Block rotation if locked
-        if self._locked and (ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
+        # If locked, ignore event so rubber band selection can work
+        if self._locked:
             ev.ignore()
             return
         

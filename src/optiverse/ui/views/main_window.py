@@ -1972,6 +1972,11 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
             selected_items = [it for it in self.scene.selectedItems() 
                             if isinstance(it, (BaseObj, RulerItem, TextNoteItem, RectangleItem))]
             
+            # DEBUG: Log what items are being tracked
+            print(f"[DEBUG] Mouse press: {len(selected_items)} items selected")
+            for it in selected_items:
+                print(f"[DEBUG]   - {type(it).__name__} at {it.pos()}, flags: {it.flags()}")
+            
             for it in selected_items:
                 self._item_positions[it] = QtCore.QPointF(it.pos())
                 
