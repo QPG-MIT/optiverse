@@ -6,6 +6,13 @@ bugs:
 - beam splitter color sometimes purple
 - beam splitter rotation is going there
 
+-  On saving File "/Users/amenssen/Documents/git/optiverse/src/optiverse/ui/views/main_window.py", line 1366, in open_assembly
+    M = MirrorItem(MirrorParams(**d))
+TypeError: MirrorParams.__init__() got an unexpected keyword argument 'locked'
+zsh: abort      optiverse
+
+- QWP seems to adjust polarisation correctly but PBS does not reflect correctly in the pbs + qwp + backreflector mirror config. 
+
 feature request:
 - zemax black box model
 - isolator
