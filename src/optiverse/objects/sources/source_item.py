@@ -1,6 +1,5 @@
 from __future__ import annotations
-
-from dataclasses import asdict
+from dataclasses import fields
 from typing import Dict, Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -361,7 +360,7 @@ class SourceItem(BaseObj):
     
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary."""
-        d = asdict(self.params)
+        d = vars(self.params).copy()
         # Force live pose + color
         d["x_mm"] = float(self.pos().x())
         d["y_mm"] = float(self.pos().y())
@@ -371,14 +370,35 @@ class SourceItem(BaseObj):
         d["z_value"] = float(self.zValue())  # Save z-order
         return d
     
-    def from_dict(self, d: Dict[str, Any]):
-        """Deserialize from dictionary."""
-        # Restore UUID if present
-        if "item_uuid" in d:
-            self.item_uuid = d["item_uuid"]
-        self.params = SourceParams(**d)
-        self._color = qcolor_from_hex(self.params.color_hex)
-        self.setPos(self.params.x_mm, self.params.y_mm)
-        self.setRotation(user_angle_to_qt(self.params.angle_deg))
-        self._update_shape()
-        self.edited.emit()
+    @staticmethod
+    def from_dict(d: Dict[str, Any]) -> 'SourceItem':
+        """Static factory method: deserialize from dictionary and return new SourceItem."""
+        # Extract metadata that's not part of Params
+        item_uuid = d.pop("item_uuid", None)
+        z_value = d.pop("z_value", None)
+        locked = d.pop("locked", None)
+        
+        # FUTURE-PROOF: Separate dataclass fields from dynamic attributes
+        field_names = {f.name for f in fields(SourceParams)}
+        params_dict = {k: v for k, v in d.items() if k in field_names}
+        dynamic_attrs = {k: v for k, v in d.items() if k not in field_names}
+        
+        # Create params
+        params = SourceParams(**params_dict)
+        
+        # Restore dynamic attributes BEFORE creating item (handles ANY attribute automatically!)
+        for key, value in dynamic_attrs.items():
+            # JSON converts tuples to lists, convert back if needed
+            if isinstance(value, list) and key.endswith('_mm'):
+                value = tuple(value)
+            setattr(params, key, value)
+        
+        # Create item with fully restored params
+        item = SourceItem(params, item_uuid)
+        
+        # Restore metadata
+        if z_value is not None:
+            item.setZValue(z_value)
+        if locked is not None:
+            item.set_locked(locked)
+        return item

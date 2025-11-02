@@ -1,6 +1,5 @@
 from __future__ import annotations
-
-from dataclasses import asdict
+from dataclasses import fields
 from typing import Dict, Any, Optional, Tuple
 
 import numpy as np
@@ -335,7 +334,7 @@ class WaveplateItem(BaseObj):
     
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary."""
-        d = asdict(self.params)
+        d = vars(self.params).copy()
         d["x_mm"] = float(self.pos().x())
         d["y_mm"] = float(self.pos().y())
         d["angle_deg"] = qt_angle_to_user(self.rotation())
@@ -345,21 +344,47 @@ class WaveplateItem(BaseObj):
         # Convert image path to relative if within package
         if "image_path" in d:
             d["image_path"] = to_relative_path(d["image_path"])
+        # Explicitly serialize interfaces using their to_dict() method
+        if "interfaces" in d and self.params.interfaces:
+            d["interfaces"] = [iface.to_dict() for iface in self.params.interfaces]
         return d
     
-    def from_dict(self, d: Dict[str, Any]):
-        """Deserialize from dictionary."""
-        if "item_uuid" in d:
-            self.item_uuid = d["item_uuid"]
-        # Restore locked state (call parent's from_dict)
-        super().from_dict(d)
+    @staticmethod
+    def from_dict(d: Dict[str, Any]) -> 'WaveplateItem':
+        """Static factory method: deserialize from dictionary and return new WaveplateItem."""
         # Convert relative image path to absolute
-        if "image_path" in d:
+        if "image_path" in d and d["image_path"]:
             d["image_path"] = to_absolute_path(d["image_path"])
-        self.params = WaveplateParams(**d)
-        self.setPos(self.params.x_mm, self.params.y_mm)
-        self.setRotation(user_angle_to_qt(self.params.angle_deg))
-        self._update_geom()
-        self._maybe_attach_sprite()
-        self.edited.emit()
+        # Deserialize interfaces from dicts to InterfaceDefinition objects
+        if "interfaces" in d and d["interfaces"]:
+            d["interfaces"] = [InterfaceDefinition.from_dict(iface) for iface in d["interfaces"]]
+        # Extract metadata that's not part of Params
+        item_uuid = d.pop("item_uuid", None)
+        z_value = d.pop("z_value", None)
+        locked = d.pop("locked", None)
+        
+        # FUTURE-PROOF: Separate dataclass fields from dynamic attributes
+        field_names = {f.name for f in fields(WaveplateParams)}
+        params_dict = {k: v for k, v in d.items() if k in field_names}
+        dynamic_attrs = {k: v for k, v in d.items() if k not in field_names}
+        
+        # Create params
+        params = WaveplateParams(**params_dict)
+        
+        # Restore dynamic attributes BEFORE creating item (handles ANY attribute automatically!)
+        for key, value in dynamic_attrs.items():
+            # JSON converts tuples to lists, convert back if needed
+            if isinstance(value, list) and key.endswith('_mm'):
+                value = tuple(value)
+            setattr(params, key, value)
+        
+        # Create item with fully restored params
+        item = WaveplateItem(params, item_uuid)
+        
+        # Restore metadata
+        if z_value is not None:
+            item.setZValue(z_value)
+        if locked is not None:
+            item.set_locked(locked)
+        return item
 

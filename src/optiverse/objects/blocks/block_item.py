@@ -1,6 +1,5 @@
 from __future__ import annotations
-
-from dataclasses import asdict
+from dataclasses import fields
 from typing import Dict, Any, Optional, Tuple, List
 
 import numpy as np
@@ -152,7 +151,7 @@ class BlockItem(BaseObj):
         return result
     
     def to_dict(self) -> Dict[str, Any]:
-        d = asdict(self.params)
+        d = vars(self.params).copy()
         d["x_mm"] = float(self.pos().x())
         d["y_mm"] = float(self.pos().y())
         d["angle_deg"] = qt_angle_to_user(self.rotation())
@@ -167,7 +166,25 @@ class BlockItem(BaseObj):
             self.item_uuid = d["item_uuid"]
         if "image_path" in d:
             d["image_path"] = to_absolute_path(d["image_path"])
-        self.params = BlockParams(**d)
+        
+        # FUTURE-PROOF: Separate dataclass fields from dynamic attributes
+        field_names = {f.name for f in fields(BlockParams)}
+        params_dict = {k: v for k, v in d.items() if k in field_names}
+        dynamic_attrs = {k: v for k, v in d.items() if k not in field_names}
+        
+        # Create params
+        params = BlockParams(**params_dict)
+        
+        # Restore dynamic attributes BEFORE assigning (handles ANY attribute automatically!)
+        for key, value in dynamic_attrs.items():
+            # JSON converts tuples to lists, convert back if needed
+            if isinstance(value, list) and key.endswith('_mm'):
+                value = tuple(value)
+            setattr(params, key, value)
+        
+        # Assign fully restored params
+        self.params = params
+        
         self.setPos(self.params.x_mm, self.params.y_mm)
         self.setRotation(user_angle_to_qt(self.params.angle_deg))
         self._update_geom()

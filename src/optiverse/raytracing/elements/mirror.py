@@ -25,7 +25,7 @@ class MirrorElement(IOpticalElement):
     Implements the law of reflection: angle of incidence = angle of reflection
     """
     
-    def __init__(self, p1: np.ndarray, p2: np.ndarray, reflectivity: float = 0.99):
+    def __init__(self, p1: np.ndarray, p2: np.ndarray, reflectivity: float = 1.0):
         """
         Initialize mirror element.
         

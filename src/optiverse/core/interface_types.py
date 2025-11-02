@@ -40,7 +40,7 @@ INTERFACE_TYPES: Dict[str, Dict[str, Any]] = {
             'reflectivity': (0.0, 100.0),
         },
         'property_defaults': {
-            'reflectivity': 99.0,
+            'reflectivity': 100.0,
         },
     },
     'beam_splitter': {

@@ -37,7 +37,7 @@ class MirrorProperties:
     
     Follows the law of reflection: angle of incidence = angle of reflection.
     """
-    reflectivity: float = 0.99  # Reflectivity (0.0 to 1.0)
+    reflectivity: float = 1.0  # Reflectivity (0.0 to 1.0)
 
 
 @dataclass

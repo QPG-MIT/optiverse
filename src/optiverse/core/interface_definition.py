@@ -41,7 +41,7 @@ class InterfaceDefinition:
     efl_mm: float = 100.0  # Effective focal length
     
     # Mirror properties
-    reflectivity: float = 99.0  # Percentage
+    reflectivity: float = 100.0  # Percentage
     
     # Beam splitter properties
     split_T: float = 50.0  # Transmission percentage
