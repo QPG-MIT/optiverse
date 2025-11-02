@@ -21,6 +21,14 @@ class BaseObj(QtWidgets.QGraphicsObject):
     """
 
     edited = QtCore.pyqtSignal()
+    
+    # Metadata registry for serialization (extensible by subclasses)
+    # Maps metadata key to getter function
+    _metadata_registry = {
+        'item_uuid': lambda self: self.item_uuid,
+        'locked': lambda self: self._locked,
+        'z_value': lambda self: float(self.zValue()),
+    }
 
     def __init__(self, item_uuid: str | None = None):
         super().__init__()
@@ -145,13 +153,17 @@ class BaseObj(QtWidgets.QGraphicsObject):
         return self._locked
     
     def set_locked(self, locked: bool):
-        """Set lock state (prevents movement, rotation, deletion)."""
+        """Set lock state (prevents movement, rotation, deletion, and selection)."""
         self._locked = locked
         # Update cursor to indicate locked state
         if locked:
             self.setCursor(QtCore.Qt.CursorShape.ForbiddenCursor)
+            # Remove selectable flag so locked objects can't be selected
+            self.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
         else:
             self.setCursor(QtCore.Qt.CursorShape.OpenHandCursor)
+            # Restore selectable flag when unlocked
+            self.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
         # Update visual appearance
         self.update()
     
@@ -448,7 +460,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
         
         # Get the MainWindow (parent of GraphicsView)
         view = views[0]
-        main_window = view.parent() if hasattr(view, 'parent') and callable(view.parent) else None
+        main_window = view.window()
         if not main_window or not hasattr(main_window, 'undo_stack'):
             self._wheel_rotation_start_rotation = None
             self._wheel_rotation_start_positions = None

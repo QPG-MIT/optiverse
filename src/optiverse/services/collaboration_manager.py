@@ -512,8 +512,31 @@ class CollaborationManager(QObject):
             item_type = self._get_item_type(item)
             self.log.info(f"📥 Applying UPDATE: {item_type}", "Collaboration")
             
-            if hasattr(item, 'from_dict'):
-                # Remove UUID and type fields to avoid passing to params constructor
+            # For BaseObj items, use deserialize_item to update
+            from ..objects import BaseObj
+            from ..objects.type_registry import deserialize_item
+            
+            if isinstance(item, BaseObj):
+                # Recreate item from updated data using deserialize_item
+                data_copy = data.copy()
+                if '_type' not in data_copy:
+                    data_copy['_type'] = item_type
+                updated_item = deserialize_item(data_copy)
+                if updated_item:
+                    # Copy state to existing item
+                    item.params = updated_item.params
+                    item.setPos(updated_item.pos())
+                    item.setRotation(updated_item.rotation())
+                    item.setZValue(updated_item.zValue())
+                    if hasattr(updated_item, '_locked'):
+                        item.set_locked(updated_item._locked)
+                    # Trigger update
+                    if hasattr(item, '_update_geom'):
+                        item._update_geom()
+                    if hasattr(item, 'update'):
+                        item.update()
+            elif hasattr(item, 'from_dict'):
+                # Annotation items use their own from_dict
                 data_copy = data.copy()
                 data_copy.pop('uuid', None)
                 data_copy.pop('item_uuid', None)

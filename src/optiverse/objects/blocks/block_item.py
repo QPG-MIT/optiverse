@@ -1,5 +1,4 @@
 from __future__ import annotations
-from dataclasses import fields
 from typing import Dict, Any, Optional, Tuple, List
 
 import numpy as np
@@ -7,11 +6,12 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import BlockParams
 from ...core.geometry import user_angle_to_qt, qt_angle_to_user
-from ...platform.paths import to_relative_path, to_absolute_path
 from ..base_obj import BaseObj
 from ..component_sprite import create_component_sprite
+from ..type_registry import register_type, serialize_item, deserialize_item
 
 
+@register_type("block", BlockParams)
 class BlockItem(BaseObj):
     """
     Beam Block element: absorbs rays. Visually a thick black line.
@@ -151,44 +151,12 @@ class BlockItem(BaseObj):
         return result
     
     def to_dict(self) -> Dict[str, Any]:
-        d = vars(self.params).copy()
-        d["x_mm"] = float(self.pos().x())
-        d["y_mm"] = float(self.pos().y())
-        d["angle_deg"] = qt_angle_to_user(self.rotation())
-        d["item_uuid"] = self.item_uuid
-        d["z_value"] = float(self.zValue())  # Save z-order
-        if "image_path" in d:
-            d["image_path"] = to_relative_path(d["image_path"])
-        return d
+        """Serialize to dictionary."""
+        return serialize_item(self)
     
-    def from_dict(self, d: Dict[str, Any]):
-        if "item_uuid" in d:
-            self.item_uuid = d["item_uuid"]
-        if "image_path" in d:
-            d["image_path"] = to_absolute_path(d["image_path"])
-        
-        # FUTURE-PROOF: Separate dataclass fields from dynamic attributes
-        field_names = {f.name for f in fields(BlockParams)}
-        params_dict = {k: v for k, v in d.items() if k in field_names}
-        dynamic_attrs = {k: v for k, v in d.items() if k not in field_names}
-        
-        # Create params
-        params = BlockParams(**params_dict)
-        
-        # Restore dynamic attributes BEFORE assigning (handles ANY attribute automatically!)
-        for key, value in dynamic_attrs.items():
-            # JSON converts tuples to lists, convert back if needed
-            if isinstance(value, list) and key.endswith('_mm'):
-                value = tuple(value)
-            setattr(params, key, value)
-        
-        # Assign fully restored params
-        self.params = params
-        
-        self.setPos(self.params.x_mm, self.params.y_mm)
-        self.setRotation(user_angle_to_qt(self.params.angle_deg))
-        self._update_geom()
-        self._maybe_attach_sprite()
-        self.edited.emit()
+    @staticmethod
+    def from_dict(d: Dict[str, Any]) -> 'BlockItem':
+        """Static factory method: deserialize from dictionary and return new BlockItem."""
+        return deserialize_item(d)
 
 

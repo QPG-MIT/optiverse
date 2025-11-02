@@ -1,5 +1,4 @@
 from __future__ import annotations
-from dataclasses import fields
 from typing import Dict, Any, Optional, Tuple
 
 import numpy as np
@@ -7,12 +6,13 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import SLMParams
 from ...core.geometry import user_angle_to_qt, qt_angle_to_user
-from ...platform.paths import to_relative_path, to_absolute_path
 from ...ui.smart_spinbox import SmartDoubleSpinBox
 from ..base_obj import BaseObj
 from ..component_sprite import create_component_sprite
+from ..type_registry import register_type, serialize_item, deserialize_item
 
 
+@register_type("slm", SLMParams)
 class SLMItem(BaseObj):
     """
     Spatial Light Modulator (SLM) element with optional component sprite.
@@ -224,51 +224,10 @@ class SLMItem(BaseObj):
     
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary."""
-        d = vars(self.params).copy()
-        d["x_mm"] = float(self.pos().x())
-        d["y_mm"] = float(self.pos().y())
-        d["angle_deg"] = qt_angle_to_user(self.rotation())
-        d["item_uuid"] = self.item_uuid
-        d["locked"] = self._locked  # Save lock state
-        d["z_value"] = float(self.zValue())  # Save z-order
-        # Convert image path to relative if within package
-        if "image_path" in d:
-            d["image_path"] = to_relative_path(d["image_path"])
-        return d
+        return serialize_item(self)
     
     @staticmethod
     def from_dict(d: Dict[str, Any]) -> 'SLMItem':
         """Static factory method: deserialize from dictionary and return new SLMItem."""
-        # Convert relative image path to absolute
-        if "image_path" in d and d["image_path"]:
-            d["image_path"] = to_absolute_path(d["image_path"])
-        # Extract metadata that's not part of Params
-        item_uuid = d.pop("item_uuid", None)
-        z_value = d.pop("z_value", None)
-        locked = d.pop("locked", None)
-        
-        # FUTURE-PROOF: Separate dataclass fields from dynamic attributes
-        field_names = {f.name for f in fields(SLMParams)}
-        params_dict = {k: v for k, v in d.items() if k in field_names}
-        dynamic_attrs = {k: v for k, v in d.items() if k not in field_names}
-        
-        # Create params
-        params = SLMParams(**params_dict)
-        
-        # Restore dynamic attributes BEFORE creating item (handles ANY attribute automatically!)
-        for key, value in dynamic_attrs.items():
-            # JSON converts tuples to lists, convert back if needed
-            if isinstance(value, list) and key.endswith('_mm'):
-                value = tuple(value)
-            setattr(params, key, value)
-        
-        # Create item with fully restored params
-        item = SLMItem(params, item_uuid)
-        
-        # Restore metadata
-        if z_value is not None:
-            item.setZValue(z_value)
-        if locked is not None:
-            item.set_locked(locked)
-        return item
+        return deserialize_item(d)
 

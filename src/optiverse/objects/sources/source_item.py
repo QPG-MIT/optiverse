@@ -1,5 +1,4 @@
 from __future__ import annotations
-from dataclasses import fields
 from typing import Dict, Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -9,8 +8,10 @@ from ...core.geometry import user_angle_to_qt, qt_angle_to_user
 from ...core.color_utils import qcolor_from_hex, hex_from_qcolor, wavelength_to_hex, LASER_WAVELENGTHS
 from ...ui.smart_spinbox import SmartDoubleSpinBox
 from ..base_obj import BaseObj
+from ..type_registry import register_type, serialize_item, deserialize_item
 
 
+@register_type("source", SourceParams)
 class SourceItem(BaseObj):
     """
     Optical source element with configurable parameters.
@@ -360,45 +361,12 @@ class SourceItem(BaseObj):
     
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary."""
-        d = vars(self.params).copy()
-        # Force live pose + color
-        d["x_mm"] = float(self.pos().x())
-        d["y_mm"] = float(self.pos().y())
-        d["angle_deg"] = qt_angle_to_user(self.rotation())
+        d = serialize_item(self)
+        # Force live color (SourceItem-specific)
         d["color_hex"] = hex_from_qcolor(self._color)
-        d["item_uuid"] = self.item_uuid
-        d["z_value"] = float(self.zValue())  # Save z-order
         return d
     
     @staticmethod
     def from_dict(d: Dict[str, Any]) -> 'SourceItem':
         """Static factory method: deserialize from dictionary and return new SourceItem."""
-        # Extract metadata that's not part of Params
-        item_uuid = d.pop("item_uuid", None)
-        z_value = d.pop("z_value", None)
-        locked = d.pop("locked", None)
-        
-        # FUTURE-PROOF: Separate dataclass fields from dynamic attributes
-        field_names = {f.name for f in fields(SourceParams)}
-        params_dict = {k: v for k, v in d.items() if k in field_names}
-        dynamic_attrs = {k: v for k, v in d.items() if k not in field_names}
-        
-        # Create params
-        params = SourceParams(**params_dict)
-        
-        # Restore dynamic attributes BEFORE creating item (handles ANY attribute automatically!)
-        for key, value in dynamic_attrs.items():
-            # JSON converts tuples to lists, convert back if needed
-            if isinstance(value, list) and key.endswith('_mm'):
-                value = tuple(value)
-            setattr(params, key, value)
-        
-        # Create item with fully restored params
-        item = SourceItem(params, item_uuid)
-        
-        # Restore metadata
-        if z_value is not None:
-            item.setZValue(z_value)
-        if locked is not None:
-            item.set_locked(locked)
-        return item
+        return deserialize_item(d)

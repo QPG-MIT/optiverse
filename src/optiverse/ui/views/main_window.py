@@ -1252,46 +1252,28 @@ class MainWindow(QtWidgets.QMainWindow):
         if not path:
             return
 
+        # New format: registry-driven with separate lists for annotations
         data = {
-            "sources": [],
-            "lenses": [],
-            "mirrors": [],
-            "beamsplitters": [],
-            "dichroics": [],
-            "waveplates": [],
-            "slms": [],
-            "rulers": [],
+            "version": "2.0",
+            "items": [],  # All BaseObj items with type_name
+            "rulers": [],  # Annotation items (not BaseObj)
             "texts": [],
             "rectangles": [],
-            "blocks": [],
         }
 
+        from ...objects import RectangleItem, BlockItem, BaseObj
+        
         for it in self.scene.items():
-            if isinstance(it, SourceItem):
-                data["sources"].append(it.to_dict())
-            elif isinstance(it, LensItem):
-                data["lenses"].append(it.to_dict())
-            elif isinstance(it, MirrorItem):
-                data["mirrors"].append(it.to_dict())
-            elif isinstance(it, BeamsplitterItem):
-                data["beamsplitters"].append(it.to_dict())
-            elif isinstance(it, DichroicItem):
-                data["dichroics"].append(it.to_dict())
-            elif isinstance(it, WaveplateItem):
-                data["waveplates"].append(it.to_dict())
-            elif isinstance(it, SLMItem):
-                data["slms"].append(it.to_dict())
+            # Handle BaseObj items (optical components) via registry
+            if isinstance(it, BaseObj) and hasattr(it, 'type_name'):
+                data["items"].append(it.to_dict())
+            # Handle annotation items separately
             elif isinstance(it, RulerItem):
                 data["rulers"].append(it.to_dict())
             elif isinstance(it, TextNoteItem):
                 data["texts"].append(it.to_dict())
-            else:
-                # Optional: serialize non-BaseObj annotations
-                from ...objects import RectangleItem, BlockItem
-                if isinstance(it, RectangleItem):
-                    data["rectangles"].append(it.to_dict())
-                elif isinstance(it, BlockItem):
-                    data["blocks"].append(it.to_dict())
+            elif isinstance(it, RectangleItem):
+                data["rectangles"].append(it.to_dict())
 
         try:
             with open(path, "w", encoding="utf-8") as f:
@@ -1323,63 +1305,33 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         # Remove existing optical objects (keep grid lines)
+        from ...objects import RectangleItem, BaseObj
         for it in list(self.scene.items()):
-            if isinstance(it, (SourceItem, LensItem, MirrorItem, BeamsplitterItem, DichroicItem, WaveplateItem, SLMItem, RulerItem, TextNoteItem)):
+            if isinstance(it, (BaseObj, RulerItem, TextNoteItem, RectangleItem)):
                 self.scene.removeItem(it)
 
-        # Re-create everything
-        for d in data.get("sources", []):
-            s = SourceItem.from_dict(d)
-            self.scene.addItem(s)
-            s.edited.connect(self._maybe_retrace)
-        for d in data.get("lenses", []):
-            L = LensItem.from_dict(d)
-            self.scene.addItem(L)
-            L.edited.connect(self._maybe_retrace)
-        for d in data.get("mirrors", []):
-            M = MirrorItem.from_dict(d)
-            self.scene.addItem(M)
-            M.edited.connect(self._maybe_retrace)
-        for d in data.get("beamsplitters", []):
-            B = BeamsplitterItem.from_dict(d)
-            self.scene.addItem(B)
-            B.edited.connect(self._maybe_retrace)
-        for d in data.get("dichroics", []):
-            D = DichroicItem.from_dict(d)
-            self.scene.addItem(D)
-            D.edited.connect(self._maybe_retrace)
-        for d in data.get("waveplates", []):
-            W = WaveplateItem.from_dict(d)
-            self.scene.addItem(W)
-            W.edited.connect(self._maybe_retrace)
-        for d in data.get("slms", []):
-            S = SLMItem.from_dict(d)
-            self.scene.addItem(S)
-            S.edited.connect(self._maybe_retrace)
+        # Load items using registry-driven approach
+        from ...objects.type_registry import deserialize_item
+        
+        # Load all BaseObj items from the "items" list (v2 format)
+        for item_data in data.get("items", []):
+            item = deserialize_item(item_data)
+            if item:
+                self.scene.addItem(item)
+                # Connect edited signal for optical components
+                if hasattr(item, 'edited'):
+                    item.edited.connect(self._maybe_retrace)
+        
+        # Load annotation items (rulers, texts, rectangles)
         for d in data.get("rulers", []):
             R = RulerItem.from_dict(d)
             self.scene.addItem(R)
         for d in data.get("texts", []):
             T = TextNoteItem.from_dict(d)
             self.scene.addItem(T)
-        # Rectangles
         for d in data.get("rectangles", []):
-            from ...objects import RectangleItem
             R2 = RectangleItem.from_dict(d)
             self.scene.addItem(R2)
-        # Blocks
-        for d in data.get("blocks", []):
-            from ...objects import BlockItem
-            from ...core.models import BlockParams
-            # Remove item_uuid and z_value before passing to Params (they're set separately)
-            item_uuid = d.pop("item_uuid", None)
-            z_value = d.pop("z_value", None)
-            b = BlockItem(BlockParams(**d))
-            if item_uuid:
-                b.item_uuid = item_uuid
-            if z_value is not None:
-                b.setZValue(z_value)
-            self.scene.addItem(b)
 
         # Clear undo history after loading
         self.undo_stack.clear()

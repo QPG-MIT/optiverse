@@ -9,6 +9,8 @@ from ...core.geometry import user_angle_to_qt, qt_angle_to_user
 from ...ui.smart_spinbox import SmartDoubleSpinBox
 from ..base_obj import BaseObj
 from ..component_sprite import create_component_sprite
+from ..type_registry import register_type, serialize_item
+from ...platform.paths import to_relative_path, to_absolute_path
 
 
 @dataclass
@@ -22,6 +24,7 @@ class BackgroundParams:
     image_path: str = ""
 
 
+@register_type("background", BackgroundParams)
 class BackgroundItem(BaseObj):
     """
     Background/decorative item with no optical interfaces.
@@ -202,16 +205,8 @@ class BackgroundItem(BaseObj):
             self.edited.emit()
     
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize to dictionary."""
-        d = asdict(self.params)
-        # Force live pose
-        d["x_mm"] = float(self.pos().x())
-        d["y_mm"] = float(self.pos().y())
-        d["angle_deg"] = qt_angle_to_user(self.rotation())
-        d["item_uuid"] = self.item_uuid
-        d["locked"] = self._locked  # Save lock state
-        d["z_value"] = float(self.zValue())  # Save z-order
-        return d
+        """Serialize to dictionary using generic serializer."""
+        return serialize_item(self)
     
     def from_dict(self, d: Dict[str, Any]):
         """Deserialize from dictionary."""
@@ -221,13 +216,18 @@ class BackgroundItem(BaseObj):
         # Restore locked state (call parent's from_dict)
         super().from_dict(d)
         
+        # Convert relative image path to absolute if needed
+        image_path = d.get("image_path", "")
+        if image_path:
+            image_path = to_absolute_path(image_path)
+        
         # Update params
         self.params.x_mm = d.get("x_mm", 0.0)
         self.params.y_mm = d.get("y_mm", 0.0)
         self.params.angle_deg = d.get("angle_deg", 0.0)
         self.params.object_height_mm = d.get("object_height_mm", 100.0)
         self.params.name = d.get("name", "Background")
-        self.params.image_path = d.get("image_path", "")
+        self.params.image_path = image_path
         
         # Update position and rotation
         self.setPos(self.params.x_mm, self.params.y_mm)
