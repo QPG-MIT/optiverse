@@ -6,6 +6,8 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import BlockParams
 from ...core.geometry import user_angle_to_qt, qt_angle_to_user
+from ...ui.smart_spinbox import SmartDoubleSpinBox
+from ...ui.widgets.interface_properties_widget import InterfacePropertiesWidget
 from ..base_obj import BaseObj
 from ..component_sprite import create_component_sprite
 from ..type_registry import register_type, serialize_item, deserialize_item
@@ -118,6 +120,142 @@ class BlockItem(BaseObj):
             p1 = QtCore.QPointF(iface.x1_mm - offset_x, iface.y1_mm - offset_y)
             p2 = QtCore.QPointF(iface.x2_mm - offset_x, iface.y2_mm - offset_y)
             p.drawLine(p1, p2)
+    
+    def open_editor(self):
+        """Open editor dialog for beam block parameters."""
+        parent = self._parent_window()
+        d = QtWidgets.QDialog(parent)
+        d.setWindowTitle("Edit Beam Block")
+        f = QtWidgets.QFormLayout(d)
+        
+        # Save initial state for rollback on cancel
+        initial_x = self.pos().x()
+        initial_y = self.pos().y()
+        # Convert Qt angle to user angle (CW from up)
+        initial_ang = qt_angle_to_user(self.rotation())
+        initial_length = self.params.object_height_mm
+        
+        # Save initial interface states (deep copy)
+        from copy import deepcopy
+        initial_interfaces = [deepcopy(iface) for iface in self.params.interfaces] if self.params.interfaces else []
+        
+        x = SmartDoubleSpinBox()
+        x.setRange(-1e6, 1e6)
+        x.setDecimals(3)
+        x.setSuffix(" mm")
+        x.setValue(initial_x)
+        
+        y = SmartDoubleSpinBox()
+        y.setRange(-1e6, 1e6)
+        y.setDecimals(3)
+        y.setSuffix(" mm")
+        y.setValue(initial_y)
+        
+        ang = SmartDoubleSpinBox()
+        ang.setRange(0, 360)
+        ang.setDecimals(2)
+        ang.setSuffix(" °")
+        ang.setValue(initial_ang)
+        ang.setToolTip("Block angle (0° = right →, 90° = down ↓, 180° = left ←)")
+        
+        length = SmartDoubleSpinBox()
+        length.setRange(1, 1e7)
+        length.setDecimals(2)
+        length.setSuffix(" mm")
+        length.setValue(initial_length)
+        
+        # Live update connections
+        def update_position():
+            self.setPos(x.value(), y.value())
+            self.params.x_mm = x.value()
+            self.params.y_mm = y.value()
+            self.edited.emit()
+        
+        def update_angle():
+            user_angle = ang.value()
+            self.setRotation(user_angle_to_qt(user_angle))
+            self.params.angle_deg = user_angle
+            self.edited.emit()
+        
+        def update_length():
+            self.params.object_height_mm = length.value()
+            self._update_geom()
+            self._maybe_attach_sprite()
+            self.edited.emit()
+        
+        # Update spinboxes when item is modified externally (e.g., Ctrl+drag rotation)
+        def sync_from_item():
+            # Block signals to prevent recursive updates
+            x.blockSignals(True)
+            y.blockSignals(True)
+            ang.blockSignals(True)
+            
+            # Convert Qt angle to user angle
+            user_angle = qt_angle_to_user(self.rotation())
+            
+            x.setValue(self.pos().x())
+            y.setValue(self.pos().y())
+            ang.setValue(user_angle)
+            
+            x.blockSignals(False)
+            y.blockSignals(False)
+            ang.blockSignals(False)
+        
+        x.valueChanged.connect(update_position)
+        y.valueChanged.connect(update_position)
+        ang.valueChanged.connect(update_angle)
+        length.valueChanged.connect(update_length)
+        
+        # Connect to item's edited signal to sync spinboxes
+        self.edited.connect(sync_from_item)
+        
+        f.addRow("X Position", x)
+        f.addRow("Y Position", y)
+        f.addRow("Angle", ang)
+        f.addRow("Length", length)
+        
+        # Add interface properties section
+        if self.params.interfaces:
+            # Add separator before interfaces
+            separator2 = QtWidgets.QFrame()
+            separator2.setFrameShape(QtWidgets.QFrame.Shape.HLine)
+            f.addRow(separator2)
+            
+            # Add interface properties widget
+            interface_widget = InterfacePropertiesWidget(self.params.interfaces)
+            interface_widget.propertiesChanged.connect(self.edited.emit)
+            f.addRow(interface_widget)
+        
+        btn = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+        )
+        f.addRow(btn)
+        btn.accepted.connect(d.accept)
+        btn.rejected.connect(d.reject)
+        
+        # Execute dialog and rollback if cancelled
+        result = d.exec()
+        
+        # Disconnect the sync signal to prevent memory leaks
+        self.edited.disconnect(sync_from_item)
+        
+        if not result:
+            # User clicked Cancel - restore initial values
+            self.setPos(initial_x, initial_y)
+            self.params.x_mm = initial_x
+            self.params.y_mm = initial_y
+            self.setRotation(user_angle_to_qt(initial_ang))
+            self.params.angle_deg = initial_ang
+            self.params.object_height_mm = initial_length
+            
+            # Restore initial interface states
+            if initial_interfaces:
+                self.params.interfaces = initial_interfaces
+            
+            self._update_geom()
+            self._maybe_attach_sprite()
+            self.edited.emit()
     
     def endpoints_scene(self) -> Tuple[np.ndarray, np.ndarray]:
         p1 = self.mapToScene(self._p1)

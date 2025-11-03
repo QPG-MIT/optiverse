@@ -324,6 +324,11 @@ class BaseObj(QtWidgets.QGraphicsObject):
             # Apply rotation
             if getattr(self, '_group_rotating', False):
                 # Group rotation
+                # Shift+Ctrl: snap angle_delta to 45-degree increments for group rotation
+                # This ensures all items rotate by the same amount, maintaining relative orientation
+                if ev.modifiers() & QtCore.Qt.KeyboardModifier.ShiftModifier:
+                    angle_delta = round(angle_delta / 45.0) * 45.0
+                
                 for item in self._group_items:
                     # Rotate position around group center
                     initial_pos = self._group_initial_positions[item]
@@ -338,10 +343,6 @@ class BaseObj(QtWidgets.QGraphicsObject):
                     # Rotate the item itself
                     initial_rotation = self._group_initial_rotations[item]
                     new_rotation = initial_rotation + angle_delta
-                    
-                    # Shift+Ctrl: snap to absolute 45-degree increments (0, 45, 90, 135, 180, etc.)
-                    if ev.modifiers() & QtCore.Qt.KeyboardModifier.ShiftModifier:
-                        new_rotation = round(new_rotation / 45.0) * 45.0
                     
                     item.setRotation(new_rotation)
                     # Emit edited signal during drag for live editor updates
