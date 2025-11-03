@@ -448,6 +448,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_reload = QtGui.QAction("Reload Library", self)
         self.act_reload.triggered.connect(self.populate_library)
         
+        self.act_open_library_folder = QtGui.QAction("Open User Library Folder…", self)
+        self.act_open_library_folder.triggered.connect(self.open_user_library_folder)
+        
+        self.act_import_library = QtGui.QAction("Import Component Library…", self)
+        self.act_import_library.triggered.connect(self.import_component_library)
+        
         self.act_show_log = QtGui.QAction("Show Log Window...", self)
         self.act_show_log.setShortcut("Ctrl+L")
         self.act_show_log.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
@@ -590,6 +596,9 @@ class MainWindow(QtWidgets.QMainWindow):
         mTools.addAction(self.act_editor)
         mTools.addAction(self.act_reload)
         mTools.addSeparator()
+        mTools.addAction(self.act_open_library_folder)
+        mTools.addAction(self.act_import_library)
+        mTools.addSeparator()
         mTools.addAction(self.act_show_log)
         
         # Collaboration menu
@@ -641,17 +650,32 @@ class MainWindow(QtWidgets.QMainWindow):
         self.addAction(self.act_collaborate)
 
     def populate_library(self):
-        """Load and populate component library organized by category."""
+        """Load and populate component library organized by category from multiple sources."""
         self.libraryTree.clear()
         
-        # Ensure standard components are loaded
-        self.storage_service.ensure_standard_components()
+        # Load from multiple sources:
+        # 1. Built-in library (standard components)
+        # 2. User library (custom components)
+        from ...objects.component_registry import ComponentRegistry
+        from ...objects.definitions_loader import load_component_dicts
+        from ...platform.paths import get_user_library_root
         
-        # Load components from storage
-        records = self.storage_service.load_library()
+        # Load built-in (standard) components
+        builtin_records = ComponentRegistry.get_standard_components()
+        # Mark as built-in for visual distinction
+        for rec in builtin_records:
+            rec["_source"] = "builtin"
+        
+        # Load user library components
+        user_records = self.storage_service.load_library()
+        # Mark as user-created
+        for rec in user_records:
+            rec["_source"] = "user"
+        
+        # Combine all records
+        all_records = builtin_records + user_records
         
         # Organize by category
-        from ...objects.component_registry import ComponentRegistry
         categories = {
             "Lenses": [],
             "Objectives": [],
@@ -665,7 +689,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "Other": []
         }
         
-        for rec in records:
+        for rec in all_records:
             name = rec.get("name", "")
             
             # Check for explicit category field first (preferred method)
@@ -1889,6 +1913,103 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
         # Load the component data into the editor
         self._comp_editor._load_from_dict(component_data)
         self._comp_editor.show()
+    
+    def open_user_library_folder(self):
+        """Open the user library folder in the system file explorer."""
+        from ...platform.paths import get_user_library_root
+        import subprocess
+        import sys
+        
+        library_path = get_user_library_root()
+        
+        try:
+            if sys.platform == "win32":
+                os.startfile(str(library_path))
+            elif sys.platform == "darwin":
+                subprocess.run(["open", str(library_path)])
+            else:  # linux
+                subprocess.run(["xdg-open", str(library_path)])
+        except Exception as e:
+            QtWidgets.QMessageBox.information(
+                self,
+                "User Library Location",
+                f"User library location:\n{library_path}\n\n"
+                f"(Could not open folder automatically: {str(e)})"
+            )
+    
+    def import_component_library(self):
+        """Import components from another library folder."""
+        # Ask user to select a library folder
+        source_dir = QtWidgets.QFileDialog.getExistingDirectory(
+            self,
+            "Select Component Library Folder to Import",
+            "",
+            QtWidgets.QFileDialog.Option.ShowDirsOnly
+        )
+        
+        if not source_dir:
+            return  # User cancelled
+        
+        from pathlib import Path
+        source_path = Path(source_dir)
+        
+        # Check if this looks like a library folder (has component folders with component.json)
+        component_folders = [
+            p for p in source_path.iterdir() 
+            if p.is_dir() and (p / "component.json").exists()
+        ]
+        
+        if not component_folders:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Invalid Library",
+                f"Selected folder does not contain any valid components.\n\n"
+                f"A component library should contain folders with component.json files."
+            )
+            return
+        
+        # Ask for confirmation
+        reply = QtWidgets.QMessageBox.question(
+            self,
+            "Import Library",
+            f"Found {len(component_folders)} component(s) in:\n{source_dir}\n\n"
+            f"Import all components into your user library?",
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+            QtWidgets.QMessageBox.StandardButton.Yes
+        )
+        
+        if reply != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        
+        # Import each component
+        imported_count = 0
+        skipped_count = 0
+        
+        for comp_folder in component_folders:
+            try:
+                success = self.storage_service.import_component(str(comp_folder), overwrite=False)
+                if success:
+                    imported_count += 1
+                else:
+                    skipped_count += 1
+            except Exception as e:
+                print(f"[MainWindow] Failed to import {comp_folder.name}: {e}")
+                skipped_count += 1
+        
+        # Show results
+        message = f"Import complete!\n\n"
+        message += f"Imported: {imported_count} component(s)\n"
+        if skipped_count > 0:
+            message += f"Skipped: {skipped_count} component(s) (already exist or invalid)"
+        
+        QtWidgets.QMessageBox.information(
+            self,
+            "Import Complete",
+            message
+        )
+        
+        # Reload library to show new components
+        self.populate_library()
 
     # ----- Event filter for snap, ruler placement, pipet, and placement mode -----
     def eventFilter(self, obj, ev):

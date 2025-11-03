@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 
 from ..core.models import ComponentRecord, deserialize_component, serialize_component
 import os
@@ -14,32 +14,55 @@ def _library_root() -> Path:
     return Path(__file__).parent / "library"
 
 
-def _iter_component_json_files() -> List[Path]:
-    """Find all component.json files one level under the library root."""
-    root = _library_root()
+def _iter_component_json_files(library_path: Optional[Path] = None) -> List[Path]:
+    """
+    Find all component.json files one level under the library root.
+    
+    Args:
+        library_path: Optional custom library path. If None, uses built-in library.
+    
+    Returns:
+        List of Path objects to component folders
+    """
+    root = library_path if library_path else _library_root()
     if not root.exists():
         return []
     return [p for p in root.iterdir() if p.is_dir() and (p / "component.json").exists()]
 
 
-def load_component_records() -> List[ComponentRecord]:
+def load_component_records(library_path: Optional[Path] = None) -> List[ComponentRecord]:
     """
-    Load all standard components from per-object folders into typed ComponentRecord objects.
+    Load components from per-object folders into typed ComponentRecord objects.
     Skips invalid or unreadable component definitions.
+    
+    Args:
+        library_path: Optional custom library path. If None, uses built-in library.
+    
+    Returns:
+        List of ComponentRecord objects
     """
     records: List[ComponentRecord] = []
-    for folder in _iter_component_json_files():
+    is_builtin = library_path is None
+    
+    for folder in _iter_component_json_files(library_path):
         json_path = folder / "component.json"
         try:
             with open(json_path, "r", encoding="utf-8") as f:
                 data: Dict[str, Any] = json.load(f)
-            # Resolve image_path to package-relative format if it's relative
+            
+            # Resolve image_path
             image_path = data.get("image_path")
             if isinstance(image_path, str) and image_path and not os.path.isabs(image_path):
-                # Convert images/file.png -> objects/library/<component>/images/file.png
-                component_name = folder.name
-                package_relative = f"objects/library/{component_name}/{image_path}"
-                data["image_path"] = package_relative
+                if is_builtin:
+                    # Convert images/file.png -> objects/library/<component>/images/file.png
+                    component_name = folder.name
+                    package_relative = f"objects/library/{component_name}/{image_path}"
+                    data["image_path"] = package_relative
+                else:
+                    # For user/custom libraries, make path absolute relative to component folder
+                    abs_path = (folder / image_path).resolve()
+                    data["image_path"] = str(abs_path)
+            
             rec = deserialize_component(data)
             if rec is not None:
                 records.append(rec)
@@ -49,15 +72,46 @@ def load_component_records() -> List[ComponentRecord]:
     return records
 
 
-def load_component_dicts() -> List[Dict[str, Any]]:
+def load_component_records_from_multiple(library_paths: List[Union[str, Path]]) -> List[ComponentRecord]:
     """
-    Load all standard components and return them as JSON-serializable dicts.
+    Load components from multiple library paths.
+    
+    Args:
+        library_paths: List of library directory paths
+    
+    Returns:
+        Combined list of ComponentRecord objects from all libraries
+    """
+    all_records: List[ComponentRecord] = []
+    
+    for lib_path in library_paths:
+        try:
+            path = Path(lib_path) if isinstance(lib_path, str) else lib_path
+            if path.exists() and path.is_dir():
+                records = load_component_records(path)
+                all_records.extend(records)
+        except Exception as e:
+            print(f"[definitions_loader] Failed to load from {lib_path}: {e}")
+            continue
+    
+    return all_records
+
+
+def load_component_dicts(library_path: Optional[Path] = None) -> List[Dict[str, Any]]:
+    """
+    Load components and return them as JSON-serializable dicts.
     
     Note: Unlike serialize_component(), this preserves absolute image paths
     so that the library UI can load thumbnail icons.
+    
+    Args:
+        library_path: Optional custom library path. If None, uses built-in library.
+    
+    Returns:
+        List of component dictionaries
     """
     result: List[Dict[str, Any]] = []
-    for rec in load_component_records():
+    for rec in load_component_records(library_path):
         try:
             # Create dict manually to preserve absolute image_path
             # (serialize_component() would convert to relative for portability)
@@ -81,5 +135,30 @@ def load_component_dicts() -> List[Dict[str, Any]]:
         except Exception:
             continue
     return result
+
+
+def load_component_dicts_from_multiple(library_paths: List[Union[str, Path]]) -> List[Dict[str, Any]]:
+    """
+    Load components from multiple library paths as dictionaries.
+    
+    Args:
+        library_paths: List of library directory paths
+    
+    Returns:
+        Combined list of component dictionaries from all libraries
+    """
+    all_dicts: List[Dict[str, Any]] = []
+    
+    for lib_path in library_paths:
+        try:
+            path = Path(lib_path) if isinstance(lib_path, str) else lib_path
+            if path.exists() and path.is_dir():
+                dicts = load_component_dicts(path)
+                all_dicts.extend(dicts)
+        except Exception as e:
+            print(f"[definitions_loader] Failed to load from {lib_path}: {e}")
+            continue
+    
+    return all_dicts
 
 

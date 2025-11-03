@@ -4,6 +4,7 @@ import os
 import json
 import re
 import time
+from pathlib import Path
 from typing import Optional, Tuple, List
 import math
 
@@ -159,6 +160,16 @@ class ComponentEditor(QtWidgets.QMainWindow):
         act_save = QtGui.QAction("Save Component", self)
         act_save.triggered.connect(self.save_component)
         tb.addAction(act_save)
+        
+        act_export = QtGui.QAction("Export Component…", self)
+        act_export.triggered.connect(self.export_component)
+        tb.addAction(act_export)
+        
+        act_import = QtGui.QAction("Import Component…", self)
+        act_import.triggered.connect(self.import_component)
+        tb.addAction(act_import)
+
+        tb.addSeparator()
 
         act_reload = QtGui.QAction("Reload Library", self)
         act_reload.triggered.connect(self.reload_library)
@@ -1030,48 +1041,174 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self._sync_interfaces_to_canvas()
 
     def save_component(self):
-        """Save component to library."""
+        """Save component to library in folder-based structure."""
         rec = self._build_record_from_ui()
         if not rec:
             return
         
-        # Debug: Print what we're about to save
-        print(f"[DEBUG] Saving component: {rec.name}")
-        print(f"[DEBUG] Number of interfaces: {len(rec.interfaces) if rec.interfaces else 0}")
-        if rec.interfaces:
-            for i, iface in enumerate(rec.interfaces[:3]):  # Show first 3
-                print(f"[DEBUG]   Interface {i+1}: {iface.name} at ({iface.x1_mm:.2f}, {iface.y1_mm:.2f})")
+        try:
+            # Save using the new folder-based storage
+            self.storage.save_component(rec)
+            
+            # Copy JSON to clipboard for convenience
+            serialized = serialize_component(rec)
+            QtWidgets.QApplication.clipboard().setText(json.dumps(serialized, indent=2))
+            
+            # Show success message
+            library_path = self.storage.get_library_root()
+            QtWidgets.QMessageBox.information(
+                self,
+                "Saved",
+                f"Saved component '{rec.name}'\n\n"
+                f"Interfaces: {len(rec.interfaces) if rec.interfaces else 0}\n"
+                f"Library location:\n{library_path}\n\n"
+                f"Component JSON copied to clipboard."
+            )
+            
+            self._refresh_library_list()
+            self.saved.emit()
+            
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Save Failed",
+                f"Failed to save component '{rec.name}':\n\n{str(e)}"
+            )
+    
+    def export_component(self):
+        """Export current component to a folder."""
+        rec = self._build_record_from_ui()
+        if not rec:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "No Component",
+                "Please create or load a component first."
+            )
+            return
         
-        serialized = serialize_component(rec)
-        print(f"[DEBUG] Serialized keys: {serialized.keys()}")
-        print(f"[DEBUG] Has 'interfaces' in serialized: {'interfaces' in serialized}")
-        if 'interfaces' in serialized:
-            print(f"[DEBUG] Number of interfaces in serialized: {len(serialized['interfaces'])}")
-        
-        allrows = self.storage.load_library()
-        # Replace by name or append
-        replaced = False
-        for i, row in enumerate(allrows):
-            if row.get("name") == rec.name:
-                allrows[i] = serialized
-                replaced = True
-                break
-        
-        if not replaced:
-            allrows.append(serialized)
-        
-        self.storage.save_library(allrows)
-        QtWidgets.QApplication.clipboard().setText(json.dumps(serialized, indent=2))
-        QtWidgets.QMessageBox.information(
+        # Ask user for destination folder
+        dest_dir = QtWidgets.QFileDialog.getExistingDirectory(
             self,
-            "Saved",
-            f"Saved component '{rec.name}'\n\n"
-            f"Interfaces: {len(rec.interfaces) if rec.interfaces else 0}\n"
-            f"Library file:\n{get_library_path()}\n\n"
-            f"Component JSON copied to clipboard."
+            "Select Export Destination",
+            "",
+            QtWidgets.QFileDialog.Option.ShowDirsOnly
         )
-        self._refresh_library_list()
-        self.saved.emit()
+        
+        if not dest_dir:
+            return  # User cancelled
+        
+        try:
+            # First save to library to ensure it's up to date
+            self.storage.save_component(rec)
+            
+            # Then export from library
+            success = self.storage.export_component(rec.name, dest_dir)
+            
+            if success:
+                from ...services.storage_service import slugify
+                folder_name = slugify(rec.name)
+                export_path = Path(dest_dir) / folder_name
+                
+                QtWidgets.QMessageBox.information(
+                    self,
+                    "Export Successful",
+                    f"Component '{rec.name}' exported to:\n{export_path}\n\n"
+                    f"You can share this folder with others."
+                )
+            else:
+                QtWidgets.QMessageBox.critical(
+                    self,
+                    "Export Failed",
+                    f"Failed to export component '{rec.name}'."
+                )
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Export Error",
+                f"Error exporting component:\n\n{str(e)}"
+            )
+    
+    def import_component(self):
+        """Import a component from a folder."""
+        # Ask user to select component folder
+        source_dir = QtWidgets.QFileDialog.getExistingDirectory(
+            self,
+            "Select Component Folder to Import",
+            "",
+            QtWidgets.QFileDialog.Option.ShowDirsOnly
+        )
+        
+        if not source_dir:
+            return  # User cancelled
+        
+        # Check if component.json exists
+        source_path = Path(source_dir)
+        json_path = source_path / "component.json"
+        
+        if not json_path.exists():
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Invalid Component",
+                f"Selected folder does not contain a component.json file:\n{source_dir}"
+            )
+            return
+        
+        try:
+            # Load component name to check for conflicts
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            component_name = data.get("name", "")
+            
+            if not component_name:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Invalid Component",
+                    "Component JSON does not have a valid name."
+                )
+                return
+            
+            # Check if component already exists
+            existing = self.storage.get_component(component_name)
+            overwrite = False
+            
+            if existing:
+                reply = QtWidgets.QMessageBox.question(
+                    self,
+                    "Component Exists",
+                    f"Component '{component_name}' already exists in the library.\n\n"
+                    f"Do you want to overwrite it?",
+                    QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+                    QtWidgets.QMessageBox.StandardButton.No
+                )
+                
+                if reply == QtWidgets.QMessageBox.StandardButton.Yes:
+                    overwrite = True
+                else:
+                    return
+            
+            # Import the component
+            success = self.storage.import_component(source_dir, overwrite=overwrite)
+            
+            if success:
+                QtWidgets.QMessageBox.information(
+                    self,
+                    "Import Successful",
+                    f"Component '{component_name}' imported successfully."
+                )
+                self._refresh_library_list()
+                self.saved.emit()
+            else:
+                QtWidgets.QMessageBox.critical(
+                    self,
+                    "Import Failed",
+                    f"Failed to import component from:\n{source_dir}"
+                )
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Import Error",
+                f"Error importing component:\n\n{str(e)}"
+            )
 
     def reload_library(self):
         """Reload library from disk."""

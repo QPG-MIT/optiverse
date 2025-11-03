@@ -52,6 +52,12 @@ class RectangleItem(QtWidgets.QGraphicsObject):
         pen.setCosmetic(True)
         p.setPen(pen)
         p.drawRect(rect)
+        
+        # Add blue tint if selected (matching ComponentSprite selection feedback)
+        if self.isSelected():
+            p.setPen(QtCore.Qt.PenStyle.NoPen)
+            p.setBrush(QtGui.QColor(30, 144, 255, 70))  # Translucent blue
+            p.drawRect(rect)
     
     def contextMenuEvent(self, ev: QtWidgets.QGraphicsSceneContextMenuEvent):
         m = QtWidgets.QMenu()

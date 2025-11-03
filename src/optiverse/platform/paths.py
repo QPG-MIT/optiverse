@@ -55,7 +55,77 @@ def svg_cache_dir() -> str:
 
 
 def get_library_path() -> str:
+    """Get the legacy flat JSON library path (for backwards compatibility)."""
     return str(Path(library_root_dir()) / "components_library.json")
+
+
+def get_user_library_root() -> Path:
+    """
+    Get the default user component library root directory.
+    
+    This is where user-created components are stored in folder-based structure,
+    similar to the built-in library format.
+    
+    Default location: Documents/Optiverse/ComponentLibraries/user_library/
+    
+    Returns:
+        Path to the user library root directory
+    """
+    # Use Qt's DocumentsLocation for cross-platform compatibility
+    docs_location = QtCore.QStandardPaths.writableLocation(
+        QtCore.QStandardPaths.StandardLocation.DocumentsLocation
+    )
+    
+    if not docs_location:
+        # Fallback to home directory
+        home = os.environ.get("USERPROFILE") or os.environ.get("HOME") or str(Path("~").expanduser())
+        docs_location = home
+    
+    # Create the library directory structure
+    library_root = Path(docs_location) / "Optiverse" / "ComponentLibraries" / "user_library"
+    library_root.mkdir(parents=True, exist_ok=True)
+    
+    return library_root
+
+
+def get_custom_library_path(library_path: str) -> Optional[Path]:
+    """
+    Validate and return a custom library path.
+    
+    Args:
+        library_path: Path to a custom component library directory
+    
+    Returns:
+        Path object if valid, None if invalid
+    """
+    if not library_path:
+        return None
+    
+    try:
+        path = Path(library_path).resolve()
+        
+        # Check if path exists and is a directory
+        if not path.exists():
+            return None
+        
+        if not path.is_dir():
+            return None
+        
+        return path
+    except Exception:
+        return None
+
+
+def get_builtin_library_root() -> Path:
+    """
+    Get the built-in component library root directory.
+    
+    This is where standard components are stored within the package.
+    
+    Returns:
+        Path to src/optiverse/objects/library/
+    """
+    return get_package_root() / "objects" / "library"
 
 
 def get_package_root() -> Path:
