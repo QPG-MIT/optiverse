@@ -203,6 +203,17 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.name_edit = QtWidgets.QLineEdit()
         info_form.addRow("Name", self.name_edit)
         
+        # Category selector (editable to allow custom categories)
+        self.category_combo = QtWidgets.QComboBox()
+        self.category_combo.setEditable(True)
+        self.category_combo.addItems([
+            "Lenses", "Objectives", "Mirrors", "Beamsplitters", 
+            "Dichroics", "Waveplates", "Sources", "Background", 
+            "Misc", "Other"
+        ])
+        self.category_combo.setToolTip("Select a category or type a custom one")
+        info_form.addRow("Category", self.category_combo)
+        
         # OBJECT HEIGHT (mm) -> physical size reference for calibration
         self.object_height_mm = QtWidgets.QDoubleSpinBox()
         self.object_height_mm.setRange(0.01, 1e7)
@@ -841,12 +852,16 @@ class ComponentEditor(QtWidgets.QMainWindow):
         if has_image:
             asset_path = self._ensure_asset_file_normalized(name)
 
+        # Get category from combobox and convert to storage format (lowercase)
+        category = self.category_combo.currentText().strip().lower()
+
         # Create v2 ComponentRecord
         return ComponentRecord(
             name=name,
             image_path=asset_path,
             object_height_mm=object_height,
             interfaces=interfaces,
+            category=category,
             notes=self.notes.toPlainText().strip()
         )
 
@@ -993,6 +1008,14 @@ class ComponentEditor(QtWidgets.QMainWindow):
         # Set object height
         if rec.object_height_mm > 0:
             self.object_height_mm.setValue(rec.object_height_mm)
+        
+        # Set category
+        if rec.category:
+            # Convert from storage format (lowercase) to UI format (capitalized)
+            category_ui = rec.category.capitalize()
+            self.category_combo.setCurrentText(category_ui)
+        else:
+            self.category_combo.setCurrentText("Other")
         
         # Load interfaces into panel
         self.interface_panel.clear()

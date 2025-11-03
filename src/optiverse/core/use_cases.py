@@ -490,7 +490,7 @@ def trace_rays(
     # Build ray job list
     ray_jobs = []
     for S in sources:
-        base = deg2rad(S.angle_deg)
+        base = -deg2rad(S.angle_deg)  # Convert user (CW) to math (CCW) convention
         spread = deg2rad(S.spread_deg)
         
         # Determine wavelength and color

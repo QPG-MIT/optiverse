@@ -154,7 +154,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(self.view)
 
         # State variables
-        self.snap_to_grid = True
+        self.snap_to_grid = False
         self._ray_width_px = 2.0
         self.ray_items: list[QtWidgets.QGraphicsPathItem] = []
         self.ray_data: list = []  # Store RayPath data for each ray item
@@ -399,7 +399,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_autotrace.toggled.connect(self._toggle_autotrace)
 
         self.act_snap = QtGui.QAction("Snap to mm grid", self, checkable=True)
-        self.act_snap.setChecked(True)
+        self.act_snap.setChecked(False)
         self.act_snap.toggled.connect(self._toggle_snap)
 
         self.act_magnetic_snap = QtGui.QAction("Magnetic snap", self, checkable=True)

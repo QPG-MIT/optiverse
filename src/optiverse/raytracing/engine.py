@@ -68,7 +68,7 @@ def _generate_rays_from_source(source: SourceParams) -> List[Ray]:
     Returns:
         List of Ray objects
     """
-    base = deg2rad(source.angle_deg)
+    base = -deg2rad(source.angle_deg)  # Convert user (CW) to math (CCW) convention
     spread = deg2rad(source.spread_deg)
     
     # Generate ray positions
