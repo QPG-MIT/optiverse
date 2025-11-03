@@ -2,21 +2,21 @@
   "name": "Beam Block",
   "category": "misc",
   "type": "optical element",
-  "object_height_mm": 50.0,
+  "object_height_mm": 22.9,
   "image_path": "images/beam_block.png",
   "interfaces": [
     {
-      "x1_mm": -25.0,
-      "y1_mm": 13.1,
-      "x2_mm": 25.0,
-      "y2_mm": 13.1,
+      "x1_mm": -21.68,
+      "y1_mm": 11.45,
+      "x2_mm": 21.68,
+      "y2_mm": 11.45,
       "element_type": "beam_block"
     },
     {
-      "x1_mm": -25.0,
-      "y1_mm": -13.1,
-      "x2_mm": 25.0,
-      "y2_mm": -13.1,
+      "x1_mm": -21.68,
+      "y1_mm": -11.45,
+      "x2_mm": 21.68,
+      "y2_mm": -11.45,
       "element_type": "beam_block"
     }
   ],
