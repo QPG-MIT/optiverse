@@ -1,7 +1,7 @@
 {
   "name": "MBH24 Breadboard",
   "category": "background",
-  "image_path": "images/MBH24-AutoCADPDF.svg",
+  "image_path": "images/MBH24-AutoCADDXF.png",
   "object_height_mm": 609.6,
   "angle_deg": 0.0,
   "interfaces": []

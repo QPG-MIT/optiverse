@@ -788,15 +788,6 @@ class MainWindow(QtWidgets.QMainWindow):
             )
             return
         
-        # Show info message if component has no interfaces (decorative item)
-        if not rec.get("interfaces") or len(rec.get("interfaces", [])) == 0:
-            name = rec.get("name", "Unknown")
-            QtWidgets.QMessageBox.information(
-                self,
-                "Decorative Component",
-                f"Component '{name}' has no interfaces and will be placed as a decorative item with no optical properties."
-            )
-        
         # Connect signals
         item.edited.connect(self._maybe_retrace)
         item.edited.connect(lambda: self.collaboration_manager.broadcast_update_item(item))
