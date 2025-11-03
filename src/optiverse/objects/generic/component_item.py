@@ -140,8 +140,26 @@ class ComponentItem(BaseObj):
             self._picked_line_offset_mm = (cx, cy)
             
             self._update_geom()
+            self.setZValue(0)
         
-        self.setZValue(0)
+        elif self.params.image_path and (not self.params.interfaces or len(self.params.interfaces) == 0):
+            # Background objects (no interfaces) - use default horizontal reference line
+            # This allows tables, breadboards, etc. to display their sprites
+            reference_line_mm = (-50.0, 0.0, 50.0, 0.0)  # Horizontal line at center
+            
+            self._sprite = create_component_sprite(
+                self.params.image_path,
+                reference_line_mm,
+                self.params.object_height_mm,
+                self,
+            )
+            self._actual_length_mm = self._sprite.picked_line_length_mm
+            
+            # No interface offset for background objects
+            self._picked_line_offset_mm = (0.0, 0.0)
+            
+            self._update_geom()
+            self.setZValue(-10)  # Render backgrounds behind optical elements
     
     def boundingRect(self) -> QtCore.QRectF:
         """Return bounding rectangle."""
