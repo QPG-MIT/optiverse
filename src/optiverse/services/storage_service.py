@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from ..platform.paths import (
-    get_library_path,
     get_user_library_root,
     get_custom_library_path,
     get_builtin_library_root,
@@ -41,7 +40,6 @@ class StorageService:
     Supports:
     - User library (default: Documents/Optiverse/ComponentLibraries/user_library/)
     - Custom library locations
-    - Migration from legacy flat JSON format
     """
     
     def __init__(self, library_path: Optional[str] = None):
@@ -57,64 +55,6 @@ class StorageService:
                 raise ValueError(f"Invalid library path: {library_path}")
         else:
             self._library_root = get_user_library_root()
-        
-        self._legacy_json_path = get_library_path()
-        self._migrated = False
-        
-        # Check if migration is needed
-        self._check_and_migrate()
-    
-    def _check_and_migrate(self) -> None:
-        """Check if legacy flat JSON exists and migrate if needed."""
-        legacy_path = Path(self._legacy_json_path)
-        
-        # If user library is empty and legacy JSON exists, migrate
-        if self._is_library_empty() and legacy_path.exists() and legacy_path.stat().st_size > 0:
-            print(f"[StorageService] Migrating from legacy JSON: {legacy_path}")
-            self._migrate_from_legacy_json()
-            self._migrated = True
-    
-    def _is_library_empty(self) -> bool:
-        """Check if the current library has any components."""
-        try:
-            components = list(self._iter_component_folders())
-            return len(components) == 0
-        except Exception:
-            return True
-    
-    def _migrate_from_legacy_json(self) -> None:
-        """Migrate components from legacy flat JSON to folder structure."""
-        try:
-            legacy_path = Path(self._legacy_json_path)
-            
-            with open(legacy_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            
-            if not isinstance(data, list):
-                return
-            
-            migrated_count = 0
-            for component_dict in data:
-                try:
-                    # Deserialize to ComponentRecord
-                    rec = deserialize_component(component_dict)
-                    if rec is None:
-                        continue
-                    
-                    # Save to folder structure
-                    self.save_component(rec)
-                    migrated_count += 1
-                except Exception as e:
-                    print(f"[StorageService] Failed to migrate component: {e}")
-                    continue
-            
-            # Backup the legacy JSON file
-            backup_path = legacy_path.with_suffix(".json.backup")
-            shutil.copy2(legacy_path, backup_path)
-            print(f"[StorageService] Migrated {migrated_count} components. Legacy file backed up to: {backup_path}")
-            
-        except Exception as e:
-            print(f"[StorageService] Migration failed: {e}")
     
     def _iter_component_folders(self) -> List[Path]:
         """Find all component folders in the library."""

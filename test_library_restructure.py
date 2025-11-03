@@ -4,7 +4,6 @@ Test script for the component library restructure.
 
 This script tests the new folder-based component library system including:
 - Folder-based storage
-- Migration from legacy flat JSON
 - Export/import functionality
 - Loading from multiple libraries
 """
@@ -72,78 +71,9 @@ def test_folder_based_storage():
         print(f"  - Loaded {len(loaded)} component(s)")
 
 
-def test_migration_from_legacy():
-    """Test migration from legacy flat JSON to folder structure."""
-    print("\n=== Test 2: Migration from Legacy JSON ===")
-    
-    with tempfile.TemporaryDirectory() as tmpdir:
-        from optiverse.services.storage_service import StorageService
-        from optiverse.core.models import ComponentRecord
-        from optiverse.core.interface_definition import InterfaceDefinition
-        import optiverse.platform.paths as paths_module
-        
-        # Create legacy flat JSON
-        legacy_path = Path(tmpdir) / "legacy_library.json"
-        legacy_data = [
-            {
-                "name": "Legacy Lens",
-                "image_path": "",
-                "object_height_mm": 25.4,
-                "angle_deg": 0.0,
-                "category": "lenses",
-                "interfaces": [
-                    {
-                        "x1_mm": 0.0, "y1_mm": 10.0,
-                        "x2_mm": 0.0, "y2_mm": -10.0,
-                        "element_type": "lens",
-                        "n1": 1.0, "n2": 1.0,
-                        "efl_mm": 50.0
-                    }
-                ],
-                "notes": "Migrated component"
-            }
-        ]
-        
-        with open(legacy_path, "w") as f:
-            json.dump(legacy_data, f)
-        
-        # Create new library location
-        new_library = Path(tmpdir) / "new_library"
-        new_library.mkdir()
-        
-        # Monkey-patch to use our test paths
-        original_get_library_path = paths_module.get_library_path
-        paths_module.get_library_path = lambda: str(legacy_path)
-        
-        try:
-            # Initialize storage (should trigger migration)
-            storage = StorageService(str(new_library))
-            
-            # Check migration happened
-            migrated_folder = new_library / "legacy_lens"
-            if migrated_folder.exists():
-                print("[OK] Migration completed successfully")
-                print(f"  - Migrated from: {legacy_path}")
-                print(f"  - Migrated to: {migrated_folder}")
-                
-                # Verify backup was created
-                backup_path = legacy_path.with_suffix(".json.backup")
-                if backup_path.exists():
-                    print(f"  - Backup created: {backup_path}")
-                
-                # Load and verify migrated component
-                loaded = storage.load_library()
-                if len(loaded) > 0:
-                    print(f"  - Loaded {len(loaded)} migrated component(s)")
-            else:
-                print("[WARN] Migration not triggered (legacy file might not exist)")
-        finally:
-            paths_module.get_library_path = original_get_library_path
-
-
 def test_export_import():
     """Test export and import of components."""
-    print("\n=== Test 3: Export/Import ===")
+    print("\n=== Test 2: Export/Import ===")
     
     with tempfile.TemporaryDirectory() as tmpdir:
         from optiverse.services.storage_service import StorageService
@@ -211,7 +141,7 @@ def test_export_import():
 
 def test_multiple_libraries():
     """Test loading from multiple library sources."""
-    print("\n=== Test 4: Multiple Libraries ===")
+    print("\n=== Test 3: Multiple Libraries ===")
     
     from optiverse.objects.definitions_loader import load_component_dicts
     from optiverse.platform.paths import get_builtin_library_root, get_user_library_root
@@ -240,7 +170,7 @@ def test_multiple_libraries():
 
 def test_image_handling():
     """Test that images are copied into component folders."""
-    print("\n=== Test 5: Image Handling ===")
+    print("\n=== Test 4: Image Handling ===")
     
     with tempfile.TemporaryDirectory() as tmpdir:
         from optiverse.services.storage_service import StorageService
@@ -301,7 +231,6 @@ def main():
     
     try:
         test_folder_based_storage()
-        test_migration_from_legacy()
         test_export_import()
         test_multiple_libraries()
         test_image_handling()

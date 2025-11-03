@@ -39,9 +39,6 @@ user_library/
 - `delete_component(name)` - Removes entire component folder
 - `export_component(name, destination)` - Exports component to shareable folder
 - `import_component(source_folder, overwrite)` - Imports component from folder
-- `_check_and_migrate()` - Auto-migrates from legacy flat JSON on first run
-
-**Migration:** Automatically detects and migrates old `components_library.json` to new structure, creating a backup.
 
 **Status:** ✅ Complete, no linter errors
 
@@ -132,12 +129,7 @@ Each component is a complete package:
 - `images/` folder with all assets
 - Portable and shareable
 
-### 4. Backwards Compatibility
-- Automatic migration from old flat JSON format
-- Old format backed up as `.backup`
-- No user intervention required
-
-### 5. Multiple Library Support
+### 4. Multiple Library Support
 - Built-in components (read-only, always available)
 - User library (custom components, read-write)
 - Additional custom libraries (optional, via import)
@@ -174,29 +166,14 @@ User (Documents/Optiverse/ComponentLibraries/user_library/):
           └── lab_mirror.png
 ```
 
-## Migration Process
-
-When a user first runs the updated application:
-
-1. **Detection:** StorageService checks if legacy `components_library.json` exists
-2. **Migration:** Each component is converted to folder structure:
-   - Creates component folder (slugified name)
-   - Saves `component.json`
-   - Creates `images/` subfolder
-   - Copies images if external, references if in package
-3. **Backup:** Original JSON saved as `components_library.json.backup`
-4. **Notification:** Console message confirms migration
-5. **Transparent:** User continues working normally
-
 ## Testing
 
 Created comprehensive test suite (`test_library_restructure.py`) covering:
 
 1. ✅ Folder-based storage
-2. ✅ Migration from legacy JSON
-3. ✅ Export/import functionality
-4. ✅ Multiple library loading
-5. ✅ Image handling (copying to component folders)
+2. ✅ Export/import functionality
+3. ✅ Multiple library loading
+4. ✅ Image handling (copying to component folders)
 
 **Note:** Tests require PyQt6 to run in the current environment but can be run in the application's Python environment.
 
@@ -252,5 +229,5 @@ All modified files pass linter checks with **zero errors**.
 
 ## Conclusion
 
-The component library system has been successfully restructured to use a DLC-style folder-based architecture. Users can now easily share component libraries like video game content packs, with all assets bundled in portable, self-contained folders. The system maintains full backwards compatibility through automatic migration and provides an improved user experience with accessible library locations and comprehensive import/export functionality.
+The component library system has been successfully restructured to use a DLC-style folder-based architecture. Users can now easily share component libraries like video game content packs, with all assets bundled in portable, self-contained folders. The system provides an improved user experience with accessible library locations and comprehensive import/export functionality.
 

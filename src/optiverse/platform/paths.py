@@ -54,11 +54,6 @@ def svg_cache_dir() -> str:
     return str(d)
 
 
-def get_library_path() -> str:
-    """Get the legacy flat JSON library path (for backwards compatibility)."""
-    return str(Path(library_root_dir()) / "components_library.json")
-
-
 def get_user_library_root() -> Path:
     """
     Get the default user component library root directory.

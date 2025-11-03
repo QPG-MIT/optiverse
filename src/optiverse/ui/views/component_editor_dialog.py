@@ -14,7 +14,7 @@ from ...core.models import ComponentRecord, serialize_component, deserialize_com
 from ...core.interface_definition import InterfaceDefinition
 from ...core import interface_types
 from ...services.storage_service import StorageService
-from ...platform.paths import assets_dir, get_library_path
+from ...platform.paths import assets_dir
 from ...objects.views import MultiLineCanvas, InterfaceLine
 from ..widgets.interface_tree_panel import InterfaceTreePanel
 from ..widgets.ruler_widget import CanvasWithRulers
@@ -1214,10 +1214,11 @@ class ComponentEditor(QtWidgets.QMainWindow):
         """Reload library from disk."""
         self._refresh_library_list()
         rows = self.storage.load_library()
+        library_root = self.storage.get_library_root()
         QtWidgets.QMessageBox.information(
             self,
             "Library",
-            f"Loaded {len(rows)} component(s).\n\nLibrary file:\n{get_library_path()}"
+            f"Loaded {len(rows)} component(s).\n\nLibrary folder:\n{library_root}"
         )
     
     def load_library_from_path(self):
