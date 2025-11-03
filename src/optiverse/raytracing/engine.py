@@ -94,9 +94,11 @@ def _generate_rays_from_source(source: SourceParams) -> List[Ray]:
     # Create rays
     rays = []
     for i, y_offset in enumerate(y_offsets):
-        position = np.array([source.x_mm, source.y_mm + y_offset], dtype=float)
         angle = angles[i]
         direction = np.array([math.cos(angle), math.sin(angle)], dtype=float)
+        # Apply offset perpendicular to ray direction (90° CCW from direction)
+        perpendicular = np.array([-math.sin(angle), math.cos(angle)], dtype=float)
+        position = np.array([source.x_mm, source.y_mm], dtype=float) + y_offset * perpendicular
         
         ray = Ray(
             position=position,

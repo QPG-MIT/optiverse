@@ -513,9 +513,11 @@ def trace_rays(
         
         # Create a job for each ray
         for i, y0 in enumerate(ys):
-            P = np.array([S.x_mm, S.y_mm + y0], float)
             th = angles[i]
             V = np.array([math.cos(th), math.sin(th)], float)
+            # Apply offset perpendicular to ray direction (90° CCW from direction)
+            perpendicular = np.array([-math.sin(th), math.cos(th)], float)
+            P = np.array([S.x_mm, S.y_mm], float) + y0 * perpendicular
             
             ray_state = (P, V, S.ray_length_mm, initial_pol, source_wavelength, base_rgb)
             ray_jobs.append((ray_state, element_lists, config))

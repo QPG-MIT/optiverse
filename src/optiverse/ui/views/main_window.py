@@ -300,10 +300,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_open.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_open.triggered.connect(self.open_assembly)
 
-        self.act_save = QtGui.QAction("Save Assembly…", self)
+        self.act_save = QtGui.QAction("Save", self)
         self.act_save.setShortcut(QtGui.QKeySequence("Ctrl+S"))
         self.act_save.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_save.triggered.connect(self.save_assembly)
+
+        self.act_save_as = QtGui.QAction("Save As…", self)
+        self.act_save_as.setShortcut(QtGui.QKeySequence("Ctrl+Shift+S"))
+        self.act_save_as.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
+        self.act_save_as.triggered.connect(self.save_assembly_as)
 
         # --- Edit ---
         self.act_undo = QtGui.QAction("Undo", self)
@@ -538,6 +543,7 @@ class MainWindow(QtWidgets.QMainWindow):
         mFile = mb.addMenu("&File")
         mFile.addAction(self.act_open)
         mFile.addAction(self.act_save)
+        mFile.addAction(self.act_save_as)
 
         # Edit menu
         mEdit = mb.addMenu("&Edit")
@@ -612,6 +618,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # File actions
         self.addAction(self.act_open)
         self.addAction(self.act_save)
+        self.addAction(self.act_save_as)
         
         # Edit actions
         self.addAction(self.act_undo)
@@ -1245,13 +1252,26 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # ----- Save / Load -----
     def save_assembly(self):
-        """Save all elements to JSON file."""
+        """Quick save: save to current file or prompt if new."""
+        if self._saved_file_path:
+            # We have a saved file path, save directly
+            self._save_to_file(self._saved_file_path)
+        else:
+            # No saved file path yet, prompt for location
+            self.save_assembly_as()
+    
+    def save_assembly_as(self):
+        """Save As: always prompt for new file location."""
         path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self, "Save Assembly", "", "Optics Assembly (*.json)"
+            self, "Save Assembly As", "", "Optics Assembly (*.json)"
         )
         if not path:
             return
-
+        
+        self._save_to_file(path)
+    
+    def _save_to_file(self, path: str):
+        """Helper method to save assembly to specified file path."""
         # New format: registry-driven with separate lists for annotations
         data = {
             "version": "2.0",

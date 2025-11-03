@@ -374,3 +374,185 @@ class TestPolymorphicDispatch:
         # The engine doesn't need to know bs is a "beamsplitter"
         # It just calls bs.interact_with_ray() polymorphically!
 
+
+class TestRaySeparationRotation:
+    """Test that ray separation remains constant when source is rotated."""
+    
+    def test_ray_separation_perpendicular_at_0_degrees(self):
+        """At 0°, rays should be separated vertically."""
+        source = SourceParams(
+            x_mm=0.0, y_mm=0.0,
+            angle_deg=0.0,  # Pointing right
+            spread_deg=0.0,
+            n_rays=3,
+            size_mm=10.0,  # 10mm aperture
+            ray_length_mm=100.0,
+            wavelength_nm=633.0,
+            color_hex="#FF0000",
+            polarization_type="horizontal"
+        )
+        
+        paths = trace_rays_polymorphic([], [source], max_events=1)
+        
+        # Should get 3 rays
+        assert len(paths) == 3
+        
+        # Extract starting positions
+        positions = [path.points[0] for path in paths]
+        
+        # At 0°, separation should be vertical (Y direction)
+        # Rays at y = -5, 0, +5
+        y_positions = sorted([pos[1] for pos in positions])
+        assert abs(y_positions[0] - (-5.0)) < 0.01, f"Expected -5, got {y_positions[0]}"
+        assert abs(y_positions[1] - 0.0) < 0.01, f"Expected 0, got {y_positions[1]}"
+        assert abs(y_positions[2] - 5.0) < 0.01, f"Expected 5, got {y_positions[2]}"
+        
+        # All should start at x=0
+        x_positions = [pos[0] for pos in positions]
+        assert all(abs(x) < 0.01 for x in x_positions)
+    
+    def test_ray_separation_perpendicular_at_90_degrees(self):
+        """At 90°, rays should be separated horizontally."""
+        source = SourceParams(
+            x_mm=0.0, y_mm=0.0,
+            angle_deg=90.0,  # Pointing up
+            spread_deg=0.0,
+            n_rays=3,
+            size_mm=10.0,  # 10mm aperture
+            ray_length_mm=100.0,
+            wavelength_nm=633.0,
+            color_hex="#FF0000",
+            polarization_type="horizontal"
+        )
+        
+        paths = trace_rays_polymorphic([], [source], max_events=1)
+        
+        # Should get 3 rays
+        assert len(paths) == 3
+        
+        # Extract starting positions
+        positions = [path.points[0] for path in paths]
+        
+        # At 90°, separation should be horizontal (X direction)
+        # Rays at x = -5, 0, +5
+        x_positions = sorted([pos[0] for pos in positions])
+        assert abs(x_positions[0] - (-5.0)) < 0.01, f"Expected -5, got {x_positions[0]}"
+        assert abs(x_positions[1] - 0.0) < 0.01, f"Expected 0, got {x_positions[1]}"
+        assert abs(x_positions[2] - 5.0) < 0.01, f"Expected 5, got {x_positions[2]}"
+        
+        # All should start at y=0
+        y_positions = [pos[1] for pos in positions]
+        assert all(abs(y) < 0.01 for y in y_positions)
+    
+    def test_ray_separation_perpendicular_at_45_degrees(self):
+        """At 45°, rays should be separated perpendicular to 45° direction."""
+        source = SourceParams(
+            x_mm=0.0, y_mm=0.0,
+            angle_deg=45.0,  # Pointing at 45°
+            spread_deg=0.0,
+            n_rays=3,
+            size_mm=10.0,  # 10mm aperture
+            ray_length_mm=100.0,
+            wavelength_nm=633.0,
+            color_hex="#FF0000",
+            polarization_type="horizontal"
+        )
+        
+        paths = trace_rays_polymorphic([], [source], max_events=1)
+        
+        # Should get 3 rays
+        assert len(paths) == 3
+        
+        # Extract starting positions
+        positions = [path.points[0] for path in paths]
+        
+        # At 45°, perpendicular direction is 135° (or -45°)
+        # Perpendicular vector: [-sin(45°), cos(45°)] = [-√2/2, √2/2]
+        # Rays should be offset by -5, 0, +5 times this vector
+        
+        # Check that separation is perpendicular to ray direction
+        # Ray direction at 45°: [cos(45°), sin(45°)] = [√2/2, √2/2]
+        ray_dir = np.array([np.cos(np.radians(45)), np.sin(np.radians(45))])
+        
+        # Vector from first ray to last ray
+        separation_vector = positions[2] - positions[0]
+        
+        # Dot product should be ~0 (perpendicular)
+        dot_product = np.dot(separation_vector, ray_dir)
+        assert abs(dot_product) < 0.01, f"Separation should be perpendicular to ray direction, dot={dot_product}"
+        
+        # Separation magnitude should be ~10mm (size_mm)
+        separation_magnitude = np.linalg.norm(separation_vector)
+        assert abs(separation_magnitude - 10.0) < 0.01, f"Expected 10mm separation, got {separation_magnitude}"
+    
+    def test_ray_separation_perpendicular_at_180_degrees(self):
+        """At 180°, rays should be separated vertically."""
+        source = SourceParams(
+            x_mm=0.0, y_mm=0.0,
+            angle_deg=180.0,  # Pointing left
+            spread_deg=0.0,
+            n_rays=3,
+            size_mm=10.0,  # 10mm aperture
+            ray_length_mm=100.0,
+            wavelength_nm=633.0,
+            color_hex="#FF0000",
+            polarization_type="horizontal"
+        )
+        
+        paths = trace_rays_polymorphic([], [source], max_events=1)
+        
+        # Should get 3 rays
+        assert len(paths) == 3
+        
+        # Extract starting positions
+        positions = [path.points[0] for path in paths]
+        
+        # At 180°, separation should still be vertical (Y direction)
+        # But with opposite perpendicular: rays at y = +5, 0, -5 (reversed order)
+        y_positions = sorted([pos[1] for pos in positions])
+        assert abs(y_positions[0] - (-5.0)) < 0.01
+        assert abs(y_positions[1] - 0.0) < 0.01
+        assert abs(y_positions[2] - 5.0) < 0.01
+        
+        # All should start at x=0
+        x_positions = [pos[0] for pos in positions]
+        assert all(abs(x) < 0.01 for x in x_positions)
+    
+    def test_ray_separation_consistent_across_angles(self):
+        """Ray separation magnitude should be constant across all angles."""
+        angles = [0, 30, 45, 60, 90, 120, 135, 150, 180, 270]
+        
+        for angle in angles:
+            source = SourceParams(
+                x_mm=0.0, y_mm=0.0,
+                angle_deg=angle,
+                spread_deg=0.0,
+                n_rays=5,
+                size_mm=20.0,  # 20mm aperture
+                ray_length_mm=100.0,
+                wavelength_nm=633.0,
+                color_hex="#FF0000",
+                polarization_type="horizontal"
+            )
+            
+            paths = trace_rays_polymorphic([], [source], max_events=1)
+            
+            # Should get 5 rays
+            assert len(paths) == 5, f"Expected 5 rays at {angle}°, got {len(paths)}"
+            
+            # Extract starting positions
+            positions = [path.points[0] for path in paths]
+            
+            # Calculate separation between first and last ray
+            separation_vector = positions[-1] - positions[0]
+            separation_magnitude = np.linalg.norm(separation_vector)
+            
+            # Should be 20mm (aperture size)
+            assert abs(separation_magnitude - 20.0) < 0.01, \
+                f"At {angle}°: Expected 20mm separation, got {separation_magnitude}"
+            
+            # Verify perpendicular to ray direction
+            ray_dir = np.array([np.cos(np.radians(angle)), np.sin(np.radians(angle))])
+            dot_product = np.dot(separation_vector, ray_dir)
+            assert abs(dot_product) < 0.01, \
+                f"At {angle}°: Separation should be perpendicular, dot={dot_product}"
