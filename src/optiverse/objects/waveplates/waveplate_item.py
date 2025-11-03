@@ -169,7 +169,7 @@ class WaveplateItem(BaseObj):
         y.setValue(initial_y)
         
         ang = SmartDoubleSpinBox()
-        ang.setRange(0, 360)
+        ang.setRange(-1e6, 1e6)
         ang.setDecimals(2)
         ang.setSuffix(" °")
         ang.setValue(initial_ang)
