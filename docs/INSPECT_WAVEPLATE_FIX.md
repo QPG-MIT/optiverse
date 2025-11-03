@@ -1,13 +1,13 @@
-# Pipet Tool Waveplate Fix
+# Inspect Tool Waveplate Fix
 
 ## Problem
 
-The pipet tool was showing the **same Jones vector** before and after a waveplate, even though waveplates should transform the polarization state.
+The inspect tool was showing the **same Jones vector** before and after a waveplate, even though waveplates should transform the polarization state.
 
 **Example:**
 - Source: Horizontal polarization `[1, 0]`
 - QWP at 45°: Should convert to circular `[0.707, 0.707i]`
-- **Bug**: Pipet showed the SAME polarization (circular) both before and after the QWP!
+- **Bug**: Inspect showed the SAME polarization (circular) both before and after the QWP!
 
 ## Root Cause
 
@@ -44,7 +44,7 @@ if kind == "waveplate":
     # ... calculate pol2 ...
     
     # Create a RayPath for the segment UP TO the waveplate with OLD polarization
-    # This ensures the pipette tool shows correct polarization before the waveplate
+    # This ensures the inspect tool shows correct polarization before the waveplate
     if len(pts) >= 2:
         a = int(255 * max(0.0, min(1.0, I)))
         paths.append(RayPath(pts, (base_rgb[0], base_rgb[1], base_rgb[2], a), pol, wl))
@@ -65,8 +65,8 @@ if kind == "waveplate":
 
 ## Impact
 
-- ✅ Pipet tool now shows correct polarization **before** the waveplate
-- ✅ Pipet tool now shows correct polarization **after** the waveplate  
+- ✅ Inspect tool now shows correct polarization **before** the waveplate
+- ✅ Inspect tool now shows correct polarization **after** the waveplate  
 - ✅ No change to visual rendering (rays look the same)
 - ✅ No impact on beamsplitters, mirrors, or lenses (they already create separate segments)
 
@@ -97,7 +97,7 @@ To verify the fix works:
    - QWP at x=100mm with 45° fast axis, 90° phase shift
    ```
 
-2. Enable auto-trace and activate pipet tool
+2. Enable auto-trace and activate inspect tool
 
 3. Click on ray **before** QWP (e.g., x=50mm):
    - Should show: Jones `[1, 0]`, horizontal linear (Q≈1, V≈0)
@@ -112,7 +112,7 @@ To verify the fix works:
 - The fix is minimal and only affects waveplate interactions
 - Ray segments may now be slightly shorter (split at waveplates)
 - This is the correct physical representation: polarization changes at the waveplate boundary
-- The pipet tool can now be used to verify waveplate transformations
+- The inspect tool can now be used to verify waveplate transformations
 - Useful for debugging QWP/HWP configurations and polarization optics
 
 ## Files Modified
@@ -122,7 +122,7 @@ To verify the fix works:
 
 ## Related Issues
 
-- Original report: "Pipet tool shows same Jones vector before and after waveplate"
+- Original report: "Inspect tool shows same Jones vector before and after waveplate"
 - Affects all waveplate types (QWP, HWP, custom phase shifts)
 - Does not affect other optical elements
 

@@ -291,7 +291,7 @@ def _trace_single_ray_worker(args):
             is_forward = dot_v_n < 0  # Traveling against normal = forward
             
             # Create a RayPath for the segment UP TO the waveplate with OLD polarization
-            # This ensures the pipette tool shows correct polarization before the waveplate
+            # This ensures the inspect tool shows correct polarization before the waveplate
             if len(pts) >= 2:
                 a = int(255 * max(0.0, min(1.0, I)))
                 paths.append(RayPath(pts, (base_rgb[0], base_rgb[1], base_rgb[2], a), pol, wl))

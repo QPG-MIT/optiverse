@@ -1,7 +1,7 @@
-# Pipet Tool Implementation
+# Inspect Tool Implementation
 
 ## Overview
-The pipet (eyedropper) tool allows users to click on any ray in the optical system and view detailed information about that ray's properties at the clicked position.
+The inspect (eyedropper) tool allows users to click on any ray in the optical system and view detailed information about that ray's properties at the clicked position.
 
 ## Features
 
@@ -42,11 +42,11 @@ When polarization information is available:
 
 ## Usage
 
-1. **Activate the tool**: Click the pipet icon in the toolbar or select Tools → Pipet
+1. **Activate the tool**: Click the inspect icon in the toolbar or select Tools → Inspect
 2. **Click on a ray**: Click anywhere near a ray path
 3. **View information**: A dialog will display all ray properties at that location
 4. **Close dialog**: Click "Close" or press Escape
-5. **Deactivate**: Click the pipet icon again to return to normal mode
+5. **Deactivate**: Click the inspect icon again to return to normal mode
 
 ## Technical Details
 
@@ -68,11 +68,11 @@ When polarization information is available:
 ## Code Structure
 
 ### Main Components
-1. `_build_actions()`: Creates pipet action
-2. `_build_toolbar()`: Adds pipet button to toolbar
-3. `_build_menubar()`: Adds pipet to Tools menu
-4. `_toggle_pipet()`: Handles tool activation/deactivation
-5. `_handle_pipet_click()`: Finds clicked ray
+1. `_build_actions()`: Creates inspect action
+2. `_build_toolbar()`: Adds inspect button to toolbar
+3. `_build_menubar()`: Adds inspect to Tools menu
+4. `_toggle_inspect()`: Handles tool activation/deactivation
+5. `_handle_inspect_click()`: Finds clicked ray
 6. `_show_ray_info_dialog()`: Displays ray information
 
 ### Data Flow
@@ -80,7 +80,7 @@ When polarization information is available:
 retrace() 
   → trace_rays() returns RayPath objects
   → Store in ray_data list alongside ray_items
-  → pipet click → find nearest point in ray_data
+  → inspect click → find nearest point in ray_data
   → display dialog with polarization/intensity
 ```
 
@@ -107,13 +107,13 @@ retrace()
 
 ## Testing
 
-To test the pipet tool:
+To test the inspect tool:
 
 1. Launch the application
 2. Add a light source
 3. Add some optical elements (mirrors, beamsplitters, waveplates)
 4. Enable auto-trace to see rays
-5. Click the pipet tool in the toolbar
+5. Click the inspect tool in the toolbar
 6. Click on various rays to see their properties
 
 ### Test Cases

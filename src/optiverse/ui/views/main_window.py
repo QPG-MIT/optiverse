@@ -29,14 +29,7 @@ from ...services.log_service import get_log_service
 from .collaboration_dialog import CollaborationDialog
 from .log_window import LogWindow
 from ...objects import (
-    BeamsplitterItem,
-    DichroicItem,
     GraphicsView,
-    LensItem,
-    MirrorItem,
-    RefractiveObjectItem,
-    SLMItem,
-    WaveplateItem,
     RulerItem,
     SourceItem,
     TextNoteItem,
@@ -159,7 +152,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ray_items: list[QtWidgets.QGraphicsPathItem] = []
         self.ray_data: list = []  # Store RayPath data for each ray item
         self.autotrace = True
-        self._pipet_mode = False  # Track if pipet tool is active
+        self._inspect_mode = False  # Track if inspect tool is active
         
         # Component placement mode
         self._placement_mode = False  # Track if component placement mode is active
@@ -371,9 +364,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_add_rectangle.toggled.connect(lambda on: self._toggle_placement_mode("rectangle", on))
 
         # --- Tools ---
-        self.act_pipet = QtGui.QAction("Pipet", self, checkable=True)
-        self.act_pipet.setChecked(False)
-        self.act_pipet.toggled.connect(self._toggle_pipet)
+        self.act_inspect = QtGui.QAction("Inspect", self, checkable=True)
+        self.act_inspect.setChecked(False)
+        self.act_inspect.toggled.connect(self._toggle_inspect)
 
         # --- View ---
         self.act_zoom_in = QtGui.QAction("Zoom In", self)
@@ -526,10 +519,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_add_ruler.setIcon(ruler_icon)
         toolbar.addAction(self.act_add_ruler)
 
-        # Pipet button
-        pipet_icon = QtGui.QIcon(_get_icon_path("pipet.png"))
-        self.act_pipet.setIcon(pipet_icon)
-        toolbar.addAction(self.act_pipet)
+        # Inspect button
+        inspect_icon = QtGui.QIcon(_get_icon_path("inspect.png"))
+        self.act_inspect.setIcon(inspect_icon)
+        toolbar.addAction(self.act_inspect)
 
         # Text button
         text_icon = QtGui.QIcon(_get_icon_path("text.png"))
@@ -591,7 +584,7 @@ class MainWindow(QtWidgets.QMainWindow):
         mTools.addAction(self.act_retrace)
         mTools.addAction(self.act_clear)
         mTools.addSeparator()
-        mTools.addAction(self.act_pipet)
+        mTools.addAction(self.act_inspect)
         mTools.addSeparator()
         mTools.addAction(self.act_editor)
         mTools.addAction(self.act_reload)
@@ -931,9 +924,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def start_place_ruler(self):
         """Enter ruler placement mode (two-click)."""
-        # Disable pipet mode if active
-        if self._pipet_mode:
-            self.act_pipet.setChecked(False)
+        # Disable inspect mode if active
+        if self._inspect_mode:
+            self.act_inspect.setChecked(False)
         
         self._placing_ruler = True
         self._ruler_p1_scene = None
@@ -1116,7 +1109,7 @@ class MainWindow(QtWidgets.QMainWindow):
             item.setZValue(10)
             self.scene.addItem(item)
             self.ray_items.append(item)
-            self.ray_data.append(p)  # Store RayPath data for pipet tool
+            self.ray_data.append(p)  # Store RayPath data for inspect tool
     
     def _create_element_from_interface(self, p1, p2, iface, parent_item):
         """
@@ -1135,7 +1128,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         from ...core.models import RefractiveInterface
         
-        # Handle legacy RefractiveInterface objects (from RefractiveObjectItem)
+        # Handle legacy RefractiveInterface objects
         if isinstance(iface, RefractiveInterface):
             # RefractiveInterface objects are always refractive surfaces
             elem = OpticalElement(
@@ -1306,7 +1299,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "rectangles": [],
         }
 
-        from ...objects import RectangleItem, BlockItem, BaseObj
+        from ...objects import RectangleItem, BaseObj
         
         for it in self.scene.items():
             # Handle BaseObj items (optical components) via registry
@@ -1416,13 +1409,13 @@ class MainWindow(QtWidgets.QMainWindow):
         # Refresh library to update category colors
         self.populate_library()
     
-    def _toggle_pipet(self, on: bool):
-        """Toggle pipet tool mode."""
-        self._pipet_mode = on
+    def _toggle_inspect(self, on: bool):
+        """Toggle inspect tool mode."""
+        self._inspect_mode = on
         if on:
             # Disable placement mode if active
             self._cancel_placement_mode()
-            # Change cursor to indicate pipet mode is active
+            # Change cursor to indicate inspect mode is active
             self.view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
             QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), "Click on a ray to view its properties")
         else:
@@ -1432,9 +1425,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def _toggle_placement_mode(self, component_type: str, on: bool):
         """Toggle component placement mode."""
         if on:
-            # Disable pipet mode if active
-            if self._pipet_mode:
-                self.act_pipet.setChecked(False)
+            # Disable inspect mode if active
+            if self._inspect_mode:
+                self.act_inspect.setChecked(False)
             
             # Disable any other placement mode buttons
             self._cancel_placement_mode(except_type=component_type)
@@ -1742,8 +1735,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # Return distance to the closest point
         return np.linalg.norm(point - closest_point)
     
-    def _handle_pipet_click(self, scene_pos: QtCore.QPointF):
-        """Handle click in pipet mode to display ray information."""
+    def _handle_inspect_click(self, scene_pos: QtCore.QPointF):
+        """Handle click in inspect mode to display ray information."""
         click_pt = np.array([scene_pos.x(), scene_pos.y()])
         
         # Find the nearest ray segment within tolerance
@@ -2012,9 +2005,9 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
         # Reload library to show new components
         self.populate_library()
 
-    # ----- Event filter for snap, ruler placement, pipet, and placement mode -----
+    # ----- Event filter for snap, ruler placement, inspect, and placement mode -----
     def eventFilter(self, obj, ev):
-        """Handle scene events for snap, ruler placement, pipet tool, and component placement."""
+        """Handle scene events for snap, ruler placement, inspect tool, and component placement."""
         et = ev.type()
 
         # --- Component placement mode ---
@@ -2066,12 +2059,12 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
                     self._cancel_placement_mode()
                     return True  # consume event
         
-        # --- Pipet tool ---
-        if self._pipet_mode and et == QtCore.QEvent.Type.GraphicsSceneMousePress:
+        # --- Inspect tool ---
+        if self._inspect_mode and et == QtCore.QEvent.Type.GraphicsSceneMousePress:
             mev = ev  # QGraphicsSceneMouseEvent
             if mev.button() == QtCore.Qt.MouseButton.LeftButton:
                 scene_pt = mev.scenePos()
-                self._handle_pipet_click(scene_pt)
+                self._handle_inspect_click(scene_pt)
                 return True  # consume event
 
         # --- Ruler 2-click placement ---

@@ -1,4 +1,3 @@
-from .refractive_object_item import RefractiveObjectItem
+"""Refractive objects - now handled by generic ComponentItem."""
 
-__all__ = ["RefractiveObjectItem"]
-
+__all__ = []

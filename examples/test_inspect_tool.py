@@ -1,10 +1,10 @@
 """
-Test script for the pipet tool feature.
+Test script for the inspect tool feature.
 
-This script creates a simple optical setup and demonstrates the pipet tool functionality.
+This script creates a simple optical setup and demonstrates the inspect tool functionality.
 To test manually:
 1. Run this script
-2. Click the pipet icon in the toolbar
+2. Click the inspect icon in the toolbar
 3. Click on various rays to see their properties
 4. Notice how polarization changes after passing through optical elements
 """
@@ -19,7 +19,7 @@ from optiverse.objects import SourceItem, MirrorItem, WaveplateItem, Beamsplitte
 
 
 def setup_test_scene(window: MainWindow):
-    """Create a simple optical setup for testing the pipet tool."""
+    """Create a simple optical setup for testing the inspect tool."""
     
     # Clear any existing items
     window.scene.clear()
@@ -97,7 +97,7 @@ def setup_test_scene(window: MainWindow):
     # Show instructions
     QtWidgets.QMessageBox.information(
         window,
-        "Pipet Tool Test",
+        "Inspect Tool Test",
         """Test Setup Complete!
 
 This setup includes:
@@ -106,14 +106,14 @@ This setup includes:
 • Polarizing beamsplitter (splits by polarization)
 • Mirror (reflects one beam)
 
-To test the pipet tool:
-1. Click the pipet icon in the toolbar (eyedropper)
+To test the inspect tool:
+1. Click the inspect icon in the toolbar (eyedropper)
 2. Click on rays at different positions:
    - Before QWP: horizontal linear polarization
    - After QWP: circular polarization (note Stokes V parameter)
    - After PBS: polarization-split beams
 3. Notice how intensity and polarization change!
-4. Click the pipet icon again to deactivate
+4. Click the inspect icon again to deactivate
 
 Have fun exploring! 🔬"""
     )

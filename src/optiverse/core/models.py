@@ -436,6 +436,43 @@ class RefractiveInterface:
 
 
 @dataclass
+class ComponentParams:
+    """
+    Universal component parameters for any optical component.
+    
+    Supports any combination of interface types. Each interface
+    behaves independently based on its element_type.
+    
+    The component is just a container/grouping mechanism - the
+    optical behavior is determined by individual interfaces.
+    """
+    # Position and orientation
+    x_mm: float = 0.0
+    y_mm: float = 0.0
+    angle_deg: float = 0.0
+    
+    # Physical properties
+    object_height_mm: float = 60.0
+    mm_per_pixel: float = 0.1
+    
+    # Display properties
+    name: Optional[str] = None
+    image_path: Optional[str] = None
+    
+    # Optical interfaces (InterfaceDefinition objects)
+    interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
+    
+    # Metadata
+    category: Optional[str] = None
+    notes: Optional[str] = None
+    
+    def __post_init__(self):
+        """Ensure interfaces list exists."""
+        if self.interfaces is None:
+            self.interfaces = []
+
+
+@dataclass
 class RefractiveObjectParams:
     """
     Refractive object with multiple optical interfaces.

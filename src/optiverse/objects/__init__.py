@@ -18,20 +18,8 @@ from .component_sprite import ComponentSprite
 from .component_factory import ComponentFactory
 
 # Optical elements
-from .lenses import LensItem
-from .mirrors import MirrorItem
-from .beamsplitters import BeamsplitterItem
-from .dichroics import DichroicItem
-from .waveplates import WaveplateItem
+from .generic import ComponentItem
 from .sources import SourceItem
-from .refractive import RefractiveObjectItem
-from .blocks.block_item import BlockItem
-
-# Miscellaneous
-from .misc import SLMItem
-
-# Background/decorative items
-from .background import BackgroundItem
 
 # Annotations
 from .annotations import RulerItem, TextNoteItem, RectangleItem
@@ -45,19 +33,9 @@ __all__ = [
     "ComponentSprite",
     # Component factory
     "ComponentFactory",
-    # Optical elements
-    "LensItem",
-    "MirrorItem",
-    "BeamsplitterItem",
-    "DichroicItem",
-    "WaveplateItem",
+    # Optical elements (includes background/decorative items with no interfaces)
+    "ComponentItem",
     "SourceItem",
-    "RefractiveObjectItem",
-    "BlockItem",
-    # Miscellaneous
-    "SLMItem",
-    # Background/decorative items
-    "BackgroundItem",
     # Annotations
     "RulerItem",
     "TextNoteItem",

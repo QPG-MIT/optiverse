@@ -295,10 +295,6 @@ class CollaborationManager(QObject):
             'SourceItem': 'source',
             'LensItem': 'lens',
             'MirrorItem': 'mirror',
-            'BeamsplitterItem': 'beamsplitter',
-            'DichroicItem': 'dichroic',
-            'WaveplateItem': 'waveplate',
-            'SLMItem': 'slm',
             'RulerItem': 'ruler',
             'TextNoteItem': 'text',
         }
@@ -403,17 +399,11 @@ class CollaborationManager(QObject):
         """Create an optical component from remote data."""
         try:
             # Import component classes and params
-            from ..objects.lenses import LensItem
-            from ..objects.mirrors import MirrorItem
+            from ..objects.generic import ComponentItem
             from ..objects.sources import SourceItem
-            from ..objects.beamsplitters import BeamsplitterItem
-            from ..objects.dichroics import DichroicItem
-            from ..objects.waveplates import WaveplateItem
-            from ..objects.misc import SLMItem
             from ..objects.annotations import RulerItem, TextNoteItem
             from ..core.models import (
-                LensParams, MirrorParams, SourceParams, 
-                BeamsplitterParams, DichroicParams, WaveplateParams, SLMParams
+                ComponentParams, SourceParams
             )
             
             # Extract UUID from data
@@ -429,27 +419,13 @@ class CollaborationManager(QObject):
             data_copy.pop('item_type', None)
             
             # Create appropriate params object with default values
-            if item_type == 'lens':
-                params = LensParams()
-                item = LensItem(params, item_uuid)
-            elif item_type == 'mirror':
-                params = MirrorParams()
-                item = MirrorItem(params, item_uuid)
+            if item_type in ['lens', 'mirror', 'beamsplitter', 'dichroic', 'waveplate', 'slm', 'component']:
+                # All optical components now use ComponentItem
+                params = ComponentParams()
+                item = ComponentItem(params, item_uuid)
             elif item_type == 'source':
                 params = SourceParams()
                 item = SourceItem(params, item_uuid)
-            elif item_type == 'beamsplitter':
-                params = BeamsplitterParams()
-                item = BeamsplitterItem(params, item_uuid)
-            elif item_type == 'dichroic':
-                params = DichroicParams()
-                item = DichroicItem(params, item_uuid)
-            elif item_type == 'waveplate':
-                params = WaveplateParams()
-                item = WaveplateItem(params, item_uuid)
-            elif item_type == 'slm':
-                params = SLMParams()
-                item = SLMItem(params, item_uuid)
             elif item_type == 'ruler':
                 # Rulers don't use params system
                 item = RulerItem()

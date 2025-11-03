@@ -7,22 +7,14 @@ component creation to ensure consistency.
 """
 import pytest
 from optiverse.objects.component_factory import ComponentFactory
-from optiverse.objects import (
-    LensItem,
-    MirrorItem,
-    BeamsplitterItem,
-    WaveplateItem,
-    DichroicItem,
-    SLMItem,
-    RefractiveObjectItem,
-)
+from optiverse.objects import ComponentItem
 
 
 class TestComponentFactoryLens:
-    """Tests for creating LensItem from factory."""
+    """Tests for creating ComponentItem with lens interfaces from factory."""
     
     def test_create_lens_basic(self):
-        """Factory creates LensItem from lens interface data."""
+        """Factory creates ComponentItem from lens interface data."""
         data = {
             "name": "Test Lens",
             "image_path": "",
@@ -45,13 +37,14 @@ class TestComponentFactoryLens:
         
         item = ComponentFactory.create_item_from_dict(data, 100.0, 50.0)
         
-        assert isinstance(item, LensItem)
+        assert isinstance(item, ComponentItem)
         assert item.params.x_mm == 100.0
         assert item.params.y_mm == 50.0
         assert item.params.angle_deg == 90.0
         assert item.params.name == "Test Lens"
         assert item.params.object_height_mm == 50.0
         assert len(item.params.interfaces) == 1
+        assert item.params.interfaces[0].element_type == "lens"
     
     def test_create_lens_preserves_all_interfaces(self):
         """Factory preserves all interfaces from data."""
@@ -85,10 +78,12 @@ class TestComponentFactoryLens:
         
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
         
-        assert isinstance(item, LensItem)
+        assert isinstance(item, ComponentItem)
         assert len(item.params.interfaces) == 2
         assert item.params.interfaces[0].name == "Surface 1"
         assert item.params.interfaces[1].name == "Surface 2"
+        assert item.params.interfaces[0].element_type == "lens"
+        assert item.params.interfaces[1].element_type == "lens"
     
     def test_create_lens_default_angle(self):
         """Factory uses default angle for lens when not specified."""
@@ -110,16 +105,16 @@ class TestComponentFactoryLens:
         
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
         
-        assert isinstance(item, LensItem)
-        # Default angle for lens should be 90° (vertical)
-        assert item.params.angle_deg == 90.0
+        assert isinstance(item, ComponentItem)
+        # Default angle is now 0° (native orientation)
+        assert item.params.angle_deg == 0.0
 
 
 class TestComponentFactoryMirror:
-    """Tests for creating MirrorItem from factory."""
+    """Tests for creating ComponentItem with mirror interfaces from factory."""
     
     def test_create_mirror_basic(self):
-        """Factory creates MirrorItem from mirror interface data."""
+        """Factory creates ComponentItem from mirror interface data."""
         data = {
             "name": "Test Mirror",
             "object_height_mm": 80.0,
@@ -137,18 +132,19 @@ class TestComponentFactoryMirror:
         
         item = ComponentFactory.create_item_from_dict(data, 200.0, 100.0)
         
-        assert isinstance(item, MirrorItem)
+        assert isinstance(item, ComponentItem)
         assert item.params.x_mm == 200.0
         assert item.params.y_mm == 100.0
         assert item.params.angle_deg == 45.0
         assert len(item.params.interfaces) == 1
+        assert item.params.interfaces[0].element_type == "mirror"
 
 
 class TestComponentFactoryBeamsplitter:
-    """Tests for creating BeamsplitterItem from factory."""
+    """Tests for creating ComponentItem with beamsplitter interfaces from factory."""
     
     def test_create_beamsplitter_basic(self):
-        """Factory creates BeamsplitterItem from beamsplitter interface."""
+        """Factory creates ComponentItem from beamsplitter interface."""
         data = {
             "name": "50:50 BS",
             "object_height_mm": 60.0,
@@ -170,10 +166,10 @@ class TestComponentFactoryBeamsplitter:
         
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
         
-        assert isinstance(item, BeamsplitterItem)
-        assert item.params.split_T == 50.0
-        assert item.params.split_R == 50.0
-        assert item.params.is_polarizing is False
+        assert isinstance(item, ComponentItem)
+        assert item.params.interfaces[0].split_T == 50.0
+        assert item.params.interfaces[0].split_R == 50.0
+        assert item.params.interfaces[0].is_polarizing is False
     
     def test_create_polarizing_beamsplitter(self):
         """Factory creates polarizing beamsplitter."""
@@ -198,16 +194,16 @@ class TestComponentFactoryBeamsplitter:
         
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
         
-        assert isinstance(item, BeamsplitterItem)
-        assert item.params.is_polarizing is True
-        assert item.params.pbs_transmission_axis_deg == 0.0
+        assert isinstance(item, ComponentItem)
+        assert item.params.interfaces[0].is_polarizing is True
+        assert item.params.interfaces[0].pbs_transmission_axis_deg == 0.0
 
 
 class TestComponentFactoryWaveplate:
-    """Tests for creating WaveplateItem from factory."""
+    """Tests for creating ComponentItem with waveplate interfaces from factory."""
     
     def test_create_waveplate_basic(self):
-        """Factory creates WaveplateItem from waveplate interface."""
+        """Factory creates ComponentItem from waveplate interface."""
         data = {
             "name": "QWP",
             "object_height_mm": 50.0,
@@ -225,16 +221,16 @@ class TestComponentFactoryWaveplate:
         
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
         
-        assert isinstance(item, WaveplateItem)
-        assert item.params.phase_shift_deg == 90.0
-        assert item.params.fast_axis_deg == 0.0
+        assert isinstance(item, ComponentItem)
+        assert item.params.interfaces[0].phase_shift_deg == 90.0
+        assert item.params.interfaces[0].fast_axis_deg == 0.0
 
 
 class TestComponentFactoryDichroic:
-    """Tests for creating DichroicItem from factory."""
+    """Tests for creating ComponentItem with dichroic interfaces from factory."""
     
     def test_create_dichroic_basic(self):
-        """Factory creates DichroicItem from dichroic interface."""
+        """Factory creates ComponentItem from dichroic interface."""
         data = {
             "name": "Dichroic 550nm",
             "object_height_mm": 60.0,
@@ -255,23 +251,23 @@ class TestComponentFactoryDichroic:
         
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
         
-        assert isinstance(item, DichroicItem)
-        assert item.params.cutoff_wavelength_nm == 550.0
-        assert item.params.transition_width_nm == 50.0
-        assert item.params.pass_type == "longpass"
+        assert isinstance(item, ComponentItem)
+        assert item.params.interfaces[0].cutoff_wavelength_nm == 550.0
+        assert item.params.interfaces[0].transition_width_nm == 50.0
+        assert item.params.interfaces[0].pass_type == "longpass"
 
 
 class TestComponentFactorySLM:
-    """Tests for creating SLMItem from factory."""
+    """Tests for creating ComponentItem with mirror interfaces (SLM behavior)."""
     
     def test_create_slm_basic(self):
-        """Factory creates SLMItem from SLM interface."""
+        """Factory creates ComponentItem from SLM-like mirror interface."""
         data = {
             "name": "SLM",
             "object_height_mm": 100.0,
             "angle_deg": 90.0,
             "interfaces": [{
-                "element_type": "slm",
+                "element_type": "mirror",
                 "name": "SLM Surface",
                 "x1_mm": -50.0, "y1_mm": 0.0,
                 "x2_mm": 50.0, "y2_mm": 0.0,
@@ -283,14 +279,15 @@ class TestComponentFactorySLM:
         
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
         
-        assert isinstance(item, SLMItem)
+        assert isinstance(item, ComponentItem)
+        assert item.params.interfaces[0].element_type == "mirror"
 
 
 class TestComponentFactoryRefractiveObject:
-    """Tests for creating RefractiveObjectItem from factory."""
+    """Tests for creating ComponentItem with mixed/refractive interfaces."""
     
     def test_create_refractive_object_mixed_interfaces(self):
-        """Factory creates RefractiveObjectItem for mixed interface types."""
+        """Factory creates ComponentItem for mixed interface types."""
         data = {
             "name": "Beam Splitter Cube",
             "object_height_mm": 60.0,
@@ -332,12 +329,15 @@ class TestComponentFactoryRefractiveObject:
         
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
         
-        # Mixed interface types → RefractiveObjectItem
-        assert isinstance(item, RefractiveObjectItem)
+        # Mixed interface types → ComponentItem with all interfaces preserved
+        assert isinstance(item, ComponentItem)
         assert len(item.params.interfaces) == 3
+        assert item.params.interfaces[0].element_type == "refractive_interface"
+        assert item.params.interfaces[1].element_type == "beam_splitter"
+        assert item.params.interfaces[2].element_type == "refractive_interface"
     
     def test_create_refractive_object_all_refractive(self):
-        """Factory creates RefractiveObjectItem when all interfaces are refractive."""
+        """Factory creates ComponentItem when all interfaces are refractive."""
         data = {
             "name": "Prism",
             "object_height_mm": 80.0,
@@ -366,9 +366,10 @@ class TestComponentFactoryRefractiveObject:
         
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
         
-        # All refractive → RefractiveObjectItem
-        assert isinstance(item, RefractiveObjectItem)
+        # All refractive → ComponentItem with refractive interfaces
+        assert isinstance(item, ComponentItem)
         assert len(item.params.interfaces) == 2
+        assert all(iface.element_type == "refractive_interface" for iface in item.params.interfaces)
 
 
 class TestComponentFactoryAngleDefaults:
@@ -484,8 +485,7 @@ class TestComponentFactoryEdgeCases:
     """Tests for edge cases and error handling."""
     
     def test_missing_interfaces(self):
-        """Factory creates BackgroundItem for component without interfaces."""
-        from ...objects.background import BackgroundItem
+        """Factory creates ComponentItem with empty interfaces for component without interfaces."""
         data = {
             "name": "Invalid Component",
             "object_height_mm": 50.0,
@@ -494,11 +494,11 @@ class TestComponentFactoryEdgeCases:
         
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
         assert item is not None
-        assert isinstance(item, BackgroundItem)
+        assert isinstance(item, ComponentItem)
+        assert len(item.params.interfaces) == 0
     
     def test_empty_interfaces_list(self):
-        """Factory creates BackgroundItem for empty interfaces list."""
-        from ...objects.background import BackgroundItem
+        """Factory creates ComponentItem with empty interfaces for empty interfaces list."""
         data = {
             "name": "Invalid Component",
             "object_height_mm": 50.0,
@@ -507,7 +507,8 @@ class TestComponentFactoryEdgeCases:
         
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
         assert item is not None
-        assert isinstance(item, BackgroundItem)
+        assert isinstance(item, ComponentItem)
+        assert len(item.params.interfaces) == 0
     
     def test_missing_object_height(self):
         """Factory uses default object height when missing."""
