@@ -836,12 +836,12 @@ class ComponentEditor(QtWidgets.QMainWindow):
             return None
         
         if not interfaces:
-            QtWidgets.QMessageBox.warning(
+            QtWidgets.QMessageBox.information(
                 self,
                 "No interfaces",
-                "Add at least one interface to define the component."
+                "This component has no interfaces defined. It will be saved as a decorative/background item with no optical properties."
             )
-            return None
+            # Continue without returning None - allow saving as decorative item
         
         name = self.name_edit.text().strip()
         if not name:

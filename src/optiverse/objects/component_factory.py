@@ -93,8 +93,22 @@ class ComponentFactory:
         # Extract interfaces (source of truth for optical elements)
         interfaces_data = data.get("interfaces", [])
         if not interfaces_data or len(interfaces_data) == 0:
-            # No interfaces defined and not background - invalid component
-            return None
+            # No interfaces defined and not background - treat as decorative/background item
+            name = data.get("name", "Decorative")
+            image_path_raw = data.get("image_path", "")
+            image_path = to_absolute_path(image_path_raw) if image_path_raw else ""
+            object_height_mm = float(data.get("object_height_mm", data.get("object_height", data.get("length_mm", 100.0))))
+            angle_deg = float(data.get("angle_deg", 0.0))
+            
+            params = BackgroundParams(
+                x_mm=x_mm,
+                y_mm=y_mm,
+                angle_deg=angle_deg,
+                object_height_mm=object_height_mm,
+                name=name,
+                image_path=image_path,
+            )
+            return BackgroundItem(params)
         
         # Convert interface data to InterfaceDefinition objects
         interfaces = []

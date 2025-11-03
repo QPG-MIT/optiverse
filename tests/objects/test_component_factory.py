@@ -484,7 +484,8 @@ class TestComponentFactoryEdgeCases:
     """Tests for edge cases and error handling."""
     
     def test_missing_interfaces(self):
-        """Factory returns None for component without interfaces."""
+        """Factory creates BackgroundItem for component without interfaces."""
+        from ...objects.background import BackgroundItem
         data = {
             "name": "Invalid Component",
             "object_height_mm": 50.0,
@@ -492,10 +493,12 @@ class TestComponentFactoryEdgeCases:
         }
         
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
-        assert item is None
+        assert item is not None
+        assert isinstance(item, BackgroundItem)
     
     def test_empty_interfaces_list(self):
-        """Factory returns None for empty interfaces list."""
+        """Factory creates BackgroundItem for empty interfaces list."""
+        from ...objects.background import BackgroundItem
         data = {
             "name": "Invalid Component",
             "object_height_mm": 50.0,
@@ -503,7 +506,8 @@ class TestComponentFactoryEdgeCases:
         }
         
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
-        assert item is None
+        assert item is not None
+        assert isinstance(item, BackgroundItem)
     
     def test_missing_object_height(self):
         """Factory uses default object height when missing."""

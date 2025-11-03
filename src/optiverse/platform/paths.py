@@ -88,6 +88,46 @@ def get_user_library_root() -> Path:
     return library_root
 
 
+def get_all_custom_library_roots() -> list[Path]:
+    """
+    Get all custom component library directories by scanning ComponentLibraries/.
+    
+    Auto-discovers all subdirectories under Documents/Optiverse/ComponentLibraries/
+    allowing users to organize components into multiple libraries (e.g., lab_equipment/,
+    vendor_catalog/, experiments/) without merging everything into user_library/.
+    
+    Returns:
+        List of Path objects for all library directories found under ComponentLibraries/
+    """
+    # Use Qt's DocumentsLocation for cross-platform compatibility
+    docs_location = QtCore.QStandardPaths.writableLocation(
+        QtCore.QStandardPaths.StandardLocation.DocumentsLocation
+    )
+    
+    if not docs_location:
+        # Fallback to home directory
+        home = os.environ.get("USERPROFILE") or os.environ.get("HOME") or str(Path("~").expanduser())
+        docs_location = home
+    
+    # Get the ComponentLibraries parent directory
+    component_libraries_root = Path(docs_location) / "Optiverse" / "ComponentLibraries"
+    
+    # Ensure it exists
+    component_libraries_root.mkdir(parents=True, exist_ok=True)
+    
+    # Scan for all subdirectories
+    library_paths = []
+    try:
+        for item in component_libraries_root.iterdir():
+            if item.is_dir():
+                library_paths.append(item)
+    except Exception:
+        # If scanning fails, return empty list
+        pass
+    
+    return library_paths
+
+
 def get_custom_library_path(library_path: str) -> Optional[Path]:
     """
     Validate and return a custom library path.

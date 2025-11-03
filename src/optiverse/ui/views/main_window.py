@@ -655,10 +655,10 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Load from multiple sources:
         # 1. Built-in library (standard components)
-        # 2. User library (custom components)
+        # 2. All custom libraries (auto-discovered from ComponentLibraries/)
         from ...objects.component_registry import ComponentRegistry
-        from ...objects.definitions_loader import load_component_dicts
-        from ...platform.paths import get_user_library_root
+        from ...objects.definitions_loader import load_component_dicts, load_component_dicts_from_multiple
+        from ...platform.paths import get_all_custom_library_roots
         
         # Load built-in (standard) components
         builtin_records = ComponentRegistry.get_standard_components()
@@ -666,8 +666,9 @@ class MainWindow(QtWidgets.QMainWindow):
         for rec in builtin_records:
             rec["_source"] = "builtin"
         
-        # Load user library components
-        user_records = self.storage_service.load_library()
+        # Load all custom library components from all discovered library folders
+        custom_library_paths = get_all_custom_library_roots()
+        user_records = load_component_dicts_from_multiple(custom_library_paths)
         # Mark as user-created
         for rec in user_records:
             rec["_source"] = "user"
@@ -778,14 +779,23 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         
         if not item:
-            # Invalid component (missing interfaces, etc.)
+            # Should not happen now that ComponentFactory handles interface-less components
             name = rec.get("name", "Unknown")
             QtWidgets.QMessageBox.warning(
                 self,
                 "Invalid Component",
-                f"Cannot create component '{name}': Missing or invalid interface definitions."
+                f"Cannot create component '{name}': Unknown error during creation."
             )
             return
+        
+        # Show info message if component has no interfaces (decorative item)
+        if not rec.get("interfaces") or len(rec.get("interfaces", [])) == 0:
+            name = rec.get("name", "Unknown")
+            QtWidgets.QMessageBox.information(
+                self,
+                "Decorative Component",
+                f"Component '{name}' has no interfaces and will be placed as a decorative item with no optical properties."
+            )
         
         # Connect signals
         item.edited.connect(self._maybe_retrace)
