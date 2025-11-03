@@ -107,10 +107,14 @@ class MoveItemCommand(Command):
     def execute(self) -> None:
         """Move the item to the new position."""
         self.item.setPos(self.new_pos)
+        # Force Qt to update cached transforms (fixes BeamsplitterItem position tracking)
+        self.item.setTransform(self.item.transform())
 
     def undo(self) -> None:
         """Move the item back to the old position."""
         self.item.setPos(self.old_pos)
+        # Force Qt to update cached transforms (fixes BeamsplitterItem position tracking)
+        self.item.setTransform(self.item.transform())
 
 
 class RemoveMultipleItemsCommand(Command):

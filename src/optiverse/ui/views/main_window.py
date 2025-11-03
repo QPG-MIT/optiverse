@@ -1969,13 +1969,27 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
             self._item_rotations.clear()
             self._item_group_states.clear()
             
+            # Get already-selected items
             selected_items = [it for it in self.scene.selectedItems() 
                             if isinstance(it, (BaseObj, RulerItem, TextNoteItem, RectangleItem))]
             
-            # DEBUG: Log what items are being tracked
-            print(f"[DEBUG] Mouse press: {len(selected_items)} items selected")
+            # Also track the item under the mouse cursor (may not be selected yet)
+            clicked_item = self.scene.itemAt(mev.scenePos(), QtGui.QTransform())
+            print(f"[DEBUG] Mouse press: {len(selected_items)} already selected, clicked_item={type(clicked_item).__name__ if clicked_item else None}")
+            
+            # Walk up parent hierarchy to find the actual draggable item (child items like sprites return first)
+            while clicked_item is not None:
+                if isinstance(clicked_item, (BaseObj, RulerItem, TextNoteItem, RectangleItem)):
+                    if clicked_item not in selected_items:
+                        print(f"[DEBUG] Adding clicked item {type(clicked_item).__name__} to tracking")
+                        selected_items.append(clicked_item)
+                    break
+                # Move to parent item
+                clicked_item = clicked_item.parentItem()
+            
+            print(f"[DEBUG] Tracking {len(selected_items)} items total")
             for it in selected_items:
-                print(f"[DEBUG]   - {type(it).__name__} at {it.pos()}, flags: {it.flags()}")
+                print(f"[DEBUG]   - {type(it).__name__} at {it.pos()}")
             
             for it in selected_items:
                 self._item_positions[it] = QtCore.QPointF(it.pos())
@@ -2002,19 +2016,27 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
             # Check if this was a group rotation
             was_group_rotation = bool(self._item_group_states and 'items' in self._item_group_states)
             
-            for it in self.scene.selectedItems():
+            print(f"[DEBUG] Mouse release: {len(self._item_positions)} items tracked")
+            
+            # Iterate over tracked items (not currently selected items, which may have changed)
+            for it in list(self._item_positions.keys()):
                 if isinstance(it, BaseObj) and self.snap_to_grid:
                     p = it.pos()
                     it.setPos(round(p.x()), round(p.y()))
                 
                 # Create move command if item was moved (and not rotated)
-                if it in self._item_positions and it not in self._item_rotations:
+                if it not in self._item_rotations:
                     old_pos = self._item_positions[it]
                     new_pos = it.pos()
                     # Only create command if position actually changed
                     if old_pos != new_pos:
+                        print(f"[DEBUG] Creating move command for {type(it).__name__} from {old_pos} to {new_pos}")
                         cmd = MoveItemCommand(it, old_pos, new_pos)
                         self.undo_stack.push(cmd)
+                    else:
+                        print(f"[DEBUG] No position change for {type(it).__name__}")
+                else:
+                    print(f"[DEBUG] Skipping {type(it).__name__} (was rotated)")
             
             # Handle rotation commands
             if self._item_rotations and not was_group_rotation:
