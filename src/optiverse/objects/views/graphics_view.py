@@ -2,6 +2,18 @@ from __future__ import annotations
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
+try:
+    from PyQt6.QtOpenGLWidgets import QOpenGLWidget
+    OPENGL_AVAILABLE = True
+except ImportError:
+    OPENGL_AVAILABLE = False
+
+try:
+    from .ray_opengl_widget import RayOpenGLWidget
+    RAY_OPENGL_AVAILABLE = True
+except ImportError:
+    RAY_OPENGL_AVAILABLE = False
+
 from ...platform.paths import is_macos
 
 
@@ -10,6 +22,20 @@ class GraphicsView(QtWidgets.QGraphicsView):
 
     def __init__(self, scene: QtWidgets.QGraphicsScene | None = None):
         super().__init__(scene)
+        
+        # Enable OpenGL-accelerated viewport for GPU rendering
+        if OPENGL_AVAILABLE:
+            try:
+                gl_widget = QOpenGLWidget()
+                self.setViewport(gl_widget)
+                print("✅ OpenGL viewport enabled - GPU-accelerated canvas rendering")
+            except Exception as e:
+                print(f"⚠️  Failed to enable OpenGL viewport: {e}")
+                print("   Falling back to software rendering")
+        else:
+            print("⚠️  PyOpenGL not available - using software rendering")
+            print("   Install with: pip install PyOpenGL")
+        
         self.setRenderHints(
             QtGui.QPainter.RenderHint.Antialiasing | QtGui.QPainter.RenderHint.TextAntialiasing
         )
@@ -70,6 +96,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
         
         # Dark mode state
         self._dark_mode = self._detect_system_dark_mode() if is_macos() else False
+        
+        # OpenGL ray overlay widget (created on demand)
+        self._ray_gl_widget = None
     
     def _detect_system_dark_mode(self) -> bool:
         """Detect if macOS is in dark mode."""
@@ -124,6 +153,8 @@ class GraphicsView(QtWidgets.QGraphicsView):
                     self.zoomChanged.emit()
                     # Force viewport update for clean grid rendering
                     self.viewport().update()
+                    # Sync ray overlay transform
+                    self._update_ray_gl_transform()
                     e.accept()
                     return
             else:
@@ -151,6 +182,8 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 
                 self.zoomChanged.emit()
                 self.viewport().update()
+                # Sync ray overlay transform
+                self._update_ray_gl_transform()
                 e.accept()
                 return
         
@@ -186,6 +219,10 @@ class GraphicsView(QtWidgets.QGraphicsView):
         super().resizeEvent(e)
         self.zoomChanged.emit()
         self.viewport().update()
+        # Resize and sync ray overlay
+        if self._ray_gl_widget is not None:
+            self._ray_gl_widget.setGeometry(self.viewport().rect())
+            self._update_ray_gl_transform()
     
     def viewportEvent(self, event: QtCore.QEvent) -> bool:
         """Handle gesture events for Mac trackpad support."""
@@ -244,10 +281,14 @@ class GraphicsView(QtWidgets.QGraphicsView):
             self.zoomChanged.emit()
             # Force viewport update for clean grid rendering
             self.viewport().update()
+            # Sync ray overlay transform
+            self._update_ray_gl_transform()
         
         elif state == QtCore.Qt.GestureState.GestureFinished:
             # Final update
             self.viewport().update()
+            # Sync ray overlay transform
+            self._update_ray_gl_transform()
         
         return True
 
@@ -797,5 +838,49 @@ class GraphicsView(QtWidgets.QGraphicsView):
             self.setTransformationAnchor(self.ViewportAnchor.AnchorUnderMouse)
         else:
             super().mouseReleaseEvent(e)
+    
+    # ----- OpenGL Ray Overlay Methods -----
+    def _create_ray_overlay(self):
+        """Create the OpenGL ray overlay widget."""
+        if not RAY_OPENGL_AVAILABLE:
+            print("⚠️  OpenGL ray overlay not available - rays will use software rendering")
+            return
+        
+        try:
+            self._ray_gl_widget = RayOpenGLWidget(self)
+            # Position overlay to cover entire viewport
+            self._ray_gl_widget.setGeometry(self.viewport().rect())
+            self._ray_gl_widget.show()
+            # Sync initial transform
+            self._update_ray_gl_transform()
+            print("✅ OpenGL ray overlay created - hardware-accelerated ray rendering enabled")
+        except Exception as e:
+            print(f"⚠️  Failed to create OpenGL ray overlay: {e}")
+            self._ray_gl_widget = None
+    
+    def update_ray_overlay(self, ray_paths: list, width_px: float):
+        """
+        Update rays in the OpenGL overlay.
+        
+        Args:
+            ray_paths: List of RayPath objects
+            width_px: Line width in pixels
+        """
+        if self._ray_gl_widget is not None:
+            self._ray_gl_widget.update_rays(ray_paths, width_px)
+    
+    def clear_ray_overlay(self):
+        """Clear all rays from the OpenGL overlay."""
+        if self._ray_gl_widget is not None:
+            self._ray_gl_widget.clear()
+    
+    def _update_ray_gl_transform(self):
+        """Sync view transform to OpenGL ray widget."""
+        if self._ray_gl_widget is not None:
+            self._ray_gl_widget.set_view_transform(self.transform())
+    
+    def has_ray_overlay(self) -> bool:
+        """Check if OpenGL ray overlay is available."""
+        return self._ray_gl_widget is not None
 
 

@@ -503,6 +503,21 @@ def main() -> int:
     # This must be set BEFORE creating QApplication
     os.environ['QT_IMAGEIO_MAXALLOC'] = '1024'  # In MB
     
+    # Configure OpenGL surface format BEFORE creating QApplication
+    # This ensures all OpenGL widgets use the same format with antialiasing
+    try:
+        fmt = QtGui.QSurfaceFormat()
+        fmt.setDepthBufferSize(24)
+        fmt.setStencilBufferSize(8)
+        fmt.setSamples(4)  # 4x MSAA for antialiasing
+        fmt.setVersion(2, 1)  # OpenGL 2.1 for macOS compatibility
+        fmt.setProfile(QtGui.QSurfaceFormat.OpenGLContextProfile.CompatibilityProfile)
+        fmt.setAlphaBufferSize(8)  # Enable alpha channel for transparency
+        QtGui.QSurfaceFormat.setDefaultFormat(fmt)
+        print("✅ OpenGL surface format configured: 4x MSAA, OpenGL 2.1")
+    except Exception as e:
+        print(f"⚠️  Failed to configure OpenGL format: {e}")
+    
     # On macOS, change sys.argv[0] to set the app name in the menu bar
     # This must be done BEFORE creating QApplication
     original_argv0 = sys.argv[0]
