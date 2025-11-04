@@ -27,6 +27,8 @@ class GraphicsView(QtWidgets.QGraphicsView):
         if OPENGL_AVAILABLE:
             try:
                 gl_widget = QOpenGLWidget()
+                # Configure for proper background rendering
+                gl_widget.setAutoFillBackground(False)  # Let QGraphicsView draw background
                 self.setViewport(gl_widget)
                 print("✅ OpenGL viewport enabled - GPU-accelerated canvas rendering")
             except Exception as e:
@@ -842,21 +844,14 @@ class GraphicsView(QtWidgets.QGraphicsView):
     # ----- OpenGL Ray Overlay Methods -----
     def _create_ray_overlay(self):
         """Create the OpenGL ray overlay widget."""
-        if not RAY_OPENGL_AVAILABLE:
-            print("⚠️  OpenGL ray overlay not available - rays will use software rendering")
-            return
-        
-        try:
-            self._ray_gl_widget = RayOpenGLWidget(self)
-            # Position overlay to cover entire viewport
-            self._ray_gl_widget.setGeometry(self.viewport().rect())
-            self._ray_gl_widget.show()
-            # Sync initial transform
-            self._update_ray_gl_transform()
-            print("✅ OpenGL ray overlay created - hardware-accelerated ray rendering enabled")
-        except Exception as e:
-            print(f"⚠️  Failed to create OpenGL ray overlay: {e}")
-            self._ray_gl_widget = None
+        # Using QGraphicsPathItem through OpenGL viewport instead of separate overlay
+        # When QGraphicsView has a QOpenGLWidget viewport, all QPainter operations
+        # (including QGraphicsPathItem) are GPU-accelerated automatically
+        if OPENGL_AVAILABLE:
+            print("✅ Ray rendering via OpenGL viewport (GPU-accelerated)")
+        else:
+            print("ℹ️  Using software ray rendering (no OpenGL)")
+        self._ray_gl_widget = None
     
     def update_ray_overlay(self, ray_paths: list, width_px: float):
         """

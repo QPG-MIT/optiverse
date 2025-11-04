@@ -1124,8 +1124,26 @@ class MainWindow(QtWidgets.QMainWindow):
                 path.lineTo(q[0], q[1])
             item = QtWidgets.QGraphicsPathItem(path)
             r, g, b, a = p.rgba
-            pen = QtGui.QPen(QtGui.QColor(r, g, b, a))
-            pen.setWidthF(self._ray_width_px)
+            
+            # Boost saturation and brightness for OpenGL viewport (colors appear darker in OpenGL)
+            # Convert to HSV, increase saturation and value significantly, convert back
+            color = QtGui.QColor(r, g, b, a)
+            h, s, v, alpha = color.getHsv()
+            # Only boost HSV if OpenGL is used
+            SATURATION_BOOST_FACTOR = 1.3
+            VALUE_BOOST_FACTOR = 1.2
+            HSV_MAX = 255
+            RAY_WIDTH_OPENGL_SCALE = 2.0
+
+            if self.view.has_ray_overlay():
+                s = min(HSV_MAX, int(s * SATURATION_BOOST_FACTOR))
+                v = min(HSV_MAX, int(v * VALUE_BOOST_FACTOR))
+                color.setHsv(h, s, v, alpha)
+            
+            pen = QtGui.QPen(color)
+            # OpenGL viewport makes lines appear thinner, so increase width
+            # Use a scale factor to compensate (RAY_WIDTH_OPENGL_SCALE)
+            pen.setWidthF(self._ray_width_px * RAY_WIDTH_OPENGL_SCALE)
             pen.setCosmetic(True)
             item.setPen(pen)
             item.setZValue(10)
