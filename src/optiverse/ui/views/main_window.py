@@ -8,15 +8,8 @@ import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import (
-    BeamsplitterParams,
-    DichroicParams,
-    LensParams,
-    MirrorParams,
-    SLMParams,
-    WaveplateParams,
-    RefractiveObjectParams,
-    OpticalElement,
     SourceParams,
+    OpticalElement
 )
 from ...core.snap_helper import SnapHelper
 from ...core.undo_commands import AddItemCommand, MoveItemCommand, RemoveItemCommand, RemoveMultipleItemsCommand, PasteItemsCommand, RotateItemCommand, RotateItemsCommand
@@ -157,10 +150,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.autotrace = True
         self._inspect_mode = False  # Track if inspect tool is active
         
+        # Debouncing for autotrace to prevent excessive retrace calls
+        self._retrace_pending = False
+        self._retrace_timer = QtCore.QTimer()
+        self._retrace_timer.setSingleShot(True)
+        RETRACE_DEBOUNCE_DELAY_MS = 1  # debounce delay
+        self._retrace_timer.setInterval(RETRACE_DEBOUNCE_DELAY_MS)
+        self._retrace_timer.timeout.connect(self._do_retrace)
+        
         # Component placement mode
         self._placement_mode = False  # Track if component placement mode is active
         self._placement_type = None  # Type of component being placed ("source", "lens", "mirror", "beamsplitter", "waveplate", "text")
         self._placement_ghost = None  # Ghost item for preview
+        
+        # Cache standard component templates for toolbar placement
+        # Maps toolbar type strings to library component data
+        self._component_templates = {}
         
         # NEW: Feature flag for polymorphic raytracing engine
         # Set to True to use new polymorphic system (Phase 1-3 complete)
@@ -672,6 +677,22 @@ class MainWindow(QtWidgets.QMainWindow):
         # Combine all records
         all_records = builtin_records + user_records
         
+        # Cache standard component templates for toolbar placement
+        # Map toolbar type strings to library component data
+        self._component_templates = {}
+        for rec in all_records:
+            name = rec.get("name", "")
+            # Map specific standard components to toolbar types
+            if "Standard Lens" in name:
+                if "lens" not in self._component_templates:  # Use first standard lens found
+                    self._component_templates["lens"] = rec
+            elif "Standard Mirror" in name:
+                if "mirror" not in self._component_templates:  # Use first standard mirror found
+                    self._component_templates["mirror"] = rec
+            elif "Standard Beamsplitter" in name:
+                if "beamsplitter" not in self._component_templates:  # Use first standard beamsplitter found
+                    self._component_templates["beamsplitter"] = rec
+        
         # Organize by category
         categories = {
             "Lenses": [],
@@ -799,9 +820,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # Broadcast addition to collaboration
         self.collaboration_manager.broadcast_add_item(item)
         
-        # Trigger ray tracing if enabled
-        if self.autotrace:
-            self.retrace()
+        # Trigger ray tracing if enabled (with debouncing)
+        self._schedule_retrace()
 
     # ----- Insert elements -----
     def delete_selected(self):
@@ -843,8 +863,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 cmd = RemoveMultipleItemsCommand(self.scene, items_to_delete)
             self.undo_stack.push(cmd)
         
-        if self.autotrace:
-            self.retrace()
+        self._schedule_retrace()
 
     def copy_selected(self):
         """Copy selected items to clipboard."""
@@ -910,20 +929,17 @@ class MainWindow(QtWidgets.QMainWindow):
             for item in pasted_items:
                 item.setSelected(True)
             
-            if self.autotrace:
-                self.retrace()
+            self._schedule_retrace()
 
     def _do_undo(self):
         """Undo last action and retrace rays."""
         self.undo_stack.undo()
-        if self.autotrace:
-            self.retrace()
+        self._schedule_retrace()
 
     def _do_redo(self):
         """Redo last undone action and retrace rays."""
         self.undo_stack.redo()
-        if self.autotrace:
-            self.retrace()
+        self._schedule_retrace()
 
     def start_place_ruler(self):
         """Enter ruler placement mode (two-click)."""
@@ -963,6 +979,26 @@ class MainWindow(QtWidgets.QMainWindow):
                 pass
         self.ray_items.clear()
         self.ray_data.clear()
+
+    def _schedule_retrace(self):
+        """
+        Schedule a retrace with debouncing to prevent excessive calls.
+        
+        This method prevents framerate issues by:
+        - Only scheduling one retrace at a time (prevents queue buildup)
+        - Adding a 50ms delay to batch rapid changes together
+        - Checking if autotrace is enabled before scheduling
+        """
+        if not self.autotrace:
+            return
+        if not self._retrace_pending:
+            self._retrace_pending = True
+            self._retrace_timer.start()
+    
+    def _do_retrace(self):
+        """Execute the actual retrace (called by timer after debounce delay)."""
+        self._retrace_pending = False
+        self.retrace()
 
     def retrace(self):
         """
@@ -1303,9 +1339,8 @@ class MainWindow(QtWidgets.QMainWindow):
             return None
 
     def _maybe_retrace(self):
-        """Retrace if autotrace is enabled."""
-        if self.autotrace:
-            self.retrace()
+        """Retrace if autotrace is enabled (with debouncing)."""
+        self._schedule_retrace()
 
     # ----- Save / Load -----
     def save_assembly(self):
@@ -1417,14 +1452,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self._saved_file_path = path
         self._mark_clean()
         
-        self.retrace()
+        self._schedule_retrace()
 
     # ----- Settings -----
     def _toggle_autotrace(self, on: bool):
         """Toggle auto-trace."""
         self.autotrace = on
         if on:
-            self.retrace()
+            self._schedule_retrace()
 
     def _toggle_snap(self, on: bool):
         """Toggle snap to grid."""
@@ -1585,38 +1620,34 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Create ghost based on component type
         if component_type == "source":
+            # Source is a special case - still uses SourceItem directly
             params = SourceParams(x_mm=scene_pos.x(), y_mm=scene_pos.y())
             ghost = SourceItem(params)
-        elif component_type == "lens":
-            params = LensParams(
+        elif component_type in ("lens", "mirror", "beamsplitter"):
+            # Use ComponentFactory with library templates for interface-based components
+            from ...objects.component_factory import ComponentFactory
+            
+            # Get template from library cache
+            template = self._component_templates.get(component_type)
+            if template is None:
+                # Fallback: if template not found, just return (shouldn't happen)
+                self.log_service.warning(f"No template found for component type: {component_type}", "Placement")
+                return
+            
+            # Create a copy of the template without the sprite image
+            # This ensures we see the interface lines directly, not a background image
+            template_copy = dict(template)
+            template_copy["image_path"] = ""  # Remove sprite to show interface lines only
+            
+            # Create component from template using ComponentFactory
+            ghost = ComponentFactory.create_item_from_dict(
+                template_copy,
                 x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                efl_mm=100.0,
-                object_height_mm=60.0,
-                angle_deg=90.0,
-                name="Lens"
+                y_mm=scene_pos.y()
             )
-            ghost = LensItem(params)
-        elif component_type == "mirror":
-            params = MirrorParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                object_height_mm=80.0,
-                angle_deg=45.0,
-                name="Mirror"
-            )
-            ghost = MirrorItem(params)
-        elif component_type == "beamsplitter":
-            params = BeamsplitterParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                split_T=50.0,
-                split_R=50.0,
-                object_height_mm=80.0,
-                angle_deg=45.0,
-                name="Beamsplitter"
-            )
-            ghost = BeamsplitterItem(params)
+            if ghost is None:
+                self.log_service.error(f"Failed to create ghost for component type: {component_type}", "Placement")
+                return
         elif component_type == "text":
             ghost = TextNoteItem("Text")
             ghost.setPos(scene_pos)
@@ -1664,38 +1695,34 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Create the component based on type
         if component_type == "source":
+            # Source is a special case - still uses SourceItem directly
             params = SourceParams(x_mm=scene_pos.x(), y_mm=scene_pos.y())
             item = SourceItem(params)
-        elif component_type == "lens":
-            params = LensParams(
+        elif component_type in ("lens", "mirror", "beamsplitter"):
+            # Use ComponentFactory with library templates for interface-based components
+            from ...objects.component_factory import ComponentFactory
+            
+            # Get template from library cache
+            template = self._component_templates.get(component_type)
+            if template is None:
+                # Fallback: if template not found, log error and return
+                self.log_service.error(f"No template found for component type: {component_type}", "Placement")
+                return
+            
+            # Create a copy of the template without the sprite image
+            # This ensures we see the interface lines directly, not a background image
+            template_copy = dict(template)
+            template_copy["image_path"] = ""  # Remove sprite to show interface lines only
+            
+            # Create component from template using ComponentFactory
+            item = ComponentFactory.create_item_from_dict(
+                template_copy,
                 x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                efl_mm=100.0,
-                object_height_mm=60.0,
-                angle_deg=90.0,
-                name="Lens"
+                y_mm=scene_pos.y()
             )
-            item = LensItem(params)
-        elif component_type == "mirror":
-            params = MirrorParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                object_height_mm=80.0,
-                angle_deg=45.0,
-                name="Mirror"
-            )
-            item = MirrorItem(params)
-        elif component_type == "beamsplitter":
-            params = BeamsplitterParams(
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y(),
-                split_T=50.0,
-                split_R=50.0,
-                object_height_mm=80.0,
-                angle_deg=45.0,
-                name="Beamsplitter"
-            )
-            item = BeamsplitterItem(params)
+            if item is None:
+                self.log_service.error(f"Failed to create component for type: {component_type}", "Placement")
+                return
         elif component_type == "text":
             item = TextNoteItem("Text")
             item.setPos(scene_pos)
@@ -1720,9 +1747,9 @@ class MainWindow(QtWidgets.QMainWindow):
         if component_type not in ("text", "rectangle"):
             self.collaboration_manager.broadcast_add_item(item)
         
-        # Retrace if enabled (only for optical components)
-        if self.autotrace and component_type not in ("text", "rectangle"):
-            self.retrace()
+        # Retrace if enabled (only for optical components, with debouncing)
+        if component_type not in ("text", "rectangle"):
+            self._schedule_retrace()
         
         # Force Qt to update its internal mouse position tracking by sending a synthetic mouse move
         # This ensures zoom-to-cursor works correctly after placing a component
@@ -1903,8 +1930,7 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
     def _set_ray_width(self, v: float):
         """Set ray width and retrace."""
         self._ray_width_px = float(v)
-        if self.autotrace:
-            self.retrace()
+        self._schedule_retrace()
 
     def _choose_ray_width(self):
         """Show custom ray width dialog."""
@@ -2257,16 +2283,10 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
             self._item_positions.clear()
             self._item_rotations.clear()
             self._item_group_states.clear()
-            if self.autotrace:
-                QtCore.QTimer.singleShot(0, self.retrace)
-        elif et in (
-            QtCore.QEvent.Type.GraphicsSceneMouseMove,
-            QtCore.QEvent.Type.GraphicsSceneWheel,
-            QtCore.QEvent.Type.GraphicsSceneDragLeave,
-            QtCore.QEvent.Type.GraphicsSceneDrop,
-        ):
-            if self.autotrace:
-                QtCore.QTimer.singleShot(0, self.retrace)
+            self._schedule_retrace()
+        # Removed: Mouse move and wheel events no longer trigger retrace
+        # This fixes framerate bottleneck (was causing 60-120+ retraces/second)
+        # Retrace only happens when items are actually moved (on mouse release above)
 
         return super().eventFilter(obj, ev)
     
@@ -2404,9 +2424,8 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
             if hasattr(item, 'item_uuid'):
                 self.collaboration_manager.item_uuid_map[item.item_uuid] = item
             
-            # Retrace if autotrace is on
-            if self.autotrace:
-                QtCore.QTimer.singleShot(50, self.retrace)
+            # Retrace if autotrace is on (with debouncing)
+            self._schedule_retrace()
         except Exception as e:
             print(f"Error adding remote item: {e}")
     
