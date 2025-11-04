@@ -277,9 +277,12 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
         self.setZValue(-100)
         self.setOpacity(0.95)
         self.setTransformationMode(QtCore.Qt.TransformationMode.SmoothTransformation)
-        # Use NoCache to avoid artifacts (similar to rulers)
-        # High-res pixmap + GPU scaling gives excellent performance
-        self.setCacheMode(QtWidgets.QGraphicsItem.CacheMode.NoCache)
+        # Use device coordinate cache for better performance
+        # Cache is invalidated when selection state changes
+        self.setCacheMode(QtWidgets.QGraphicsItem.CacheMode.DeviceCoordinateCache)
+        
+        # Track parent selection state for cache invalidation
+        self._parent_was_selected = False
 
     def paint(self, p: QtGui.QPainter, opt, widget=None):
         """
@@ -288,12 +291,20 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
         When parent item is selected, draw a translucent blue overlay
         to provide clear visual feedback.
         """
+        # Check if parent selection state changed
+        par = self.parentItem()
+        is_selected = (par is not None and par.isSelected())
+        
+        # Invalidate cache if selection state changed
+        if is_selected != self._parent_was_selected:
+            self._parent_was_selected = is_selected
+            self.update()  # Force cache refresh
+        
         # Draw the pixmap
         super().paint(p, opt, widget)
 
         # Add blue tint if parent is selected
-        par = self.parentItem()
-        if par is not None and par.isSelected():
+        if is_selected:
             p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
             p.setPen(QtCore.Qt.PenStyle.NoPen)
             p.setBrush(QtGui.QColor(30, 144, 255, 70))  # Translucent blue
