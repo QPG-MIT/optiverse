@@ -15,7 +15,7 @@ dependencies = [
   "PyQt6-WebEngine>=6.5",
   "numpy>=1.24",
   "numba>=0.58",  # JIT compilation for 4-8x raytracing speedup (Python 3.9-3.11)
-  "PyOpenGL>=3.1.7",  # Hardware-accelerated ray rendering (100x+ speedup)
+  "PyOpenGL>=3.1.10",  # Hardware-accelerated ray rendering (100x+ speedup)
   "websockets>=12.0",
   "pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'",  # macOS menu bar app name
 ]
