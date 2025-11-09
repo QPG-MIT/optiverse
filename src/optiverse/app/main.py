@@ -518,29 +518,43 @@ def main() -> int:
     except Exception as e:
         print(f"⚠️  Failed to configure OpenGL format: {e}")
     
-    # On macOS, change sys.argv[0] to set the app name in the menu bar
-    # This must be done BEFORE creating QApplication
+    # On macOS, set the app name in the menu bar
+    # Multiple approaches are needed because macOS is finicky about this
+    
+    # Method 1: Change sys.argv[0] BEFORE creating QApplication
     original_argv0 = sys.argv[0]
     sys.argv[0] = 'Optiverse'
     
-    # Also try to set process name via pyobjc if available
+    # Method 2: Use pyobjc to set process name (macOS only)
     try:
         from Foundation import NSProcessInfo
         processInfo = NSProcessInfo.processInfo()
         processInfo.setProcessName_('Optiverse')
+        print("✅ macOS process name set to 'Optiverse' via pyobjc")
     except ImportError:
-        pass
+        print("⚠️  pyobjc not available - app name in menu bar may show as 'Python'")
+    except Exception as e:
+        print(f"⚠️  Failed to set macOS process name: {e}")
     
     # Minimal app that opens the main window (Qt6 enables high DPI by default)
     app = QtWidgets.QApplication(sys.argv)
     
-    # Restore original argv[0] after QApplication creation in case something needs it
+    # Restore original argv[0] after QApplication creation
     sys.argv[0] = original_argv0
     
-    # Set application name (for Qt internals and other purposes)
+    # Method 3: Set Qt application metadata
     app.setApplicationName("Optiverse")
     app.setApplicationDisplayName("Optiverse")
     app.setOrganizationName("Optiverse")
+    app.setOrganizationDomain("optiverse.app")
+    
+    # Method 4: Try to set macOS NSApp activation policy after QApplication is created
+    try:
+        from AppKit import NSRunningApplication
+        NSRunningApplication.currentApplication().activateWithOptions_(1 << 1)  # NSApplicationActivateIgnoringOtherApps
+        print("✅ macOS NSApp activation configured")
+    except Exception as e:
+        print(f"⚠️  Failed to configure NSApp: {e}")
     
     # Set application icon
     from pathlib import Path

@@ -1,0 +1,20 @@
+# Generated Resources
+
+This directory contains auto-generated platform-specific application icons.
+
+## Files
+
+- `optiverse.icns` - macOS icon bundle (multiple resolutions)
+- `optiverse.ico` - Windows icon (multiple resolutions)
+
+## Generation
+
+Run the icon creation script to generate these files:
+
+```bash
+python scripts/create_icon.py
+```
+
+Source: `src/optiverse/ui/icons/optiverse.png`
+
+These files are gitignored and generated on each developer's machine.

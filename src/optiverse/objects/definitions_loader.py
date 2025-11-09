@@ -30,13 +30,14 @@ def _iter_component_json_files(library_path: Optional[Path] = None) -> List[Path
     return [p for p in root.iterdir() if p.is_dir() and (p / "component.json").exists()]
 
 
-def load_component_records(library_path: Optional[Path] = None) -> List[ComponentRecord]:
+def load_component_records(library_path: Optional[Path] = None, settings_service=None) -> List[ComponentRecord]:
     """
     Load components from per-object folders into typed ComponentRecord objects.
     Skips invalid or unreadable component definitions.
     
     Args:
         library_path: Optional custom library path. If None, uses built-in library.
+        settings_service: Optional SettingsService for path resolution
     
     Returns:
         List of ComponentRecord objects
@@ -63,7 +64,7 @@ def load_component_records(library_path: Optional[Path] = None) -> List[Componen
                     abs_path = (folder / image_path).resolve()
                     data["image_path"] = str(abs_path)
             
-            rec = deserialize_component(data)
+            rec = deserialize_component(data, settings_service)
             if rec is not None:
                 records.append(rec)
         except Exception:
@@ -72,7 +73,7 @@ def load_component_records(library_path: Optional[Path] = None) -> List[Componen
     return records
 
 
-def load_component_records_from_multiple(library_paths: List[Union[str, Path]]) -> List[ComponentRecord]:
+def load_component_records_from_multiple(library_paths: List[Union[str, Path]], settings_service=None) -> List[ComponentRecord]:
     """
     Load components from multiple library paths.
     
@@ -88,7 +89,7 @@ def load_component_records_from_multiple(library_paths: List[Union[str, Path]]) 
         try:
             path = Path(lib_path) if isinstance(lib_path, str) else lib_path
             if path.exists() and path.is_dir():
-                records = load_component_records(path)
+                records = load_component_records(path, settings_service)
                 all_records.extend(records)
         except Exception as e:
             print(f"[definitions_loader] Failed to load from {lib_path}: {e}")

@@ -4,19 +4,56 @@ Modern, modular rewrite of the 2D ray‑optics sandbox and component editor.
 
 ## Installation
 
+### macOS (Recommended)
+
 ```bash
-# Create and activate virtual environment
+# 1. Clone the repository
+git clone https://github.com/QPG-MIT/optiverse.git
+cd optiverse
+
+# 2. Create conda environment (recommended for best compatibility)
+conda create -n optiverse python=3.11
+conda activate optiverse
+
+# 3. Install dependencies
+pip install -e .
+pip install pyobjc-framework-Cocoa  # For native macOS menu bar integration
+
+# 4. Run the setup script to create the app bundle
+python tools/setup_macos_app.py
+
+# 5. Launch Optiverse
+open Optiverse.app
+```
+
+### Windows/Linux or Python venv
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/QPG-MIT/optiverse.git
+cd optiverse
+
+# 2. Create and activate virtual environment
 python -m venv .venv
 
 # Windows:
 .venv\Scripts\activate
-# Mac/Linux:
+# Linux:
 source .venv/bin/activate
 
-# Install in editable mode with all dependencies
+# 3. Install in editable mode with all dependencies
 pip install -e .
 
-# Or with development tools (testing, linting, type checking):
+# 4. Launch Optiverse
+python -m optiverse.app.main
+# or simply:
+optiverse
+```
+
+### Development Installation
+
+```bash
+# Install with development tools (testing, linting, type checking):
 pip install -e .[dev]
 ```
 
@@ -33,13 +70,34 @@ pip install -e .[dev]
 
 ## Quickstart
 
-- Launch app:
-  - `python -m optiverse.app.main` or `optiverse`
-- Run tests:
-  - `pytest -q`
-- Lint, typecheck:
-  - `ruff check .`
-  - `mypy src/`
+### macOS
+```bash
+# Launch via app bundle (shows as "Optiverse" in menu bar)
+open Optiverse.app
+
+# Or use command line
+optiverse
+```
+
+**First time setup:**
+```bash
+python tools/setup_macos_app.py  # Creates Optiverse.app (one-time)
+```
+
+### Windows / Linux
+```bash
+# Launch via entry point
+optiverse
+
+# Or directly
+python -m optiverse.app.main
+```
+
+### Development
+- Run tests: `pytest -q`
+- Lint: `ruff check .`
+- Type check: `mypy src/`
+- Create icons: `python scripts/create_icon.py` (requires Pillow)
 
 ## Performance
 

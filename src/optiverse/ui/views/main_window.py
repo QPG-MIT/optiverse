@@ -188,8 +188,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._item_group_states: dict = {}  # For group rotation tracking
 
         # Services
-        self.storage_service = StorageService()
         self.settings_service = SettingsService()
+        self.storage_service = StorageService(settings_service=self.settings_service)
         self.undo_stack = UndoStack()
         self.collaboration_manager = CollaborationManager(self)
         self.log_service = get_log_service()
@@ -339,6 +339,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_paste.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         self.act_paste.triggered.connect(self.paste_items)
         self.act_paste.setEnabled(False)
+        
+        # --- Preferences ---
+        self.act_preferences = QtGui.QAction("Preferences...", self)
+        self.act_preferences.setShortcut(QtGui.QKeySequence.StandardKey.Preferences)
+        self.act_preferences.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
+        self.act_preferences.triggered.connect(self.open_preferences)
+        # On macOS, mark as preferences action so it goes to the app menu
+        self.act_preferences.setMenuRole(QtGui.QAction.MenuRole.PreferencesRole)
 
         # Connect undo stack signals to update action states
         self.undo_stack.canUndoChanged.connect(self.act_undo.setEnabled)
@@ -561,6 +569,8 @@ class MainWindow(QtWidgets.QMainWindow):
         mEdit.addAction(self.act_paste)
         mEdit.addSeparator()
         mEdit.addAction(self.act_delete)
+        mEdit.addSeparator()
+        mEdit.addAction(self.act_preferences)
 
         # Insert menu (Phase 3.2: Better menu organization)
         mInsert = mb.addMenu("&Insert")
@@ -1995,6 +2005,22 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
                 f"User library location:\n{library_path}\n\n"
                 f"(Could not open folder automatically: {str(e)})"
             )
+    
+    def open_preferences(self):
+        """Open preferences/settings dialog."""
+        from .settings_dialog import SettingsDialog
+        
+        dialog = SettingsDialog(self.settings_service, self)
+        dialog.settings_changed.connect(self._on_settings_changed)
+        dialog.exec()
+    
+    def _on_settings_changed(self):
+        """Handle settings changes."""
+        # Reload library to pick up new library paths
+        self.populate_library()
+        
+        # Log the change
+        self.log_service.info("Settings updated - library reloaded", "Settings")
     
     def import_component_library(self):
         """Import components from another library folder."""

@@ -10,7 +10,12 @@ from __future__ import annotations
 from dataclasses import fields
 from typing import Dict, Any, Optional, Type
 
-from ..platform.paths import to_relative_path, to_absolute_path
+from ..platform.paths import (
+    to_relative_path, 
+    to_absolute_path, 
+    make_library_relative,
+    get_all_library_roots
+)
 from ..core.interface_definition import InterfaceDefinition
 
 
@@ -108,9 +113,34 @@ def serialize_item(item) -> Dict[str, Any]:
     # Add type marker
     d["_type"] = item.type_name
     
-    # Convert image path to relative if within package
+    # Convert image path to library-relative (preferred) or package-relative
     if "image_path" in d and d["image_path"]:
-        d["image_path"] = to_relative_path(d["image_path"])
+        # Try to get library roots from the item's scene/view context
+        library_roots = None
+        try:
+            # Get the scene from the item
+            scene = item.scene()
+            if scene:
+                # Get all views for this scene
+                views = scene.views()
+                if views:
+                    # Get the main window from the view
+                    view = views[0]
+                    main_window = view.window()
+                    if hasattr(main_window, 'settings'):
+                        library_roots = get_all_library_roots(main_window.settings)
+        except Exception:
+            # If we can't get library roots, that's okay - will fall back to package-relative
+            pass
+        
+        # Try library-relative first (for user components)
+        lib_relative = make_library_relative(d["image_path"], library_roots)
+        if lib_relative:
+            # Successfully converted to library-relative format
+            d["image_path"] = lib_relative
+        else:
+            # Fall back to package-relative (for built-in components)
+            d["image_path"] = to_relative_path(d["image_path"])
     
     # Explicitly serialize interfaces using their to_dict() method
     if "interfaces" in d and d["interfaces"]:
@@ -147,9 +177,13 @@ def deserialize_item(data: Dict[str, Any]):
     # Make a copy to avoid mutating input
     d = data.copy()
     
-    # Convert relative image path to absolute
+    # Convert library-relative or package-relative path to absolute
     if "image_path" in d and d["image_path"]:
-        d["image_path"] = to_absolute_path(d["image_path"])
+        # Try to get library roots from current context
+        # Note: During deserialization, we don't have item context yet
+        # So we'll just use default library paths
+        library_roots = get_all_library_roots()
+        d["image_path"] = to_absolute_path(d["image_path"], library_roots)
     
     # Deserialize interfaces from dicts to InterfaceDefinition objects
     if "interfaces" in d and d["interfaces"]:
