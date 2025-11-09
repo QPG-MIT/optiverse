@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional, Type
 from ..platform.paths import (
     to_relative_path, 
     to_absolute_path, 
+    make_component_relative,
     make_library_relative,
     get_all_library_roots
 )
@@ -113,7 +114,7 @@ def serialize_item(item) -> Dict[str, Any]:
     # Add type marker
     d["_type"] = item.type_name
     
-    # Convert image path to library-relative (preferred) or package-relative
+    # Convert image path to portable format (component-relative preferred)
     if "image_path" in d and d["image_path"]:
         # Try to get library roots from the item's scene/view context
         library_roots = None
@@ -130,17 +131,21 @@ def serialize_item(item) -> Dict[str, Any]:
                     if hasattr(main_window, 'settings'):
                         library_roots = get_all_library_roots(main_window.settings)
         except Exception:
-            # If we can't get library roots, that's okay - will fall back to package-relative
+            # If we can't get library roots, that's okay - will use defaults
             pass
         
-        # Try library-relative first (for user components)
-        lib_relative = make_library_relative(d["image_path"], library_roots)
-        if lib_relative:
-            # Successfully converted to library-relative format
-            d["image_path"] = lib_relative
+        # Try component-relative first (PREFERRED - library name independent)
+        component_relative = make_component_relative(d["image_path"], library_roots)
+        if component_relative:
+            d["image_path"] = component_relative
         else:
-            # Fall back to package-relative (for built-in components)
-            d["image_path"] = to_relative_path(d["image_path"])
+            # Try library-relative (backward compatibility)
+            lib_relative = make_library_relative(d["image_path"], library_roots)
+            if lib_relative:
+                d["image_path"] = lib_relative
+            else:
+                # Fall back to package-relative (for built-in components)
+                d["image_path"] = to_relative_path(d["image_path"])
     
     # Explicitly serialize interfaces using their to_dict() method
     if "interfaces" in d and d["interfaces"]:

@@ -230,6 +230,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # Install event filter for snap and ruler placement
         self.scene.installEventFilter(self)
         # Grid is now drawn automatically in GraphicsView.drawBackground()
+        
+        # Set initial window title
+        self._update_window_title()
 
     # Grid is now drawn in GraphicsView.drawBackground() for much better performance
     # No need for _draw_grid() method anymore!
@@ -253,17 +256,24 @@ class MainWindow(QtWidgets.QMainWindow):
         """Mark the canvas as saved (no unsaved changes)."""
         if self._is_modified:
             self._is_modified = False
-            self._update_window_title()
+        # Always update window title to reflect current file path
+        self._update_window_title()
 
     def _update_window_title(self):
         """Update window title to show file name and modified state."""
-        title = "2D Ray Optics Sandbox — Top View (mm/cm grid)"
         if self._saved_file_path:
             import os
             filename = os.path.basename(self._saved_file_path)
-            title = f"{filename} - {title}"
+            # Remove extension for cleaner look
+            filename_no_ext = os.path.splitext(filename)[0]
+            title = filename_no_ext
+        else:
+            title = "Untitled"
+        
+        # Add modified indicator (asterisk before title on macOS, standard convention)
         if self._is_modified:
-            title = f"*{title}"
+            title = f"{title} — Edited"
+        
         self.setWindowTitle(title)
 
     def _prompt_save_changes(self):
