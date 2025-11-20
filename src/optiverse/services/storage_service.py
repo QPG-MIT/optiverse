@@ -11,6 +11,7 @@ from ..platform.paths import (
     get_custom_library_path,
     get_builtin_library_root,
     to_absolute_path,
+    get_all_library_roots,
 )
 from ..core.models import (
     ComponentRecord,
@@ -40,15 +41,19 @@ class StorageService:
     Supports:
     - User library (default: Documents/Optiverse/ComponentLibraries/user_library/)
     - Custom library locations
+    - Multiple libraries via settings
     """
     
-    def __init__(self, library_path: Optional[str] = None):
+    def __init__(self, library_path: Optional[str] = None, settings_service=None):
         """
         Initialize storage service.
         
         Args:
             library_path: Optional custom library path. If None, uses default user library.
+            settings_service: Optional SettingsService for path resolution
         """
+        self.settings_service = settings_service
+        
         if library_path:
             self._library_root = get_custom_library_path(library_path)
             if self._library_root is None:
@@ -91,7 +96,7 @@ class StorageService:
                     data["image_path"] = str(abs_image_path)
                 
                 # Deserialize and re-serialize to normalize
-                rec = deserialize_component(data)
+                rec = deserialize_component(data, self.settings_service)
                 if rec is None:
                     continue
                 
@@ -171,7 +176,7 @@ class StorageService:
                     saved_image_path = f"images/{dest_image.name}"
         
         # Create a copy of the record with relative image path
-        serialized = serialize_component(rec)
+        serialized = serialize_component(rec, self.settings_service)
         serialized["image_path"] = saved_image_path  # Store as relative path
         
         # Save component.json
@@ -334,7 +339,7 @@ class StorageService:
         """
         for row in rows:
             try:
-                rec = deserialize_component(row)
+                rec = deserialize_component(row, self.settings_service)
                 if rec:
                     self.save_component(rec)
             except Exception as e:
@@ -353,3 +358,12 @@ class StorageService:
     def get_library_root(self) -> Path:
         """Get the library root directory."""
         return self._library_root
+    
+    def get_all_library_roots(self) -> List[Path]:
+        """
+        Get all configured library roots.
+        
+        Returns:
+            List of all library directories (user default + custom from settings)
+        """
+        return get_all_library_roots(self.settings_service)

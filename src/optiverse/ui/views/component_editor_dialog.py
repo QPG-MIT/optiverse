@@ -934,7 +934,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         rec = self._build_record_from_ui()
         if not rec:
             return
-        payload = json.dumps(serialize_component(rec), indent=2)
+        payload = json.dumps(serialize_component(rec, self.storage.settings_service), indent=2)
         QtWidgets.QApplication.clipboard().setText(payload)
         self.statusBar().showMessage("Component JSON copied to clipboard.", 2000)
 
@@ -965,7 +965,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         rows = self.storage.load_library()
         
         for row in rows:
-            rec = deserialize_component(row)
+            rec = deserialize_component(row, self.storage.settings_service)
             if not rec:
                 continue
             
@@ -998,7 +998,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
 
     def _load_from_dict(self, data: dict):
         """Load component from dict."""
-        rec = deserialize_component(data)
+        rec = deserialize_component(data, self.storage.settings_service)
         if not rec:
             return
         
@@ -1051,7 +1051,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
             self.storage.save_component(rec)
             
             # Copy JSON to clipboard for convenience
-            serialized = serialize_component(rec)
+            serialized = serialize_component(rec, self.storage.settings_service)
             QtWidgets.QApplication.clipboard().setText(json.dumps(serialized, indent=2))
             
             # Show success message

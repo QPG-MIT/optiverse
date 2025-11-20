@@ -248,13 +248,19 @@ def to_relative_path(image_path: Optional[str]) -> Optional[str]:
         return image_path
 
 
-def to_absolute_path(image_path: Optional[str]) -> Optional[str]:
+def to_absolute_path(image_path: Optional[str], library_roots: Optional[list[Path]] = None) -> Optional[str]:
     """
     Convert a relative image path to absolute, assuming it's relative to package root.
     If already absolute, verify it exists or leave as-is.
     
+    Supports multiple path formats:
+    - @component/{component_name}/... - Component-relative (library-agnostic, PREFERRED)
+    - @library/{library_name}/... - Library-relative (backward compatibility)
+    - Relative paths - Assumed relative to package root
+    
     Args:
         image_path: Relative or absolute path to an image
+        library_roots: Optional list of library root paths for resolving special formats
     
     Returns:
         Absolute path to the image
@@ -263,6 +269,14 @@ def to_absolute_path(image_path: Optional[str]) -> Optional[str]:
         return image_path
     
     try:
+        # Handle component-relative paths: @component/{component_name}/... (PREFERRED)
+        if image_path.startswith("@component/"):
+            return resolve_component_path(image_path, library_roots)
+        
+        # Handle library-relative paths: @library/{library_name}/... (BACKWARD COMPATIBILITY)
+        if image_path.startswith("@library/"):
+            return resolve_library_relative_path(image_path, library_roots)
+        
         path = Path(image_path)
         
         # If already absolute, return as-is
@@ -276,5 +290,239 @@ def to_absolute_path(image_path: Optional[str]) -> Optional[str]:
         return str(abs_path)
     except Exception:
         return image_path
+
+
+def get_all_library_roots(settings_service=None) -> list[Path]:
+    """
+    Get all configured library roots (user default + custom libraries).
+    
+    Args:
+        settings_service: Optional SettingsService instance for loading custom paths
+    
+    Returns:
+        List of Path objects for all library directories
+    """
+    libraries = []
+    
+    # Always include default user library
+    libraries.append(get_user_library_root())
+    
+    # Load custom library paths from settings if available
+    if settings_service is not None:
+        try:
+            custom_paths = settings_service.get_value("library_paths", [], list)
+            for path_str in custom_paths:
+                if path_str:
+                    path = Path(path_str)
+                    if path.exists() and path.is_dir() and path not in libraries:
+                        libraries.append(path)
+        except Exception:
+            pass
+    else:
+        # Fallback: scan ComponentLibraries directory
+        libraries.extend(get_all_custom_library_roots())
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_libraries = []
+    for lib in libraries:
+        lib_resolved = lib.resolve()
+        if lib_resolved not in seen:
+            seen.add(lib_resolved)
+            unique_libraries.append(lib)
+    
+    return unique_libraries
+
+
+def resolve_library_relative_path(rel_path: str, library_roots: Optional[list[Path]] = None) -> Optional[str]:
+    """
+    Resolve a library-relative path to absolute path.
+    
+    Format: @library/{library_name}/{component_folder}/images/{filename}
+    Example: @library/user_library/achromat_doublet/images/lens.png
+    
+    Args:
+        rel_path: Library-relative path starting with @library/
+        library_roots: Optional list of library roots to search. If None, uses all configured libraries.
+    
+    Returns:
+        Absolute path if library is found, None if library not found
+        Note: Does not check if the final file exists - just resolves the path
+    """
+    if not rel_path or not rel_path.startswith("@library/"):
+        return None
+    
+    # Remove @library/ prefix
+    path_after_prefix = rel_path[9:]  # len("@library/") == 9
+    
+    # Extract library name (first path component)
+    parts = path_after_prefix.split("/")
+    if len(parts) < 2:
+        return None
+    
+    library_name = parts[0]
+    relative_path = "/".join(parts[1:])
+    
+    # Get library roots to search
+    if library_roots is None:
+        library_roots = get_all_library_roots()
+    
+    # Search for matching library
+    for lib_root in library_roots:
+        # Check if this library's name matches
+        if lib_root.name == library_name or lib_root.stem == library_name:
+            # Construct full path (even if file doesn't exist yet)
+            full_path = lib_root / relative_path
+            return str(full_path.resolve())
+    
+    # Library not found
+    return None
+
+
+def make_library_relative(abs_path: str, library_roots: Optional[list[Path]] = None) -> Optional[str]:
+    """
+    Convert an absolute path to library-relative format if it's within a library.
+    
+    Args:
+        abs_path: Absolute path to convert
+        library_roots: Optional list of library roots. If None, uses all configured libraries.
+    
+    Returns:
+        Library-relative path (@library/...) if within a library, None otherwise
+    """
+    if not abs_path:
+        return None
+    
+    try:
+        path = Path(abs_path).resolve()
+        
+        # Get library roots to check
+        if library_roots is None:
+            library_roots = get_all_library_roots()
+        
+        # Check if path is within any library
+        for lib_root in library_roots:
+            lib_root_resolved = lib_root.resolve()
+            try:
+                # Get relative path from library root
+                rel_to_lib = path.relative_to(lib_root_resolved)
+                # Construct library-relative path
+                library_name = lib_root_resolved.name
+                return f"@library/{library_name}/{rel_to_lib.as_posix()}"
+            except ValueError:
+                # Path is not relative to this library
+                continue
+        
+        # Not in any library
+        return None
+    except Exception:
+        return None
+
+
+def resolve_component_path(component_path: str, library_roots: Optional[list[Path]] = None) -> Optional[str]:
+    """
+    Resolve a component-relative path to absolute path.
+    
+    Component-relative paths are library-agnostic and search all configured libraries.
+    This makes assemblies portable across different library structures and renames.
+    
+    Format: @component/{component_name}/{relative_path}
+    Example: @component/achromat_doublet/images/lens.png
+    
+    Args:
+        component_path: Component-relative path starting with @component/
+        library_roots: Optional list of library roots to search. If None, uses all configured libraries.
+    
+    Returns:
+        Absolute path if component found, None if not found in any library
+    """
+    if not component_path or not component_path.startswith("@component/"):
+        return None
+    
+    # Remove @component/ prefix
+    path_after_prefix = component_path[11:]  # len("@component/") == 11
+    
+    # Extract component name (first path component)
+    parts = path_after_prefix.split("/")
+    if len(parts) < 1:
+        return None
+    
+    component_name = parts[0]
+    relative_path = "/".join(parts[1:]) if len(parts) > 1 else ""
+    
+    # Get library roots to search
+    if library_roots is None:
+        library_roots = get_all_library_roots()
+    
+    # Search for component in all libraries
+    for lib_root in library_roots:
+        # Try direct match (component at library root)
+        component_dir = lib_root / component_name
+        if component_dir.exists() and component_dir.is_dir():
+            full_path = component_dir / relative_path if relative_path else component_dir
+            return str(full_path.resolve())
+        
+        # Try one level deep (common structure: library/category/component)
+        for subdir in lib_root.iterdir():
+            if subdir.is_dir():
+                component_dir = subdir / component_name
+                if component_dir.exists() and component_dir.is_dir():
+                    full_path = component_dir / relative_path if relative_path else component_dir
+                    return str(full_path.resolve())
+    
+    # Component not found in any library
+    return None
+
+
+def make_component_relative(abs_path: str, library_roots: Optional[list[Path]] = None) -> Optional[str]:
+    """
+    Convert an absolute path to component-relative format if it's within a library.
+    
+    Component-relative paths are preferred over library-relative paths because they
+    are independent of library folder names, making them more portable.
+    
+    Args:
+        abs_path: Absolute path to convert
+        library_roots: Optional list of library roots. If None, uses all configured libraries.
+    
+    Returns:
+        Component-relative path (@component/...) if within a library, None otherwise
+    """
+    if not abs_path:
+        return None
+    
+    try:
+        path = Path(abs_path).resolve()
+        
+        # Get library roots to check
+        if library_roots is None:
+            library_roots = get_all_library_roots()
+        
+        # Check if path is within any library
+        for lib_root in library_roots:
+            lib_root_resolved = lib_root.resolve()
+            try:
+                # Get relative path from library root
+                rel_to_lib = path.relative_to(lib_root_resolved)
+                
+                # Extract component name (first directory in the relative path)
+                parts = rel_to_lib.parts
+                if len(parts) >= 1:
+                    component_name = parts[0]
+                    relative_path = "/".join(parts[1:]) if len(parts) > 1 else ""
+                    
+                    # Return component-relative format
+                    if relative_path:
+                        return f"@component/{component_name}/{relative_path}"
+                    else:
+                        return f"@component/{component_name}"
+            except ValueError:
+                # Path is not relative to this library
+                continue
+        
+        # Not in any library
+        return None
+    except Exception:
+        return None
 
 

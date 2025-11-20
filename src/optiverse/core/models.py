@@ -8,7 +8,12 @@ import numpy as np
 from .interface_definition import InterfaceDefinition
 
 # Import path utilities for relative/absolute path conversion
-from ..platform.paths import to_relative_path, to_absolute_path
+from ..platform.paths import (
+    to_relative_path, 
+    to_absolute_path, 
+    make_library_relative, 
+    get_all_library_roots
+)
 
 
 @dataclass
@@ -128,16 +133,42 @@ class ComponentRecord:
     notes: str = ""
 
 
-def serialize_component(rec: ComponentRecord) -> Dict[str, Any]:
+def serialize_component(rec: ComponentRecord, settings_service=None) -> Dict[str, Any]:
     """
     Serialize ComponentRecord to dict for JSON storage.
     
-    Image paths are stored as relative paths if within the package,
-    otherwise as absolute paths.
+    Image paths are stored using the following priority:
+    1. Library-relative format (@library/...) if within a configured library
+    2. Package-relative format if within the package (built-in components)
+    3. Absolute path as fallback
+    
+    This makes assemblies portable across different computers while maintaining
+    backward compatibility with absolute paths.
+    
+    Args:
+        rec: ComponentRecord to serialize
+        settings_service: Optional SettingsService for loading library paths
+    
+    Returns:
+        Dictionary with serialized component data
     """
+    # Determine best path format for image
+    image_path_serialized = ""
+    if rec.image_path:
+        # Try library-relative first (makes assemblies portable)
+        library_roots = get_all_library_roots(settings_service)
+        library_relative = make_library_relative(rec.image_path, library_roots)
+        
+        if library_relative:
+            # Use library-relative format
+            image_path_serialized = library_relative
+        else:
+            # Fall back to package-relative (for built-in components)
+            image_path_serialized = to_relative_path(rec.image_path)
+    
     base = {
         "name": rec.name,
-        "image_path": to_relative_path(rec.image_path),
+        "image_path": image_path_serialized,
         "object_height_mm": float(rec.object_height_mm),
         "angle_deg": float(rec.angle_deg),
         "notes": rec.notes or "",
@@ -154,11 +185,21 @@ def serialize_component(rec: ComponentRecord) -> Dict[str, Any]:
     return base
 
 
-def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
+def deserialize_component(data: Dict[str, Any], settings_service=None) -> Optional[ComponentRecord]:
     """
     Deserialize dict to ComponentRecord.
     
-    Image paths are converted from relative (package-relative) to absolute paths.
+    Image paths are converted to absolute paths using the following resolution:
+    1. Library-relative (@library/...) resolved against configured libraries
+    2. Package-relative resolved against package root
+    3. Absolute paths used as-is (backward compatibility)
+    
+    Args:
+        data: Dictionary with component data
+        settings_service: Optional SettingsService for loading library paths
+    
+    Returns:
+        ComponentRecord if successful, None otherwise
     """
     if not isinstance(data, dict):
         return None
@@ -166,8 +207,13 @@ def deserialize_component(data: Dict[str, Any]) -> Optional[ComponentRecord]:
     # Common fields
     name = str(data.get("name", "") or "(unnamed)")
     image_path_raw = str(data.get("image_path", ""))
-    # Convert relative paths to absolute
-    image_path = to_absolute_path(image_path_raw) if image_path_raw else ""
+    
+    # Convert paths to absolute
+    if image_path_raw:
+        library_roots = get_all_library_roots(settings_service)
+        image_path = to_absolute_path(image_path_raw, library_roots)
+    else:
+        image_path = ""
     
     try:
         object_height_mm = float(data.get("object_height_mm", 25.4))
