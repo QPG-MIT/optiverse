@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
+import hashlib
+import datetime
 from pathlib import Path
 
 import numpy as np
@@ -158,6 +161,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self._retrace_timer.setInterval(RETRACE_DEBOUNCE_DELAY_MS)
         self._retrace_timer.timeout.connect(self._do_retrace)
         
+        # Autosave timer with debouncing (triggered by significant changes)
+        self._autosave_timer = QtCore.QTimer()
+        self._autosave_timer.setSingleShot(True)
+        AUTOSAVE_DEBOUNCE_DELAY_MS = 1000  # 1 second debounce
+        self._autosave_timer.setInterval(AUTOSAVE_DEBOUNCE_DELAY_MS)
+        self._autosave_timer.timeout.connect(self._do_autosave)
+        
         # Component placement mode
         self._placement_mode = False  # Track if component placement mode is active
         self._placement_type = None  # Type of component being placed ("source", "lens", "mirror", "beamsplitter", "waveplate", "text")
@@ -203,6 +213,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # Track unsaved changes
         self._is_modified = False
         self._saved_file_path = None  # Track current file for save vs save-as
+        self._autosave_path = None  # Track current autosave file path
+        self._unsaved_id = None  # Unique ID for unsaved documents
         
         # Load saved preferences
         self.magnetic_snap = self.settings_service.get_value("magnetic_snap", True, bool)
@@ -231,6 +243,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.scene.installEventFilter(self)
         # Grid is now drawn automatically in GraphicsView.drawBackground()
         
+        # Check for autosave recovery on startup
+        QtCore.QTimer.singleShot(100, self._check_autosave_recovery)
+        
         # Set initial window title
         self._update_window_title()
 
@@ -239,11 +254,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _connect_modification_tracking(self):
         """Connect signals to track when canvas is modified."""
-        # Use a custom signal handler to mark modified on push
+        # Wrap undo stack push to:
+        # 1. Mark as modified
+        # 2. Trigger autosave for significant changes (with debouncing)
         original_push = self.undo_stack.push
         def tracked_push(command):
             original_push(command)
             self._mark_modified()
+            # Schedule autosave after significant changes (not during drag)
+            self._schedule_autosave()
         self.undo_stack.push = tracked_push
 
     def _mark_modified(self):
@@ -251,6 +270,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self._is_modified:
             self._is_modified = True
             self._update_window_title()
+        # NOTE: Autosave is triggered by undo_stack.push, not here!
+        # This prevents autosave during drag operations
 
     def _mark_clean(self):
         """Mark the canvas as saved (no unsaved changes)."""
@@ -275,6 +296,226 @@ class MainWindow(QtWidgets.QMainWindow):
             title = f"{title} — Edited"
         
         self.setWindowTitle(title)
+    
+    def _schedule_autosave(self):
+        """Schedule autosave with debouncing."""
+        if self._autosave_timer:
+            self._autosave_timer.stop()
+            self._autosave_timer.start()
+    
+    def _get_autosave_path(self) -> str:
+        """Get autosave path in AppData (safe from permission/sync issues)."""
+        from ...platform.paths import _app_data_root
+        
+        autosave_dir = _app_data_root() / "autosave"
+        autosave_dir.mkdir(parents=True, exist_ok=True)
+        
+        if self._saved_file_path:
+            # Hash the absolute path to create unique filename
+            path_hash = hashlib.md5(self._saved_file_path.encode()).hexdigest()[:12]
+            base_name = os.path.splitext(os.path.basename(self._saved_file_path))[0]
+            filename = f"{base_name}_{path_hash}.autosave.json"
+        else:
+            # For unsaved files: use timestamp + sequential ID
+            if not self._unsaved_id:
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                self._unsaved_id = f"untitled_{timestamp}"
+            filename = f"{self._unsaved_id}.autosave.json"
+        
+        return str(autosave_dir / filename)
+    
+    def _serialize_scene(self) -> dict:
+        """Extract scene serialization logic for reuse."""
+        data = {
+            "version": "2.0",
+            "items": [],
+            "rulers": [],
+            "texts": [],
+            "rectangles": [],
+        }
+        
+        from ...objects import RectangleItem, BaseObj
+        
+        for it in self.scene.items():
+            if isinstance(it, BaseObj) and hasattr(it, 'type_name'):
+                data["items"].append(it.to_dict())
+            elif isinstance(it, RulerItem):
+                data["rulers"].append(it.to_dict())
+            elif isinstance(it, TextNoteItem):
+                data["texts"].append(it.to_dict())
+            elif isinstance(it, RectangleItem):
+                data["rectangles"].append(it.to_dict())
+        
+        return data
+    
+    def _do_autosave(self):
+        """Perform autosave to temporary file."""
+        if not self._is_modified:
+            return
+        
+        try:
+            autosave_path = self._get_autosave_path()
+            
+            # Serialize scene
+            data = self._serialize_scene()
+            
+            # Add metadata for recovery UI
+            data["_autosave_meta"] = {
+                "timestamp": datetime.datetime.now().isoformat(),
+                "original_path": self._saved_file_path,
+                "version": "2.0"
+            }
+            
+            # Atomic write: temp file + rename
+            autosave_dir = os.path.dirname(autosave_path)
+            with tempfile.NamedTemporaryFile(
+                mode='w',
+                encoding='utf-8',
+                dir=autosave_dir,
+                delete=False,
+                suffix='.tmp'
+            ) as tmp:
+                json.dump(data, tmp, indent=2)
+                tmp_path = tmp.name
+            
+            # Atomic rename (overwrites existing autosave)
+            os.replace(tmp_path, autosave_path)
+            self._autosave_path = autosave_path
+            
+            self.log_service.debug(f"Autosaved to {autosave_path}", "Autosave")
+            
+        except Exception as e:
+            self.log_service.error(f"Autosave failed: {e}", "Autosave")
+            # Don't show error to user - autosave should be silent
+    
+    def _clear_autosave(self):
+        """Delete autosave file."""
+        try:
+            if self._autosave_path and os.path.exists(self._autosave_path):
+                os.unlink(self._autosave_path)
+                self._autosave_path = None
+                self.log_service.debug("Cleared autosave file", "Autosave")
+        except Exception as e:
+            self.log_service.error(f"Failed to clear autosave: {e}", "Autosave")
+    
+    def _load_from_data(self, data: dict):
+        """Load scene from data dict (for both open and recovery)."""
+        from ...objects import RectangleItem, BaseObj
+        from ...objects.type_registry import deserialize_item
+        
+        # Clear scene
+        for it in list(self.scene.items()):
+            if isinstance(it, (BaseObj, RulerItem, TextNoteItem, RectangleItem)):
+                self.scene.removeItem(it)
+        
+        # Load items
+        for item_data in data.get("items", []):
+            try:
+                item = deserialize_item(item_data)
+                self.scene.addItem(item)
+            except Exception as e:
+                self.log_service.error(f"Error loading item: {e}", "Load")
+        
+        # Load annotations
+        for ruler_data in data.get("rulers", []):
+            self.scene.addItem(RulerItem.from_dict(ruler_data))
+        
+        for text_data in data.get("texts", []):
+            self.scene.addItem(TextNoteItem.from_dict(text_data))
+        
+        for rect_data in data.get("rectangles", []):
+            self.scene.addItem(RectangleItem.from_dict(rect_data))
+    
+    def _format_time_ago(self, delta: datetime.timedelta) -> str:
+        """Format timedelta as human-readable string."""
+        seconds = int(delta.total_seconds())
+        if seconds < 60:
+            return f"{seconds}s ago"
+        elif seconds < 3600:
+            return f"{seconds // 60}m ago"
+        elif seconds < 86400:
+            return f"{seconds // 3600}h ago"
+        else:
+            return f"{seconds // 86400}d ago"
+    
+    def _check_autosave_recovery(self):
+        """Check for autosave on startup."""
+        from ...platform.paths import _app_data_root
+        
+        autosave_dir = _app_data_root() / "autosave"
+        if not autosave_dir.exists():
+            return
+        
+        autosave_files = sorted(
+            autosave_dir.glob("*.autosave.json"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True  # Most recent first
+        )
+        
+        if not autosave_files:
+            return
+        
+        # Try most recent autosave
+        most_recent = autosave_files[0]
+        
+        try:
+            # Validate autosave file
+            with open(most_recent, encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # Check version compatibility
+            if data.get("version") != "2.0":
+                raise ValueError("Incompatible autosave version")
+            
+            # Get metadata
+            meta = data.get("_autosave_meta", {})
+            timestamp_str = meta.get("timestamp", "")
+            original_path = meta.get("original_path")
+            
+            # Format time
+            try:
+                timestamp = datetime.datetime.fromisoformat(timestamp_str)
+                age = datetime.datetime.now() - timestamp
+                time_str = self._format_time_ago(age)
+            except Exception:
+                time_str = "unknown time"
+            
+            # Build message
+            if original_path:
+                file_name = os.path.basename(original_path)
+                msg = f"Found autosave of '{file_name}'\nSaved: {time_str}"
+            else:
+                msg = f"Found autosave of unsaved file\nSaved: {time_str}"
+            
+            # Ask user
+            reply = QtWidgets.QMessageBox.question(
+                self,
+                "Recover Autosave?",
+                f"{msg}\n\nWould you like to recover it?",
+                QtWidgets.QMessageBox.StandardButton.Yes |
+                QtWidgets.QMessageBox.StandardButton.No,
+                QtWidgets.QMessageBox.StandardButton.Yes
+            )
+            
+            if reply == QtWidgets.QMessageBox.StandardButton.Yes:
+                self._load_from_data(data)
+                self._saved_file_path = original_path  # Restore original path if any
+                self._autosave_path = str(most_recent)  # Track this autosave
+                self._mark_modified()  # Mark as modified - needs save
+                self._schedule_retrace()
+                
+                QtWidgets.QMessageBox.information(
+                    self,
+                    "Recovery Successful",
+                    "Autosave recovered. Please save your work."
+                )
+            else:
+                # Delete if user declines
+                most_recent.unlink()
+                
+        except Exception as e:
+            self.log_service.error(f"Failed to recover autosave: {e}", "Recovery")
+            # Silently skip corrupted autosaves
 
     def _prompt_save_changes(self):
         """
@@ -1396,35 +1637,18 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def _save_to_file(self, path: str):
         """Helper method to save assembly to specified file path."""
-        # New format: registry-driven with separate lists for annotations
-        data = {
-            "version": "2.0",
-            "items": [],  # All BaseObj items with type_name
-            "rulers": [],  # Annotation items (not BaseObj)
-            "texts": [],
-            "rectangles": [],
-        }
-
-        from ...objects import RectangleItem, BaseObj
+        data = self._serialize_scene()  # Use extracted method
         
-        for it in self.scene.items():
-            # Handle BaseObj items (optical components) via registry
-            if isinstance(it, BaseObj) and hasattr(it, 'type_name'):
-                data["items"].append(it.to_dict())
-            # Handle annotation items separately
-            elif isinstance(it, RulerItem):
-                data["rulers"].append(it.to_dict())
-            elif isinstance(it, TextNoteItem):
-                data["texts"].append(it.to_dict())
-            elif isinstance(it, RectangleItem):
-                data["rectangles"].append(it.to_dict())
-
         try:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
-            # Mark as clean and track the file path
+            
             self._saved_file_path = path
             self._mark_clean()
+            
+            # Clear autosave after successful save
+            self._clear_autosave()
+            
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Save error", str(e))
 
@@ -1448,41 +1672,22 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.critical(self, "Open error", str(e))
             return
 
-        # Remove existing optical objects (keep grid lines)
-        from ...objects import RectangleItem, BaseObj
-        for it in list(self.scene.items()):
-            if isinstance(it, (BaseObj, RulerItem, TextNoteItem, RectangleItem)):
-                self.scene.removeItem(it)
-
-        # Load items using registry-driven approach
-        from ...objects.type_registry import deserialize_item
+        self._load_from_data(data)  # Use extracted method
         
-        # Load all BaseObj items from the "items" list (v2 format)
-        for item_data in data.get("items", []):
-            item = deserialize_item(item_data)
-            if item:
-                self.scene.addItem(item)
-                # Connect edited signal for optical components
-                if hasattr(item, 'edited'):
-                    item.edited.connect(self._maybe_retrace)
+        # Connect edited signal for optical components
+        from ...objects import BaseObj
+        for item in self.scene.items():
+            if isinstance(item, BaseObj) and hasattr(item, 'edited'):
+                item.edited.connect(self._maybe_retrace)
         
-        # Load annotation items (rulers, texts, rectangles)
-        for d in data.get("rulers", []):
-            R = RulerItem.from_dict(d)
-            self.scene.addItem(R)
-        for d in data.get("texts", []):
-            T = TextNoteItem.from_dict(d)
-            self.scene.addItem(T)
-        for d in data.get("rectangles", []):
-            R2 = RectangleItem.from_dict(d)
-            self.scene.addItem(R2)
-
         # Clear undo history after loading
         self.undo_stack.clear()
         
         # Mark as clean and track the file path
         self._saved_file_path = path
+        self._unsaved_id = None  # Clear unsaved ID
         self._mark_clean()
+        self._schedule_retrace()
         
         self._schedule_retrace()
 
@@ -2486,6 +2691,13 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
                 return
         
         try:
+            # Stop autosave timer
+            if hasattr(self, '_autosave_timer'):
+                self._autosave_timer.stop()
+            
+            # Clear autosave on clean exit
+            self._clear_autosave()
+            
             if hasattr(self, "_comp_editor") and self._comp_editor:
                 self._comp_editor.close()
             # Disconnect from collaboration and stop server if running
