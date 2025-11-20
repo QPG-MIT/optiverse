@@ -221,8 +221,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # Build UI
         self._build_actions()
         self._build_toolbar()
-        self._build_menubar()
         self._build_library_dock()
+        self._build_menubar()
         
         # Add actions with shortcuts to main window so they work globally
         self._register_shortcuts()
@@ -595,6 +595,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # View menu
         mView = mb.addMenu("&View")
+        mView.addAction(self.libDock.toggleViewAction())
+        mView.addSeparator()
         mView.addAction(self.act_zoom_in)
         mView.addAction(self.act_zoom_out)
         mView.addAction(self.act_fit)
