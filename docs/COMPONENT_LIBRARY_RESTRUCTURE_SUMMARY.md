@@ -168,7 +168,7 @@ User (Documents/Optiverse/ComponentLibraries/user_library/):
 
 ## Testing
 
-Created comprehensive test suite (`test_library_restructure.py`) covering:
+Created comprehensive test suite (`examples/test_library_restructure.py`) covering:
 
 1. ✅ Folder-based storage
 2. ✅ Export/import functionality
@@ -221,7 +221,7 @@ Created comprehensive test suite (`test_library_restructure.py`) covering:
 - `src/optiverse/ui/views/main_window.py` - Updated library loading, added management UI
 
 **Testing:**
-- `test_library_restructure.py` - New comprehensive test suite
+- `examples/test_library_restructure.py` - New comprehensive test suite
 
 ## Linter Status
 
