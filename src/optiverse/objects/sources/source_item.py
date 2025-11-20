@@ -74,6 +74,9 @@ class SourceItem(BaseObj):
     
     def open_editor(self):
         """Open editor dialog for source parameters."""
+        # Capture initial state for undo
+        initial_state = self.capture_state()
+        
         parent = self._parent_window()
         d = QtWidgets.QDialog(parent)
         d.setWindowTitle("Edit Source")
@@ -350,14 +353,16 @@ class SourceItem(BaseObj):
             self.params.polarization_angle_deg = pol_angle.value()
             self._update_shape()
             self.edited.emit()
+            
+            # Create undo command for property change
+            final_state = self.capture_state()
+            if initial_state != final_state:
+                from ...core.undo_commands import PropertyChangeCommand
+                cmd = PropertyChangeCommand(self, initial_state, final_state)
+                self.commandCreated.emit(cmd)
         else:
-            # User clicked Cancel - restore initial x, y, angle
-            self.setPos(initial_x, initial_y)
-            self.params.x_mm = initial_x
-            self.params.y_mm = initial_y
-            self.setRotation(user_angle_to_qt(initial_ang))
-            self.params.angle_deg = initial_ang
-            self.edited.emit()
+            # User clicked Cancel - restore initial state
+            self.apply_state(initial_state)
     
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary."""

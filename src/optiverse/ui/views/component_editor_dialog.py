@@ -13,6 +13,8 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from ...core.models import ComponentRecord, serialize_component, deserialize_component
 from ...core.interface_definition import InterfaceDefinition
 from ...core import interface_types
+from ...core.undo_stack import UndoStack
+from ...core.undo_commands import Command
 from ...services.storage_service import StorageService
 from ...platform.paths import assets_dir
 from ...objects.views import MultiLineCanvas, InterfaceLine
@@ -42,23 +44,18 @@ class MoveInterfaceCommand(QtGui.QUndoCommand):
             old_positions: List of (x1, y1, x2, y2) tuples for original positions
             new_positions: List of (x1, y1, x2, y2) tuples for new positions
         """
-        if len(interface_indices) == 1:
-            super().__init__(f"Move Interface {interface_indices[0] + 1}")
-        else:
-            super().__init__(f"Move {len(interface_indices)} Interfaces")
-        
         self.editor = editor
         self.indices = interface_indices
         self.old_positions = old_positions
         self.new_positions = new_positions
     
+    def execute(self):
+        """Apply new positions."""
+        self._apply_positions(self.new_positions)
+    
     def undo(self):
         """Restore old positions."""
         self._apply_positions(self.old_positions)
-    
-    def redo(self):
-        """Apply new positions."""
-        self._apply_positions(self.new_positions)
     
     def _apply_positions(self, positions: List[Tuple[float, float, float, float]]):
         """Apply given positions to interfaces."""
@@ -91,7 +88,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.storage = storage
 
         # Create undo stack
-        self.undo_stack = QtGui.QUndoStack(self)
+        self.undo_stack = UndoStack()
+        self.undo_stack.canUndoChanged.connect(self._update_undo_actions)
+        self.undo_stack.canRedoChanged.connect(self._update_undo_actions)
 
         self.canvas = MultiLineCanvas()
         self.canvas_with_rulers = CanvasWithRulers(self.canvas)
@@ -182,21 +181,26 @@ class ComponentEditor(QtWidgets.QMainWindow):
     def _build_shortcuts(self):
         """Setup keyboard shortcuts."""
         sc_copy = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Copy, self)
-        sc_copy.setContext(QtCore.Qt.ShortcutContext.WindowShortcut)
+        sc_copy.setContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
         sc_copy.activated.connect(self.copy_component_json)
 
         sc_paste = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Paste, self)
-        sc_paste.setContext(QtCore.Qt.ShortcutContext.WindowShortcut)
+        sc_paste.setContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
         sc_paste.activated.connect(self._smart_paste)
         
         # Undo/Redo shortcuts
         sc_undo = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Undo, self)
-        sc_undo.setContext(QtCore.Qt.ShortcutContext.WindowShortcut)
+        sc_undo.setContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
         sc_undo.activated.connect(self.undo_stack.undo)
         
         sc_redo = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Redo, self)
-        sc_redo.setContext(QtCore.Qt.ShortcutContext.WindowShortcut)
+        sc_redo.setContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
         sc_redo.activated.connect(self.undo_stack.redo)
+    
+    def _update_undo_actions(self):
+        """Update undo/redo action states (called by undo stack signals)."""
+        # Actions can be added here if needed
+        pass
 
     def _build_side_dock(self):
         """Build side dock with component settings (v2 interface-based)."""
