@@ -221,8 +221,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # Build UI
         self._build_actions()
         self._build_toolbar()
-        self._build_menubar()
         self._build_library_dock()
+        self._build_menubar()
         
         # Add actions with shortcuts to main window so they work globally
         self._register_shortcuts()
@@ -324,13 +324,13 @@ class MainWindow(QtWidgets.QMainWindow):
         # --- Edit ---
         self.act_undo = QtGui.QAction("Undo", self)
         self.act_undo.setShortcut(QtGui.QKeySequence("Ctrl+Z"))
-        self.act_undo.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
+        self.act_undo.setShortcutContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
         self.act_undo.triggered.connect(self._do_undo)
         self.act_undo.setEnabled(False)
 
         self.act_redo = QtGui.QAction("Redo", self)
         self.act_redo.setShortcut(QtGui.QKeySequence("Ctrl+Y"))
-        self.act_redo.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
+        self.act_redo.setShortcutContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
         self.act_redo.triggered.connect(self._do_redo)
         self.act_redo.setEnabled(False)
 
@@ -595,6 +595,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # View menu
         mView = mb.addMenu("&View")
+        mView.addAction(self.libDock.toggleViewAction())
+        mView.addSeparator()
         mView.addAction(self.act_zoom_in)
         mView.addAction(self.act_zoom_out)
         mView.addAction(self.act_fit)
@@ -797,6 +799,19 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Expand all categories
         self.libraryTree.expandAll()
+    
+    def _connect_item_signals(self, item):
+        """Connect standard signals for a new item (edited, commandCreated)."""
+        from ...objects import BaseObj
+        
+        # Connect edited signal for retrace and collaboration
+        if hasattr(item, 'edited'):
+            item.edited.connect(self._maybe_retrace)
+            item.edited.connect(lambda: self.collaboration_manager.broadcast_update_item(item))
+        
+        # Connect commandCreated signal for undo/redo
+        if isinstance(item, BaseObj) and hasattr(item, 'commandCreated'):
+            item.commandCreated.connect(self.undo_stack.push)
 
     def on_drop_component(self, rec: dict, scene_pos: QtCore.QPointF):
         """
@@ -826,8 +841,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         
         # Connect signals
-        item.edited.connect(self._maybe_retrace)
-        item.edited.connect(lambda: self.collaboration_manager.broadcast_update_item(item))
+        self._connect_item_signals(item)
         
         # Add to scene with undo support
         cmd = AddItemCommand(self.scene, item)
@@ -923,10 +937,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 # This automatically handles sprites, interfaces, and all properties
                 cloned_item = item.clone(paste_offset)
                 
-                # Connect signals for optical components
-                from ...objects import BaseObj
-                if isinstance(cloned_item, BaseObj):
-                    cloned_item.edited.connect(self._maybe_retrace)
+                # Connect signals
+                self._connect_item_signals(cloned_item)
                 
                 pasted_items.append(cloned_item)
                 
@@ -1754,9 +1766,8 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         
         # Connect signals for optical components (skip annotations like text/rectangle)
-        if component_type not in ("text", "rectangle") and hasattr(item, 'edited'):
-            item.edited.connect(self._maybe_retrace)
-            item.edited.connect(lambda: self.collaboration_manager.broadcast_update_item(item))
+        if component_type not in ("text", "rectangle"):
+            self._connect_item_signals(item)
         
         # Add to scene with undo support
         cmd = AddItemCommand(self.scene, item)

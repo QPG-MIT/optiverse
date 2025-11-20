@@ -277,7 +277,6 @@ optiverse/
 ## Feature Requests & Bugs
 
 ### Known Bugs
-- control+z and control + Y sometimes dont work
 - colaborative work is broken
 - waveplates do not always rotate the polarization correctly
 - QWP seems to adjust polarisation correctly but PBS does not reflect correctly in the pbs + qwp + backreflector mirror config.

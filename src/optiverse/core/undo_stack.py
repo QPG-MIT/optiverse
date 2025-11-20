@@ -31,12 +31,20 @@ class UndoStack(QtCore.QObject):
     def push(self, command: Command) -> None:
         """
         Execute and push a command onto the undo stack.
+        Try to merge with previous command if possible.
         
         Args:
             command: The command to execute and push
         """
         # Execute the command
         command.execute()
+        
+        # Try to merge with previous command
+        if self._undo_stack and command.id() != -1:
+            last_command = self._undo_stack[-1]
+            if last_command.id() == command.id() and last_command.merge_with(command):
+                # Successfully merged, no need to add new command
+                return
         
         # Clear redo stack when new command is pushed
         old_can_redo = self.can_redo()

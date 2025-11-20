@@ -5,7 +5,7 @@ Each command encapsulates an action that can be executed and undone.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict
 
 from PyQt6 import QtCore
 
@@ -25,6 +25,14 @@ class Command(ABC):
     def undo(self) -> None:
         """Undo the command."""
         pass
+    
+    def id(self) -> int:
+        """Return command ID for merging. Return -1 to disable merging."""
+        return -1
+    
+    def merge_with(self, other: 'Command') -> bool:
+        """Attempt to merge with another command. Return True if successful."""
+        return False
 
 
 class AddItemCommand(Command):
@@ -115,6 +123,20 @@ class MoveItemCommand(Command):
         self.item.setPos(self.old_pos)
         # Force Qt to update cached transforms (fixes BeamsplitterItem position tracking)
         self.item.setTransform(self.item.transform())
+    
+    def id(self) -> int:
+        """Return unique ID for this item to enable command merging."""
+        return id(self.item)
+    
+    def merge_with(self, other: 'Command') -> bool:
+        """Merge with another MoveItemCommand for the same item."""
+        if not isinstance(other, MoveItemCommand):
+            return False
+        if other.item is not self.item:
+            return False
+        # Update new position to include the other command's movement
+        self.new_pos = QtCore.QPointF(other.new_pos)
+        return True
 
 
 class RemoveMultipleItemsCommand(Command):
@@ -175,6 +197,62 @@ class PasteItemsCommand(Command):
             for item in self.items:
                 self.scene.removeItem(item)
             self._executed = False
+
+
+class PropertyChangeCommand(Command):
+    """Command to change properties of an item using memento pattern."""
+
+    def __init__(
+        self,
+        item: Any,
+        before_state: Dict[str, Any],
+        after_state: Dict[str, Any],
+    ):
+        """
+        Initialize PropertyChangeCommand.
+
+        Args:
+            item: The item whose properties changed (must have to_dict/from_dict or apply_state)
+            before_state: Dictionary of property values before the change
+            after_state: Dictionary of property values after the change
+        """
+        self.item = item
+        self.before_state = before_state
+        self.after_state = after_state
+
+    def execute(self) -> None:
+        """Apply the after state to the item."""
+        self._apply_state(self.after_state)
+
+    def undo(self) -> None:
+        """Restore the before state to the item."""
+        self._apply_state(self.before_state)
+    
+    def _apply_state(self, state: Dict[str, Any]) -> None:
+        """Apply a state dictionary to the item."""
+        # Try custom apply_state method first
+        if hasattr(self.item, 'apply_state'):
+            self.item.apply_state(state)
+            return
+        
+        # Fallback: apply each key-value pair
+        for key, value in state.items():
+            if key == 'pos':
+                self.item.setPos(QtCore.QPointF(value['x'], value['y']))
+            elif key == 'rotation':
+                self.item.setRotation(value)
+            elif hasattr(self.item, 'params'):
+                # For items with params dataclass
+                if hasattr(self.item.params, key):
+                    setattr(self.item.params, key, value)
+        
+        # Trigger updates
+        if hasattr(self.item, '_sync_params_from_item'):
+            self.item._sync_params_from_item()
+        if hasattr(self.item, 'edited'):
+            self.item.edited.emit()
+        if hasattr(self.item, 'update'):
+            self.item.update()
 
 
 class RotateItemCommand(Command):

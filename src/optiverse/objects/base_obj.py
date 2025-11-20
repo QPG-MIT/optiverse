@@ -21,6 +21,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
     """
 
     edited = QtCore.pyqtSignal()
+    commandCreated = QtCore.pyqtSignal(object)  # Emits Command objects for undo/redo
     
     # Metadata registry for serialization (extensible by subclasses)
     # Maps metadata key to getter function
@@ -583,6 +584,51 @@ class BaseObj(QtWidgets.QGraphicsObject):
     def open_editor(self):
         """Open editor dialog for this element."""
         pass
+    
+    def capture_state(self) -> dict[str, Any]:
+        """Capture current state for undo/redo. Subclasses should extend."""
+        state = {
+            'pos': {'x': self.pos().x(), 'y': self.pos().y()},
+            'rotation': self.rotation(),
+            'locked': self._locked,
+            'z_value': float(self.zValue()),
+        }
+        # Capture params if available
+        if hasattr(self, 'params'):
+            import dataclasses
+            if dataclasses.is_dataclass(self.params):
+                state['params'] = dataclasses.asdict(self.params)
+        return state
+    
+    def apply_state(self, state: dict[str, Any]) -> None:
+        """Apply state from undo/redo. Subclasses should extend if needed."""
+        if 'pos' in state:
+            self.setPos(QtCore.QPointF(state['pos']['x'], state['pos']['y']))
+        if 'rotation' in state:
+            self.setRotation(state['rotation'])
+        if 'locked' in state:
+            self.set_locked(state['locked'])
+        if 'z_value' in state:
+            self.setZValue(state['z_value'])
+        
+        # Apply params if available
+        if 'params' in state and hasattr(self, 'params'):
+            import dataclasses
+            if dataclasses.is_dataclass(self.params):
+                # Update params fields from state
+                for key, value in state['params'].items():
+                    if hasattr(self.params, key):
+                        setattr(self.params, key, value)
+        
+        # Sync visual state
+        if hasattr(self, '_sync_params_from_item'):
+            self._sync_params_from_item()
+        if hasattr(self, '_update_shape'):
+            self._update_shape()
+        if hasattr(self, '_update_geom'):
+            self._update_geom()
+        self.edited.emit()
+        self.update()
 
     def clone(self, offset_mm: tuple[float, float] = (20.0, 20.0)) -> 'BaseObj':
         """
