@@ -342,9 +342,8 @@ class ComponentItem(BaseObj):
         initial_ang = qt_angle_to_user(self.rotation())
         initial_length = self.params.object_height_mm
         
-        # Save initial interface states (deep copy)
-        from copy import deepcopy
-        initial_interfaces = [deepcopy(iface) for iface in self.params.interfaces] if self.params.interfaces else []
+        # Save initial interface states (use .copy() method to preserve type)
+        initial_interfaces = [iface.copy() for iface in self.params.interfaces] if self.params.interfaces else []
         
         x = SmartDoubleSpinBox()
         x.setRange(-1e6, 1e6)
