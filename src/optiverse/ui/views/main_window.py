@@ -658,6 +658,11 @@ class MainWindow(QtWidgets.QMainWindow):
             )
         )
 
+        self.act_recenter = QtGui.QAction("Recenter View", self)
+        self.act_recenter.setShortcut("Ctrl+Shift+0")
+        self.act_recenter.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
+        self.act_recenter.triggered.connect(self._recenter_view)
+
         # Checkable options
         self.act_autotrace = QtGui.QAction("Auto-trace", self, checkable=True)
         self.act_autotrace.setChecked(True)
@@ -841,6 +846,7 @@ class MainWindow(QtWidgets.QMainWindow):
         mView.addAction(self.act_zoom_in)
         mView.addAction(self.act_zoom_out)
         mView.addAction(self.act_fit)
+        mView.addAction(self.act_recenter)
         mView.addSeparator()
         mView.addAction(self.act_autotrace)
         mView.addAction(self.act_snap)
@@ -904,6 +910,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.addAction(self.act_zoom_in)
         self.addAction(self.act_zoom_out)
         self.addAction(self.act_fit)
+        self.addAction(self.act_recenter)
         
         # Tools actions
         self.addAction(self.act_retrace)
@@ -1719,6 +1726,17 @@ class MainWindow(QtWidgets.QMainWindow):
         apply_theme(on)
         # Refresh library to update category colors
         self.populate_library()
+    
+    def _recenter_view(self):
+        """Reset view to default position (centered at origin) and zoom level (1:1)."""
+        # Reset transform to identity (removes any zoom/pan/rotation)
+        self.view.resetTransform()
+        # Re-apply Y-flip for coordinate system (Y-up world coordinates)
+        self.view.scale(1.0, -1.0)
+        # Center view on origin (0, 0)
+        self.view.centerOn(0, 0)
+        # Emit zoom changed signal to update UI
+        self.view.zoomChanged.emit()
     
     def _toggle_inspect(self, on: bool):
         """Toggle inspect tool mode."""
