@@ -272,6 +272,20 @@ optiverse/
 ├── tools/             # Utility scripts
 ├── scripts/           # Build scripts
 └── examples/          # Example assemblies and demos
+
+## Feature Requests & Bugs
+
+### Known Bugs
+- control+z and control + Y sometimes dont work
+- colaborative work is broken
+- waveplates do not always rotate the polarization correctly
+- QWP seems to adjust polarisation correctly but PBS does not reflect correctly in the pbs + qwp + backreflector mirror config.
+
+### Feature Requests
+- zemax black box model
+- isolator
+- distance measure tool across edges
+
 ```
 
 ## Contributing
