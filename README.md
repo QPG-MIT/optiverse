@@ -272,6 +272,7 @@ optiverse/
 ├── tools/             # Utility scripts
 ├── scripts/           # Build scripts
 └── examples/          # Example assemblies and demos
+```
 
 ## Feature Requests & Bugs
 
@@ -286,7 +287,6 @@ optiverse/
 - isolator
 - distance measure tool across edges
 
-```
 
 ## Contributing
 
