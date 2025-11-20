@@ -329,6 +329,22 @@ class ComponentItem(BaseObj):
         
         return result
     
+    def apply_state(self, state):
+        """Override to handle InterfaceDefinition deserialization."""
+        # Convert interface dictionaries to InterfaceDefinition objects BEFORE calling super()
+        # This is necessary because super().apply_state() calls _update_geom() which expects
+        # InterfaceDefinition objects, not dicts
+        if 'params' in state and 'interfaces' in state['params']:
+            interfaces_data = state['params']['interfaces']
+            if interfaces_data and len(interfaces_data) > 0 and isinstance(interfaces_data[0], dict):
+                state['params']['interfaces'] = [
+                    InterfaceDefinition.from_dict(iface_dict) 
+                    for iface_dict in interfaces_data
+                ]
+        
+        # Now call base class implementation (which will call _update_geom())
+        super().apply_state(state)
+    
     def open_editor(self):
         """Open editor dialog for component parameters."""
         # Capture initial state for undo
