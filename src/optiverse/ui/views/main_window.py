@@ -55,13 +55,12 @@ def _create_inverted_icon(icon_path: str) -> QtGui.QIcon:
     inverted = image.copy()
     inverted.invertPixels(QtGui.QImage.InvertMode.InvertRgb)
     
-    # Add both normal and inverted states to icon
-    # Normal state (for light mode)
-    icon.addPixmap(QtGui.QPixmap.fromImage(image), QtGui.QIcon.Mode.Normal)
-    # Active/Selected state uses same as normal
-    icon.addPixmap(QtGui.QPixmap.fromImage(image), QtGui.QIcon.Mode.Active)
+    # Add inverted image as the icon (for dark mode)
+    icon.addPixmap(QtGui.QPixmap.fromImage(inverted), QtGui.QIcon.Mode.Normal)
+    icon.addPixmap(QtGui.QPixmap.fromImage(inverted), QtGui.QIcon.Mode.Active)
     
     return icon
+
 
 
 def _create_icon_for_mode(icon_path: str, dark_mode: bool) -> QtGui.QIcon:
