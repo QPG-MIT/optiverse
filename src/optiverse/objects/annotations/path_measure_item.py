@@ -53,6 +53,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         self.setFlags(
             QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
             | QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges
+            | QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsFocusable
         )
         self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
         self.setCacheMode(QtWidgets.QGraphicsItem.CacheMode.NoCache)

@@ -15,7 +15,7 @@ from ...core.models import (
     OpticalElement
 )
 from ...core.snap_helper import SnapHelper
-from ...core.undo_commands import AddItemCommand, MoveItemCommand, RemoveItemCommand, RemoveMultipleItemsCommand, PasteItemsCommand, RotateItemCommand, RotateItemsCommand
+from ...core.undo_commands import AddItemCommand, AddMultipleItemsCommand, MoveItemCommand, RemoveItemCommand, RemoveMultipleItemsCommand, PasteItemsCommand, RotateItemCommand, RotateItemsCommand
 from ...core.undo_stack import UndoStack
 from ...core.use_cases import trace_rays
 from ...services.settings_service import SettingsService
@@ -1140,6 +1140,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def delete_selected(self):
         """Delete selected items using undo stack."""
         from ...objects import BaseObj
+        from ...objects.annotations.path_measure_item import PathMeasureItem
         
         selected = self.scene.selectedItems()
         items_to_delete = []
@@ -1148,7 +1149,7 @@ class MainWindow(QtWidgets.QMainWindow):
         for item in selected:
             # Only delete optical components and annotations (not grid lines or rays)
             from ...objects import RectangleItem
-            if isinstance(item, (BaseObj, RulerItem, TextNoteItem, RectangleItem)):
+            if isinstance(item, (BaseObj, RulerItem, TextNoteItem, RectangleItem, PathMeasureItem)):
                 # Check if item is locked (BaseObj has is_locked method)
                 if isinstance(item, BaseObj) and item.is_locked():
                     locked_items.append(item)
@@ -2320,6 +2321,7 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
             self._path_measure_temp_item = PathMeasureItem(
                 ray_path_points=ray_data.points, start_param=best_param, end_param=best_param, ray_index=best_ray_index
             )
+            # Temp preview item added directly (not undoable, removed on second click)
             self.scene.addItem(self._path_measure_temp_item)
             QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), "Start point set. Click again on the SAME ray to set end point.\n\n⚠️ At beam splitters: Each path is separate.")
         
@@ -2331,27 +2333,40 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
             start_param = min(self._path_measure_start_param, best_param)
             end_param = max(self._path_measure_start_param, best_param)
             
+            # Remove temp preview item
             if self._path_measure_temp_item:
                 self.scene.removeItem(self._path_measure_temp_item)
                 self._path_measure_temp_item = None
             
+            # Create main path measure item
             ray_data = self.ray_data[best_ray_index]
             path_measure = PathMeasureItem(ray_path_points=ray_data.points, start_param=start_param, end_param=end_param, ray_index=best_ray_index)
-            self.scene.addItem(path_measure)
             
-            # Beam splitter auto-detection
-            sibling_count = 0
+            # Beam splitter auto-detection: collect all items to add
+            items_to_add = [path_measure]
             if len(self.ray_data) > 1 and len(ray_data.points) > 0:
                 start_pos = ray_data.points[0]
                 for sibling_idx, sibling_ray in enumerate(self.ray_data):
                     if sibling_idx != best_ray_index and len(sibling_ray.points) > 0:
                         if np.linalg.norm(start_pos - sibling_ray.points[0]) < 1.0:
                             sibling_measure = PathMeasureItem(ray_path_points=sibling_ray.points, start_param=start_param, end_param=end_param, ray_index=sibling_idx)
-                            self.scene.addItem(sibling_measure)
-                            sibling_count += 1
+                            items_to_add.append(sibling_measure)
+            
+            # Add items via undo stack (atomic operation for beam splitters)
+            if len(items_to_add) == 1:
+                # Single path: use AddItemCommand
+                cmd = AddItemCommand(self.scene, items_to_add[0])
+            else:
+                # Multiple paths (beam splitter): use AddMultipleItemsCommand
+                cmd = AddMultipleItemsCommand(self.scene, items_to_add)
+            
+            self.undo_stack.push(cmd)
+            
+            # Select the main path measure item
+            path_measure.setSelected(True)
             
             self.act_measure_path.setChecked(False)
-            tip_text = f"Created {sibling_count + 1} measurements (beam splitter)" if sibling_count > 0 else f"Path measurement: {path_measure._segment_length:.2f} mm"
+            tip_text = f"Created {len(items_to_add)} measurements (beam splitter)" if len(items_to_add) > 1 else f"Path measurement: {path_measure._segment_length:.2f} mm"
             QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), tip_text)
 
     def _set_ray_width(self, v: float):
@@ -2750,27 +2765,7 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
                 ev.accept()
                 return
         
-        # Handle Delete/Backspace for selected items
-        if ev.key() in (QtCore.Qt.Key.Key_Delete, QtCore.Qt.Key.Key_Backspace):
-            from optiverse.objects.annotations.path_measure_item import PathMeasureItem
-            from optiverse.objects.annotations.ruler_item import RulerItem
-            from optiverse.objects.annotations.text_note_item import TextNoteItem
-            
-            selected_items = self.scene.selectedItems()
-            items_to_delete = []
-            
-            for item in selected_items:
-                # Allow deletion of annotations and rulers
-                if isinstance(item, (PathMeasureItem, RulerItem, TextNoteItem)):
-                    items_to_delete.append(item)
-            
-            if items_to_delete:
-                for item in items_to_delete:
-                    self.scene.removeItem(item)
-                ev.accept()
-                return
-        
-        # Pass to parent for normal handling
+        # Pass to parent for normal handling (Delete/Backspace handled by act_delete action)
         super().keyPressEvent(ev)
 
     def show_log_window(self):
