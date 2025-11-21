@@ -2467,27 +2467,22 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
             
             # Calculate measurement parameters
             if use_clicked_ray:
-                # Measure along the clicked ray (parallel bundle case)
-                # Project first click onto the clicked ray
-                first_click_pos = self._param_to_position(self._path_measure_ray_index, self._path_measure_start_param)
-                if first_click_pos is not None:
-                    start_param_on_clicked = self._find_param_on_ray(best_ray_index, first_click_pos)
-                    end_param_on_clicked = best_param
-                    
-                    # Switch to clicked ray for measurement
-                    self._path_measure_ray_index = best_ray_index
-                    start_param = min(start_param_on_clicked, end_param_on_clicked)
-                    end_param = max(start_param_on_clicked, end_param_on_clicked)
-                else:
-                    # Fallback to simple params
-                    start_param = 0.0
-                    end_param = best_param
+                # Parallel bundle case - but keep measurement on ORIGINAL ray
+                # Project second click onto the original ray (not the clicked ray)
+                click_pt = np.array([scene_pos.x(), scene_pos.y()])
+                end_param_on_original = self._find_param_on_ray(self._path_measure_ray_index, click_pt)
+                
+                # Keep using original ray
+                start_param = min(self._path_measure_start_param, end_param_on_original)
+                end_param = max(self._path_measure_start_param, end_param_on_original)
+                best_ray_index = self._path_measure_ray_index  # Stay on original ray
             elif best_ray_index != self._path_measure_ray_index:
                 # Beam splitter sibling - project second click onto original ray
                 click_pt = np.array([scene_pos.x(), scene_pos.y()])
                 best_param = self._find_param_on_ray(self._path_measure_ray_index, click_pt)
                 start_param = min(self._path_measure_start_param, best_param)
                 end_param = max(self._path_measure_start_param, best_param)
+                best_ray_index = self._path_measure_ray_index  # Stay on original ray
             else:
                 # Same ray - use stored params
                 start_param = min(self._path_measure_start_param, best_param)
