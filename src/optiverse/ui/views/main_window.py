@@ -62,7 +62,6 @@ def _create_inverted_icon(icon_path: str) -> QtGui.QIcon:
     return icon
 
 
-
 def _create_icon_for_mode(icon_path: str, dark_mode: bool) -> QtGui.QIcon:
     """Create an icon appropriate for the current mode (dark or light).
     
