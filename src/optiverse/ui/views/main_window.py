@@ -22,6 +22,7 @@ from ...services.settings_service import SettingsService
 from ...services.storage_service import StorageService
 from ...services.collaboration_manager import CollaborationManager
 from ...services.log_service import get_log_service
+from ...services.error_handler import get_error_handler, ErrorContext
 from .collaboration_dialog import CollaborationDialog
 from .log_window import LogWindow
 from ...objects import (
@@ -152,6 +153,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ray_data: list = []  # Store RayPath data for each ray item
         self.autotrace = True
         self._inspect_mode = False  # Track if inspect tool is active
+        
+        # Path measure mode
+        self._path_measure_mode = False
+        self._path_measure_state = None  # 'waiting_first_click' or 'waiting_second_click'
+        self._path_measure_ray_index = None
+        self._path_measure_start_param = None
+        self._path_measure_temp_item = None  # Temporary visual feedback item
         
         # Debouncing for autotrace to prevent excessive retrace calls
         self._retrace_pending = False
@@ -332,9 +340,11 @@ class MainWindow(QtWidgets.QMainWindow):
             "rulers": [],
             "texts": [],
             "rectangles": [],
+            "path_measures": [],
         }
         
         from ...objects import RectangleItem, BaseObj
+        from optiverse.objects.annotations.path_measure_item import PathMeasureItem
         
         for it in self.scene.items():
             if isinstance(it, BaseObj) and hasattr(it, 'type_name'):
@@ -345,6 +355,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 data["texts"].append(it.to_dict())
             elif isinstance(it, RectangleItem):
                 data["rectangles"].append(it.to_dict())
+            elif isinstance(it, PathMeasureItem):
+                data["path_measures"].append(it.to_dict())
         
         return data
     
@@ -425,6 +437,15 @@ class MainWindow(QtWidgets.QMainWindow):
         
         for rect_data in data.get("rectangles", []):
             self.scene.addItem(RectangleItem.from_dict(rect_data))
+        
+        # Load path measures
+        from optiverse.objects.annotations.path_measure_item import PathMeasureItem
+        for pm_data in data.get("path_measures", []):
+            try:
+                item = PathMeasureItem.from_dict(pm_data, self.ray_data)
+                self.scene.addItem(item)
+            except Exception as e:
+                self.log_service.error(f"Error loading path measure: {e}", "Load")
     
     def _format_time_ago(self, delta: datetime.timedelta) -> str:
         """Format timedelta as human-readable string."""
@@ -634,6 +655,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_inspect = QtGui.QAction("Inspect", self, checkable=True)
         self.act_inspect.setChecked(False)
         self.act_inspect.toggled.connect(self._toggle_inspect)
+        
+        self.act_measure_path = QtGui.QAction("Path Measure", self, checkable=True)
+        self.act_measure_path.setChecked(False)
+        self.act_measure_path.toggled.connect(self._toggle_path_measure)
 
         # --- View ---
         self.act_zoom_in = QtGui.QAction("Zoom In", self)
@@ -795,6 +820,11 @@ class MainWindow(QtWidgets.QMainWindow):
         inspect_icon = QtGui.QIcon(_get_icon_path("inspect.png"))
         self.act_inspect.setIcon(inspect_icon)
         toolbar.addAction(self.act_inspect)
+        
+        # Path Measure tool
+        measure_icon = QtGui.QIcon.fromTheme("accessories-calculator")
+        self.act_measure_path.setIcon(measure_icon)
+        toolbar.addAction(self.act_measure_path)
 
         # Text button
         text_icon = QtGui.QIcon(_get_icon_path("text.png"))
@@ -862,6 +892,7 @@ class MainWindow(QtWidgets.QMainWindow):
         mTools.addAction(self.act_clear)
         mTools.addSeparator()
         mTools.addAction(self.act_inspect)
+        mTools.addAction(self.act_measure_path)
         mTools.addSeparator()
         mTools.addAction(self.act_editor)
         mTools.addAction(self.act_reload)
@@ -1278,7 +1309,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def _do_retrace(self):
         """Execute the actual retrace (called by timer after debounce delay)."""
         self._retrace_pending = False
-        self.retrace()
+        with ErrorContext("while raytracing", show_dialog=False):  # Don't show dialog, just log
+            self.retrace()
 
     def retrace(self):
         """
@@ -1306,50 +1338,51 @@ class MainWindow(QtWidgets.QMainWindow):
         This is the proven, stable implementation. Kept for backward compatibility
         and as a fallback during migration to the new polymorphic system.
         """
-        self.clear_rays()
+        with ErrorContext("in legacy raytracing engine", show_dialog=False):
+            self.clear_rays()
 
-        # Collect sources
-        sources: list[SourceItem] = []
-        for it in self.scene.items():
-            if isinstance(it, SourceItem):
-                sources.append(it)
+            # Collect sources
+            sources: list[SourceItem] = []
+            for it in self.scene.items():
+                if isinstance(it, SourceItem):
+                    sources.append(it)
 
-        if not sources:
-            return
+            if not sources:
+                return
 
-        # UNIFIED INTERFACE-BASED APPROACH:
-        # Collect ALL interfaces from ALL components in the scene
-        elems: list[OpticalElement] = []
-        
-        for item in self.scene.items():
-            # Check if item has get_interfaces_scene() method
-            if hasattr(item, 'get_interfaces_scene') and callable(item.get_interfaces_scene):
-                try:
-                    interfaces_scene = item.get_interfaces_scene()
-                    
-                    # Create OpticalElement for each interface
-                    for p1, p2, iface in interfaces_scene:
-                        elem = self._create_element_from_interface(p1, p2, iface, item)
-                        if elem:
-                            elems.append(elem)
-                            
-                except Exception as e:
-                    # Log error but continue with other components
-                    print(f"Warning: Error getting interfaces from {type(item).__name__}: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    continue
+            # UNIFIED INTERFACE-BASED APPROACH:
+            # Collect ALL interfaces from ALL components in the scene
+            elems: list[OpticalElement] = []
+            
+            for item in self.scene.items():
+                # Check if item has get_interfaces_scene() method
+                if hasattr(item, 'get_interfaces_scene') and callable(item.get_interfaces_scene):
+                    try:
+                        interfaces_scene = item.get_interfaces_scene()
+                        
+                        # Create OpticalElement for each interface
+                        for p1, p2, iface in interfaces_scene:
+                            elem = self._create_element_from_interface(p1, p2, iface, item)
+                            if elem:
+                                elems.append(elem)
+                                
+                    except Exception as e:
+                        # Log error but continue with other components
+                        print(f"Warning: Error getting interfaces from {type(item).__name__}: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        continue
 
-        # Build source params (use actual params from items)
-        srcs: list[SourceParams] = []
-        for S in sources:
-            srcs.append(S.params)
+            # Build source params (use actual params from items)
+            srcs: list[SourceParams] = []
+            for S in sources:
+                srcs.append(S.params)
 
-        # Trace using legacy engine
-        paths = trace_rays(elems, srcs, max_events=80)
-        
-        # Render paths
-        self._render_ray_paths(paths)
+            # Trace using legacy engine
+            paths = trace_rays(elems, srcs, max_events=80)
+            
+            # Render paths
+            self._render_ray_paths(paths)
     
     def _retrace_polymorphic(self):
         """
@@ -1363,50 +1396,51 @@ class MainWindow(QtWidgets.QMainWindow):
         - Type-safe (no strings)
         - Easy to extend (add new element types)
         """
-        self.clear_rays()
+        with ErrorContext("in polymorphic raytracing engine", show_dialog=False):
+            self.clear_rays()
 
-        # Collect sources
-        sources: list[SourceItem] = []
-        for it in self.scene.items():
-            if isinstance(it, SourceItem):
-                sources.append(it)
+            # Collect sources
+            sources: list[SourceItem] = []
+            for it in self.scene.items():
+                if isinstance(it, SourceItem):
+                    sources.append(it)
 
-        if not sources:
-            return
+            if not sources:
+                return
 
-        # Convert scene to polymorphic elements using the integration adapter
-        try:
-            from ...integration import convert_scene_to_polymorphic
-            elements = convert_scene_to_polymorphic(self.scene.items())
-        except Exception as e:
-            print(f"Error converting scene to polymorphic elements: {e}")
-            import traceback
-            traceback.print_exc()
-            # Fallback to legacy system
-            print("Falling back to legacy raytracing system")
-            self._retrace_legacy()
-            return
+            # Convert scene to polymorphic elements using the integration adapter
+            try:
+                from ...integration import convert_scene_to_polymorphic
+                elements = convert_scene_to_polymorphic(self.scene.items())
+            except Exception as e:
+                print(f"Error converting scene to polymorphic elements: {e}")
+                import traceback
+                traceback.print_exc()
+                # Fallback to legacy system
+                print("Falling back to legacy raytracing system")
+                self._retrace_legacy()
+                return
 
-        # Build source params (use actual params from items)
-        srcs: list[SourceParams] = []
-        for S in sources:
-            srcs.append(S.params)
+            # Build source params (use actual params from items)
+            srcs: list[SourceParams] = []
+            for S in sources:
+                srcs.append(S.params)
 
-        # Trace using new polymorphic engine
-        try:
-            from ...raytracing import trace_rays_polymorphic
-            paths = trace_rays_polymorphic(elements, srcs, max_events=80)
-        except Exception as e:
-            print(f"Error in polymorphic raytracing: {e}")
-            import traceback
-            traceback.print_exc()
-            # Fallback to legacy system
-            print("Falling back to legacy raytracing system")
-            self._retrace_legacy()
-            return
-        
-        # Render paths (same as legacy)
-        self._render_ray_paths(paths)
+            # Trace using new polymorphic engine
+            try:
+                from ...raytracing import trace_rays_polymorphic
+                paths = trace_rays_polymorphic(elements, srcs, max_events=80)
+            except Exception as e:
+                print(f"Error in polymorphic raytracing: {e}")
+                import traceback
+                traceback.print_exc()
+                # Fallback to legacy system
+                print("Falling back to legacy raytracing system")
+                self._retrace_legacy()
+                return
+            
+            # Render paths (same as legacy)
+            self._render_ray_paths(paths)
     
     def _render_ray_paths(self, paths):
         """
@@ -1465,6 +1499,14 @@ class MainWindow(QtWidgets.QMainWindow):
             item.setZValue(10)
             self.scene.addItem(item)
             self.ray_items.append(item)
+        
+        # Update any PathMeasureItem objects after retrace
+        from optiverse.objects.annotations.path_measure_item import PathMeasureItem
+        for item in self.scene.items():
+            if isinstance(item, PathMeasureItem):
+                ray_index = item.get_ray_index()
+                if 0 <= ray_index < len(paths):
+                    item.update_path(paths[ray_index].points)
     
     def _create_element_from_interface(self, p1, p2, iface, parent_item):
         """
@@ -1625,22 +1667,24 @@ class MainWindow(QtWidgets.QMainWindow):
     # ----- Save / Load -----
     def save_assembly(self):
         """Quick save: save to current file or prompt if new."""
-        if self._saved_file_path:
-            # We have a saved file path, save directly
-            self._save_to_file(self._saved_file_path)
-        else:
-            # No saved file path yet, prompt for location
-            self.save_assembly_as()
+        with ErrorContext("while saving assembly"):
+            if self._saved_file_path:
+                # We have a saved file path, save directly
+                self._save_to_file(self._saved_file_path)
+            else:
+                # No saved file path yet, prompt for location
+                self.save_assembly_as()
     
     def save_assembly_as(self):
         """Save As: always prompt for new file location."""
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self, "Save Assembly As", "", "Optics Assembly (*.json)"
-        )
-        if not path:
-            return
-        
-        self._save_to_file(path)
+        with ErrorContext("while saving assembly"):
+            path, _ = QtWidgets.QFileDialog.getSaveFileName(
+                self, "Save Assembly As", "", "Optics Assembly (*.json)"
+            )
+            if not path:
+                return
+            
+            self._save_to_file(path)
     
     def _save_to_file(self, path: str):
         """Helper method to save assembly to specified file path."""
@@ -1661,25 +1705,26 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def open_assembly(self):
         """Load all elements from JSON file."""
-        # Check for unsaved changes before opening
-        if self._is_modified:
-            reply = self._prompt_save_changes()
-            if reply == QtWidgets.QMessageBox.StandardButton.Cancel:
+        with ErrorContext("while opening assembly"):
+            # Check for unsaved changes before opening
+            if self._is_modified:
+                reply = self._prompt_save_changes()
+                if reply == QtWidgets.QMessageBox.StandardButton.Cancel:
+                    return
+            
+            path, _ = QtWidgets.QFileDialog.getOpenFileName(
+                self, "Open Assembly", "", "Optics Assembly (*.json)"
+            )
+            if not path:
                 return
-        
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Open Assembly", "", "Optics Assembly (*.json)"
-        )
-        if not path:
-            return
-        try:
-            with open(path, encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Open error", str(e))
-            return
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception as e:
+                QtWidgets.QMessageBox.critical(self, "Open error", str(e))
+                return
 
-        self._load_from_data(data)  # Use extracted method
+            self._load_from_data(data)  # Use extracted method
         
         # Connect edited signal for optical components
         from ...objects import BaseObj
@@ -1744,11 +1789,48 @@ class MainWindow(QtWidgets.QMainWindow):
         if on:
             # Disable placement mode if active
             self._cancel_placement_mode()
+            # Disable path measure mode if active
+            if self._path_measure_mode:
+                self.act_measure_path.setChecked(False)
             # Change cursor to indicate inspect mode is active
             self.view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
             QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), "Click on a ray to view its properties")
         else:
             # Restore default cursor (unset to use widget default)
+            self.view.unsetCursor()
+    
+    def _toggle_path_measure(self, on: bool):
+        """Toggle path measure tool mode."""
+        self._path_measure_mode = on
+        if on:
+            # Disable placement mode if active
+            self._cancel_placement_mode()
+            # Disable inspect mode if active
+            if self._inspect_mode:
+                self.act_inspect.setChecked(False)
+            # Initialize state for two-click workflow
+            self._path_measure_state = 'waiting_first_click'
+            self._path_measure_ray_index = None
+            self._path_measure_start_param = None
+            self._path_measure_temp_item = None
+            # Change cursor to indicate path measure mode is active
+            self.view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+            QtWidgets.QToolTip.showText(
+                QtGui.QCursor.pos(),
+                "Click on a ray to set start point.\n\n"
+                "💡 Tip: At beam splitters, transmitted and reflected are separate rays.\n"
+                "Create one measurement for each path."
+            )
+        else:
+            # Reset state
+            self._path_measure_state = None
+            self._path_measure_ray_index = None
+            self._path_measure_start_param = None
+            # Remove temporary item if exists
+            if self._path_measure_temp_item and self.scene:
+                self.scene.removeItem(self._path_measure_temp_item)
+                self._path_measure_temp_item = None
+            # Restore default cursor
             self.view.unsetCursor()
     
     def _toggle_placement_mode(self, component_type: str, on: bool):
@@ -2180,6 +2262,97 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
         layout.addLayout(button_layout)
         
         dialog.exec()
+    
+    def _handle_path_measure_click(self, scene_pos: QtCore.QPointF):
+        """Handle click in path measure mode to create path measurement item."""
+        from optiverse.objects.annotations.path_measure_item import PathMeasureItem
+        
+        click_pt = np.array([scene_pos.x(), scene_pos.y()])
+        
+        # Find the nearest ray segment within tolerance (same as inspect tool)
+        transform = self.view.transform()
+        scale_factor = transform.m11()
+        tolerance_px = 15.0
+        tolerance = tolerance_px / max(scale_factor, 0.01)
+        
+        best_ray_index = -1
+        best_distance = float('inf')
+        best_param = 0.0
+        
+        for i, ray_data in enumerate(self.ray_data):
+            points = ray_data.points
+            total_length = sum(np.linalg.norm(points[j + 1] - points[j]) for j in range(len(points) - 1))
+            
+            if total_length < 1e-6:
+                continue
+            
+            accumulated = 0.0
+            for j in range(len(points) - 1):
+                p1, p2 = points[j], points[j + 1]
+                segment_vec = p2 - p1
+                segment_len = np.linalg.norm(segment_vec)
+                
+                if segment_len < 1e-6:
+                    continue
+                
+                to_click = click_pt - p1
+                t = np.clip(np.dot(to_click, segment_vec) / (segment_len ** 2), 0.0, 1.0)
+                closest_on_segment = p1 + t * segment_vec
+                dist = np.linalg.norm(click_pt - closest_on_segment)
+                
+                if dist < best_distance and dist < tolerance:
+                    best_distance = dist
+                    best_ray_index = i
+                    best_param = (accumulated + t * segment_len) / total_length
+                
+                accumulated += segment_len
+        
+        if best_ray_index < 0:
+            QtWidgets.QMessageBox.information(self, "No Ray Found", "No ray found near the clicked position.\nTry clicking closer to a ray.")
+            return
+        
+        if self._path_measure_state == 'waiting_first_click':
+            self._path_measure_ray_index = best_ray_index
+            self._path_measure_start_param = best_param
+            self._path_measure_state = 'waiting_second_click'
+            
+            ray_data = self.ray_data[best_ray_index]
+            self._path_measure_temp_item = PathMeasureItem(
+                ray_path_points=ray_data.points, start_param=best_param, end_param=best_param, ray_index=best_ray_index
+            )
+            self.scene.addItem(self._path_measure_temp_item)
+            QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), "Start point set. Click again on the SAME ray to set end point.\n\n⚠️ At beam splitters: Each path is separate.")
+        
+        elif self._path_measure_state == 'waiting_second_click':
+            if best_ray_index != self._path_measure_ray_index:
+                QtWidgets.QMessageBox.warning(self, "Different Ray", "Please click on the same ray for the end point.")
+                return
+            
+            start_param = min(self._path_measure_start_param, best_param)
+            end_param = max(self._path_measure_start_param, best_param)
+            
+            if self._path_measure_temp_item:
+                self.scene.removeItem(self._path_measure_temp_item)
+                self._path_measure_temp_item = None
+            
+            ray_data = self.ray_data[best_ray_index]
+            path_measure = PathMeasureItem(ray_path_points=ray_data.points, start_param=start_param, end_param=end_param, ray_index=best_ray_index)
+            self.scene.addItem(path_measure)
+            
+            # Beam splitter auto-detection
+            sibling_count = 0
+            if len(self.ray_data) > 1 and len(ray_data.points) > 0:
+                start_pos = ray_data.points[0]
+                for sibling_idx, sibling_ray in enumerate(self.ray_data):
+                    if sibling_idx != best_ray_index and len(sibling_ray.points) > 0:
+                        if np.linalg.norm(start_pos - sibling_ray.points[0]) < 1.0:
+                            sibling_measure = PathMeasureItem(ray_path_points=sibling_ray.points, start_param=start_param, end_param=end_param, ray_index=sibling_idx)
+                            self.scene.addItem(sibling_measure)
+                            sibling_count += 1
+            
+            self.act_measure_path.setChecked(False)
+            tip_text = f"Created {sibling_count + 1} measurements (beam splitter)" if sibling_count > 0 else f"Path measurement: {path_measure._segment_length:.2f} mm"
+            QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), tip_text)
 
     def _set_ray_width(self, v: float):
         """Set ray width and retrace."""
@@ -2401,6 +2574,14 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
                 scene_pt = mev.scenePos()
                 self._handle_inspect_click(scene_pt)
                 return True  # consume event
+        
+        # --- Path Measure tool ---
+        if self._path_measure_mode and et == QtCore.QEvent.Type.GraphicsSceneMousePress:
+            mev = ev  # QGraphicsSceneMouseEvent
+            if mev.button() == QtCore.Qt.MouseButton.LeftButton:
+                scene_pt = mev.scenePos()
+                self._handle_path_measure_click(scene_pt)
+                return True  # consume event
 
         # --- Ruler 2-click placement ---
         if self._placing_ruler and et == QtCore.QEvent.Type.GraphicsSceneMousePress:
@@ -2561,11 +2742,31 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
         return super().eventFilter(obj, ev)
     
     def keyPressEvent(self, ev):
-        """Handle key press events for placement mode cancellation."""
+        """Handle key press events for placement mode cancellation and deletion."""
         # Check if Escape is pressed and placement mode is active
         if ev.key() == QtCore.Qt.Key.Key_Escape:
             if self._placement_mode:
                 self._cancel_placement_mode()
+                ev.accept()
+                return
+        
+        # Handle Delete/Backspace for selected items
+        if ev.key() in (QtCore.Qt.Key.Key_Delete, QtCore.Qt.Key.Key_Backspace):
+            from optiverse.objects.annotations.path_measure_item import PathMeasureItem
+            from optiverse.objects.annotations.ruler_item import RulerItem
+            from optiverse.objects.annotations.text_note_item import TextNoteItem
+            
+            selected_items = self.scene.selectedItems()
+            items_to_delete = []
+            
+            for item in selected_items:
+                # Allow deletion of annotations and rulers
+                if isinstance(item, (PathMeasureItem, RulerItem, TextNoteItem)):
+                    items_to_delete.append(item)
+            
+            if items_to_delete:
+                for item in items_to_delete:
+                    self.scene.removeItem(item)
                 ev.accept()
                 return
         

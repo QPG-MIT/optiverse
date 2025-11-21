@@ -16,6 +16,7 @@ from ...core import interface_types
 from ...core.undo_stack import UndoStack
 from ...core.undo_commands import Command
 from ...services.storage_service import StorageService
+from ...services.error_handler import get_error_handler, ErrorContext
 from ...platform.paths import assets_dir
 from ...objects.views import MultiLineCanvas, InterfaceLine
 from ..widgets.interface_tree_panel import InterfaceTreePanel
@@ -1046,91 +1047,93 @@ class ComponentEditor(QtWidgets.QMainWindow):
 
     def save_component(self):
         """Save component to library in folder-based structure."""
-        rec = self._build_record_from_ui()
-        if not rec:
-            return
-        
-        try:
-            # Save using the new folder-based storage
-            self.storage.save_component(rec)
+        with ErrorContext("while saving component"):
+            rec = self._build_record_from_ui()
+            if not rec:
+                return
             
-            # Copy JSON to clipboard for convenience
-            serialized = serialize_component(rec, self.storage.settings_service)
-            QtWidgets.QApplication.clipboard().setText(json.dumps(serialized, indent=2))
-            
-            # Show success message
-            library_path = self.storage.get_library_root()
-            QtWidgets.QMessageBox.information(
-                self,
-                "Saved",
-                f"Saved component '{rec.name}'\n\n"
-                f"Interfaces: {len(rec.interfaces) if rec.interfaces else 0}\n"
-                f"Library location:\n{library_path}\n\n"
-                f"Component JSON copied to clipboard."
-            )
-            
-            self._refresh_library_list()
-            self.saved.emit()
-            
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(
-                self,
-                "Save Failed",
-                f"Failed to save component '{rec.name}':\n\n{str(e)}"
-            )
+            try:
+                # Save using the new folder-based storage
+                self.storage.save_component(rec)
+                
+                # Copy JSON to clipboard for convenience
+                serialized = serialize_component(rec, self.storage.settings_service)
+                QtWidgets.QApplication.clipboard().setText(json.dumps(serialized, indent=2))
+                
+                # Show success message
+                library_path = self.storage.get_library_root()
+                QtWidgets.QMessageBox.information(
+                    self,
+                    "Saved",
+                    f"Saved component '{rec.name}'\n\n"
+                    f"Interfaces: {len(rec.interfaces) if rec.interfaces else 0}\n"
+                    f"Library location:\n{library_path}\n\n"
+                    f"Component JSON copied to clipboard."
+                )
+                
+                self._refresh_library_list()
+                self.saved.emit()
+                
+            except Exception as e:
+                QtWidgets.QMessageBox.critical(
+                    self,
+                    "Save Failed",
+                    f"Failed to save component '{rec.name}':\n\n{str(e)}"
+                )
     
     def export_component(self):
         """Export current component to a folder."""
-        rec = self._build_record_from_ui()
-        if not rec:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "No Component",
-                "Please create or load a component first."
-            )
-            return
-        
-        # Ask user for destination folder
-        dest_dir = QtWidgets.QFileDialog.getExistingDirectory(
-            self,
-            "Select Export Destination",
-            "",
-            QtWidgets.QFileDialog.Option.ShowDirsOnly
-        )
-        
-        if not dest_dir:
-            return  # User cancelled
-        
-        try:
-            # First save to library to ensure it's up to date
-            self.storage.save_component(rec)
-            
-            # Then export from library
-            success = self.storage.export_component(rec.name, dest_dir)
-            
-            if success:
-                from ...services.storage_service import slugify
-                folder_name = slugify(rec.name)
-                export_path = Path(dest_dir) / folder_name
-                
-                QtWidgets.QMessageBox.information(
+        with ErrorContext("while exporting component"):
+            rec = self._build_record_from_ui()
+            if not rec:
+                QtWidgets.QMessageBox.warning(
                     self,
-                    "Export Successful",
-                    f"Component '{rec.name}' exported to:\n{export_path}\n\n"
-                    f"You can share this folder with others."
+                    "No Component",
+                    "Please create or load a component first."
                 )
-            else:
+                return
+            
+            # Ask user for destination folder
+            dest_dir = QtWidgets.QFileDialog.getExistingDirectory(
+                self,
+                "Select Export Destination",
+                "",
+                QtWidgets.QFileDialog.Option.ShowDirsOnly
+            )
+            
+            if not dest_dir:
+                return  # User cancelled
+            
+            try:
+                # First save to library to ensure it's up to date
+                self.storage.save_component(rec)
+                
+                # Then export from library
+                success = self.storage.export_component(rec.name, dest_dir)
+                
+                if success:
+                    from ...services.storage_service import slugify
+                    folder_name = slugify(rec.name)
+                    export_path = Path(dest_dir) / folder_name
+                    
+                    QtWidgets.QMessageBox.information(
+                        self,
+                        "Export Successful",
+                        f"Component '{rec.name}' exported to:\n{export_path}\n\n"
+                        f"You can share this folder with others."
+                    )
+                else:
+                    QtWidgets.QMessageBox.critical(
+                        self,
+                        "Export Failed",
+                        f"Failed to export component '{rec.name}'."
+                    )
+            except Exception as e:
                 QtWidgets.QMessageBox.critical(
                     self,
-                    "Export Failed",
-                    f"Failed to export component '{rec.name}'."
+                    "Export Error",
+                    f"Error exporting component:\n\n{str(e)}"
                 )
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(
-                self,
-                "Export Error",
-                f"Error exporting component:\n\n{str(e)}"
-            )
     
     def import_component(self):
         """Import a component from a folder."""

@@ -746,3 +746,35 @@ def _point_on_arc_bounds(
     return in_bounds
 
 
+def calculate_path_length(points: list[np.ndarray]) -> float:
+    """
+    Calculate cumulative optical path length along a sequence of points.
+    
+    This computes the total distance traveled by summing Euclidean distances
+    between consecutive points. Used for measuring ray paths including
+    reflections, refractions, and beam splitter paths.
+    
+    Args:
+        points: List of [x, y] position arrays in mm
+        
+    Returns:
+        Total path length in mm
+        
+    Example:
+        >>> points = [np.array([0, 0]), np.array([10, 0]), np.array([10, 10])]
+        >>> calculate_path_length(points)
+        20.0
+    """
+    if len(points) < 2:
+        return 0.0
+    
+    total_length = 0.0
+    for i in range(len(points) - 1):
+        dx = points[i + 1][0] - points[i][0]
+        dy = points[i + 1][1] - points[i][1]
+        total_length += math.sqrt(dx * dx + dy * dy)
+    
+    return total_length
+
+
+

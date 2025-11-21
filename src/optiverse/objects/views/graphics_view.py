@@ -15,6 +15,7 @@ except ImportError:
     RAY_OPENGL_AVAILABLE = False
 
 from ...platform.paths import is_macos
+from ...services.error_handler import ErrorContext
 
 
 class GraphicsView(QtWidgets.QGraphicsView):
@@ -640,46 +641,47 @@ class GraphicsView(QtWidgets.QGraphicsView):
         e.accept()
 
     def dropEvent(self, e: QtGui.QDropEvent):
-        scene = self.scene()
-        if scene is None:
-            e.ignore()
-            return
-        md = e.mimeData()
-        pos_view = e.position().toPoint()
-        scene_pos = self.mapToScene(pos_view)
-
-        # Component from library
-        if md.hasFormat("application/x-optics-component"):
-            import json
-            data = md.data("application/x-optics-component")
-            try:
-                rec = json.loads(bytes(data).decode("utf-8"))
-            except Exception:
+        with ErrorContext("while dropping component", show_dialog=False):
+            scene = self.scene()
+            if scene is None:
                 e.ignore()
                 return
+            md = e.mimeData()
+            pos_view = e.position().toPoint()
+            scene_pos = self.mapToScene(pos_view)
 
-            # Finalize: remove ghost and create the real object
-            self._clear_ghost()
-            
-            # Restore transformation anchor after drag completes
-            if hasattr(self, '_saved_anchor'):
-                self.setTransformationAnchor(self._saved_anchor)
-                delattr(self, '_saved_anchor')
+            # Component from library
+            if md.hasFormat("application/x-optics-component"):
+                import json
+                data = md.data("application/x-optics-component")
+                try:
+                    rec = json.loads(bytes(data).decode("utf-8"))
+                except Exception:
+                    e.ignore()
+                    return
 
-            self.parent().on_drop_component(rec, scene_pos)
-            
-            # Force Qt to update its internal mouse position tracking by sending a synthetic mouse move
-            # This ensures zoom-to-cursor works correctly after drag-and-drop operations
-            # Without this, Qt's internal mouse tracking can get stuck, causing buggy zoom behavior
-            cursor_pos = self.mapFromGlobal(QtGui.QCursor.pos())
-            move_event = QtGui.QMouseEvent(
-                QtCore.QEvent.Type.MouseMove,
-                QtCore.QPointF(cursor_pos),
-                QtCore.Qt.MouseButton.NoButton,
-                QtCore.Qt.MouseButton.NoButton,
-                QtCore.Qt.KeyboardModifier.NoModifier
-            )
-            QtWidgets.QApplication.sendEvent(self.viewport(), move_event)
+                # Finalize: remove ghost and create the real object
+                self._clear_ghost()
+                
+                # Restore transformation anchor after drag completes
+                if hasattr(self, '_saved_anchor'):
+                    self.setTransformationAnchor(self._saved_anchor)
+                    delattr(self, '_saved_anchor')
+
+                self.parent().on_drop_component(rec, scene_pos)
+                
+                # Force Qt to update its internal mouse position tracking by sending a synthetic mouse move
+                # This ensures zoom-to-cursor works correctly after drag-and-drop operations
+                # Without this, Qt's internal mouse tracking can get stuck, causing buggy zoom behavior
+                cursor_pos = self.mapFromGlobal(QtGui.QCursor.pos())
+                move_event = QtGui.QMouseEvent(
+                    QtCore.QEvent.Type.MouseMove,
+                    QtCore.QPointF(cursor_pos),
+                    QtCore.Qt.MouseButton.NoButton,
+                    QtCore.Qt.MouseButton.NoButton,
+                    QtCore.Qt.KeyboardModifier.NoModifier
+                )
+                QtWidgets.QApplication.sendEvent(self.viewport(), move_event)
             
             e.acceptProposedAction()
             return

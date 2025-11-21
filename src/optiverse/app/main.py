@@ -498,6 +498,11 @@ def apply_theme(dark_mode: bool):
 
 
 def main() -> int:
+    # Install global error handler FIRST (before any Qt code)
+    from ..services.error_handler import get_error_handler, install_qt_message_handler
+    error_handler = get_error_handler()
+    print("✅ Global error handler installed")
+    
     # Increase Qt's image allocation limit to support large SVG cache files
     # Default is 256MB, we set to 1GB to allow high-resolution cached PNGs
     # This must be set BEFORE creating QApplication
@@ -539,6 +544,10 @@ def main() -> int:
     # Minimal app that opens the main window (Qt6 enables high DPI by default)
     app = QtWidgets.QApplication(sys.argv)
     
+    # Install Qt message handler to catch Qt warnings/errors
+    install_qt_message_handler()
+    print("✅ Qt message handler installed")
+    
     # Restore original argv[0] after QApplication creation
     sys.argv[0] = original_argv0
     
@@ -567,8 +576,14 @@ def main() -> int:
     system_dark_mode = detect_system_dark_mode()
     apply_theme(system_dark_mode)
     
-    w = MainWindow()
-    w.show()
+    # Wrap main window creation in try/except to handle startup errors
+    try:
+        w = MainWindow()
+        w.show()
+    except Exception as e:
+        error_handler.handle_error(e, "during application startup")
+        return 1
+    
     return app.exec()
 
 
