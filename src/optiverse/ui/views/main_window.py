@@ -38,6 +38,43 @@ def _get_icon_path(icon_name: str) -> str:
     return str(icons_dir / icon_name)
 
 
+def _create_inverted_icon(icon_path: str) -> QtGui.QIcon:
+    """Create an inverted version of an icon for dark mode.
+    
+    This inverts the colors of PNG icons to make them visible in dark mode.
+    Uses QImage color inversion which is fast and efficient.
+    """
+    icon = QtGui.QIcon()
+    
+    # Load the original image
+    image = QtGui.QImage(icon_path)
+    if image.isNull():
+        return icon
+    
+    # Create inverted version
+    inverted = image.copy()
+    inverted.invertPixels(QtGui.QImage.InvertMode.InvertRgb)
+    
+    # Add both normal and inverted states to icon
+    # Normal state (for light mode)
+    icon.addPixmap(QtGui.QPixmap.fromImage(image), QtGui.QIcon.Mode.Normal)
+    # Active/Selected state uses same as normal
+    icon.addPixmap(QtGui.QPixmap.fromImage(image), QtGui.QIcon.Mode.Active)
+    
+    return icon
+
+
+def _create_icon_for_mode(icon_path: str, dark_mode: bool) -> QtGui.QIcon:
+    """Create an icon appropriate for the current mode (dark or light).
+    
+    In dark mode, inverts the icon colors. In light mode, uses original.
+    """
+    if dark_mode:
+        return _create_inverted_icon(icon_path)
+    else:
+        return QtGui.QIcon(icon_path)
+
+
 def to_np(p: QtCore.QPointF) -> np.ndarray:
     """Convert QPointF to numpy array."""
     return np.array([p.x(), p.y()], float)
@@ -736,15 +773,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _build_toolbar(self):
         """Build component toolbar with custom PNG icons."""
-        toolbar = QtWidgets.QToolBar("Components")
-        toolbar.setObjectName("component_toolbar")
-        toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        toolbar.setIconSize(QtCore.QSize(32, 32))
-        self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, toolbar)
+        self.toolbar = QtWidgets.QToolBar("Components")
+        self.toolbar.setObjectName("component_toolbar")
+        self.toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.toolbar.setIconSize(QtCore.QSize(32, 32))
+        self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, self.toolbar)
         
         # Add styling for checked/active tool buttons to make them visually distinct
         # Using box-shadow instead of border to avoid resizing the toolbar
-        toolbar.setStyleSheet("""
+        self.toolbar.setStyleSheet("""
             QToolButton {
                 padding: 2px;
                 border: 2px solid transparent;
@@ -763,48 +800,49 @@ class MainWindow(QtWidgets.QMainWindow):
                 color: palette(window-text);
             }
         """)
+        
+        # Update toolbar icons for current dark mode state
+        self._update_toolbar_icons()
 
+        self.toolbar.addAction(self.act_add_source)
+        self.toolbar.addAction(self.act_add_lens)
+        self.toolbar.addAction(self.act_add_mirror)
+        self.toolbar.addAction(self.act_add_bs)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.act_add_ruler)
+        self.toolbar.addAction(self.act_inspect)
+        self.toolbar.addAction(self.act_add_text)
+        self.toolbar.addAction(self.act_add_rectangle)
+
+    def _update_toolbar_icons(self):
+        """Update toolbar icons for current dark mode state."""
+        dark_mode = self.view.is_dark_mode()
+        
         # Source button
-        source_icon = QtGui.QIcon(_get_icon_path("source.png"))
-        self.act_add_source.setIcon(source_icon)
-        toolbar.addAction(self.act_add_source)
+        self.act_add_source.setIcon(_create_icon_for_mode(_get_icon_path("source.png"), dark_mode))
 
         # Lens button
-        lens_icon = QtGui.QIcon(_get_icon_path("lens.png"))
-        self.act_add_lens.setIcon(lens_icon)
-        toolbar.addAction(self.act_add_lens)
+        self.act_add_lens.setIcon(_create_icon_for_mode(_get_icon_path("lens.png"), dark_mode))
 
         # Mirror button
-        mirror_icon = QtGui.QIcon(_get_icon_path("mirror.png"))
-        self.act_add_mirror.setIcon(mirror_icon)
-        toolbar.addAction(self.act_add_mirror)
+        self.act_add_mirror.setIcon(_create_icon_for_mode(_get_icon_path("mirror.png"), dark_mode))
 
         # Beamsplitter button
-        bs_icon = QtGui.QIcon(_get_icon_path("beamsplitter.png"))
-        self.act_add_bs.setIcon(bs_icon)
-        toolbar.addAction(self.act_add_bs)
-
-        toolbar.addSeparator()
+        self.act_add_bs.setIcon(_create_icon_for_mode(_get_icon_path("beamsplitter.png"), dark_mode))
 
         # Ruler button
-        ruler_icon = QtGui.QIcon(_get_icon_path("ruler.png"))
-        self.act_add_ruler.setIcon(ruler_icon)
-        toolbar.addAction(self.act_add_ruler)
+        self.act_add_ruler.setIcon(_create_icon_for_mode(_get_icon_path("ruler.png"), dark_mode))
 
         # Inspect button
-        inspect_icon = QtGui.QIcon(_get_icon_path("inspect.png"))
-        self.act_inspect.setIcon(inspect_icon)
-        toolbar.addAction(self.act_inspect)
+        self.act_inspect.setIcon(_create_icon_for_mode(_get_icon_path("inspect.png"), dark_mode))
 
         # Text button
-        text_icon = QtGui.QIcon(_get_icon_path("text.png"))
-        self.act_add_text.setIcon(text_icon)
-        toolbar.addAction(self.act_add_text)
+        self.act_add_text.setIcon(_create_icon_for_mode(_get_icon_path("text.png"), dark_mode))
 
-        # Rectangle button
-        rect_icon = QtGui.QIcon(_get_icon_path("rectangle.png"))
-        self.act_add_rectangle.setIcon(rect_icon)
-        toolbar.addAction(self.act_add_rectangle)
+        # Rectangle button - only set if the icon file exists
+        rect_path = _get_icon_path("rectangle.png")
+        if Path(rect_path).exists():
+            self.act_add_rectangle.setIcon(_create_icon_for_mode(rect_path, dark_mode))
 
     def _build_menubar(self):
         """Build menu bar."""
@@ -1724,6 +1762,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # Apply the theme to the entire application
         from ...app.main import apply_theme
         apply_theme(on)
+        # Refresh toolbar icons for the new mode
+        self._update_toolbar_icons()
         # Refresh library to update category colors
         self.populate_library()
     

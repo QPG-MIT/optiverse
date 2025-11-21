@@ -488,10 +488,12 @@ def apply_theme(dark_mode: bool):
         # Apply the palette to override system colors
         app.setPalette(palette)
         
-        # Force complete style refresh to override macOS system styling
-        # This is critical on Mac where system dark mode can conflict with app theme
-        for widget in app.allWidgets():
-            # Force each widget to recompute its style
+        # More efficient style refresh - only update top-level windows
+        # Setting the palette and stylesheet will cascade to child widgets automatically
+        # We only need to explicitly update top-level windows
+        for widget in app.topLevelWidgets():
+            # Force each top-level widget to recompute its style
+            # This will cascade to all child widgets automatically
             widget.style().unpolish(widget)
             widget.style().polish(widget)
             widget.update()
