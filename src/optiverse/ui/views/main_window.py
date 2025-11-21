@@ -6,6 +6,7 @@ import tempfile
 import hashlib
 import datetime
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -2264,16 +2265,100 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
         
         dialog.exec()
     
+    def _param_to_position(self, ray_index: int, param: float) -> Optional[np.ndarray]:
+        """
+        Convert parameter [0, 1] on a ray to actual scene position.
+        
+        Args:
+            ray_index: Index of the ray in self.ray_data
+            param: Parameter [0, 1] along the ray path
+            
+        Returns:
+            Position as numpy array [x, y], or None if invalid
+        """
+        if ray_index < 0 or ray_index >= len(self.ray_data):
+            return None
+        
+        ray_data = self.ray_data[ray_index]
+        points = ray_data.points
+        
+        if len(points) < 2:
+            return points[0].copy() if len(points) == 1 else None
+        
+        total_length = sum(np.linalg.norm(points[j+1] - points[j]) for j in range(len(points)-1))
+        if total_length < 1e-6:
+            return points[0].copy()
+        
+        target_dist = param * total_length
+        accumulated = 0.0
+        
+        for j in range(len(points) - 1):
+            p1, p2 = points[j], points[j+1]
+            segment_len = np.linalg.norm(p2 - p1)
+            
+            if accumulated + segment_len >= target_dist:
+                t = (target_dist - accumulated) / segment_len if segment_len > 0 else 0
+                return p1 + t * (p2 - p1)
+            
+            accumulated += segment_len
+        
+        return points[-1].copy()
+    
+    def _find_param_on_ray(self, ray_index: int, click_pt: np.ndarray) -> float:
+        """
+        Find the parameter [0, 1] on a specific ray closest to the clicked point.
+        
+        Args:
+            ray_index: Index of the ray in self.ray_data
+            click_pt: Clicked position as numpy array [x, y]
+            
+        Returns:
+            Parameter value [0.0, 1.0] along the ray path
+        """
+        ray_data = self.ray_data[ray_index]
+        points = ray_data.points
+        
+        total_length = sum(np.linalg.norm(points[j + 1] - points[j]) for j in range(len(points) - 1))
+        if total_length < 1e-6:
+            return 0.0
+        
+        best_distance = float('inf')
+        best_param = 0.0
+        accumulated = 0.0
+        
+        for j in range(len(points) - 1):
+            p1, p2 = points[j], points[j + 1]
+            segment_vec = p2 - p1
+            segment_len_sq = np.dot(segment_vec, segment_vec)
+            segment_len = np.sqrt(segment_len_sq)
+            
+            if segment_len < 1e-6:
+                continue
+            
+            # Calculate distance to segment
+            to_click = click_pt - p1
+            t = np.clip(np.dot(to_click, segment_vec) / segment_len_sq, 0.0, 1.0)
+            closest_on_segment = p1 + t * segment_vec
+            dist = np.linalg.norm(click_pt - closest_on_segment)
+            
+            if dist < best_distance:
+                best_distance = dist
+                best_param = (accumulated + t * segment_len) / total_length
+            
+            accumulated += segment_len
+        
+        return best_param
+    
     def _handle_path_measure_click(self, scene_pos: QtCore.QPointF):
         """Handle click in path measure mode to create path measurement item."""
         from optiverse.objects.annotations.path_measure_item import PathMeasureItem
         
         click_pt = np.array([scene_pos.x(), scene_pos.y()])
         
-        # Find the nearest ray segment within tolerance (same as inspect tool)
+        # Find the nearest ray segment within tolerance (larger than inspect tool for easier clicking)
         transform = self.view.transform()
         scale_factor = transform.m11()
-        tolerance_px = 15.0
+        tolerance_px = 25.0  # Generous tolerance for easy ray selection in dense bundles
         tolerance = tolerance_px / max(scale_factor, 0.01)
         
         best_ray_index = -1
@@ -2291,13 +2376,15 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
             for j in range(len(points) - 1):
                 p1, p2 = points[j], points[j + 1]
                 segment_vec = p2 - p1
-                segment_len = np.linalg.norm(segment_vec)
+                segment_len_sq = np.dot(segment_vec, segment_vec)
+                segment_len = np.sqrt(segment_len_sq)
                 
                 if segment_len < 1e-6:
                     continue
                 
+                # Calculate distance to segment (same method as inspect tool)
                 to_click = click_pt - p1
-                t = np.clip(np.dot(to_click, segment_vec) / (segment_len ** 2), 0.0, 1.0)
+                t = np.clip(np.dot(to_click, segment_vec) / segment_len_sq, 0.0, 1.0)
                 closest_on_segment = p1 + t * segment_vec
                 dist = np.linalg.norm(click_pt - closest_on_segment)
                 
@@ -2326,12 +2413,85 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
             QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), "Start point set. Click again on the SAME ray to set end point.\n\n⚠️ At beam splitters: Each path is separate.")
         
         elif self._path_measure_state == 'waiting_second_click':
-            if best_ray_index != self._path_measure_ray_index:
-                QtWidgets.QMessageBox.warning(self, "Different Ray", "Please click on the same ray for the end point.")
+            # Smart ray matching with multiple strategies for dense bundles:
+            # 1. Same ray - always allowed
+            # 2. Beam splitter siblings - rays sharing starting point
+            # 3. Parallel bundle - first click is close to the clicked ray
+            
+            original_ray = self.ray_data[self._path_measure_ray_index]
+            clicked_ray = self.ray_data[best_ray_index]
+            
+            allow_ray = False
+            use_clicked_ray = False
+            
+            if best_ray_index == self._path_measure_ray_index:
+                # Strategy 1: Same ray - always allowed
+                allow_ray = True
+            else:
+                # Different ray - check if acceptable
+                
+                # Strategy 2: Beam splitter siblings (share starting point)
+                if len(original_ray.points) > 0 and len(clicked_ray.points) > 0:
+                    if np.linalg.norm(original_ray.points[0] - clicked_ray.points[0]) < 1.0:
+                        allow_ray = True
+                        # Keep original ray for beam splitter case
+                
+                # Strategy 3: Parallel bundle detection
+                if not allow_ray and len(clicked_ray.points) > 1:
+                    # Check if first click is close to the clicked ray
+                    first_click_pos = self._param_to_position(self._path_measure_ray_index, self._path_measure_start_param)
+                    if first_click_pos is not None:
+                        # Find minimum distance from first click to any segment of clicked ray
+                        min_dist = float('inf')
+                        for j in range(len(clicked_ray.points) - 1):
+                            dist = self._point_to_segment_distance(
+                                first_click_pos,
+                                clicked_ray.points[j],
+                                clicked_ray.points[j + 1]
+                            )
+                            min_dist = min(min_dist, dist)
+                        
+                        # If first click is close to clicked ray (within 15mm), allow it
+                        # This handles parallel/overlapping rays in bundles
+                        if min_dist < 15.0:
+                            allow_ray = True
+                            use_clicked_ray = True  # Measure along the clicked ray
+            
+            if not allow_ray:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Different Ray",
+                    "Please click on the same ray or a nearby parallel ray for the end point."
+                )
                 return
             
-            start_param = min(self._path_measure_start_param, best_param)
-            end_param = max(self._path_measure_start_param, best_param)
+            # Calculate measurement parameters
+            if use_clicked_ray:
+                # Measure along the clicked ray (parallel bundle case)
+                # Project first click onto the clicked ray
+                first_click_pos = self._param_to_position(self._path_measure_ray_index, self._path_measure_start_param)
+                if first_click_pos is not None:
+                    start_param_on_clicked = self._find_param_on_ray(best_ray_index, first_click_pos)
+                    end_param_on_clicked = best_param
+                    
+                    # Switch to clicked ray for measurement
+                    self._path_measure_ray_index = best_ray_index
+                    start_param = min(start_param_on_clicked, end_param_on_clicked)
+                    end_param = max(start_param_on_clicked, end_param_on_clicked)
+                else:
+                    # Fallback to simple params
+                    start_param = 0.0
+                    end_param = best_param
+            elif best_ray_index != self._path_measure_ray_index:
+                # Beam splitter sibling - project second click onto original ray
+                click_pt = np.array([scene_pos.x(), scene_pos.y()])
+                best_param = self._find_param_on_ray(self._path_measure_ray_index, click_pt)
+                start_param = min(self._path_measure_start_param, best_param)
+                end_param = max(self._path_measure_start_param, best_param)
+            else:
+                # Same ray - use stored params
+                start_param = min(self._path_measure_start_param, best_param)
+                end_param = max(self._path_measure_start_param, best_param)
             
             # Remove temp preview item
             if self._path_measure_temp_item:
