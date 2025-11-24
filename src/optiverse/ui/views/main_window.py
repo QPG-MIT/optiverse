@@ -816,16 +816,15 @@ class MainWindow(QtWidgets.QMainWindow):
         ruler_icon = QtGui.QIcon(_get_icon_path("ruler.png"))
         self.act_add_ruler.setIcon(ruler_icon)
         toolbar.addAction(self.act_add_ruler)
+        
+        # Path Measure tool - right next to regular measure tool
+        self.act_measure_path.setIcon(ruler_icon)
+        toolbar.addAction(self.act_measure_path)
 
         # Inspect button
         inspect_icon = QtGui.QIcon(_get_icon_path("inspect.png"))
         self.act_inspect.setIcon(inspect_icon)
         toolbar.addAction(self.act_inspect)
-        
-        # Path Measure tool
-        measure_icon = QtGui.QIcon.fromTheme("accessories-calculator")
-        self.act_measure_path.setIcon(measure_icon)
-        toolbar.addAction(self.act_measure_path)
 
         # Text button
         text_icon = QtGui.QIcon(_get_icon_path("text.png"))
