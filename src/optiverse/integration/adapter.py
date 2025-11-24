@@ -68,11 +68,11 @@ def create_polymorphic_element(optical_iface: OpticalInterface) -> IOpticalEleme
         assert isinstance(properties, LensProperties)
         return Lens(optical_iface)
     
-    elif element_type == "refractive_interface":
+    elif element_type == "refractive" or element_type == "refractive_interface":
         assert isinstance(properties, RefractiveProperties)
         return RefractiveInterfaceElement(optical_iface)
     
-    elif element_type == "beam_splitter":
+    elif element_type == "beamsplitter":
         assert isinstance(properties, BeamsplitterProperties)
         return Beamsplitter(optical_iface)
     
@@ -162,9 +162,22 @@ def convert_scene_to_polymorphic(scene_items) -> List[IOpticalElement]:
                 interfaces_scene = item.get_interfaces_scene()
                 
                 # Each interface is a tuple: (p1, p2, iface)
+                # CRITICAL: p1 and p2 are CURRENT scene coordinates (updated when item moves)
+                # The iface object has STALE coordinates, so we must use the current p1, p2!
                 for p1, p2, iface in interfaces_scene:
                     # Convert legacy interface to OpticalInterface
                     optical_iface = convert_legacy_interface_to_optical(iface)
+                    
+                    # UPDATE geometry with CURRENT scene coordinates
+                    # This is essential for dynamic updates when items move!
+                    if hasattr(optical_iface.geometry, 'is_curved') and optical_iface.geometry.is_curved:
+                        # For curved geometry, preserve radius and curvature
+                        optical_iface.geometry.p1 = p1
+                        optical_iface.geometry.p2 = p2
+                    else:
+                        # For flat geometry, just update endpoints
+                        optical_iface.geometry.p1 = p1
+                        optical_iface.geometry.p2 = p2
                     
                     # Convert OpticalInterface to polymorphic element
                     element = create_polymorphic_element(optical_iface)

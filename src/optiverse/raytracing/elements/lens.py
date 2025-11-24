@@ -52,6 +52,12 @@ class LensElement(IOpticalElement):
         - where y is height off optical axis, f is focal length
         - Polarization unchanged through ideal lens
         """
+        # CRITICAL FIX: Ensure normal points in ray propagation direction
+        # The thin lens formula only works when angles are measured from
+        # the propagation direction (theta=0), not from backward (theta=180°)
+        if np.dot(ray.direction, normal) < 0:
+            normal = -normal
+        
         # Compute ray height on lens (distance from center along tangent)
         center = 0.5 * (self.p1 + self.p2)
         y = float(np.dot(hit_point - center, tangent))

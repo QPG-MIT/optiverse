@@ -15,13 +15,15 @@ Architecture:
 
 from .ray import Ray, RayPath, Polarization
 from .elements.base import IOpticalElement, RayIntersection
-from .elements.mirror import Mirror
-from .elements.lens import Lens
-from .elements.refractive import RefractiveInterfaceElement
-from .elements.beamsplitter import Beamsplitter
-from .elements.waveplate import Waveplate
-from .elements.dichroic import Dichroic
-from .engine import trace_rays, trace_rays_polymorphic
+from .elements import (
+    Mirror,
+    Lens,
+    RefractiveInterfaceElement,
+    Beamsplitter,
+    Waveplate,
+    Dichroic
+)
+from .engine import trace_rays_polymorphic
 
 __all__ = [
     # Ray data structures
@@ -38,7 +40,6 @@ __all__ = [
     "Waveplate",
     "Dichroic",
     # Raytracing engine
-    "trace_rays",
     "trace_rays_polymorphic",
 ]
 

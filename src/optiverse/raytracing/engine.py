@@ -108,7 +108,8 @@ def _generate_rays_from_source(source: SourceParams) -> List[Ray]:
             wavelength_nm=source.wavelength_nm,
             base_rgb=base_rgb,
             intensity=1.0,
-            events=0
+            events=0,
+            path_points=[position.copy()]  # Initialize with starting position
         )
         rays.append(ray)
     
@@ -240,19 +241,31 @@ def _trace_single_ray(
             ))
             continue
         
+        # Add intersection point to path before interaction
+        current_ray.path_points.append(nearest_intersection.point)
+        
         # Interact with element - POLYMORPHIC DISPATCH!
         # This is the magic: no type checking, no if-elif chains
-        # Just call element.interact_with_ray() and it does the right thing!
-        output_rays = nearest_element.interact_with_ray(
+        # Just call element.interact() and it does the right thing!
+        output_rays = nearest_element.interact(
             current_ray,
-            nearest_intersection,
-            epsilon,
-            min_intensity
+            nearest_intersection.point,
+            nearest_intersection.normal,
+            nearest_intersection.tangent
         )
         
-        # Track last element for each output ray to prevent re-intersection
+        # Track last element and propagate engine-specific fields to output rays
         for out_ray in output_rays:
             last_element_for_ray[id(out_ray)] = nearest_element
+            
+            # Propagate engine-specific fields that interact() doesn't know about
+            if not hasattr(out_ray, 'base_rgb') or out_ray.base_rgb is None:
+                out_ray.base_rgb = base_rgb
+            if not hasattr(out_ray, 'remaining_length'):
+                out_ray.remaining_length = current_ray.remaining_length - nearest_distance
+            if not hasattr(out_ray, 'path_points') or len(out_ray.path_points) == 0:
+                # Copy path points from current ray (which includes the interaction point)
+                out_ray.path_points = current_ray.path_points.copy()
         
         # Add output rays to stack for processing
         stack.extend(output_rays)

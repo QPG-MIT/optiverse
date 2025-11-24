@@ -4,11 +4,26 @@ Base interface for all optical elements.
 Defines the contract that all optical elements must implement.
 """
 from abc import ABC, abstractmethod
-from typing import List, Tuple
+from dataclasses import dataclass
+from typing import List, Tuple, Optional
 import numpy as np
 
 # Import RayState from parent package
 from ..ray import RayState
+
+
+@dataclass
+class RayIntersection:
+    """
+    Data structure for ray-element intersection information.
+    """
+    distance: float                # Distance from ray origin to hit point
+    point: np.ndarray             # Hit point coordinates [x, y]
+    tangent: np.ndarray           # Surface tangent at hit point (normalized)
+    normal: np.ndarray            # Surface normal at hit point (normalized)
+    center: np.ndarray            # Center point of the surface segment
+    length: float                 # Length of the surface segment
+    interface: Optional[object] = None  # Optional: Reference to optical interface
 
 
 class IOpticalElement(ABC):

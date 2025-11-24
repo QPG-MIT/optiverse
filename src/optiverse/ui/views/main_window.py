@@ -189,7 +189,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # NEW: Feature flag for polymorphic raytracing engine
         # Set to True to use new polymorphic system (Phase 1-3 complete)
         # Set to False to use legacy system (backward compatibility)
-        self._use_polymorphic_raytracing = False  # Default: False for safety
+        self._use_polymorphic_raytracing = True  # Enabled: Using new polymorphic engine
         
         # Grid now drawn in GraphicsView.drawBackground() for better performance
         

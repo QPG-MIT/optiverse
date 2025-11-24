@@ -25,8 +25,12 @@ class RayState:
     intensity: float          # Current intensity (0.0 to 1.0)
     polarization: Polarization  # Jones vector polarization state
     wavelength_nm: float      # Wavelength in nanometers
-    path: List[np.ndarray]    # List of positions visited
-    events: int               # Number of interactions so far
+    path: List[np.ndarray] = field(default_factory=list)    # List of positions visited (deprecated, use path_points)
+    events: int = 0          # Number of interactions so far
+    # Additional fields for engine compatibility
+    remaining_length: float = 1000.0  # Maximum remaining propagation length in mm
+    base_rgb: Tuple[int, int, int] = (220, 20, 60)  # Base color as RGB tuple
+    path_points: List[np.ndarray] = field(default_factory=list)  # List of points for visualization
     
     def advance(self, distance: float) -> 'RayState':
         """
@@ -110,4 +114,8 @@ class RayPath:
     rgba: Tuple[int, int, int, int]  # Color with alpha
     polarization: Polarization        # Final polarization state
     wavelength_nm: float              # Wavelength in nanometers
+
+
+# Alias for backward compatibility and simpler imports
+Ray = RayState
 
