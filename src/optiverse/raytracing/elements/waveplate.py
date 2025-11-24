@@ -9,7 +9,7 @@ import math
 
 from .base import IOpticalElement
 from ..ray import RayState
-from ...core.geometry import normalize, deg2rad, transform_polarization_waveplate
+from ...core.raytracing_math import normalize, deg2rad, transform_polarization_waveplate
 
 
 class WaveplateElement(IOpticalElement):

@@ -76,7 +76,7 @@ class CollaborationDialog(QtWidgets.QDialog):
         # Try to get computer name as default
         try:
             self.user_id_edit.setText(socket.gethostname())
-        except:
+        except OSError:
             self.user_id_edit.setText("user")
         connect_layout.addRow("Your Name:", self.user_id_edit)
         
@@ -103,7 +103,7 @@ class CollaborationDialog(QtWidgets.QDialog):
         self.host_user_id_edit.setPlaceholderText("your-name")
         try:
             self.host_user_id_edit.setText(socket.gethostname())
-        except:
+        except OSError:
             self.host_user_id_edit.setText("host")
         host_layout.addRow("Your Name:", self.host_user_id_edit)
         
@@ -219,7 +219,7 @@ class CollaborationDialog(QtWidgets.QDialog):
             local_ip = s.getsockname()[0]
             s.close()
             return local_ip
-        except:
+        except OSError:
             return "localhost"
     
     def _check_port_listening(self, host: str, port: int) -> bool:

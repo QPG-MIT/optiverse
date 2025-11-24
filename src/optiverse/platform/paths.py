@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from pathlib import Path
 from typing import Optional
 
 from PyQt6 import QtCore
+
+_logger = logging.getLogger(__name__)
 
 
 def is_macos() -> bool:
@@ -116,9 +119,8 @@ def get_all_custom_library_roots() -> list[Path]:
         for item in component_libraries_root.iterdir():
             if item.is_dir():
                 library_paths.append(item)
-    except Exception:
-        # If scanning fails, return empty list
-        pass
+    except OSError as e:
+        _logger.debug("Failed to scan component libraries: %s", e)
     
     return library_paths
 
@@ -147,7 +149,8 @@ def get_custom_library_path(library_path: str) -> Optional[Path]:
             return None
         
         return path
-    except Exception:
+    except (OSError, ValueError) as e:
+        _logger.debug("Invalid library path %r: %s", library_path, e)
         return None
 
 
@@ -208,7 +211,8 @@ def is_package_image(image_path: Optional[str]) -> bool:
             return True
         except ValueError:
             return False
-    except Exception:
+    except OSError as e:
+        _logger.debug("Failed to check if path is in package %r: %s", image_path, e)
         return False
 
 
@@ -244,7 +248,8 @@ def to_relative_path(image_path: Optional[str]) -> Optional[str]:
         except ValueError:
             # Path is outside package, return absolute with forward slashes
             return abs_path.as_posix()
-    except Exception:
+    except OSError as e:
+        _logger.debug("Failed to convert path to relative %r: %s", image_path, e)
         return image_path
 
 
@@ -288,7 +293,8 @@ def to_absolute_path(image_path: Optional[str], library_roots: Optional[list[Pat
         abs_path = (package_root / path).resolve()
         
         return str(abs_path)
-    except Exception:
+    except OSError as e:
+        _logger.debug("Failed to convert path to absolute %r: %s", image_path, e)
         return image_path
 
 
@@ -316,8 +322,8 @@ def get_all_library_roots(settings_service=None) -> list[Path]:
                     path = Path(path_str)
                     if path.exists() and path.is_dir() and path not in libraries:
                         libraries.append(path)
-        except Exception:
-            pass
+        except (OSError, TypeError, ValueError) as e:
+            _logger.debug("Failed to load custom library paths from settings: %s", e)
     else:
         # Fallback: scan ComponentLibraries directory
         libraries.extend(get_all_custom_library_roots())
@@ -415,7 +421,8 @@ def make_library_relative(abs_path: str, library_roots: Optional[list[Path]] = N
         
         # Not in any library
         return None
-    except Exception:
+    except OSError as e:
+        _logger.debug("Failed to convert to library path %r: %s", abs_path, e)
         return None
 
 
@@ -522,7 +529,8 @@ def make_component_relative(abs_path: str, library_roots: Optional[list[Path]] =
         
         # Not in any library
         return None
-    except Exception:
+    except OSError as e:
+        _logger.debug("Failed to convert to component path %r: %s", abs_path, e)
         return None
 
 

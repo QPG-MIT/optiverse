@@ -99,7 +99,7 @@ def serialize_item(item) -> Dict[str, Any]:
     # Convert Qt rotation to user angle (if item uses angles)
     if hasattr(item, 'rotation'):
         # Import here to avoid circular dependency
-        from ..core.geometry import qt_angle_to_user
+        from ..core.raytracing_math import qt_angle_to_user
         d["angle_deg"] = qt_angle_to_user(item.rotation())
     
     # Add item metadata from registry (extensible and automatic)
@@ -107,7 +107,7 @@ def serialize_item(item) -> Dict[str, Any]:
         for key, getter in item._metadata_registry.items():
             try:
                 d[key] = getter(item)
-            except Exception:
+            except (AttributeError, KeyError, TypeError):
                 # Skip metadata if getter fails (e.g., attribute doesn't exist)
                 pass
     
@@ -130,7 +130,7 @@ def serialize_item(item) -> Dict[str, Any]:
                     main_window = view.window()
                     if hasattr(main_window, 'settings'):
                         library_roots = get_all_library_roots(main_window.settings)
-        except Exception:
+        except (AttributeError, RuntimeError):
             # If we can't get library roots, that's okay - will use defaults
             pass
         

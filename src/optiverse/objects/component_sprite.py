@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import math
 import os
 from pathlib import Path
@@ -12,7 +13,7 @@ from PyQt6.QtSvgWidgets import QGraphicsSvgItem
 try:
     from PyQt6 import QtSvg
     HAVE_QTSVG = True
-except Exception:
+except ImportError:
     HAVE_QTSVG = False
 
 # Import cache directory function
@@ -21,7 +22,7 @@ try:
     HAVE_CACHE = True
 except Exception as e:
     HAVE_CACHE = False
-    print(f"Warning: SVG caching disabled due to import error: {e}")
+    logging.warning(f"SVG caching disabled due to import error: {e}")
 
 
 class ComponentSvgSprite(QGraphicsSvgItem):
@@ -339,7 +340,7 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
         # 8000x8000 RGBA = 256MB uncompressed, so 8000px is the safe maximum
         target_height = max(4000, min(8000, int(object_height_mm * 100)))
         
-        print(f"Rendering SVG: {Path(svg_path).name} at {target_height}px (HAVE_CACHE={HAVE_CACHE})")
+        logging.debug(f"Rendering SVG: {Path(svg_path).name} at {target_height}px (HAVE_CACHE={HAVE_CACHE})")
         
         # Try to load from cache first
         cached_pix = ComponentSprite._load_from_cache(svg_path, target_height)
@@ -347,7 +348,7 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
             return cached_pix
         
         # Cache miss - show loading indicator and render
-        print(f"Rendering SVG from scratch...")
+        logging.debug(f"Rendering SVG from scratch...")
         app = QtWidgets.QApplication.instance()
         if app:
             app.setOverrideCursor(QtCore.Qt.CursorShape.WaitCursor)
@@ -403,7 +404,7 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
         # Include file modification time to invalidate cache when SVG changes
         try:
             mtime = os.path.getmtime(svg_path)
-        except Exception:
+        except OSError:
             mtime = 0
         
         # Create hash from path, height, and modification time
@@ -435,19 +436,19 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
                 pix = QtGui.QPixmap(str(cache_file))
                 if not pix.isNull():
                     file_size_mb = cache_file.stat().st_size / (1024 * 1024)
-                    print(f"SVG cache hit: {cache_file.name} ({pix.width()}x{pix.height()}, {file_size_mb:.1f}MB)")
+                    logging.debug(f"SVG cache hit: {cache_file.name} ({pix.width()}x{pix.height()}, {file_size_mb:.1f}MB)")
                     return pix
                 else:
-                    print(f"SVG cache file corrupted or exceeds Qt limit: {cache_file.name}")
+                    logging.warning(f"SVG cache file corrupted or exceeds Qt limit: {cache_file.name}")
                     # Delete corrupted file
                     try:
                         cache_file.unlink()
-                    except:
-                        pass
+                    except OSError:
+                        pass  # File may be locked or already deleted
             else:
-                print(f"SVG cache miss: {cache_key}.png not found in {cache_dir}")
-        except Exception as e:
-            print(f"Error loading from SVG cache: {e}")
+                logging.debug(f"SVG cache miss: {cache_key}.png not found in {cache_dir}")
+        except OSError as e:
+            logging.error(f"Error loading from SVG cache: {e}")
         
         return None
     
@@ -462,11 +463,11 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
             pixmap: Rendered pixmap to cache
         """
         if not HAVE_CACHE:
-            print("SVG caching disabled (HAVE_CACHE=False)")
+            logging.debug("SVG caching disabled (HAVE_CACHE=False)")
             return
             
         if pixmap.isNull():
-            print("Cannot save null pixmap to cache")
+            logging.warning("Cannot save null pixmap to cache")
             return
         
         try:
@@ -480,11 +481,11 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
             success = pixmap.save(str(cache_file), "PNG")
             if success:
                 file_size_mb = cache_file.stat().st_size / (1024 * 1024)
-                print(f"SVG cached successfully: {cache_file.name} ({pixmap.width()}x{pixmap.height()}, {file_size_mb:.1f}MB)")
+                logging.debug(f"SVG cached successfully: {cache_file.name} ({pixmap.width()}x{pixmap.height()}, {file_size_mb:.1f}MB)")
             else:
-                print(f"Failed to save SVG cache file: {cache_file}")
-        except Exception as e:
-            print(f"Error saving to SVG cache: {e}")
+                logging.error(f"Failed to save SVG cache file: {cache_file}")
+        except OSError as e:
+            logging.error(f"Error saving to SVG cache: {e}")
 
 
 def create_component_sprite(

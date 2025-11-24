@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Callable, Dict, Optional, Union
 
 from PyQt6 import QtCore, QtGui, QtWidgets
+
+from ...core.component_types import ComponentType
 
 if TYPE_CHECKING:
     from ...objects import GraphicsView
@@ -223,13 +225,20 @@ class PlacementHandler:
         component_type = self._component_type
         ghost = None
         
+        # Normalize component type to enum for comparison
+        if isinstance(component_type, str):
+            try:
+                component_type = ComponentType(component_type)
+            except ValueError:
+                pass  # Keep as string for unknown types
+        
         # Create ghost based on component type
-        if component_type == "source":
+        if component_type == ComponentType.SOURCE:
             # Source is a special case - still uses SourceItem directly
             params = SourceParams(x_mm=scene_pos.x(), y_mm=scene_pos.y())
             ghost = SourceItem(params)
         
-        elif component_type in ("lens", "mirror", "beamsplitter"):
+        elif component_type in (ComponentType.LENS, ComponentType.MIRROR, ComponentType.BEAMSPLITTER):
             # Use ComponentFactory with library templates for interface-based components
             template = self.component_templates.get(component_type)
             if template is None:
@@ -311,12 +320,19 @@ class PlacementHandler:
         component_type = self._component_type
         item = None
         
+        # Normalize component type to enum for comparison
+        if isinstance(component_type, str):
+            try:
+                component_type = ComponentType(component_type)
+            except ValueError:
+                pass  # Keep as string for unknown types
+        
         # Create the component based on type
-        if component_type == "source":
+        if component_type == ComponentType.SOURCE:
             params = SourceParams(x_mm=scene_pos.x(), y_mm=scene_pos.y())
             item = SourceItem(params)
         
-        elif component_type in ("lens", "mirror", "beamsplitter"):
+        elif component_type in (ComponentType.LENS, ComponentType.MIRROR, ComponentType.BEAMSPLITTER):
             template = self.component_templates.get(component_type)
             if template is None:
                 self.log_service.error(

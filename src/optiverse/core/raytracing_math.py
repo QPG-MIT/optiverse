@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 from typing import Optional, Tuple, TYPE_CHECKING
 
@@ -16,7 +17,7 @@ except ImportError:
             return func
         return decorator
     NUMBA_AVAILABLE = False
-    print("Warning: numba not available. Raytracing will be slower. Install with: pip install numba")
+    logging.warning("numba not available. Raytracing will be slower. Install with: pip install numba")
 
 if TYPE_CHECKING:
     from .models import Polarization

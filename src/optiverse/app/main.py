@@ -445,7 +445,7 @@ def detect_system_dark_mode() -> bool:
         bg_color = palette.color(QtGui.QPalette.ColorRole.Window)
         # If background is dark (low lightness), we're in dark mode
         return bg_color.lightness() < 128
-    except Exception:
+    except (AttributeError, RuntimeError):
         return False
 
 

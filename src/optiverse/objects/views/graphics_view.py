@@ -24,6 +24,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
     def __init__(self, scene: QtWidgets.QGraphicsScene | None = None):
         super().__init__(scene)
         
+        # Reference to main window (set by MainWindow after creation)
+        self.main_window = None
+        
         # Enable OpenGL-accelerated viewport for GPU rendering
         if OPENGL_AVAILABLE:
             try:
@@ -113,7 +116,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
             bg_color = palette.color(QtGui.QPalette.ColorRole.Window)
             # If background is dark (low lightness), we're in dark mode
             return bg_color.lightness() < 128
-        except Exception:
+        except (AttributeError, RuntimeError):
             return False
     
     def set_dark_mode(self, enabled: bool):
@@ -528,8 +531,8 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 # The ghost is owned by the scene; remove it safely
                 if self._ghost_item.scene() is not None:
                     self.scene().removeItem(self._ghost_item)
-            except Exception:
-                pass
+            except RuntimeError:
+                pass  # Item may already be removed from scene
         self._ghost_item = None
         self._ghost_rec = None
 
@@ -641,7 +644,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
         e.accept()
 
     def dropEvent(self, e: QtGui.QDropEvent):
-        with ErrorContext("while dropping component", show_dialog=False):
+        with ErrorContext("while dropping component", show_dialog=False, suppress=True):
             scene = self.scene()
             if scene is None:
                 e.ignore()
@@ -656,7 +659,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 data = md.data("application/x-optics-component")
                 try:
                     rec = json.loads(bytes(data).decode("utf-8"))
-                except Exception:
+                except (json.JSONDecodeError, UnicodeDecodeError):
                     e.ignore()
                     return
 
@@ -668,7 +671,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
                     self.setTransformationAnchor(self._saved_anchor)
                     delattr(self, '_saved_anchor')
 
-                self.parent().on_drop_component(rec, scene_pos)
+                self.main_window.on_drop_component(rec, scene_pos)
                 
                 # Force Qt to update its internal mouse position tracking by sending a synthetic mouse move
                 # This ensures zoom-to-cursor works correctly after drag-and-drop operations

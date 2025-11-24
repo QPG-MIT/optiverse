@@ -9,7 +9,7 @@ import math
 
 from .base import IOpticalElement
 from ..ray import RayState
-from ...core.geometry import (
+from ...core.raytracing_math import (
     normalize, reflect_vec,
     refract_vector_snell, fresnel_coefficients,
     transform_polarization_mirror

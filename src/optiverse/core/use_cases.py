@@ -7,7 +7,7 @@ from typing import List, Tuple
 
 import numpy as np
 
-from .geometry import (
+from .raytracing_math import (
     deg2rad, normalize, reflect_vec, ray_hit_element, ray_hit_curved_element,
     transform_polarization_mirror, transform_polarization_lens,
     transform_polarization_beamsplitter, transform_polarization_waveplate,

@@ -4,9 +4,9 @@ from typing import Dict, Any
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import SourceParams
-from ...core.geometry import user_angle_to_qt, qt_angle_to_user
+from ...core.raytracing_math import user_angle_to_qt, qt_angle_to_user
 from ...core.color_utils import qcolor_from_hex, hex_from_qcolor, wavelength_to_hex, LASER_WAVELENGTHS
-from ...ui.smart_spinbox import SmartDoubleSpinBox
+from ...ui.widgets.smart_spinbox import SmartDoubleSpinBox
 from ..base_obj import BaseObj
 from ..type_registry import register_type, serialize_item, deserialize_item
 
@@ -283,8 +283,8 @@ class SourceItem(BaseObj):
             idx = pol_type.findText(self.params.polarization_type)
             if idx >= 0:
                 pol_type.setCurrentIndex(idx)
-        except:
-            pass
+        except AttributeError:
+            pass  # params may not have polarization_type yet
         
         pol_angle = QtWidgets.QDoubleSpinBox()
         pol_angle.setRange(-180, 180)

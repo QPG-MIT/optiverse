@@ -10,7 +10,7 @@ import math
 
 from .ray import Ray, RayPath, Polarization
 from .elements.base import IOpticalElement, RayIntersection
-from ..core.geometry import ray_hit_element, deg2rad
+from ..core.raytracing_math import ray_hit_element, deg2rad
 from ..core.color_utils import qcolor_from_hex, wavelength_to_rgb
 from ..core.models import SourceParams
 
@@ -186,7 +186,7 @@ def _trace_single_ray(
                 
                 if is_curved:
                     # Use curved intersection for curved surfaces
-                    from ...core.geometry import ray_hit_curved_element
+                    from ...core.raytracing_math import ray_hit_curved_element
                     result = ray_hit_curved_element(
                         current_ray.position,
                         current_ray.direction,

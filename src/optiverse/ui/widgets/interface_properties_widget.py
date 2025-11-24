@@ -12,7 +12,7 @@ from PyQt6 import QtCore, QtWidgets
 
 from ...core.interface_definition import InterfaceDefinition
 from ...core import interface_types
-from ...ui.smart_spinbox import SmartDoubleSpinBox
+from .smart_spinbox import SmartDoubleSpinBox
 
 
 class InterfacePropertiesWidget(QtWidgets.QWidget):

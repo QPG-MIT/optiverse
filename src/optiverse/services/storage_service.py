@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+
+_logger = logging.getLogger(__name__)
 
 from ..platform.paths import (
     get_user_library_root,
@@ -117,8 +120,8 @@ class StorageService:
                 
                 components.append(component_dict)
                 
-            except Exception as e:
-                print(f"[StorageService] Failed to load component from {folder}: {e}")
+            except (json.JSONDecodeError, OSError, KeyError, TypeError, ValueError) as e:
+                _logger.warning("Failed to load component from %s: %s", folder, e)
                 continue
         
         return components
@@ -193,7 +196,7 @@ class StorageService:
         """Check if two paths point to the same file."""
         try:
             return path1.resolve() == path2.resolve()
-        except Exception:
+        except OSError:
             return False
     
     def delete_component(self, name: str) -> bool:
@@ -243,7 +246,8 @@ class StorageService:
                 data["image_path"] = str(abs_image_path)
             
             return data
-        except Exception:
+        except (json.JSONDecodeError, OSError, KeyError) as e:
+            _logger.debug("Failed to get component data for %s: %s", name, e)
             return None
     
     def export_component(self, name: str, destination: str) -> bool:
@@ -275,8 +279,8 @@ class StorageService:
             
             shutil.copytree(component_folder, dest_component)
             return True
-        except Exception as e:
-            print(f"[StorageService] Export failed: {e}")
+        except OSError as e:
+            _logger.error("Export failed for %s: %s", name, e)
             return False
     
     def import_component(self, source_folder: str, overwrite: bool = False) -> bool:
@@ -323,8 +327,8 @@ class StorageService:
             shutil.copytree(source_path, dest_folder)
             return True
             
-        except Exception as e:
-            print(f"[StorageService] Import failed: {e}")
+        except (OSError, json.JSONDecodeError, KeyError) as e:
+            _logger.error("Import failed for %s: %s", source_folder, e)
             return False
     
     def save_library(self, rows: List[Dict[str, Any]]) -> None:
@@ -342,8 +346,8 @@ class StorageService:
                 rec = deserialize_component(row, self.settings_service)
                 if rec:
                     self.save_component(rec)
-            except Exception as e:
-                print(f"[StorageService] Failed to save component: {e}")
+            except (OSError, KeyError, TypeError, ValueError) as e:
+                _logger.warning("Failed to save component: %s", e)
     
     def ensure_standard_components(self) -> None:
         """

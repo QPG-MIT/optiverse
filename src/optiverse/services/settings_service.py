@@ -19,7 +19,7 @@ class SettingsService:
                 return float(val)
             if isinstance(default, int) and isinstance(val, str):
                 return int(val)
-        except Exception:
+        except (TypeError, ValueError):
             pass
         return val
 

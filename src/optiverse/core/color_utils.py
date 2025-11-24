@@ -18,7 +18,7 @@ def qcolor_from_hex(h: str, fallback: str = "#DC143C") -> QtGui.QColor:
     try:
         c = QtGui.QColor(h)
         return c if c.isValid() else QtGui.QColor(fallback)
-    except Exception:
+    except (TypeError, ValueError):
         return QtGui.QColor(fallback)
 
 

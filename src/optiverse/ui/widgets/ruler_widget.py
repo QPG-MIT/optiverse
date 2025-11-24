@@ -378,6 +378,6 @@ class CanvasWithRulers(QtWidgets.QWidget):
                 show_mm = params.get('show_mm', True)
                 self.h_ruler.set_show_mm(show_mm)
                 self.v_ruler.set_show_mm(show_mm)
-            except Exception:
-                pass
+            except AttributeError:
+                pass  # Rulers may not have set_show_mm method
 

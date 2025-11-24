@@ -21,6 +21,7 @@ from ...platform.paths import assets_dir
 from ...objects.views import MultiLineCanvas, InterfaceLine
 from ..widgets.interface_tree_panel import InterfaceTreePanel
 from ..widgets.ruler_widget import CanvasWithRulers
+from .zemax_importer import ZemaxImporter
 
 
 def slugify(name: str) -> str:
@@ -101,6 +102,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.canvas.lineSelected.connect(self._on_canvas_line_selected)
         self.canvas.linesSelected.connect(self._on_canvas_lines_selected)
         self.canvas.linesMoved.connect(self._on_canvas_lines_moved)
+        
+        # Zemax importer
+        self._zemax_importer = ZemaxImporter(self)
 
         self._build_side_dock()
         self._build_library_dock()
@@ -613,96 +617,11 @@ class ComponentEditor(QtWidgets.QMainWindow):
     
     def _import_zemax(self):
         """Import Zemax ZMX file."""
-        from ...services.zemax_parser import ZemaxParser
-        from ...services.zemax_converter import ZemaxToInterfaceConverter
-        from ...services.glass_catalog import GlassCatalog
-        
-        # Open file dialog
-        filepath, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self,
-            "Import Zemax File",
-            "",
-            "Zemax Files (*.zmx *.ZMX);;All Files (*.*)"
-        )
-        
-        if not filepath:
-            return
-        
-        try:
-            # Parse Zemax file
-            parser = ZemaxParser()
-            zemax_data = parser.parse(filepath)
-            
-            if not zemax_data:
-                QtWidgets.QMessageBox.critical(
-                    self,
-                    "Import Error",
-                    "Failed to parse Zemax file. The file may be corrupted or in an unsupported format."
-                )
-                return
-            
-            # Convert to interfaces
-            catalog = GlassCatalog()
-            converter = ZemaxToInterfaceConverter(catalog)
-            component = converter.convert(zemax_data)
-            
-            # Load into editor
+        component = self._zemax_importer.import_file()
+        if component:
             self._load_component_record(component)
-            
-            # Show success message with summary
             num_interfaces = len(component.interfaces) if component.interfaces else 0
-            
-            # Determine component type from interfaces
-            if num_interfaces > 1:
-                component_type = f"Multi-element ({num_interfaces} interfaces)"
-            elif num_interfaces == 1:
-                element_type = component.interfaces[0].element_type.replace("_", " ").title()
-                component_type = element_type
-            else:
-                component_type = "Unknown"
-            
-            msg = f"Successfully imported {num_interfaces} interface(s) from Zemax file:\n\n"
-            msg += f"Name: {component.name}\n"
-            msg += f"Type: {component_type}\n"
-            msg += f"Aperture: {component.object_height_mm:.2f} mm\n\n"
-            
-            if component.interfaces:
-                msg += "Interfaces:\n"
-                for i, iface in enumerate(component.interfaces[:5]):  # Show first 5
-                    curv_str = f" [R={iface.radius_of_curvature_mm:.1f}mm]" if iface.is_curved else ""
-                    msg += f"  {i+1}. {iface.name}{curv_str}\n"
-                if num_interfaces > 5:
-                    msg += f"  ... and {num_interfaces - 5} more\n"
-                
-                msg += "\n"
-                if not self.canvas.has_image():
-                    msg += "💡 TIP: Load an image (File → Open Image) to visualize\n"
-                    msg += "    the interfaces on the canvas. The interfaces are listed\n"
-                    msg += "    in the panel on the right.\n"
-                    msg += "\n"
-                msg += "👉 Expand each interface in the list to see:\n"
-                msg += "   • Refractive indices (n₁, n₂)\n"
-                msg += "   • Curvature (is_curved, radius_of_curvature_mm)\n"
-                msg += "   • Position and geometry\n"
-            
-            self.statusBar().showMessage(
-                f"Imported {num_interfaces} interfaces from Zemax"
-            )
-            
-            QtWidgets.QMessageBox.information(
-                self,
-                "Import Successful",
-                msg
-            )
-            
-        except Exception as e:
-            import traceback
-            error_details = traceback.format_exc()
-            QtWidgets.QMessageBox.critical(
-                self,
-                "Import Error",
-                f"Error importing Zemax file:\n\n{str(e)}\n\nDetails:\n{error_details}"
-            )
+            self.statusBar().showMessage(f"Imported {num_interfaces} interfaces from Zemax")
     
     def _load_component_record(self, component: ComponentRecord):
         """Load a ComponentRecord into the editor."""
@@ -898,8 +817,8 @@ class ComponentEditor(QtWidgets.QMainWindow):
                     with open(src_path, "rb") as fsrc, open(dst, "wb") as fdst:
                         fdst.write(fsrc.read())
                     return dst
-                except Exception:
-                    pass
+                except OSError:
+                    pass  # Fall through to PNG save if file copy fails
         
         if pix is None or pix.isNull():
             raise RuntimeError("No image available to save.")
@@ -1047,7 +966,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
 
     def save_component(self):
         """Save component to library in folder-based structure."""
-        with ErrorContext("while saving component"):
+        with ErrorContext("while saving component", suppress=True):
             rec = self._build_record_from_ui()
             if not rec:
                 return
@@ -1083,7 +1002,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
     
     def export_component(self):
         """Export current component to a folder."""
-        with ErrorContext("while exporting component"):
+        with ErrorContext("while exporting component", suppress=True):
             rec = self._build_record_from_ui()
             if not rec:
                 QtWidgets.QMessageBox.warning(

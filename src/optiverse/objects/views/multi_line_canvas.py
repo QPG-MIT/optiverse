@@ -16,11 +16,13 @@ from dataclasses import dataclass
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
+from .canvas_coordinates import CanvasCoordinateSystem
+
 # Optional QtSvg for SVG clipboard/loads
 try:
     from PyQt6 import QtSvg
     HAVE_QTSVG = True
-except Exception:
+except ImportError:
     HAVE_QTSVG = False
 
 
@@ -116,6 +118,9 @@ class MultiLineCanvas(QtWidgets.QLabel):
         # Drag lock (restrict dragging to specific line)
         self._drag_locked_line: int = -1  # -1 means no lock, otherwise only this line can be dragged
         
+        # Coordinate system for transformations
+        self._coord_system = CanvasCoordinateSystem()
+        
         self.setMouseTracking(True)
     
     # ========== Image Management ==========
@@ -143,8 +148,8 @@ class MultiLineCanvas(QtWidgets.QLabel):
                     self._svg_renderer = renderer
                     # Pre-render SVG to cache at high resolution
                     self._update_svg_cache()
-            except Exception:
-                pass
+            except (OSError, RuntimeError):
+                pass  # SVG may be invalid or file inaccessible
         
         self.update()
     
@@ -313,7 +318,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
     # ========== Rendering ==========
     
     def _target_rect(self) -> QtCore.QRect:
-        """Compute scaled image rectangle."""
+        """Compute scaled image rectangle and update coordinate system."""
         if not self._pix:
             return QtCore.QRect()
         
@@ -337,7 +342,12 @@ class MultiLineCanvas(QtWidgets.QLabel):
         x0 = (w_label - scaled_w) // 2
         y0 = (h_label - scaled_h) // 2
         
-        return QtCore.QRect(x0, y0, scaled_w, scaled_h)
+        rect = QtCore.QRect(x0, y0, scaled_w, scaled_h)
+        
+        # Update coordinate system
+        self._coord_system.update_params(rect, self._scale_fit, self._mm_per_px)
+        
+        return rect
     
     def paintEvent(self, e: QtGui.QPaintEvent):
         """Draw image and all lines."""
@@ -382,22 +392,9 @@ class MultiLineCanvas(QtWidgets.QLabel):
     
     def _draw_line(self, p: QtGui.QPainter, img_rect: QtCore.QRect, line: InterfaceLine, index: int):
         """Draw a single interface line."""
-        # Convert mm coordinates to image pixel coordinates, then to screen coordinates
-        x1_img_px = line.x1 / self._mm_per_px
-        y1_img_px = line.y1 / self._mm_per_px
-        x2_img_px = line.x2 / self._mm_per_px
-        y2_img_px = line.y2 / self._mm_per_px
-        
-        # Center the coordinate system: (0,0) should be at the center of the canvas
-        # instead of at the top-left corner
-        img_center_x_px = img_rect.width() / (2 * self._scale_fit)
-        img_center_y_px = img_rect.height() / (2 * self._scale_fit)
-        
-        # Convert image pixel coordinates to screen coordinates (centered origin, Y-up)
-        x1_screen = img_rect.x() + (x1_img_px + img_center_x_px) * self._scale_fit
-        y1_screen = img_rect.y() + (img_center_y_px - y1_img_px) * self._scale_fit
-        x2_screen = img_rect.x() + (x2_img_px + img_center_x_px) * self._scale_fit
-        y2_screen = img_rect.y() + (img_center_y_px - y2_img_px) * self._scale_fit
+        # Use coordinate system for conversions
+        x1_screen, y1_screen = self._coord_system.mm_to_screen(line.x1, line.y1)
+        x2_screen, y2_screen = self._coord_system.mm_to_screen(line.x2, line.y2)
         
         # Determine appearance
         is_selected = (index in self._selected_lines)
@@ -595,7 +592,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
         # For curved lines, calculate arc midpoint and tangent
         if has_curvature:
             radius_mm = interface.radius_of_curvature_mm
-            radius_px = abs(radius_mm) / self._mm_per_px * self._scale_fit
+            radius_px = self._coord_system.mm_to_screen_radius(radius_mm)
             
             # Only adjust for curves if radius is reasonable relative to chord
             if radius_px >= chord_length / 2:
@@ -697,7 +694,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
             img_rect: Image rectangle for coordinate conversion
         """
         # Convert radius from mm to screen pixels
-        radius_px = abs(radius_mm) / self._mm_per_px * self._scale_fit
+        radius_px = self._coord_system.mm_to_screen_radius(radius_mm)
         
         # Midpoint of the chord
         mid_x = (x1_screen + x2_screen) / 2
@@ -791,23 +788,13 @@ class MultiLineCanvas(QtWidgets.QLabel):
         min_x, min_y = float('inf'), float('inf')
         max_x, max_y = float('-inf'), float('-inf')
         
-        img_center_x_px = img_rect.width() / (2 * self._scale_fit)
-        img_center_y_px = img_rect.height() / (2 * self._scale_fit)
-        
         for idx in self._selected_lines:
             if 0 <= idx < len(self._lines):
                 line = self._lines[idx]
                 
-                # Convert to screen coordinates
-                x1_img_px = line.x1 / self._mm_per_px
-                y1_img_px = line.y1 / self._mm_per_px
-                x2_img_px = line.x2 / self._mm_per_px
-                y2_img_px = line.y2 / self._mm_per_px
-                
-                x1_screen = img_rect.x() + (x1_img_px + img_center_x_px) * self._scale_fit
-                y1_screen = img_rect.y() + (y1_img_px + img_center_y_px) * self._scale_fit
-                x2_screen = img_rect.x() + (x2_img_px + img_center_x_px) * self._scale_fit
-                y2_screen = img_rect.y() + (y2_img_px + img_center_y_px) * self._scale_fit
+                # Convert to screen coordinates using coordinate system
+                x1_screen, y1_screen = self._coord_system.mm_to_screen(line.x1, line.y1)
+                x2_screen, y2_screen = self._coord_system.mm_to_screen(line.x2, line.y2)
                 
                 min_x = min(min_x, x1_screen, x2_screen)
                 max_x = max(max_x, x1_screen, x2_screen)
@@ -836,7 +823,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
         Returns:
             (line_index, point_number) where point_number is 1 or 2, or (-1, 0) if none
         """
-        if not self._pix:
+        if not self._pix or not self._coord_system.is_valid:
             return (-1, 0)
         
         img_rect = self._target_rect()
@@ -853,24 +840,12 @@ class MultiLineCanvas(QtWidgets.QLabel):
                     search_order.remove(sel_idx)
                     search_order.insert(0, sel_idx)
         
-        # Calculate centered coordinate system parameters
-        img_center_x_px = img_rect.width() / (2 * self._scale_fit)
-        img_center_y_px = img_rect.height() / (2 * self._scale_fit)
-        
         for i in search_order:
             line = self._lines[i]
             
-            # Convert mm to image pixels
-            x1_img_px = line.x1 / self._mm_per_px
-            y1_img_px = line.y1 / self._mm_per_px
-            x2_img_px = line.x2 / self._mm_per_px
-            y2_img_px = line.y2 / self._mm_per_px
-            
-            # Convert to screen coordinates (with centered origin)
-            x1_screen = img_rect.x() + (x1_img_px + img_center_x_px) * self._scale_fit
-            y1_screen = img_rect.y() + (img_center_y_px - y1_img_px) * self._scale_fit
-            x2_screen = img_rect.x() + (x2_img_px + img_center_x_px) * self._scale_fit
-            y2_screen = img_rect.y() + (img_center_y_px - y2_img_px) * self._scale_fit
+            # Convert to screen coordinates using coordinate system
+            x1_screen, y1_screen = self._coord_system.mm_to_screen(line.x1, line.y1)
+            x2_screen, y2_screen = self._coord_system.mm_to_screen(line.x2, line.y2)
             
             # Check point 2 first (so it takes priority if overlapping)
             dx = screen_pos.x() - x2_screen
@@ -893,30 +868,20 @@ class MultiLineCanvas(QtWidgets.QLabel):
         Returns:
             Line index, or -1 if no line is near the position
         """
-        if not self._pix:
+        if not self._pix or not self._coord_system.is_valid:
             return -1
         
         img_rect = self._target_rect()
         if not img_rect.contains(screen_pos):
             return -1
         
-        img_center_x_px = img_rect.width() / (2 * self._scale_fit)
-        img_center_y_px = img_rect.height() / (2 * self._scale_fit)
-        
         # Check all lines in reverse order (prioritize top lines)
         for i in range(len(self._lines) - 1, -1, -1):
             line = self._lines[i]
             
-            # Convert to screen coordinates
-            x1_img_px = line.x1 / self._mm_per_px
-            y1_img_px = line.y1 / self._mm_per_px
-            x2_img_px = line.x2 / self._mm_per_px
-            y2_img_px = line.y2 / self._mm_per_px
-            
-            x1_screen = img_rect.x() + (x1_img_px + img_center_x_px) * self._scale_fit
-            y1_screen = img_rect.y() + (img_center_y_px - y1_img_px) * self._scale_fit
-            x2_screen = img_rect.x() + (x2_img_px + img_center_x_px) * self._scale_fit
-            y2_screen = img_rect.y() + (img_center_y_px - y2_img_px) * self._scale_fit
+            # Convert to screen coordinates using coordinate system
+            x1_screen, y1_screen = self._coord_system.mm_to_screen(line.x1, line.y1)
+            x2_screen, y2_screen = self._coord_system.mm_to_screen(line.x2, line.y2)
             
             # Calculate distance from point to line segment
             px, py = screen_pos.x(), screen_pos.y()
@@ -1024,26 +989,17 @@ class MultiLineCanvas(QtWidgets.QLabel):
         Returns:
             List of line indices
         """
-        if not self._pix:
+        if not self._pix or not self._coord_system.is_valid:
             return []
         
-        img_rect = self._target_rect()
-        img_center_x_px = img_rect.width() / (2 * self._scale_fit)
-        img_center_y_px = img_rect.height() / (2 * self._scale_fit)
+        self._target_rect()  # Ensure coordinate system is updated
         
         result = []
         
         for i, line in enumerate(self._lines):
-            # Convert to screen coordinates
-            x1_img_px = line.x1 / self._mm_per_px
-            y1_img_px = line.y1 / self._mm_per_px
-            x2_img_px = line.x2 / self._mm_per_px
-            y2_img_px = line.y2 / self._mm_per_px
-            
-            x1_screen = img_rect.x() + (x1_img_px + img_center_x_px) * self._scale_fit
-            y1_screen = img_rect.y() + (img_center_y_px - y1_img_px) * self._scale_fit
-            x2_screen = img_rect.x() + (x2_img_px + img_center_x_px) * self._scale_fit
-            y2_screen = img_rect.y() + (img_center_y_px - y2_img_px) * self._scale_fit
+            # Convert to screen coordinates using coordinate system
+            x1_screen, y1_screen = self._coord_system.mm_to_screen(line.x1, line.y1)
+            x2_screen, y2_screen = self._coord_system.mm_to_screen(line.x2, line.y2)
             
             # Check if line intersects with rectangle
             if self._line_intersects_rect(x1_screen, y1_screen, x2_screen, y2_screen, rect):
@@ -1136,8 +1092,8 @@ class MultiLineCanvas(QtWidgets.QLabel):
             if not self._drag_start_pos or not self._drag_initial_lines:
                 return
             
-            img_rect = self._target_rect()
-            if not img_rect.isValid():
+            self._target_rect()  # Ensure coordinate system is updated
+            if not self._coord_system.is_valid:
                 return
             
             # Calculate drag delta in screen coordinates
@@ -1153,9 +1109,8 @@ class MultiLineCanvas(QtWidgets.QLabel):
                 else:
                     delta_x_screen = 0
             
-            # Convert delta to millimeters (Y-up: screen +y is down → invert sign)
-            delta_x_mm = (delta_x_screen / self._scale_fit) * self._mm_per_px
-            delta_y_mm = (-(delta_y_screen) / self._scale_fit) * self._mm_per_px
+            # Convert delta to millimeters using coordinate system
+            delta_x_mm, delta_y_mm = self._coord_system.screen_delta_to_mm(delta_x_screen, delta_y_screen)
             
             # Update all selected lines
             selected_indices = sorted(list(self._selected_lines))
@@ -1176,28 +1131,19 @@ class MultiLineCanvas(QtWidgets.QLabel):
         
         if self._dragging_line >= 0:
             # Dragging an endpoint
-            img_rect = self._target_rect()
-            if not img_rect.isValid():
+            self._target_rect()  # Ensure coordinate system is updated
+            if not self._coord_system.is_valid:
                 return
             
-            # Calculate centered coordinate system parameters
-            img_center_x_px = img_rect.width() / (2 * self._scale_fit)
-            img_center_y_px = img_rect.height() / (2 * self._scale_fit)
+            # Convert screen coordinates to mm coordinates
+            x_mm, y_mm = self._coord_system.screen_to_mm(e.pos().x(), e.pos().y())
             
-            # Convert screen coordinates to image pixel coordinates (centered, Y-up)
-            x_img_px = (e.pos().x() - img_rect.x()) / self._scale_fit - img_center_x_px
-            y_img_px = img_center_y_px - (e.pos().y() - img_rect.y()) / self._scale_fit
-            
-            # Clamp to image bounds (in centered coordinates)
+            # Clamp to image bounds
             w, h = self.image_pixel_size()
-            max_x = w / 2
-            max_y = h / 2
-            x_img_px = max(-max_x, min(max_x, x_img_px))
-            y_img_px = max(-max_y, min(max_y, y_img_px))
-            
-            # Convert image pixel coordinates to millimeters
-            x_mm = x_img_px * self._mm_per_px
-            y_mm = y_img_px * self._mm_per_px
+            half_width_mm = (w / 2) * self._mm_per_px
+            half_height_mm = (h / 2) * self._mm_per_px
+            x_mm = max(-half_width_mm, min(half_width_mm, x_mm))
+            y_mm = max(-half_height_mm, min(half_height_mm, y_mm))
             
             # Update line (stored in mm)
             line = self._lines[self._dragging_line]
@@ -1380,26 +1326,8 @@ class MultiLineCanvas(QtWidgets.QLabel):
         Returns:
             (x_mm, y_mm) tuple
         """
-        if not self._pix:
-            return (0.0, 0.0)
-        
-        img_rect = self._target_rect()
-        if not img_rect.isValid():
-            return (0.0, 0.0)
-        
-        # Calculate centered coordinate system parameters
-        img_center_x_px = img_rect.width() / (2 * self._scale_fit)
-        img_center_y_px = img_rect.height() / (2 * self._scale_fit)
-        
-        # Convert screen coordinates to image pixel coordinates (centered, Y-up)
-        x_img_px = (screen_pos.x() - img_rect.x()) / self._scale_fit - img_center_x_px
-        y_img_px = img_center_y_px - (screen_pos.y() - img_rect.y()) / self._scale_fit
-        
-        # Convert image pixel coordinates to millimeters
-        x_mm = x_img_px * self._mm_per_px
-        y_mm = y_img_px * self._mm_per_px
-        
-        return (x_mm, y_mm)
+        self._target_rect()  # Ensure coordinate system is updated
+        return self._coord_system.screen_to_mm_from_point(screen_pos)
     
     def _get_ruler_view_params(self) -> dict:
         """
@@ -1415,49 +1343,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
             - v_range: tuple of (min_mm, max_mm) for vertical axis
             - show_mm: whether to show mm units
         """
-        if not self._pix or self._mm_per_px <= 0:
-            return {
-                'h_scale': 1.0,
-                'h_offset': 0.0,
-                'h_range': (-50.0, 50.0),
-                'v_scale': 1.0,
-                'v_offset': 0.0,
-                'v_range': (-50.0, 50.0),
-                'show_mm': True
-            }
-        
-        img_rect = self._target_rect()
-        if not img_rect.isValid():
-            return {
-                'h_scale': 1.0,
-                'h_offset': 0.0,
-                'h_range': (-50.0, 50.0),
-                'v_scale': 1.0,
-                'v_offset': 0.0,
-                'v_range': (-50.0, 50.0),
-                'show_mm': True
-            }
-        
-        # Scale: screen pixels per mm
-        scale = self._scale_fit / self._mm_per_px
-        
-        # Offset: where 0mm appears on screen
-        # For centered coordinates, 0mm is at the center of the image
-        h_offset = img_rect.x() + img_rect.width() / 2
-        v_offset = img_rect.y() + img_rect.height() / 2
-        
-        # Range: visible range in mm
+        self._target_rect()  # Ensure coordinate system is updated
         w, h = self.image_pixel_size()
-        half_width_mm = (w / 2) * self._mm_per_px
-        half_height_mm = (h / 2) * self._mm_per_px
-        
-        return {
-            'h_scale': scale,
-            'h_offset': h_offset,
-            'h_range': (-half_width_mm, half_width_mm),
-            'v_scale': scale,
-            'v_offset': v_offset,
-            'v_range': (-half_height_mm, half_height_mm),
-            'show_mm': True
-        }
+        return self._coord_system.get_ruler_params(w, h)
 

@@ -1,4 +1,4 @@
-from .ray_renderer import RayRenderer
+from .controllers.ray_renderer import RayRenderer
 
 __all__ = [
     "RayRenderer",

@@ -8,13 +8,13 @@ import numpy as np
 
 from .base import IOpticalElement
 from ..ray import RayState
-from ...core.geometry import normalize, reflect_vec
+from ...core.raytracing_math import normalize, reflect_vec
 from ...core.models import Polarization
 
 
 def transform_polarization_mirror(pol: Polarization, v_in: np.ndarray, n_hat: np.ndarray) -> Polarization:
     """Transform polarization upon mirror reflection (reuse from core)"""
-    from ...core.geometry import transform_polarization_mirror as core_transform
+    from ...core.raytracing_math import transform_polarization_mirror as core_transform
     return core_transform(pol, v_in, n_hat)
 
 

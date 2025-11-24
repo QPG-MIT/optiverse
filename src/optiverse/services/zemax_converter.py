@@ -9,6 +9,7 @@ from ..core.interface_definition import InterfaceDefinition
 from ..core.models import ComponentRecord
 from .zemax_parser import ZemaxFile, ZemaxSurface
 from .glass_catalog import GlassCatalog
+from .log_service import get_log_service
 
 
 class ZemaxToInterfaceConverter:
@@ -206,7 +207,8 @@ class ZemaxToInterfaceConverter:
         
         if index is None:
             # Fallback: assume typical glass
-            print(f"Warning: Unknown material '{material}', assuming n=1.5")
+            log = get_log_service()
+            log.warning(f"Unknown material '{material}', assuming n=1.5", "Zemax")
             return 1.5
         
         return index

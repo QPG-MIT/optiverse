@@ -8,7 +8,7 @@ import numpy as np
 
 from .base import IOpticalElement
 from ..ray import RayState
-from ...core.geometry import (
+from ...core.raytracing_math import (
     normalize, reflect_vec,
     compute_dichroic_reflectance,
     transform_polarization_mirror

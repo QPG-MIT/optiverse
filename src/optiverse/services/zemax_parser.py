@@ -10,9 +10,11 @@ Supports:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional
-import re
+from typing import List, Optional
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -93,8 +95,11 @@ class ZemaxParser:
             
             return self._parse_lines(lines)
             
-        except Exception as e:
-            print(f"Error parsing Zemax file: {e}")
+        except OSError as e:
+            _logger.error(f"Error reading Zemax file '{filepath}': {e}")
+            return None
+        except ValueError as e:
+            _logger.error(f"Error parsing Zemax file '{filepath}': {e}")
             return None
     
     def _parse_lines(self, lines: List[str]) -> ZemaxFile:
@@ -128,7 +133,7 @@ class ZemaxParser:
                 # Entrance pupil diameter
                 try:
                     zemax.entrance_pupil_diameter = self._parse_float(line[5:])
-                except:
+                except ValueError:
                     pass
             
             elif line.startswith('WAVM '):
@@ -138,14 +143,14 @@ class ZemaxParser:
                     try:
                         wavelength = float(parts[1])
                         zemax.wavelengths_um.append(wavelength)
-                    except:
+                    except ValueError:
                         pass
             
             elif line.startswith('PWAV '):
                 # Primary wavelength index
                 try:
                     zemax.primary_wavelength_idx = int(line[5:].strip())
-                except:
+                except ValueError:
                     pass
             
             elif line.startswith('SURF '):

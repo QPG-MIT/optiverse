@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 
 from ..core.models import ComponentRecord, deserialize_component, serialize_component
-import os
+
+_logger = logging.getLogger(__name__)
 
 
 def _library_root() -> Path:
@@ -67,8 +70,8 @@ def load_component_records(library_path: Optional[Path] = None, settings_service
             rec = deserialize_component(data, settings_service)
             if rec is not None:
                 records.append(rec)
-        except Exception:
-            # Ignore malformed entries silently for now
+        except (json.JSONDecodeError, OSError, KeyError, TypeError, ValueError) as e:
+            _logger.warning("Failed to load component from %s: %s", folder, e)
             continue
     return records
 
@@ -91,8 +94,8 @@ def load_component_records_from_multiple(library_paths: List[Union[str, Path]], 
             if path.exists() and path.is_dir():
                 records = load_component_records(path, settings_service)
                 all_records.extend(records)
-        except Exception as e:
-            print(f"[definitions_loader] Failed to load from {lib_path}: {e}")
+        except OSError as e:
+            _logger.warning("Failed to load library from %s: %s", lib_path, e)
             continue
     
     return all_records
@@ -133,7 +136,8 @@ def load_component_dicts(library_path: Optional[Path] = None) -> List[Dict[str, 
                 component_dict["interfaces"] = [iface.to_dict() for iface in rec.interfaces]
             
             result.append(component_dict)
-        except Exception:
+        except (json.JSONDecodeError, OSError, KeyError, TypeError, ValueError) as e:
+            _logger.warning("Failed to load component dict from %s: %s", folder, e)
             continue
     return result
 
@@ -156,8 +160,8 @@ def load_component_dicts_from_multiple(library_paths: List[Union[str, Path]]) ->
             if path.exists() and path.is_dir():
                 dicts = load_component_dicts(path)
                 all_dicts.extend(dicts)
-        except Exception as e:
-            print(f"[definitions_loader] Failed to load from {lib_path}: {e}")
+        except OSError as e:
+            _logger.warning("Failed to load library dicts from %s: %s", lib_path, e)
             continue
     
     return all_dicts

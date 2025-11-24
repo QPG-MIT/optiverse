@@ -9,7 +9,7 @@ import math
 
 from .base import IOpticalElement
 from ..ray import RayState
-from ...core.geometry import normalize
+from ...core.raytracing_math import normalize
 
 
 class LensElement(IOpticalElement):

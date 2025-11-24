@@ -217,8 +217,8 @@ class SettingsDialog(QtWidgets.QDialog):
             for item in library_path.iterdir():
                 if item.is_dir() and (item / "component.json").exists():
                     count += 1
-        except Exception:
-            pass
+        except OSError:
+            pass  # Library path may not exist or be inaccessible
         
         return count
     

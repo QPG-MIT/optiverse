@@ -8,7 +8,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 try:
     from PyQt6 import QtSvg
     HAVE_QTSVG = True
-except Exception:
+except ImportError:
     HAVE_QTSVG = False
 
 
@@ -60,8 +60,8 @@ class ImageCanvas(QtWidgets.QLabel):
                     self._svg_renderer = renderer
                     # Pre-render SVG to cache at high resolution
                     self._update_svg_cache()
-            except Exception:
-                pass
+            except (OSError, RuntimeError):
+                pass  # SVG may be invalid or file inaccessible
         
         self.update()
 
@@ -366,7 +366,7 @@ class ImageCanvas(QtWidgets.QLabel):
             renderer.render(painter)
             painter.end()
             return QtGui.QPixmap.fromImage(img)
-        except Exception:
+        except (OSError, RuntimeError):
             return None
 
 

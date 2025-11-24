@@ -7,10 +7,10 @@ import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import ComponentParams
-from ...core.geometry import user_angle_to_qt, qt_angle_to_user
+from ...core.raytracing_math import user_angle_to_qt, qt_angle_to_user
 from ...core.interface_definition import InterfaceDefinition
 from ...platform.paths import to_relative_path, to_absolute_path
-from ...ui.smart_spinbox import SmartDoubleSpinBox
+from ...ui.widgets.smart_spinbox import SmartDoubleSpinBox
 from ...ui.widgets.interface_properties_widget import InterfacePropertiesWidget
 from ..base_obj import BaseObj
 from ..component_sprite import create_component_sprite
@@ -99,8 +99,8 @@ class ComponentItem(BaseObj):
             try:
                 if self.scene():
                     self.scene().removeItem(self._sprite)
-            except Exception:
-                pass
+            except RuntimeError:
+                pass  # Sprite may already be removed from scene
             self._sprite = None
         
         # Calculate picked line offset for coordinate transformation

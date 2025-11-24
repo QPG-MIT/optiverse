@@ -1,12 +1,9 @@
 from .error_handler import get_error_handler, ErrorContext, handle_errors
-from .scene_serializer import SceneSerializer
+from .scene_file_manager import SceneFileManager
 
 __all__ = [
     "get_error_handler",
     "ErrorContext",
     "handle_errors",
-    "SceneSerializer",
+    "SceneFileManager",
 ]
-
-
-

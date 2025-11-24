@@ -217,12 +217,12 @@ def deserialize_component(data: Dict[str, Any], settings_service=None) -> Option
     
     try:
         object_height_mm = float(data.get("object_height_mm", 25.4))
-    except Exception:
+    except (TypeError, ValueError):
         object_height_mm = 25.4
     
     try:
         angle_deg = float(data.get("angle_deg", 0.0))
-    except Exception:
+    except (TypeError, ValueError):
         angle_deg = 0.0
     
     category = str(data.get("category", ""))
@@ -295,16 +295,27 @@ class SourceParams:
 
 
 @dataclass
-class LensParams:
-    x_mm: float = -150.0
+class BaseOpticalParams:
+    """
+    Base class for optical component parameters.
+    
+    Contains common fields shared by all optical components:
+    - Position (x_mm, y_mm)
+    - Orientation (angle_deg)
+    - Physical size (object_height_mm, mm_per_pixel)
+    - Display (name, image_path)
+    - Interfaces
+    
+    Subclasses add component-specific fields (efl_mm for lenses, split_T/R for
+    beamsplitters, etc.)
+    """
+    x_mm: float = 0.0
     y_mm: float = 0.0
-    angle_deg: float = 90.0
-    efl_mm: float = 100.0
+    angle_deg: float = 0.0
     object_height_mm: float = 60.0
     image_path: Optional[str] = None
     mm_per_pixel: float = 0.1
     name: Optional[str] = None
-    # Interface-based storage (for multi-interface components like doublets)
     interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
     
     def __post_init__(self):
@@ -314,135 +325,88 @@ class LensParams:
 
 
 @dataclass
-class MirrorParams:
+class LensParams(BaseOpticalParams):
+    """Lens parameters with effective focal length."""
+    x_mm: float = -150.0
+    y_mm: float = 0.0
+    angle_deg: float = 90.0
+    object_height_mm: float = 60.0
+    efl_mm: float = 100.0  # Effective focal length
+
+
+@dataclass
+class MirrorParams(BaseOpticalParams):
+    """Mirror parameters."""
     x_mm: float = 150.0
     y_mm: float = 0.0
     angle_deg: float = 45.0
     object_height_mm: float = 80.0
-    image_path: Optional[str] = None
-    mm_per_pixel: float = 0.1
-    name: Optional[str] = None
-    # Interface-based storage (for multi-layer mirrors with AR coatings)
-    interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
-    
-    def __post_init__(self):
-        """Ensure interfaces list exists."""
-        if self.interfaces is None:
-            self.interfaces = []
 
 
 @dataclass
-class BlockParams:
+class BlockParams(BaseOpticalParams):
+    """Beam block parameters."""
     x_mm: float = 0.0
     y_mm: float = 0.0
     angle_deg: float = 0.0
     object_height_mm: float = 80.0
-    image_path: Optional[str] = None
-    mm_per_pixel: float = 0.1
-    name: Optional[str] = None
-    # Interface-based storage (for beam block line definition)
-    interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
-    
-    def __post_init__(self):
-        """Ensure interfaces list exists."""
-        if self.interfaces is None:
-            self.interfaces = []
 
 
 @dataclass
-class SLMParams:
+class SLMParams(BaseOpticalParams):
     """Spatial Light Modulator parameters (acts as a mirror)."""
     x_mm: float = 150.0
     y_mm: float = 0.0
     angle_deg: float = 0.0
     object_height_mm: float = 80.0
-    image_path: Optional[str] = None
-    mm_per_pixel: float = 0.1
-    name: Optional[str] = None
 
 
 @dataclass
-class BeamsplitterParams:
+class BeamsplitterParams(BaseOpticalParams):
+    """Beamsplitter parameters with transmission/reflection ratios."""
     x_mm: float = 0.0
     y_mm: float = 0.0
     angle_deg: float = 45.0
     object_height_mm: float = 80.0
-    split_T: float = 50.0
-    split_R: float = 50.0
-    image_path: Optional[str] = None
-    mm_per_pixel: float = 0.1
-    name: Optional[str] = None
-    # Polarization properties
+    split_T: float = 50.0  # Transmission ratio (%)
+    split_R: float = 50.0  # Reflection ratio (%)
     is_polarizing: bool = False  # True for PBS (Polarizing Beam Splitter)
-    # For PBS: s-polarization (perpendicular) reflects, p-polarization (parallel) transmits
-    pbs_transmission_axis_deg: float = 0.0  # ABSOLUTE angle of transmission axis in lab frame (degrees)
-    # Interface-based storage (for beamsplitters with glass substrate surfaces)
-    interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
-    
-    def __post_init__(self):
-        """Ensure interfaces list exists."""
-        if self.interfaces is None:
-            self.interfaces = []
+    pbs_transmission_axis_deg: float = 0.0  # PBS transmission axis angle (degrees)
 
 
 @dataclass
-class WaveplateParams:
+class WaveplateParams(BaseOpticalParams):
     """
-    Waveplate component parameters.
+    Waveplate parameters.
     
     Waveplates introduce a phase shift between orthogonal polarization components.
-    - Quarter waveplate (QWP): π/2 phase shift (90°)
-    - Half waveplate (HWP): π phase shift (180°)
-    
-    The fast axis is the axis along which light travels faster (lower refractive index).
-    The slow axis is perpendicular to the fast axis.
+    - Quarter waveplate (QWP): 90° phase shift
+    - Half waveplate (HWP): 180° phase shift
     """
     x_mm: float = 0.0
     y_mm: float = 0.0
-    angle_deg: float = 90.0  # Orientation of the waveplate element
-    object_height_mm: float = 36.6  # Physical size of optical element
-    phase_shift_deg: float = 90.0  # Phase shift in degrees (90° for QWP, 180° for HWP)
-    fast_axis_deg: float = 0.0  # ABSOLUTE angle of fast axis in lab frame (degrees)
-    image_path: Optional[str] = None
-    mm_per_pixel: float = 0.1
-    name: Optional[str] = None
-    # Interface-based storage (for waveplates with AR coatings or glass substrates)
-    interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
-    
-    def __post_init__(self):
-        """Ensure interfaces list exists."""
-        if self.interfaces is None:
-            self.interfaces = []
+    angle_deg: float = 90.0
+    object_height_mm: float = 36.6
+    phase_shift_deg: float = 90.0  # Phase shift (90° for QWP, 180° for HWP)
+    fast_axis_deg: float = 0.0  # Fast axis angle (degrees)
 
 
 @dataclass
-class DichroicParams:
+class DichroicParams(BaseOpticalParams):
     """
-    Dichroic mirror component parameters.
+    Dichroic mirror parameters.
     
-    Dichroic mirrors selectively reflect or transmit light based on wavelength.
-    - Long pass: reflects short wavelengths (< cutoff), transmits long wavelengths (> cutoff)
-    - Short pass: reflects long wavelengths (> cutoff), transmits short wavelengths (< cutoff)
-    
-    The transition is smooth with a characteristic width.
+    Selectively reflects or transmits light based on wavelength:
+    - Long pass: reflects short wavelengths, transmits long
+    - Short pass: reflects long wavelengths, transmits short
     """
     x_mm: float = 0.0
     y_mm: float = 0.0
-    angle_deg: float = 45.0  # Typically 45° for beam combining/splitting
-    object_height_mm: float = 80.0  # Physical size of optical element
-    cutoff_wavelength_nm: float = 550.0  # Cutoff wavelength (nm) - green
-    transition_width_nm: float = 50.0  # Width of transition region (nm)
+    angle_deg: float = 45.0
+    object_height_mm: float = 80.0
+    cutoff_wavelength_nm: float = 550.0  # Cutoff wavelength (nm)
+    transition_width_nm: float = 50.0  # Transition width (nm)
     pass_type: str = "longpass"  # "longpass" or "shortpass"
-    image_path: Optional[str] = None
-    mm_per_pixel: float = 0.1
-    name: Optional[str] = None
-    # Interface-based storage (for dichroics with glass substrates)
-    interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
-    
-    def __post_init__(self):
-        """Ensure interfaces list exists."""
-        if self.interfaces is None:
-            self.interfaces = []
 
 
 @dataclass
