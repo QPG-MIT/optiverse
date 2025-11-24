@@ -2,9 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
-import hashlib
-import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -24,8 +21,13 @@ from ...services.storage_service import StorageService
 from ...services.collaboration_manager import CollaborationManager
 from ...services.log_service import get_log_service
 from ...services.error_handler import get_error_handler, ErrorContext
+from ...services.scene_serializer import SceneSerializer
+from ..ray_renderer import RayRenderer
+from ..widgets.library_tree import LibraryTree
 from .collaboration_dialog import CollaborationDialog
 from .log_window import LogWindow
+from .tool_handlers import InspectToolHandler, PathMeasureToolHandler, point_to_segment_distance
+from .placement_handler import PlacementHandler
 from ...objects import (
     GraphicsView,
     RulerItem,
@@ -43,84 +45,6 @@ def _get_icon_path(icon_name: str) -> str:
 def to_np(p: QtCore.QPointF) -> np.ndarray:
     """Convert QPointF to numpy array."""
     return np.array([p.x(), p.y()], float)
-
-
-class LibraryTree(QtWidgets.QTreeWidget):
-    """Drag-enabled library tree for component templates organized by category."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setHeaderHidden(True)
-        self.setIconSize(QtCore.QSize(64, 64))
-        self.setDragEnabled(True)
-        self.setSelectionMode(QtWidgets.QTreeWidget.SelectionMode.SingleSelection)
-        self.setDragDropMode(QtWidgets.QAbstractItemView.DragDropMode.DragOnly)
-        self.setDefaultDropAction(QtCore.Qt.DropAction.CopyAction)
-        self.setIndentation(20)
-        self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
-        self.customContextMenuRequested.connect(self._show_context_menu)
-        
-        # Expand all categories by default
-        self.expandAll()
-    
-    def _show_context_menu(self, position):
-        """Show context menu for component items."""
-        item = self.itemAt(position)
-        if not item:
-            return
-        
-        # Only show context menu for leaf items (components), not category headers
-        if item.childCount() > 0:
-            return
-        
-        payload = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
-        if not payload:
-            return
-        
-        # Create context menu
-        menu = QtWidgets.QMenu(self)
-        edit_action = menu.addAction("Edit Component")
-        edit_action.triggered.connect(lambda: self._edit_component(payload))
-        
-        # Show menu at cursor position
-        menu.exec(self.viewport().mapToGlobal(position))
-    
-    def _edit_component(self, component_data: dict):
-        """Open component editor with the selected component loaded."""
-        # Get the main window parent
-        main_window = self.window()
-        if hasattr(main_window, 'open_component_editor_with_data'):
-            main_window.open_component_editor_with_data(component_data)
-
-    def startDrag(self, actions):
-        it = self.currentItem()
-        if not it:
-            return
-        
-        # Only allow dragging leaf items (components), not category headers
-        if it.childCount() > 0:
-            return
-            
-        payload = it.data(0, QtCore.Qt.ItemDataRole.UserRole)
-        if not payload:
-            return
-            
-        md = QtCore.QMimeData()
-        md.setData("application/x-optics-component", json.dumps(payload).encode("utf-8"))
-        drag = QtGui.QDrag(self)
-        drag.setMimeData(md)
-        
-        # Set an empty 1x1 transparent pixmap to prevent Qt from creating a default drag cursor
-        # The ghost preview in GraphicsView provides the visual feedback
-        empty_pixmap = QtGui.QPixmap(1, 1)
-        empty_pixmap.fill(QtCore.Qt.GlobalColor.transparent)
-        drag.setPixmap(empty_pixmap)
-        drag.setHotSpot(QtCore.QPoint(0, 0))
-        
-        # Execute drag and clear selection afterwards
-        result = drag.exec(QtCore.Qt.DropAction.CopyAction)
-        if result == QtCore.Qt.DropAction.CopyAction:
-            self.clearSelection()
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -238,6 +162,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # Connect collaboration signals
         self.collaboration_manager.remote_item_added.connect(self._on_remote_item_added)
         self.collaboration_manager.status_changed.connect(self._on_collaboration_status_changed)
+        
+        # Initialize extracted handlers
+        self._init_handlers()
 
         # Build UI
         self._build_actions()
@@ -257,6 +184,38 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Set initial window title
         self._update_window_title()
+    
+    def _init_handlers(self):
+        """Initialize extracted handler classes."""
+        # Ray renderer for rendering traced paths
+        self.ray_renderer = RayRenderer(self.scene, self.view)
+        
+        # Scene serializer for save/load/autosave
+        self.scene_serializer = SceneSerializer(
+            scene=self.scene,
+            log_service=self.log_service,
+            get_ray_data=lambda: self.ray_data,
+        )
+        
+        # Inspect tool handler
+        self.inspect_handler = InspectToolHandler(
+            view=self.view,
+            get_ray_data=lambda: self.ray_data,
+            parent_widget=self,
+        )
+        
+        # Path measure tool handler
+        self.path_measure_handler = PathMeasureToolHandler(
+            scene=self.scene,
+            view=self.view,
+            undo_stack=self.undo_stack,
+            get_ray_data=lambda: self.ray_data,
+            parent_widget=self,
+            on_complete=lambda: self.act_measure_path.setChecked(False),
+        )
+        
+        # Note: PlacementHandler is initialized after _build_library_dock()
+        # because it needs _component_templates which is populated by populate_library()
 
     # Grid is now drawn in GraphicsView.drawBackground() for much better performance
     # No need for _draw_grid() method anymore!
@@ -919,6 +878,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.libDock.setWidget(self.libraryTree)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.libDock)
         self.populate_library()
+        
+        # Initialize PlacementHandler now that component_templates is populated
+        self.placement_handler = PlacementHandler(
+            scene=self.scene,
+            view=self.view,
+            undo_stack=self.undo_stack,
+            log_service=self.log_service,
+            component_templates=self._component_templates,
+            snap_to_grid_getter=lambda: self.snap_to_grid,
+            connect_item_signals=self._connect_item_signals,
+            schedule_retrace=self._schedule_retrace,
+            broadcast_add_item=self.collaboration_manager.broadcast_add_item,
+        )
 
     def _register_shortcuts(self):
         """Register actions with shortcuts to main window for global access.
@@ -1276,20 +1248,7 @@ class MainWindow(QtWidgets.QMainWindow):
     # ----- Ray tracing -----
     def clear_rays(self):
         """Remove all ray graphics from scene."""
-        # Clear OpenGL overlay if available
-        if self.view.has_ray_overlay():
-            self.view.clear_ray_overlay()
-        
-        # Clear software-rendered rays
-        for it in self.ray_items:
-            try:
-                # Check if item is still in scene before removing
-                if it.scene() is not None:
-                    self.scene.removeItem(it)
-            except RuntimeError:
-                # Item was already deleted (e.g., during scene clear)
-                pass
-        self.ray_items.clear()
+        self.ray_renderer.clear()
         self.ray_data.clear()
 
     def _schedule_retrace(self):
@@ -1447,67 +1406,19 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         Render ray paths to the scene.
         
-        This is shared between legacy and polymorphic engines since both
-        produce the same RayPath output format.
-        
-        Uses OpenGL hardware acceleration if available, otherwise falls back
-        to software rendering with QGraphicsPathItem.
+        Delegates to RayRenderer for actual rendering.
         
         Args:
             paths: List of RayPath objects
         """
-        # Store ray data for inspect tool (always needed)
+        # Store ray data for inspect tool and path measure tool
         self.ray_data = list(paths)
         
-        # Try OpenGL rendering first (100x+ faster)
-        if self.view.has_ray_overlay():
-            # Use hardware-accelerated OpenGL rendering
-            self.view.update_ray_overlay(paths, self._ray_width_px)
-            # No need to create QGraphicsPathItem objects
-            return
+        # Sync ray width with renderer
+        self.ray_renderer.ray_width_px = self._ray_width_px
         
-        # Fallback to software rendering if OpenGL not available
-        for p in paths:
-            if len(p.points) < 2:
-                continue
-            path = QtGui.QPainterPath(QtCore.QPointF(p.points[0][0], p.points[0][1]))
-            for q in p.points[1:]:
-                path.lineTo(q[0], q[1])
-            item = QtWidgets.QGraphicsPathItem(path)
-            r, g, b, a = p.rgba
-            
-            # Boost saturation and brightness for OpenGL viewport (colors appear darker in OpenGL)
-            # Convert to HSV, increase saturation and value significantly, convert back
-            color = QtGui.QColor(r, g, b, a)
-            h, s, v, alpha = color.getHsv()
-            # Only boost HSV if OpenGL is used
-            SATURATION_BOOST_FACTOR = 1.3
-            VALUE_BOOST_FACTOR = 1.2
-            HSV_MAX = 255
-            RAY_WIDTH_OPENGL_SCALE = 2.0
-
-            if self.view.has_ray_overlay():
-                s = min(HSV_MAX, int(s * SATURATION_BOOST_FACTOR))
-                v = min(HSV_MAX, int(v * VALUE_BOOST_FACTOR))
-                color.setHsv(h, s, v, alpha)
-            
-            pen = QtGui.QPen(color)
-            # OpenGL viewport makes lines appear thinner, so increase width
-            # Use a scale factor to compensate (RAY_WIDTH_OPENGL_SCALE)
-            pen.setWidthF(self._ray_width_px * RAY_WIDTH_OPENGL_SCALE)
-            pen.setCosmetic(True)
-            item.setPen(pen)
-            item.setZValue(10)
-            self.scene.addItem(item)
-            self.ray_items.append(item)
-        
-        # Update any PathMeasureItem objects after retrace
-        from optiverse.objects.annotations.path_measure_item import PathMeasureItem
-        for item in self.scene.items():
-            if isinstance(item, PathMeasureItem):
-                ray_index = item.get_ray_index()
-                if 0 <= ray_index < len(paths):
-                    item.update_path(paths[ray_index].points)
+        # Delegate rendering to RayRenderer
+        self.ray_renderer.render(paths)
     
     def _create_element_from_interface(self, p1, p2, iface, parent_item):
         """
@@ -1809,11 +1720,8 @@ class MainWindow(QtWidgets.QMainWindow):
             # Disable inspect mode if active
             if self._inspect_mode:
                 self.act_inspect.setChecked(False)
-            # Initialize state for two-click workflow
-            self._path_measure_state = 'waiting_first_click'
-            self._path_measure_ray_index = None
-            self._path_measure_start_param = None
-            self._path_measure_temp_item = None
+            # Activate handler
+            self.path_measure_handler.activate()
             # Change cursor to indicate path measure mode is active
             self.view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
             QtWidgets.QToolTip.showText(
@@ -1823,14 +1731,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 "Create one measurement for each path."
             )
         else:
-            # Reset state
-            self._path_measure_state = None
-            self._path_measure_ray_index = None
-            self._path_measure_start_param = None
-            # Remove temporary item if exists
-            if self._path_measure_temp_item and self.scene:
-                self.scene.removeItem(self._path_measure_temp_item)
-                self._path_measure_temp_item = None
+            # Deactivate handler
+            self.path_measure_handler.deactivate()
             # Restore default cursor
             self.view.unsetCursor()
     
@@ -1844,85 +1746,28 @@ class MainWindow(QtWidgets.QMainWindow):
             # Disable any other placement mode buttons
             self._cancel_placement_mode(except_type=component_type)
             
-            # Enter placement mode
+            # Activate handler
+            self.placement_handler.activate(component_type)
+            
+            # Keep local state for compatibility
             self._placement_mode = True
             self._placement_type = component_type
-            
-            # Enable mouse tracking to get move events without button press
-            self.view.setMouseTracking(True)
-            self.view.viewport().setMouseTracking(True)
-            
-            # Change cursor to crosshair
-            self.view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
-            
-            # Show tooltip
-            QtWidgets.QToolTip.showText(
-                QtGui.QCursor.pos(), 
-                f"Click to place {component_type}. Right-click or Escape to cancel."
-            )
         else:
             # Exit placement mode
             self._cancel_placement_mode()
     
     def _cancel_placement_mode(self, except_type: str | None = None):
         """Cancel placement mode and clean up."""
-        # Check if we need to restore state (before clearing variables)
-        should_restore = self._placement_mode or self._placement_ghost is not None
+        # Get previous type before deactivating
+        prev_type = self.placement_handler.component_type if self.placement_handler.is_active else self._placement_type
         
-        # Clear ghost preview with proper cleanup
-        if self._placement_ghost is not None:
-            if self._placement_ghost.scene() is not None:
-                # Get bounding rect before removal for proper viewport update
-                ghost_rect = self._placement_ghost.sceneBoundingRect()
-                # Expand rect to account for cosmetic pen rendering beyond bounds
-                ghost_rect = ghost_rect.adjusted(-20, -20, 20, 20)
-                # Hide first to prevent flicker
-                self._placement_ghost.hide()
-                self.scene.removeItem(self._placement_ghost)
-                # Aggressive viewport update to clear any rendering artifacts
-                self.scene.update(ghost_rect)
-                self.scene.invalidate(ghost_rect)
-                self.view.viewport().update()
-                # Schedule another update to catch any stragglers
-                QtCore.QTimer.singleShot(0, self.view.viewport().update)
-            # Schedule deletion to ensure proper cleanup
-            self._placement_ghost.deleteLater()
-            self._placement_ghost = None
+        # Deactivate handler (handles ghost cleanup, cursor, mouse tracking)
+        self.placement_handler.deactivate()
         
-        # Reset state
-        prev_type = self._placement_type
+        # Reset local state
         self._placement_mode = False
         self._placement_type = None
-        
-        # Restore cursor and mouse tracking (after state reset)
-        if should_restore:
-            # CRITICAL FIX: Send synthetic mouse move event BEFORE disabling tracking
-            # Qt needs mouse tracking to be ACTIVE when processing position updates
-            # wheelEvent is received by the VIEW (not viewport), so we must update the view's position cache
-            cursor_pos = self.view.mapFromGlobal(QtGui.QCursor.pos())
-            move_event = QtGui.QMouseEvent(
-                QtCore.QEvent.Type.MouseMove,
-                QtCore.QPointF(cursor_pos),
-                QtCore.Qt.MouseButton.NoButton,
-                QtCore.Qt.MouseButton.NoButton,
-                QtCore.Qt.KeyboardModifier.NoModifier
-            )
-            # Send to VIEW first (critical for wheelEvent which is received by the view)
-            QtWidgets.QApplication.sendEvent(self.view, move_event)
-            # Also send to viewport (for completeness)
-            QtWidgets.QApplication.sendEvent(self.view.viewport(), move_event)
-            
-            # Process events to ensure the mouse position update completes
-            # before we disable tracking
-            QtWidgets.QApplication.processEvents()
-            
-            # Restore to default arrow cursor
-            self.view.unsetCursor()
-            
-            # Disable mouse tracking AFTER position update is complete
-            # (GraphicsView doesn't use it by default)
-            self.view.setMouseTracking(False)
-            self.view.viewport().setMouseTracking(False)
+        self._placement_ghost = None  # Handler manages this now
         
         # Uncheck toolbar buttons (except the one we're toggling to)
         if prev_type != except_type:
@@ -1938,590 +1783,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.act_add_text.setChecked(False)
             elif prev_type == "rectangle":
                 self.act_add_rectangle.setChecked(False)
-    
-    def _create_placement_ghost(self, component_type: str, scene_pos: QtCore.QPointF):
-        """Create a ghost preview for the component being placed."""
-        # Clear any existing ghost with proper cleanup
-        if self._placement_ghost is not None:
-            if self._placement_ghost.scene() is not None:
-                ghost_rect = self._placement_ghost.sceneBoundingRect()
-                # Expand rect to account for cosmetic pen rendering beyond bounds
-                ghost_rect = ghost_rect.adjusted(-20, -20, 20, 20)
-                self._placement_ghost.hide()
-                self.scene.removeItem(self._placement_ghost)
-                # Aggressive viewport update to clear any rendering artifacts
-                self.scene.update(ghost_rect)
-                self.scene.invalidate(ghost_rect)
-                self.view.viewport().update()
-            self._placement_ghost.deleteLater()
-            self._placement_ghost = None
-        
-        # Create ghost based on component type
-        if component_type == "source":
-            # Source is a special case - still uses SourceItem directly
-            params = SourceParams(x_mm=scene_pos.x(), y_mm=scene_pos.y())
-            ghost = SourceItem(params)
-        elif component_type in ("lens", "mirror", "beamsplitter"):
-            # Use ComponentFactory with library templates for interface-based components
-            from ...objects.component_factory import ComponentFactory
-            
-            # Get template from library cache
-            template = self._component_templates.get(component_type)
-            if template is None:
-                # Fallback: if template not found, just return (shouldn't happen)
-                self.log_service.warning(f"No template found for component type: {component_type}", "Placement")
-                return
-            
-            # Create a copy of the template without the sprite image
-            # This ensures we see the interface lines directly, not a background image
-            template_copy = dict(template)
-            template_copy["image_path"] = ""  # Remove sprite to show interface lines only
-            
-            # Create component from template using ComponentFactory
-            ghost = ComponentFactory.create_item_from_dict(
-                template_copy,
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y()
-            )
-            if ghost is None:
-                self.log_service.error(f"Failed to create ghost for component type: {component_type}", "Placement")
-                return
-        elif component_type == "text":
-            ghost = TextNoteItem("Text")
-            ghost.setPos(scene_pos)
-        elif component_type == "rectangle":
-            from ...objects import RectangleItem
-            ghost = RectangleItem(width_mm=60.0, height_mm=40.0)
-            ghost.setPos(scene_pos)
-        else:
-            return
-        
-        # Make it semi-transparent for ghost effect
-        ghost.setOpacity(0.5)
-        
-        # Disable caching to prevent rendering artifacts (especially for SourceItem with cosmetic pens)
-        ghost.setCacheMode(QtWidgets.QGraphicsItem.CacheMode.NoCache)
-        
-        # Add to scene
-        self.scene.addItem(ghost)
-        self._placement_ghost = ghost
-    
-    def _update_placement_ghost(self, scene_pos: QtCore.QPointF):
-        """Update the position of the placement ghost."""
-        if self._placement_ghost is not None:
-            # Get old rect for proper invalidation (expanded for cosmetic pens)
-            old_rect = self._placement_ghost.sceneBoundingRect().adjusted(-20, -20, 20, 20)
-            
-            # Apply snap to grid if enabled
-            if self.snap_to_grid:
-                scene_pos = QtCore.QPointF(round(scene_pos.x()), round(scene_pos.y()))
-            
-            # Update position
-            self._placement_ghost.setPos(scene_pos)
-            
-            # Force scene update in old and new areas to prevent artifacts
-            new_rect = self._placement_ghost.sceneBoundingRect().adjusted(-20, -20, 20, 20)
-            update_rect = old_rect.united(new_rect)
-            self.scene.update(update_rect)
-            self.scene.invalidate(update_rect)
-    
-    def _place_component_at(self, component_type: str, scene_pos: QtCore.QPointF):
-        """Place a component at the specified scene position."""
-        # Apply snap to grid if enabled
-        if self.snap_to_grid:
-            scene_pos = QtCore.QPointF(round(scene_pos.x()), round(scene_pos.y()))
-        
-        # Create the component based on type
-        if component_type == "source":
-            # Source is a special case - still uses SourceItem directly
-            params = SourceParams(x_mm=scene_pos.x(), y_mm=scene_pos.y())
-            item = SourceItem(params)
-        elif component_type in ("lens", "mirror", "beamsplitter"):
-            # Use ComponentFactory with library templates for interface-based components
-            from ...objects.component_factory import ComponentFactory
-            
-            # Get template from library cache
-            template = self._component_templates.get(component_type)
-            if template is None:
-                # Fallback: if template not found, log error and return
-                self.log_service.error(f"No template found for component type: {component_type}", "Placement")
-                return
-            
-            # Create a copy of the template without the sprite image
-            # This ensures we see the interface lines directly, not a background image
-            template_copy = dict(template)
-            template_copy["image_path"] = ""  # Remove sprite to show interface lines only
-            
-            # Create component from template using ComponentFactory
-            item = ComponentFactory.create_item_from_dict(
-                template_copy,
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y()
-            )
-            if item is None:
-                self.log_service.error(f"Failed to create component for type: {component_type}", "Placement")
-                return
-        elif component_type == "text":
-            item = TextNoteItem("Text")
-            item.setPos(scene_pos)
-        elif component_type == "rectangle":
-            from ...objects import RectangleItem
-            item = RectangleItem(width_mm=60.0, height_mm=40.0)
-            item.setPos(scene_pos)
-        else:
-            return
-        
-        # Connect signals for optical components (skip annotations like text/rectangle)
-        if component_type not in ("text", "rectangle"):
-            self._connect_item_signals(item)
-        
-        # Add to scene with undo support
-        cmd = AddItemCommand(self.scene, item)
-        self.undo_stack.push(cmd)
-        item.setSelected(True)
-        
-        # Broadcast addition to collaboration (for optical components only)
-        if component_type not in ("text", "rectangle"):
-            self.collaboration_manager.broadcast_add_item(item)
-        
-        # Retrace if enabled (only for optical components, with debouncing)
-        if component_type not in ("text", "rectangle"):
-            self._schedule_retrace()
-        
-        # Force Qt to update its internal mouse position tracking by sending a synthetic mouse move
-        # This ensures zoom-to-cursor works correctly after placing a component
-        # wheelEvent is received by the VIEW, so we must send to the view (not just viewport)
-        cursor_pos = self.view.mapFromGlobal(QtGui.QCursor.pos())
-        move_event = QtGui.QMouseEvent(
-            QtCore.QEvent.Type.MouseMove,
-            QtCore.QPointF(cursor_pos),
-            QtCore.Qt.MouseButton.NoButton,
-            QtCore.Qt.MouseButton.NoButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
-        )
-        # Send to VIEW first (critical for wheelEvent position cache)
-        QtWidgets.QApplication.sendEvent(self.view, move_event)
-        # Also send to viewport (for completeness)
-        QtWidgets.QApplication.sendEvent(self.view.viewport(), move_event)
-    
-    def _point_to_segment_distance(self, point, seg_start, seg_end):
-        """
-        Calculate the minimum distance from a point to a line segment.
-        
-        Args:
-            point: The point to check (numpy array)
-            seg_start: Start of line segment (numpy array)
-            seg_end: End of line segment (numpy array)
-            
-        Returns:
-            Minimum distance from point to the line segment
-        """
-        # Vector from seg_start to seg_end
-        segment = seg_end - seg_start
-        segment_len_sq = np.dot(segment, segment)
-        
-        # Handle degenerate case (segment is a point)
-        if segment_len_sq < 1e-10:
-            return np.linalg.norm(point - seg_start)
-        
-        # Project point onto the line defined by the segment
-        # t = 0 means point projects to seg_start
-        # t = 1 means point projects to seg_end
-        t = np.dot(point - seg_start, segment) / segment_len_sq
-        
-        # Clamp t to [0, 1] to stay within the segment
-        t = max(0.0, min(1.0, t))
-        
-        # Find the closest point on the segment
-        closest_point = seg_start + t * segment
-        
-        # Return distance to the closest point
-        return np.linalg.norm(point - closest_point)
-    
-    def _handle_inspect_click(self, scene_pos: QtCore.QPointF):
-        """Handle click in inspect mode to display ray information."""
-        click_pt = np.array([scene_pos.x(), scene_pos.y()])
-        
-        # Find the nearest ray segment within tolerance
-        # Use a tolerance that scales with zoom level for better UX
-        # Get the view's transform to compute pixel-to-scene ratio
-        transform = self.view.transform()
-        scale_factor = transform.m11()  # Horizontal scale (zoom level)
-        tolerance_px = 15.0  # pixels - generous click radius
-        tolerance = tolerance_px / max(scale_factor, 0.01)  # Convert to scene units (mm)
-        
-        best_ray = None
-        best_distance = float('inf')
-        best_point_idx = None
-        
-        for i, ray_data in enumerate(self.ray_data):
-            # Check each line segment in the ray path
-            points = ray_data.points
-            for j in range(len(points) - 1):
-                # Calculate distance to the line segment between consecutive points
-                dist = self._point_to_segment_distance(click_pt, points[j], points[j + 1])
-                
-                if dist < best_distance and dist < tolerance:
-                    best_distance = dist
-                    best_ray = ray_data
-                    # Use the closest endpoint of the segment
-                    dist_to_start = np.linalg.norm(click_pt - points[j])
-                    dist_to_end = np.linalg.norm(click_pt - points[j + 1])
-                    best_point_idx = j if dist_to_start < dist_to_end else j + 1
-        
-        if best_ray is not None:
-            # Display the ray information
-            self._show_ray_info_dialog(best_ray, best_point_idx)
-        else:
-            QtWidgets.QMessageBox.information(
-                self,
-                "No Ray Found",
-                "No ray found near the clicked position.\nTry clicking closer to a ray."
-            )
-    
-    def _show_ray_info_dialog(self, ray_data, point_idx):
-        """Display a dialog with ray polarization and intensity information."""
-        # Get position
-        point = ray_data.points[point_idx]
-        x_mm, y_mm = point[0], point[1]
-        
-        # Get intensity (from alpha channel)
-        intensity = ray_data.rgba[3] / 255.0
-        
-        # Get polarization state
-        pol = ray_data.polarization
-        
-        # Format polarization info
-        if pol is not None:
-            ex, ey = pol.jones_vector[0], pol.jones_vector[1]
-            # Calculate Stokes parameters
-            I_total = abs(ex)**2 + abs(ey)**2
-            Q = abs(ex)**2 - abs(ey)**2
-            U = 2 * np.real(ex * np.conj(ey))
-            V = 2 * np.imag(ex * np.conj(ey))
-            
-            # Calculate degree of polarization
-            pol_degree = np.sqrt(Q**2 + U**2 + V**2) / I_total if I_total > 0 else 0
-            
-            # Linear polarization angle
-            pol_angle_rad = 0.5 * np.arctan2(U, Q)
-            pol_angle_deg = np.degrees(pol_angle_rad)
-            
-            pol_text = f"""Jones Vector: [{ex:.4f}, {ey:.4f}]
-
-Stokes Parameters:
-  I = {I_total:.4f}
-  Q = {Q:.4f}
-  U = {U:.4f}
-  V = {V:.4f}
-
-Degree of Polarization: {pol_degree:.2%}
-Linear Polarization Angle: {pol_angle_deg:.2f}°"""
-        else:
-            pol_text = "No polarization information available"
-        
-        # Get wavelength
-        wavelength_text = f"{ray_data.wavelength_nm:.1f} nm" if ray_data.wavelength_nm > 0 else "Not specified"
-        
-        # Create info dialog
-        dialog = QtWidgets.QDialog(self)
-        dialog.setWindowTitle("Ray Information")
-        dialog.setMinimumWidth(400)
-        
-        layout = QtWidgets.QVBoxLayout(dialog)
-        
-        # Position info
-        pos_label = QtWidgets.QLabel(f"<b>Position:</b> ({x_mm:.2f}, {y_mm:.2f}) mm")
-        layout.addWidget(pos_label)
-        
-        # Intensity info
-        intensity_label = QtWidgets.QLabel(f"<b>Intensity:</b> {intensity:.2%}")
-        layout.addWidget(intensity_label)
-        
-        # Wavelength info
-        wl_label = QtWidgets.QLabel(f"<b>Wavelength:</b> {wavelength_text}")
-        layout.addWidget(wl_label)
-        
-        layout.addSpacing(10)
-        
-        # Polarization info
-        pol_title = QtWidgets.QLabel("<b>Polarization State:</b>")
-        layout.addWidget(pol_title)
-        
-        pol_text_widget = QtWidgets.QTextEdit()
-        pol_text_widget.setPlainText(pol_text)
-        pol_text_widget.setReadOnly(True)
-        pol_text_widget.setMaximumHeight(200)
-        layout.addWidget(pol_text_widget)
-        
-        # Close button
-        button_layout = QtWidgets.QHBoxLayout()
-        button_layout.addStretch()
-        close_btn = QtWidgets.QPushButton("Close")
-        close_btn.clicked.connect(dialog.accept)
-        button_layout.addWidget(close_btn)
-        layout.addLayout(button_layout)
-        
-        dialog.exec()
-    
-    def _param_to_position(self, ray_index: int, param: float) -> Optional[np.ndarray]:
-        """
-        Convert parameter [0, 1] on a ray to actual scene position.
-        
-        Args:
-            ray_index: Index of the ray in self.ray_data
-            param: Parameter [0, 1] along the ray path
-            
-        Returns:
-            Position as numpy array [x, y], or None if invalid
-        """
-        if ray_index < 0 or ray_index >= len(self.ray_data):
-            return None
-        
-        ray_data = self.ray_data[ray_index]
-        points = ray_data.points
-        
-        if len(points) < 2:
-            return points[0].copy() if len(points) == 1 else None
-        
-        total_length = sum(np.linalg.norm(points[j+1] - points[j]) for j in range(len(points)-1))
-        if total_length < 1e-6:
-            return points[0].copy()
-        
-        target_dist = param * total_length
-        accumulated = 0.0
-        
-        for j in range(len(points) - 1):
-            p1, p2 = points[j], points[j+1]
-            segment_len = np.linalg.norm(p2 - p1)
-            
-            if accumulated + segment_len >= target_dist:
-                t = (target_dist - accumulated) / segment_len if segment_len > 0 else 0
-                return p1 + t * (p2 - p1)
-            
-            accumulated += segment_len
-        
-        return points[-1].copy()
-    
-    def _find_param_on_ray(self, ray_index: int, click_pt: np.ndarray) -> float:
-        """
-        Find the parameter [0, 1] on a specific ray closest to the clicked point.
-        
-        Args:
-            ray_index: Index of the ray in self.ray_data
-            click_pt: Clicked position as numpy array [x, y]
-            
-        Returns:
-            Parameter value [0.0, 1.0] along the ray path
-        """
-        ray_data = self.ray_data[ray_index]
-        points = ray_data.points
-        
-        total_length = sum(np.linalg.norm(points[j + 1] - points[j]) for j in range(len(points) - 1))
-        if total_length < 1e-6:
-            return 0.0
-        
-        best_distance = float('inf')
-        best_param = 0.0
-        accumulated = 0.0
-        
-        for j in range(len(points) - 1):
-            p1, p2 = points[j], points[j + 1]
-            segment_vec = p2 - p1
-            segment_len_sq = np.dot(segment_vec, segment_vec)
-            segment_len = np.sqrt(segment_len_sq)
-            
-            if segment_len < 1e-6:
-                continue
-            
-            # Calculate distance to segment
-            to_click = click_pt - p1
-            t = np.clip(np.dot(to_click, segment_vec) / segment_len_sq, 0.0, 1.0)
-            closest_on_segment = p1 + t * segment_vec
-            dist = np.linalg.norm(click_pt - closest_on_segment)
-            
-            if dist < best_distance:
-                best_distance = dist
-                best_param = (accumulated + t * segment_len) / total_length
-            
-            accumulated += segment_len
-        
-        return best_param
-    
-    def _handle_path_measure_click(self, scene_pos: QtCore.QPointF):
-        """Handle click in path measure mode to create path measurement item."""
-        from optiverse.objects.annotations.path_measure_item import PathMeasureItem
-        
-        click_pt = np.array([scene_pos.x(), scene_pos.y()])
-        
-        # Find the nearest ray segment within tolerance (larger than inspect tool for easier clicking)
-        transform = self.view.transform()
-        scale_factor = transform.m11()
-        tolerance_px = 25.0  # Generous tolerance for easy ray selection in dense bundles
-        tolerance = tolerance_px / max(scale_factor, 0.01)
-        
-        best_ray_index = -1
-        best_distance = float('inf')
-        best_param = 0.0
-        
-        for i, ray_data in enumerate(self.ray_data):
-            points = ray_data.points
-            total_length = sum(np.linalg.norm(points[j + 1] - points[j]) for j in range(len(points) - 1))
-            
-            if total_length < 1e-6:
-                continue
-            
-            accumulated = 0.0
-            for j in range(len(points) - 1):
-                p1, p2 = points[j], points[j + 1]
-                segment_vec = p2 - p1
-                segment_len_sq = np.dot(segment_vec, segment_vec)
-                segment_len = np.sqrt(segment_len_sq)
-                
-                if segment_len < 1e-6:
-                    continue
-                
-                # Calculate distance to segment (same method as inspect tool)
-                to_click = click_pt - p1
-                t = np.clip(np.dot(to_click, segment_vec) / segment_len_sq, 0.0, 1.0)
-                closest_on_segment = p1 + t * segment_vec
-                dist = np.linalg.norm(click_pt - closest_on_segment)
-                
-                if dist < best_distance and dist < tolerance:
-                    best_distance = dist
-                    best_ray_index = i
-                    best_param = (accumulated + t * segment_len) / total_length
-                
-                accumulated += segment_len
-        
-        if best_ray_index < 0:
-            QtWidgets.QMessageBox.information(self, "No Ray Found", "No ray found near the clicked position.\nTry clicking closer to a ray.")
-            return
-        
-        if self._path_measure_state == 'waiting_first_click':
-            self._path_measure_ray_index = best_ray_index
-            self._path_measure_start_param = best_param
-            self._path_measure_state = 'waiting_second_click'
-            
-            ray_data = self.ray_data[best_ray_index]
-            self._path_measure_temp_item = PathMeasureItem(
-                ray_path_points=ray_data.points, start_param=best_param, end_param=best_param, ray_index=best_ray_index
-            )
-            # Temp preview item added directly (not undoable, removed on second click)
-            self.scene.addItem(self._path_measure_temp_item)
-            QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), "Start point set. Click again on the SAME ray to set end point.\n\n⚠️ At beam splitters: Each path is separate.")
-        
-        elif self._path_measure_state == 'waiting_second_click':
-            # Smart ray matching with multiple strategies for dense bundles:
-            # 1. Same ray - always allowed
-            # 2. Beam splitter siblings - rays sharing starting point
-            # 3. Parallel bundle - first click is close to the clicked ray
-            
-            original_ray = self.ray_data[self._path_measure_ray_index]
-            clicked_ray = self.ray_data[best_ray_index]
-            
-            allow_ray = False
-            use_clicked_ray = False
-            
-            if best_ray_index == self._path_measure_ray_index:
-                # Strategy 1: Same ray - always allowed
-                allow_ray = True
-            else:
-                # Different ray - check if acceptable
-                
-                # Strategy 2: Beam splitter siblings (share starting point)
-                if len(original_ray.points) > 0 and len(clicked_ray.points) > 0:
-                    if np.linalg.norm(original_ray.points[0] - clicked_ray.points[0]) < 1.0:
-                        allow_ray = True
-                        # Keep original ray for beam splitter case
-                
-                # Strategy 3: Parallel bundle detection
-                if not allow_ray and len(clicked_ray.points) > 1:
-                    # Check if first click is close to the clicked ray
-                    first_click_pos = self._param_to_position(self._path_measure_ray_index, self._path_measure_start_param)
-                    if first_click_pos is not None:
-                        # Find minimum distance from first click to any segment of clicked ray
-                        min_dist = float('inf')
-                        for j in range(len(clicked_ray.points) - 1):
-                            dist = self._point_to_segment_distance(
-                                first_click_pos,
-                                clicked_ray.points[j],
-                                clicked_ray.points[j + 1]
-                            )
-                            min_dist = min(min_dist, dist)
-                        
-                        # If first click is close to clicked ray (within 15mm), allow it
-                        # This handles parallel/overlapping rays in bundles
-                        if min_dist < 15.0:
-                            allow_ray = True
-                            use_clicked_ray = True  # Measure along the clicked ray
-            
-            if not allow_ray:
-                QtWidgets.QMessageBox.warning(
-                    self,
-                    "Different Ray",
-                    "Please click on the same ray or a nearby parallel ray for the end point."
-                )
-                return
-            
-            # Calculate measurement parameters
-            if use_clicked_ray:
-                # Parallel bundle case - but keep measurement on ORIGINAL ray
-                # Project second click onto the original ray (not the clicked ray)
-                click_pt = np.array([scene_pos.x(), scene_pos.y()])
-                end_param_on_original = self._find_param_on_ray(self._path_measure_ray_index, click_pt)
-                
-                # Keep using original ray
-                start_param = min(self._path_measure_start_param, end_param_on_original)
-                end_param = max(self._path_measure_start_param, end_param_on_original)
-                best_ray_index = self._path_measure_ray_index  # Stay on original ray
-            elif best_ray_index != self._path_measure_ray_index:
-                # Beam splitter sibling - project second click onto original ray
-                click_pt = np.array([scene_pos.x(), scene_pos.y()])
-                best_param = self._find_param_on_ray(self._path_measure_ray_index, click_pt)
-                start_param = min(self._path_measure_start_param, best_param)
-                end_param = max(self._path_measure_start_param, best_param)
-                best_ray_index = self._path_measure_ray_index  # Stay on original ray
-            else:
-                # Same ray - use stored params
-                start_param = min(self._path_measure_start_param, best_param)
-                end_param = max(self._path_measure_start_param, best_param)
-            
-            # Remove temp preview item
-            if self._path_measure_temp_item:
-                self.scene.removeItem(self._path_measure_temp_item)
-                self._path_measure_temp_item = None
-            
-            # Create main path measure item
-            ray_data = self.ray_data[best_ray_index]
-            path_measure = PathMeasureItem(ray_path_points=ray_data.points, start_param=start_param, end_param=end_param, ray_index=best_ray_index)
-            
-            # Beam splitter auto-detection: collect all items to add
-            items_to_add = [path_measure]
-            if len(self.ray_data) > 1 and len(ray_data.points) > 0:
-                start_pos = ray_data.points[0]
-                for sibling_idx, sibling_ray in enumerate(self.ray_data):
-                    if sibling_idx != best_ray_index and len(sibling_ray.points) > 0:
-                        if np.linalg.norm(start_pos - sibling_ray.points[0]) < 1.0:
-                            sibling_measure = PathMeasureItem(ray_path_points=sibling_ray.points, start_param=start_param, end_param=end_param, ray_index=sibling_idx)
-                            items_to_add.append(sibling_measure)
-            
-            # Add items via undo stack (atomic operation for beam splitters)
-            if len(items_to_add) == 1:
-                # Single path: use AddItemCommand
-                cmd = AddItemCommand(self.scene, items_to_add[0])
-            else:
-                # Multiple paths (beam splitter): use AddMultipleItemsCommand
-                cmd = AddMultipleItemsCommand(self.scene, items_to_add)
-            
-            self.undo_stack.push(cmd)
-            
-            # Select the main path measure item
-            path_measure.setSelected(True)
-            
-            self.act_measure_path.setChecked(False)
-            tip_text = f"Created {len(items_to_add)} measurements (beam splitter)" if len(items_to_add) > 1 else f"Path measurement: {path_measure._segment_length:.2f} mm"
-            QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), tip_text)
 
     def _set_ray_width(self, v: float):
         """Set ray width and retrace."""
@@ -2688,17 +1949,12 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
         et = ev.type()
 
         # --- Component placement mode ---
-        if self._placement_mode:
+        if self.placement_handler.is_active:
             # Mouse move - update ghost position
             if et == QtCore.QEvent.Type.GraphicsSceneMouseMove:
                 mev = ev  # QGraphicsSceneMouseEvent
                 scene_pt = mev.scenePos()
-                
-                # Create ghost if it doesn't exist yet
-                if self._placement_ghost is None:
-                    self._create_placement_ghost(self._placement_type, scene_pt)
-                else:
-                    self._update_placement_ghost(scene_pt)
+                self.placement_handler.handle_mouse_move(scene_pt)
                 return True  # consume event
             
             # Mouse press - place component or cancel
@@ -2707,28 +1963,7 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
                 scene_pt = mev.scenePos()
                 
                 if mev.button() == QtCore.Qt.MouseButton.LeftButton:
-                    # Place the component
-                    self._place_component_at(self._placement_type, scene_pt)
-                    # Keep placement mode active for multiple placements
-                    # Just clear the ghost so a new one is created on next move
-                    if self._placement_ghost is not None:
-                        if self._placement_ghost.scene() is not None:
-                            # Get bounding rect before removal for proper viewport update
-                            ghost_rect = self._placement_ghost.sceneBoundingRect()
-                            # Expand rect to account for cosmetic pen rendering beyond bounds
-                            ghost_rect = ghost_rect.adjusted(-20, -20, 20, 20)
-                            # Hide first to prevent flicker
-                            self._placement_ghost.hide()
-                            self.scene.removeItem(self._placement_ghost)
-                            # Aggressive viewport update to clear any rendering artifacts (especially for SourceItem)
-                            self.scene.update(ghost_rect)
-                            self.scene.invalidate(ghost_rect)
-                            self.view.viewport().update()
-                            # Schedule another update to catch any stragglers
-                            QtCore.QTimer.singleShot(0, self.view.viewport().update)
-                        # Schedule deletion to ensure proper cleanup
-                        self._placement_ghost.deleteLater()
-                        self._placement_ghost = None
+                    self.placement_handler.handle_click(scene_pt, mev.button())
                     return True  # consume event
                 
                 elif mev.button() == QtCore.Qt.MouseButton.RightButton:
@@ -2741,7 +1976,7 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
             mev = ev  # QGraphicsSceneMouseEvent
             if mev.button() == QtCore.Qt.MouseButton.LeftButton:
                 scene_pt = mev.scenePos()
-                self._handle_inspect_click(scene_pt)
+                self.inspect_handler.handle_click(scene_pt)
                 return True  # consume event
         
         # --- Path Measure tool ---
@@ -2749,7 +1984,7 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
             mev = ev  # QGraphicsSceneMouseEvent
             if mev.button() == QtCore.Qt.MouseButton.LeftButton:
                 scene_pt = mev.scenePos()
-                self._handle_path_measure_click(scene_pt)
+                self.path_measure_handler.handle_click(scene_pt)
                 return True  # consume event
 
         # --- Ruler 2-click placement ---
