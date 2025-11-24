@@ -6,6 +6,14 @@ from typing import Any, Optional
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
+from ..core.constants import WHEEL_ROTATION_DEGREES_PER_STEP
+from ..core.ui_constants import (
+    QT_WHEEL_ANGLE_DELTA_PER_STEP,
+    SPRITE_SHAPE_PADDING_PX,
+    SPRITE_BOUNDS_PADDING_PX,
+    CLONE_OFFSET_X_MM,
+    CLONE_OFFSET_Y_MM,
+)
 from .rotation_handler import (
     SingleItemRotationHandler,
     GroupRotationHandler,
@@ -191,7 +199,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
         """
         r = self._sprite_rect_in_item()
         if r is not None:
-            pad = 1.0
+            pad = SPRITE_SHAPE_PADDING_PX
             rp = QtGui.QPainterPath()
             rp.addRect(r.adjusted(-pad, -pad, pad, pad))
             shape_path = shape_path.united(rp)
@@ -206,7 +214,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
         """
         r = self._sprite_rect_in_item()
         if r is not None:
-            pad = 2.0
+            pad = SPRITE_BOUNDS_PADDING_PX
             r = r.adjusted(-pad, -pad, pad, pad)
             base_rect = base_rect.united(r)
         return base_rect
@@ -315,8 +323,8 @@ class BaseObj(QtWidgets.QGraphicsObject):
         
         if self.isSelected() and (ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
             dy = ev.angleDelta().y()
-            steps = dy / 120.0
-            rotation_delta = 2.0 * steps
+            steps = dy / QT_WHEEL_ANGLE_DELTA_PER_STEP
+            rotation_delta = WHEEL_ROTATION_DEGREES_PER_STEP * steps
             
             # Check if multiple items are selected for group rotation
             if self.scene():
@@ -470,7 +478,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
         self.edited.emit()
         self.update()
 
-    def clone(self, offset_mm: tuple[float, float] = (20.0, 20.0)) -> 'BaseObj':
+    def clone(self, offset_mm: tuple[float, float] = (CLONE_OFFSET_X_MM, CLONE_OFFSET_Y_MM)) -> 'BaseObj':
         """
         Create a deep copy of this item with optional position offset.
         

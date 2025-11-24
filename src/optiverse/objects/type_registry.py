@@ -24,12 +24,15 @@ class TypeRegistry:
     """
     Central registry mapping type names to item classes.
     
+    Provides bidirectional mapping between type strings and classes.
+    
     Usage:
         @register_type("mirror", MirrorParams)
         class MirrorItem(BaseObj):
             pass
     """
     _registry: Dict[str, Dict[str, Any]] = {}
+    _class_to_type: Dict[str, str] = {}  # Maps class name -> type string
     
     @classmethod
     def register(cls, type_name: str, params_class: Optional[Type] = None):
@@ -48,6 +51,8 @@ class TypeRegistry:
                 'class': item_class,
                 'params_class': params_class
             }
+            # Build reverse mapping (class name -> type string)
+            cls._class_to_type[item_class.__name__] = type_name
             # Set attributes on the class for easy access
             item_class.type_name = type_name
             item_class.params_class = params_class
@@ -70,6 +75,41 @@ class TypeRegistry:
     def get_all_types(cls) -> list[str]:
         """Get list of all registered type names."""
         return list(cls._registry.keys())
+    
+    @classmethod
+    def get_type_for_class(cls, class_name: str) -> Optional[str]:
+        """
+        Get the type string for a given class name.
+        
+        This is the reverse lookup: class name -> type string.
+        
+        Args:
+            class_name: The class name (e.g., "MirrorItem")
+            
+        Returns:
+            Type string (e.g., "mirror") or None if not registered
+        """
+        return cls._class_to_type.get(class_name)
+    
+    @classmethod
+    def get_type_for_item(cls, item: Any) -> Optional[str]:
+        """
+        Get the type string for an item instance.
+        
+        Convenience method that works with any item that has type_name attribute
+        or is registered in the type registry.
+        
+        Args:
+            item: Item instance
+            
+        Returns:
+            Type string or None if not found
+        """
+        # First check if item has type_name attribute (set by decorator)
+        if hasattr(item, 'type_name') and item.type_name:
+            return item.type_name
+        # Fall back to class name lookup
+        return cls._class_to_type.get(item.__class__.__name__)
 
 
 # Decorator alias for convenience

@@ -7,6 +7,15 @@ from typing import TYPE_CHECKING, Callable, List, Optional
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
+from ...core.ui_constants import (
+    INSPECT_TOOL_TOLERANCE_PX,
+    PATH_MEASURE_TOLERANCE_PX,
+    MIN_SCALE_FACTOR,
+    BEAM_SPLITTER_SIBLING_THRESHOLD_MM,
+    PARALLEL_BUNDLE_THRESHOLD_MM,
+    MAX_ALPHA,
+)
+
 if TYPE_CHECKING:
     from ...raytracing import RayPath
     from ...objects import GraphicsView
@@ -91,8 +100,7 @@ class InspectToolHandler:
         # Use a tolerance that scales with zoom level for better UX
         transform = self.view.transform()
         scale_factor = transform.m11()  # Horizontal scale (zoom level)
-        tolerance_px = 15.0  # pixels - generous click radius
-        tolerance = tolerance_px / max(scale_factor, 0.01)  # Convert to scene units (mm)
+        tolerance = INSPECT_TOOL_TOLERANCE_PX / max(scale_factor, MIN_SCALE_FACTOR)
         
         best_ray = None
         best_distance = float('inf')
@@ -132,7 +140,7 @@ class InspectToolHandler:
         x_mm, y_mm = point[0], point[1]
         
         # Get intensity (from alpha channel)
-        intensity = ray_data.rgba[3] / 255.0
+        intensity = ray_data.rgba[3] / MAX_ALPHA
         
         # Get polarization state
         pol = ray_data.polarization
@@ -291,8 +299,7 @@ class PathMeasureToolHandler:
         # Find the nearest ray segment within tolerance
         transform = self.view.transform()
         scale_factor = transform.m11()
-        tolerance_px = 25.0  # Generous tolerance for easy ray selection
-        tolerance = tolerance_px / max(scale_factor, 0.01)
+        tolerance = PATH_MEASURE_TOLERANCE_PX / max(scale_factor, MIN_SCALE_FACTOR)
         
         best_ray_index = -1
         best_distance = float('inf')
@@ -396,7 +403,7 @@ class PathMeasureToolHandler:
             
             # Strategy 2: Beam splitter siblings (share starting point)
             if len(original_ray.points) > 0 and len(clicked_ray.points) > 0:
-                if np.linalg.norm(original_ray.points[0] - clicked_ray.points[0]) < 1.0:
+                if np.linalg.norm(original_ray.points[0] - clicked_ray.points[0]) < BEAM_SPLITTER_SIBLING_THRESHOLD_MM:
                     allow_ray = True
             
             # Strategy 3: Parallel bundle detection
@@ -412,7 +419,7 @@ class PathMeasureToolHandler:
                         )
                         min_dist = min(min_dist, dist)
                     
-                    if min_dist < 15.0:
+                    if min_dist < PARALLEL_BUNDLE_THRESHOLD_MM:
                         allow_ray = True
                         use_clicked_ray = True
         
@@ -461,7 +468,7 @@ class PathMeasureToolHandler:
             start_pos = ray_data.points[0]
             for sibling_idx, sibling_ray in enumerate(ray_data_list):
                 if sibling_idx != best_ray_index and len(sibling_ray.points) > 0:
-                    if np.linalg.norm(start_pos - sibling_ray.points[0]) < 1.0:
+                    if np.linalg.norm(start_pos - sibling_ray.points[0]) < BEAM_SPLITTER_SIBLING_THRESHOLD_MM:
                         sibling_measure = PathMeasureItem(
                             ray_path_points=sibling_ray.points,
                             start_param=start_param,

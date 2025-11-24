@@ -152,9 +152,9 @@ class ComponentFactory:
             notes=data.get("notes"),
         )
         
-        # Store reference line if present
+        # Store reference line if present (proper field, not dynamic attribute)
         if reference_line_mm:
-            params._reference_line_mm = reference_line_mm  # type: ignore
+            params.reference_line_mm = reference_line_mm
         
         return ComponentItem(params)
 

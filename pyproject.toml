@@ -9,7 +9,7 @@ description = "Optiverse: 2D ray-optics sandbox and component editor (PyQt6, mod
 readme = "README.md"
 requires-python = ">=3.9"  # 3.9-3.11 recommended for Numba JIT speedup
 license = { text = "MIT" }
-authors = [{ name = "Your Name" }]
+authors = [{ name = "QPG-MIT" }]
 dependencies = [
   "PyQt6>=6.5",
   "PyQt6-WebEngine>=6.5",
@@ -34,7 +34,7 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://example.com"
+Homepage = "https://github.com/QPG-MIT/optiverse"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -47,7 +47,7 @@ qt_api = "pyqt6"
 
 [tool.coverage.run]
 branch = true
-source = ["src/optical_drawing"]
+source = ["src/optiverse"]
 omit = ["*/resources/gen/*"]
 
 [tool.coverage.report]

@@ -16,6 +16,10 @@ from ...core.constants import (
     DEFAULT_WINDOW_WIDTH,
     DEFAULT_WINDOW_HEIGHT,
 )
+from ...core.ui_constants import (
+    ZOOM_FACTOR,
+    MAGNETIC_SNAP_TOLERANCE_PX,
+)
 from ...core.component_types import ComponentType
 from ...core.editor_state import EditorMode, EditorState
 from ...core.models import SourceParams
@@ -37,6 +41,7 @@ from .collaboration_dialog import CollaborationDialog
 from .log_window import LogWindow
 from .tool_handlers import InspectToolHandler, PathMeasureToolHandler, point_to_segment_distance
 from .placement_handler import PlacementHandler
+from ..builders import ActionBuilder
 from ...services.scene_file_manager import SceneFileManager
 from ...objects import (
     GraphicsView,
@@ -111,7 +116,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Grid now drawn in GraphicsView.drawBackground() for better performance
         
         # Snap helper for magnetic alignment
-        self._snap_helper = SnapHelper(tolerance_px=10.0)
+        self._snap_helper = SnapHelper(tolerance_px=MAGNETIC_SNAP_TOLERANCE_PX)
 
         # Ruler placement cursor backup
         self._prev_cursor = None
@@ -135,7 +140,7 @@ class MainWindow(QtWidgets.QMainWindow):
         dark_mode_saved = self.settings_service.get_value("dark_mode", self.view.is_dark_mode(), bool)
         self.view.set_dark_mode(dark_mode_saved)
         # Apply theme to ensure app-wide styling matches the saved preference
-        from ...app.main import apply_theme
+        from ..theme_manager import apply_theme
         apply_theme(dark_mode_saved)
         
         # Connect collaboration signals
@@ -146,14 +151,15 @@ class MainWindow(QtWidgets.QMainWindow):
         # Initialize extracted handlers
         self._init_handlers()
 
-        # Build UI
-        self._build_actions()
-        self._build_toolbar()
+        # Build library dock first (needed before menus reference libDock)
         self._build_library_dock()
-        self._build_menubar()
         
-        # Add actions with shortcuts to main window so they work globally
-        self._register_shortcuts()
+        # Build UI using ActionBuilder
+        action_builder = ActionBuilder(self)
+        action_builder.build_all()
+        
+        # Mark canvas as modified when commands are pushed
+        self._connect_modification_tracking()
 
         # Install event filter for snap and ruler placement
         self.scene.installEventFilter(self)
@@ -234,16 +240,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _connect_modification_tracking(self):
         """Connect signals to track when canvas is modified."""
-        # Wrap undo stack push to:
-        # 1. Mark as modified
-        # 2. Trigger autosave for significant changes (with debouncing)
-        original_push = self.undo_stack.push
-        def tracked_push(command):
-            original_push(command)
-            self._mark_modified()
-            # Schedule autosave after significant changes (not during drag)
-            self._schedule_autosave()
-        self.undo_stack.push = tracked_push
+        # Connect to commandPushed signal instead of monkey-patching
+        self.undo_stack.commandPushed.connect(self._on_command_pushed)
+    
+    def _on_command_pushed(self):
+        """Handle command pushed - mark modified and schedule autosave."""
+        self._mark_modified()
+        # Schedule autosave after significant changes (not during drag)
+        self._schedule_autosave()
 
     def _mark_modified(self):
         """Mark the canvas as having unsaved changes."""
@@ -312,344 +316,6 @@ class MainWindow(QtWidgets.QMainWindow):
         """Set saved file path on file manager."""
         self.file_manager.saved_file_path = value
 
-    def _build_actions(self):
-        """Build all menu actions."""
-        # --- File ---
-        self.act_open = QtGui.QAction("Open Assembly…", self)
-        self.act_open.setShortcut(QtGui.QKeySequence.StandardKey.Open)
-        self.act_open.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_open.triggered.connect(self.open_assembly)
-
-        self.act_save = QtGui.QAction("Save", self)
-        self.act_save.setShortcut(QtGui.QKeySequence("Ctrl+S"))
-        self.act_save.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_save.triggered.connect(self.save_assembly)
-
-        self.act_save_as = QtGui.QAction("Save As…", self)
-        self.act_save_as.setShortcut(QtGui.QKeySequence("Ctrl+Shift+S"))
-        self.act_save_as.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_save_as.triggered.connect(self.save_assembly_as)
-
-        # --- Edit ---
-        self.act_undo = QtGui.QAction("Undo", self)
-        self.act_undo.setShortcut(QtGui.QKeySequence("Ctrl+Z"))
-        self.act_undo.setShortcutContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
-        self.act_undo.triggered.connect(self._do_undo)
-        self.act_undo.setEnabled(False)
-
-        self.act_redo = QtGui.QAction("Redo", self)
-        self.act_redo.setShortcut(QtGui.QKeySequence("Ctrl+Y"))
-        self.act_redo.setShortcutContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
-        self.act_redo.triggered.connect(self._do_redo)
-        self.act_redo.setEnabled(False)
-
-        self.act_delete = QtGui.QAction("Delete", self)
-        self.act_delete.setShortcuts([QtGui.QKeySequence.StandardKey.Delete, QtGui.QKeySequence(QtCore.Qt.Key.Key_Backspace)])
-        self.act_delete.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_delete.triggered.connect(self.delete_selected)
-
-        self.act_copy = QtGui.QAction("Copy", self)
-        self.act_copy.setShortcut(QtGui.QKeySequence("Ctrl+C"))
-        self.act_copy.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_copy.triggered.connect(self.copy_selected)
-
-        self.act_paste = QtGui.QAction("Paste", self)
-        self.act_paste.setShortcut(QtGui.QKeySequence("Ctrl+V"))
-        self.act_paste.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_paste.triggered.connect(self.paste_items)
-        self.act_paste.setEnabled(False)
-        
-        # --- Preferences ---
-        self.act_preferences = QtGui.QAction("Preferences...", self)
-        self.act_preferences.setShortcut(QtGui.QKeySequence.StandardKey.Preferences)
-        self.act_preferences.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_preferences.triggered.connect(self.open_preferences)
-        # On macOS, mark as preferences action so it goes to the app menu
-        self.act_preferences.setMenuRole(QtGui.QAction.MenuRole.PreferencesRole)
-
-        # Connect undo stack signals to update action states
-        self.undo_stack.canUndoChanged.connect(self.act_undo.setEnabled)
-        self.undo_stack.canRedoChanged.connect(self.act_redo.setEnabled)
-        
-        # Mark canvas as modified when commands are pushed
-        # Note: We'll connect this after initialization
-        self._connect_modification_tracking()
-
-        # --- Insert ---
-        # Component placement actions - now checkable to enter placement mode
-        self.act_add_source = QtGui.QAction("Source", self, checkable=True)
-        self.act_add_source.toggled.connect(partial(self._toggle_placement_mode, ComponentType.SOURCE))
-
-        self.act_add_lens = QtGui.QAction("Lens", self, checkable=True)
-        self.act_add_lens.toggled.connect(partial(self._toggle_placement_mode, ComponentType.LENS))
-
-        self.act_add_mirror = QtGui.QAction("Mirror", self, checkable=True)
-        self.act_add_mirror.toggled.connect(partial(self._toggle_placement_mode, ComponentType.MIRROR))
-
-        self.act_add_bs = QtGui.QAction("Beamsplitter", self, checkable=True)
-        self.act_add_bs.toggled.connect(partial(self._toggle_placement_mode, ComponentType.BEAMSPLITTER))
-
-        self.act_add_ruler = QtGui.QAction("Ruler", self)
-        self.act_add_ruler.triggered.connect(self.start_place_ruler)
-
-        self.act_add_text = QtGui.QAction("Text", self, checkable=True)
-        self.act_add_text.toggled.connect(partial(self._toggle_placement_mode, ComponentType.TEXT))
-        
-        self.act_add_rectangle = QtGui.QAction("Rectangle", self, checkable=True)
-        self.act_add_rectangle.toggled.connect(partial(self._toggle_placement_mode, ComponentType.RECTANGLE))
-
-        # --- Tools ---
-        self.act_inspect = QtGui.QAction("Inspect", self, checkable=True)
-        self.act_inspect.setChecked(False)
-        self.act_inspect.toggled.connect(self._toggle_inspect)
-        
-        self.act_measure_path = QtGui.QAction("Path Measure", self, checkable=True)
-        self.act_measure_path.setChecked(False)
-        self.act_measure_path.toggled.connect(self._toggle_path_measure)
-
-        # --- View ---
-        self.act_zoom_in = QtGui.QAction("Zoom In", self)
-        self.act_zoom_in.setShortcut(QtGui.QKeySequence.StandardKey.ZoomIn)
-        self.act_zoom_in.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_zoom_in.triggered.connect(self._zoom_in)
-
-        self.act_zoom_out = QtGui.QAction("Zoom Out", self)
-        self.act_zoom_out.setShortcut(QtGui.QKeySequence.StandardKey.ZoomOut)
-        self.act_zoom_out.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_zoom_out.triggered.connect(self._zoom_out)
-
-        self.act_fit = QtGui.QAction("Fit Scene", self)
-        self.act_fit.setShortcut("Ctrl+0")
-        self.act_fit.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_fit.triggered.connect(self._fit_scene)
-
-        self.act_recenter = QtGui.QAction("Recenter View", self)
-        self.act_recenter.setShortcut("Ctrl+Shift+0")
-        self.act_recenter.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_recenter.triggered.connect(self._recenter_view)
-
-        # Checkable options
-        self.act_autotrace = QtGui.QAction("Auto-trace", self, checkable=True)
-        self.act_autotrace.setChecked(True)
-        self.act_autotrace.toggled.connect(self._toggle_autotrace)
-
-        self.act_snap = QtGui.QAction("Snap to mm grid", self, checkable=True)
-        self.act_snap.setChecked(False)
-        self.act_snap.toggled.connect(self._toggle_snap)
-
-        self.act_magnetic_snap = QtGui.QAction("Magnetic snap", self, checkable=True)
-        self.act_magnetic_snap.setChecked(self.magnetic_snap)
-        self.act_magnetic_snap.toggled.connect(self._toggle_magnetic_snap)
-        
-        # Dark mode toggle
-        self.act_dark_mode = QtGui.QAction("Dark mode", self, checkable=True)
-        self.act_dark_mode.setChecked(self.view.is_dark_mode())
-        self.act_dark_mode.toggled.connect(self._toggle_dark_mode)
-
-        # Ray width submenu with presets + Custom…
-        self.menu_raywidth = QtWidgets.QMenu("Ray width", self)
-        self._raywidth_group = QtGui.QActionGroup(self)
-        self._raywidth_group.setExclusive(True)
-        for v in [0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0]:
-            a = self.menu_raywidth.addAction(f"{v:.1f} px")
-            a.setCheckable(True)
-            if abs(v - self._ray_width_px) < 1e-9:
-                a.setChecked(True)
-            a.triggered.connect(partial(self._set_ray_width, v))
-            self._raywidth_group.addAction(a)
-        self.menu_raywidth.addSeparator()
-        a_custom = self.menu_raywidth.addAction("Custom…")
-        a_custom.triggered.connect(self._choose_ray_width)
-
-        # --- Tools ---
-        self.act_retrace = QtGui.QAction("Retrace", self)
-        self.act_retrace.setShortcut("Space")
-        self.act_retrace.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_retrace.triggered.connect(self.retrace)
-
-        self.act_clear = QtGui.QAction("Clear Rays", self)
-        self.act_clear.triggered.connect(self.clear_rays)
-
-        self.act_editor = QtGui.QAction("Component Editor…", self)
-        self.act_editor.setShortcut("Ctrl+E")
-        self.act_editor.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_editor.triggered.connect(self.open_component_editor)
-
-        self.act_reload = QtGui.QAction("Reload Library", self)
-        self.act_reload.triggered.connect(self.populate_library)
-        
-        self.act_open_library_folder = QtGui.QAction("Open User Library Folder…", self)
-        self.act_open_library_folder.triggered.connect(self.open_user_library_folder)
-        
-        self.act_import_library = QtGui.QAction("Import Component Library…", self)
-        self.act_import_library.triggered.connect(self.import_component_library)
-        
-        self.act_show_log = QtGui.QAction("Show Log Window...", self)
-        self.act_show_log.setShortcut("Ctrl+L")
-        self.act_show_log.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_show_log.triggered.connect(self.show_log_window)
-        
-        # --- Collaboration ---
-        self.act_collaborate = QtGui.QAction("Connect/Host Session…", self)
-        self.act_collaborate.setShortcut("Ctrl+Shift+C")
-        self.act_collaborate.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_collaborate.triggered.connect(self.open_collaboration_dialog)
-        
-        self.act_disconnect = QtGui.QAction("Disconnect", self)
-        self.act_disconnect.setEnabled(False)
-        self.act_disconnect.triggered.connect(self.disconnect_collaboration)
-
-    def _build_toolbar(self):
-        """Build component toolbar with custom PNG icons."""
-        toolbar = QtWidgets.QToolBar("Components")
-        toolbar.setObjectName("component_toolbar")
-        toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        toolbar.setIconSize(QtCore.QSize(32, 32))
-        self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, toolbar)
-        
-        # Add styling for checked/active tool buttons to make them visually distinct
-        # Using box-shadow instead of border to avoid resizing the toolbar
-        toolbar.setStyleSheet("""
-            QToolButton {
-                padding: 2px;
-                border: 2px solid transparent;
-                border-radius: 4px;
-                color: palette(window-text);
-            }
-            QToolButton:checked {
-                background-color: rgba(100, 150, 255, 100);
-                border: 2px solid rgba(100, 150, 255, 180);
-                border-radius: 4px;
-                color: palette(window-text);
-            }
-            QToolButton:checked:hover {
-                background-color: rgba(100, 150, 255, 120);
-                border: 2px solid rgba(100, 150, 255, 200);
-                color: palette(window-text);
-            }
-        """)
-
-        # Source button
-        source_icon = QtGui.QIcon(_get_icon_path("source.png"))
-        self.act_add_source.setIcon(source_icon)
-        toolbar.addAction(self.act_add_source)
-
-        # Lens button
-        lens_icon = QtGui.QIcon(_get_icon_path("lens.png"))
-        self.act_add_lens.setIcon(lens_icon)
-        toolbar.addAction(self.act_add_lens)
-
-        # Mirror button
-        mirror_icon = QtGui.QIcon(_get_icon_path("mirror.png"))
-        self.act_add_mirror.setIcon(mirror_icon)
-        toolbar.addAction(self.act_add_mirror)
-
-        # Beamsplitter button
-        bs_icon = QtGui.QIcon(_get_icon_path("beamsplitter.png"))
-        self.act_add_bs.setIcon(bs_icon)
-        toolbar.addAction(self.act_add_bs)
-
-        toolbar.addSeparator()
-
-        # Ruler button
-        ruler_icon = QtGui.QIcon(_get_icon_path("ruler.png"))
-        self.act_add_ruler.setIcon(ruler_icon)
-        toolbar.addAction(self.act_add_ruler)
-        
-        # Path Measure tool - right next to regular measure tool
-        self.act_measure_path.setIcon(ruler_icon)
-        toolbar.addAction(self.act_measure_path)
-
-        # Inspect button
-        inspect_icon = QtGui.QIcon(_get_icon_path("inspect.png"))
-        self.act_inspect.setIcon(inspect_icon)
-        toolbar.addAction(self.act_inspect)
-
-        # Text button
-        text_icon = QtGui.QIcon(_get_icon_path("text.png"))
-        self.act_add_text.setIcon(text_icon)
-        toolbar.addAction(self.act_add_text)
-
-        # Rectangle button
-        rect_icon = QtGui.QIcon(_get_icon_path("rectangle.png"))
-        self.act_add_rectangle.setIcon(rect_icon)
-        toolbar.addAction(self.act_add_rectangle)
-
-    def _build_menubar(self):
-        """Build menu bar."""
-        mb = self.menuBar()
-
-        # File menu
-        mFile = mb.addMenu("&File")
-        mFile.addAction(self.act_open)
-        mFile.addAction(self.act_save)
-        mFile.addAction(self.act_save_as)
-
-        # Edit menu
-        mEdit = mb.addMenu("&Edit")
-        mEdit.addAction(self.act_undo)
-        mEdit.addAction(self.act_redo)
-        mEdit.addSeparator()
-        mEdit.addAction(self.act_copy)
-        mEdit.addAction(self.act_paste)
-        mEdit.addSeparator()
-        mEdit.addAction(self.act_delete)
-        mEdit.addSeparator()
-        mEdit.addAction(self.act_preferences)
-
-        # Insert menu (Phase 3.2: Better menu organization)
-        mInsert = mb.addMenu("&Insert")
-        mInsert.addAction(self.act_add_source)
-        mInsert.addAction(self.act_add_lens)
-        mInsert.addAction(self.act_add_mirror)
-        mInsert.addAction(self.act_add_bs)
-        mInsert.addSeparator()
-        mInsert.addAction(self.act_add_ruler)
-        mInsert.addAction(self.act_add_text)
-        mInsert.addAction(self.act_add_rectangle)
-
-        # View menu
-        mView = mb.addMenu("&View")
-        mView.addAction(self.libDock.toggleViewAction())
-        mView.addSeparator()
-        mView.addAction(self.act_zoom_in)
-        mView.addAction(self.act_zoom_out)
-        mView.addAction(self.act_fit)
-        mView.addAction(self.act_recenter)
-        mView.addSeparator()
-        mView.addAction(self.act_autotrace)
-        mView.addAction(self.act_snap)
-        mView.addAction(self.act_magnetic_snap)
-        mView.addSeparator()
-        mView.addAction(self.act_dark_mode)
-        mView.addSeparator()
-        mView.addMenu(self.menu_raywidth)
-
-        # Tools menu
-        mTools = mb.addMenu("&Tools")
-        mTools.addAction(self.act_retrace)
-        mTools.addAction(self.act_clear)
-        mTools.addSeparator()
-        mTools.addAction(self.act_inspect)
-        mTools.addAction(self.act_measure_path)
-        mTools.addSeparator()
-        mTools.addAction(self.act_editor)
-        mTools.addAction(self.act_reload)
-        mTools.addSeparator()
-        mTools.addAction(self.act_open_library_folder)
-        mTools.addAction(self.act_import_library)
-        mTools.addSeparator()
-        mTools.addAction(self.act_show_log)
-        
-        # Collaboration menu
-        mCollab = mb.addMenu("&Collaboration")
-        mCollab.addAction(self.act_collaborate)
-        mCollab.addAction(self.act_disconnect)
-        
-        # Add collaboration status to status bar
-        self.collab_status_label = QtWidgets.QLabel("Not connected")
-        self.statusBar().addPermanentWidget(self.collab_status_label)
-
     def _build_library_dock(self):
         """Build component library dock with categorized tree view."""
         self.libDock = QtWidgets.QDockWidget("Component Library", self)
@@ -681,37 +347,6 @@ class MainWindow(QtWidgets.QMainWindow):
             schedule_retrace=self._schedule_retrace,
             broadcast_add_item=self.collaboration_manager.broadcast_add_item,
         )
-
-    def _register_shortcuts(self):
-        """Register actions with shortcuts to main window for global access.
-        
-        This ensures keyboard shortcuts work even when child widgets have focus.
-        """
-        # File actions
-        self.addAction(self.act_open)
-        self.addAction(self.act_save)
-        self.addAction(self.act_save_as)
-        
-        # Edit actions
-        self.addAction(self.act_undo)
-        self.addAction(self.act_redo)
-        self.addAction(self.act_delete)
-        self.addAction(self.act_copy)
-        self.addAction(self.act_paste)
-        
-        # View actions
-        self.addAction(self.act_zoom_in)
-        self.addAction(self.act_zoom_out)
-        self.addAction(self.act_fit)
-        self.addAction(self.act_recenter)
-        
-        # Tools actions
-        self.addAction(self.act_retrace)
-        self.addAction(self.act_editor)
-        self.addAction(self.act_show_log)
-        
-        # Collaboration actions
-        self.addAction(self.act_collaborate)
 
     def populate_library(self):
         """Load and populate component library (delegated to library manager)."""
@@ -915,19 +550,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view.set_dark_mode(on)
         self.settings_service.set_value("dark_mode", on)
         # Apply the theme to the entire application
-        from ...app.main import apply_theme
+        from ..theme_manager import apply_theme
         apply_theme(on)
         # Refresh library to update category colors
         self.populate_library()
     
     def _zoom_in(self):
-        """Zoom in by 15%."""
-        self.view.scale(1.15, 1.15)
+        """Zoom in by ZOOM_FACTOR."""
+        self.view.scale(ZOOM_FACTOR, ZOOM_FACTOR)
         self.view.zoomChanged.emit()
     
     def _zoom_out(self):
-        """Zoom out by 15%."""
-        self.view.scale(1 / 1.15, 1 / 1.15)
+        """Zoom out by ZOOM_FACTOR."""
+        self.view.scale(1 / ZOOM_FACTOR, 1 / ZOOM_FACTOR)
         self.view.zoomChanged.emit()
     
     def _fit_scene(self):

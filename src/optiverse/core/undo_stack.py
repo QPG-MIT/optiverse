@@ -17,10 +17,12 @@ class UndoStack(QtCore.QObject):
     Signals:
         canUndoChanged: Emitted when undo availability changes
         canRedoChanged: Emitted when redo availability changes
+        commandPushed: Emitted when a command is pushed (for modification tracking)
     """
 
     canUndoChanged = QtCore.pyqtSignal(bool)
     canRedoChanged = QtCore.pyqtSignal(bool)
+    commandPushed = QtCore.pyqtSignal()
 
     def __init__(self):
         """Initialize an empty undo stack."""
@@ -57,6 +59,9 @@ class UndoStack(QtCore.QObject):
         self._undo_stack.append(command)
         if not old_can_undo:
             self.canUndoChanged.emit(True)
+        
+        # Notify listeners that a command was pushed
+        self.commandPushed.emit()
 
     def undo(self) -> None:
         """Undo the last command."""

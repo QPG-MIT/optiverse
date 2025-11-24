@@ -469,6 +469,10 @@ class ComponentParams:
     name: Optional[str] = None
     image_path: Optional[str] = None
     
+    # Sprite positioning - reference line in mm coordinates (x1, y1, x2, y2)
+    # Used to align the sprite to the optical axis. If None, computed from first interface.
+    reference_line_mm: Optional[Tuple[float, float, float, float]] = None
+    
     # Optical interfaces (InterfaceDefinition objects)
     interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
     

@@ -11,6 +11,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 from .collaboration_service import CollaborationService
 from .log_service import get_log_service
+from ..objects.type_registry import TypeRegistry
 
 if TYPE_CHECKING:
     from ..ui.views.main_window import MainWindow
@@ -289,16 +290,8 @@ class CollaborationManager(QObject):
         )
     
     def _get_item_type(self, item: Any) -> Optional[str]:
-        """Get the type string for an item."""
-        class_name = item.__class__.__name__
-        type_map = {
-            'SourceItem': 'source',
-            'LensItem': 'lens',
-            'MirrorItem': 'mirror',
-            'RulerItem': 'ruler',
-            'TextNoteItem': 'text',
-        }
-        return type_map.get(class_name)
+        """Get the type string for an item using centralized TypeRegistry."""
+        return TypeRegistry.get_type_for_item(item)
     
     def _on_connected(self) -> None:
         """Handle successful connection."""

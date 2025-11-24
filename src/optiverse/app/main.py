@@ -1,515 +1,24 @@
+"""
+Optiverse Application Entry Point.
+
+This module provides the main() function that bootstraps the Qt application.
+Theme management is delegated to ui.theme_manager.
+"""
 from __future__ import annotations
 
+import logging
 import os
 import sys
+from pathlib import Path
+
 from PyQt6 import QtCore, QtGui, QtWidgets
-from ..ui.views.main_window import MainWindow
+
+# Module logger
+_logger = logging.getLogger(__name__)
 
 
-def get_dark_stylesheet() -> str:
-    """Get the dark mode stylesheet."""
-    return """
-    QMainWindow {
-        background-color: #1a1c21;
-        color: white;
-    }
-    
-    QGraphicsView {
-        background-color: #1a1c21;
-        border: none;
-    }
-    
-
-    QMenuBar {
-        background-color: #1a1c21;
-        color: white;
-        border: none;
-    }
-    QMenuBar::item {
-        background: transparent;
-        padding: 4px 8px;
-        color: white;
-    }
-    QMenuBar::item:selected {
-        background-color: #2d2f36;
-        border-radius: 3px;
-    }
-    
-    
-    
-    QToolBar {
-        background-color: #1a1c21;
-        border: none;
-        spacing: 3px;
-    }
-    
-    QToolBar QToolButton {
-        background-color: transparent;
-        border: none;
-        padding: 3px;
-    }
-    
-    QToolBar QToolButton:hover {
-        background-color: #2d2f36;
-        border-radius: 3px;
-    }
-    
-    QToolBar QToolButton:pressed {
-        background-color: #23252b;
-        border-radius: 3px;
-    }
-    
-    QStatusBar {
-        background-color: #1a1c21;
-        color: white;
-    }
-    
-    QDockWidget {
-        background-color: #1a1c21;
-        color: white;
-        titlebar-close-icon: url(close.png);
-        titlebar-normal-icon: url(float.png);
-    }
-    
-    QDockWidget::title {
-        background-color: #2d2f36;
-        padding: 4px;
-    }
-    
-    QTreeWidget {
-        background-color: #1a1c21;
-        color: white;
-        border: 1px solid #3d3f46;
-        alternate-background-color: #23252b;
-    }
-    
-    QTreeWidget::item:selected {
-        background-color: #2d2f36;
-    }
-    
-    QTreeWidget::item:hover {
-        background-color: #26282e;
-    }
-    
-    QPushButton {
-        background-color: #2d2f36;
-        color: white;
-        border: 1px solid #3d3f46;
-        padding: 5px 15px;
-        border-radius: 3px;
-    }
-    
-    QPushButton:hover {
-        background-color: #3d3f46;
-    }
-    
-    QPushButton:pressed {
-        background-color: #23252b;
-    }
-    
-    QLineEdit, QComboBox {
-        background-color: #2d2f36;
-        color: white;
-        border: 1px solid #3d3f46;
-        padding: 3px;
-        border-radius: 3px;
-    }
-    
-    QLineEdit:focus, QComboBox:focus {
-        border: 1px solid #5d5f66;
-    }
-    
-    QLabel {
-        color: white;
-    }
-    
-    QCheckBox {
-        color: white;
-    }
-    
-    QRadioButton {
-        color: white;
-    }
-    
-    QGroupBox {
-        color: white;
-        border: 1px solid #3d3f46;
-        border-radius: 5px;
-        margin-top: 10px;
-        padding-top: 10px;
-    }
-    
-    QGroupBox::title {
-        subcontrol-origin: margin;
-        subcontrol-position: top left;
-        padding: 0 5px;
-        color: white;
-    }
-    
-    QScrollBar:vertical {
-        background-color: #1a1c21;
-        width: 12px;
-        border: none;
-    }
-    
-    QScrollBar::handle:vertical {
-        background-color: #3d3f46;
-        border-radius: 6px;
-        min-height: 20px;
-    }
-    
-    QScrollBar::handle:vertical:hover {
-        background-color: #4d4f56;
-    }
-    
-    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-        height: 0px;
-    }
-    
-    QScrollBar:horizontal {
-        background-color: #1a1c21;
-        height: 12px;
-        border: none;
-    }
-    
-    QScrollBar::handle:horizontal {
-        background-color: #3d3f46;
-        border-radius: 6px;
-        min-width: 20px;
-    }
-    
-    QScrollBar::handle:horizontal:hover {
-        background-color: #4d4f56;
-    }
-    
-    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-        width: 0px;
-    }
-    
-    QTabWidget::pane {
-        border: 1px solid #3d3f46;
-        background-color: #1a1c21;
-    }
-    
-    QTabBar::tab {
-        background-color: #2d2f36;
-        color: white;
-        padding: 8px 16px;
-        border: 1px solid #3d3f46;
-    }
-    
-    QTabBar::tab:selected {
-        background-color: #1a1c21;
-        border-bottom: none;
-    }
-    
-    QTabBar::tab:hover {
-        background-color: #3d3f46;
-    }
-    
-    QDialog {
-        background-color: #1a1c21;
-        color: white;
-    }
-    
-    QTextEdit, QPlainTextEdit {
-        background-color: #2d2f36;
-        color: white;
-        border: 1px solid #3d3f46;
-        border-radius: 3px;
-    }
-    """
-
-
-def get_light_stylesheet() -> str:
-    """Get the light mode stylesheet."""
-    return """
-    QMainWindow {
-        background-color: white;
-        color: black;
-    }
-    
-    QGraphicsView {
-        background-color: white;
-        border: none;
-    }
-    
-
-    QMenuBar {
-        background-color: #f0f0f0;
-        color: black;
-        border: none;
-    }
-    QMenuBar::item {
-        background: transparent;
-        padding: 4px 8px;
-        color: black;
-    }
-    QMenuBar::item:selected {
-        background-color: #e0e0e0;
-        border-radius: 3px;
-    }
-    
-    
-    
-    QToolBar {
-        background-color: #f0f0f0;
-        border: none;
-        spacing: 3px;
-    }
-    
-    QToolBar QToolButton {
-        background-color: transparent;
-        color: black;
-        border: none;
-        padding: 3px;
-    }
-    
-    QToolBar QToolButton:hover {
-        background-color: #e0e0e0;
-        color: black;
-        border-radius: 3px;
-    }
-    
-    QToolBar QToolButton:pressed {
-        background-color: #d0d0d0;
-        color: black;
-        border-radius: 3px;
-    }
-    
-    QStatusBar {
-        background-color: #f0f0f0;
-        color: black;
-    }
-    
-    QDockWidget {
-        background-color: white;
-        color: black;
-    }
-    
-    QDockWidget::title {
-        background-color: #e0e0e0;
-        padding: 4px;
-    }
-    
-    QTreeWidget {
-        background-color: white;
-        color: black;
-        border: 1px solid #c0c0c0;
-        alternate-background-color: #f8f8f8;
-    }
-    
-    QTreeWidget::item:selected {
-        background-color: #cce8ff;
-    }
-    
-    QTreeWidget::item:hover {
-        background-color: #e6f2ff;
-    }
-    
-    QPushButton {
-        background-color: #f0f0f0;
-        color: black;
-        border: 1px solid #c0c0c0;
-        padding: 5px 15px;
-        border-radius: 3px;
-    }
-    
-    QPushButton:hover {
-        background-color: #e0e0e0;
-    }
-    
-    QPushButton:pressed {
-        background-color: #d0d0d0;
-    }
-    
-    QLineEdit, QComboBox {
-        background-color: white;
-        color: black;
-        border: 1px solid #c0c0c0;
-        padding: 3px;
-        border-radius: 3px;
-    }
-    
-    QLineEdit:focus, QComboBox:focus {
-        border: 1px solid #4a90e2;
-    }
-    
-    QLabel {
-        color: black;
-    }
-    
-    QCheckBox {
-        color: black;
-    }
-    
-    QRadioButton {
-        color: black;
-    }
-    
-    QGroupBox {
-        color: black;
-        border: 1px solid #c0c0c0;
-        border-radius: 5px;
-        margin-top: 10px;
-        padding-top: 10px;
-    }
-    
-    QGroupBox::title {
-        subcontrol-origin: margin;
-        subcontrol-position: top left;
-        padding: 0 5px;
-        color: black;
-    }
-    
-    QScrollBar:vertical {
-        background-color: #f0f0f0;
-        width: 12px;
-        border: none;
-    }
-    
-    QScrollBar::handle:vertical {
-        background-color: #c0c0c0;
-        border-radius: 6px;
-        min-height: 20px;
-    }
-    
-    QScrollBar::handle:vertical:hover {
-        background-color: #a0a0a0;
-    }
-    
-    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-        height: 0px;
-    }
-    
-    QScrollBar:horizontal {
-        background-color: #f0f0f0;
-        height: 12px;
-        border: none;
-    }
-    
-    QScrollBar::handle:horizontal {
-        background-color: #c0c0c0;
-        border-radius: 6px;
-        min-width: 20px;
-    }
-    
-    QScrollBar::handle:horizontal:hover {
-        background-color: #a0a0a0;
-    }
-    
-    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-        width: 0px;
-    }
-    
-    QTabWidget::pane {
-        border: 1px solid #c0c0c0;
-        background-color: white;
-    }
-    
-    QTabBar::tab {
-        background-color: #e0e0e0;
-        color: black;
-        padding: 8px 16px;
-        border: 1px solid #c0c0c0;
-    }
-    
-    QTabBar::tab:selected {
-        background-color: white;
-        border-bottom: none;
-    }
-    
-    QTabBar::tab:hover {
-        background-color: #f0f0f0;
-    }
-    
-    QDialog {
-        background-color: white;
-        color: black;
-    }
-    
-    QTextEdit, QPlainTextEdit {
-        background-color: white;
-        color: black;
-        border: 1px solid #c0c0c0;
-        border-radius: 3px;
-    }
-    """
-
-
-def detect_system_dark_mode() -> bool:
-    """Detect if the system is in dark mode."""
-    try:
-        # Use Qt's palette to detect dark mode
-        palette = QtWidgets.QApplication.palette()
-        bg_color = palette.color(QtGui.QPalette.ColorRole.Window)
-        # If background is dark (low lightness), we're in dark mode
-        return bg_color.lightness() < 128
-    except (AttributeError, RuntimeError):
-        return False
-
-
-def apply_theme(dark_mode: bool):
-    """Apply the appropriate stylesheet based on dark mode setting."""
-    app = QtWidgets.QApplication.instance()
-    if app:
-        # Create a palette to override system colors
-        palette = QtGui.QPalette()
-        
-        if dark_mode:
-            # Dark mode colors
-            palette.setColor(QtGui.QPalette.ColorRole.Window, QtGui.QColor("#1a1c21"))
-            palette.setColor(QtGui.QPalette.ColorRole.WindowText, QtGui.QColor("white"))
-            palette.setColor(QtGui.QPalette.ColorRole.Base, QtGui.QColor("#2d2f36"))
-            palette.setColor(QtGui.QPalette.ColorRole.AlternateBase, QtGui.QColor("#23252b"))
-            palette.setColor(QtGui.QPalette.ColorRole.Text, QtGui.QColor("white"))
-            palette.setColor(QtGui.QPalette.ColorRole.Button, QtGui.QColor("#2d2f36"))
-            palette.setColor(QtGui.QPalette.ColorRole.ButtonText, QtGui.QColor("white"))
-            palette.setColor(QtGui.QPalette.ColorRole.BrightText, QtGui.QColor("white"))
-            palette.setColor(QtGui.QPalette.ColorRole.Link, QtGui.QColor("#6495ff"))
-            palette.setColor(QtGui.QPalette.ColorRole.Highlight, QtGui.QColor("#2d2f36"))
-            palette.setColor(QtGui.QPalette.ColorRole.HighlightedText, QtGui.QColor("white"))
-            app.setStyleSheet(get_dark_stylesheet())
-        else:
-            # Light mode colors
-            palette.setColor(QtGui.QPalette.ColorRole.Window, QtGui.QColor("white"))
-            palette.setColor(QtGui.QPalette.ColorRole.WindowText, QtGui.QColor("black"))
-            palette.setColor(QtGui.QPalette.ColorRole.Base, QtGui.QColor("white"))
-            palette.setColor(QtGui.QPalette.ColorRole.AlternateBase, QtGui.QColor("#f8f8f8"))
-            palette.setColor(QtGui.QPalette.ColorRole.Text, QtGui.QColor("black"))
-            palette.setColor(QtGui.QPalette.ColorRole.Button, QtGui.QColor("#f0f0f0"))
-            palette.setColor(QtGui.QPalette.ColorRole.ButtonText, QtGui.QColor("black"))
-            palette.setColor(QtGui.QPalette.ColorRole.BrightText, QtGui.QColor("black"))
-            palette.setColor(QtGui.QPalette.ColorRole.Link, QtGui.QColor("#4a90e2"))
-            palette.setColor(QtGui.QPalette.ColorRole.Highlight, QtGui.QColor("#cce8ff"))
-            palette.setColor(QtGui.QPalette.ColorRole.HighlightedText, QtGui.QColor("black"))
-            app.setStyleSheet(get_light_stylesheet())
-        
-        # Apply the palette to override system colors
-        app.setPalette(palette)
-        
-        # Force complete style refresh to override macOS system styling
-        # This is critical on Mac where system dark mode can conflict with app theme
-        for widget in app.allWidgets():
-            # Force each widget to recompute its style
-            widget.style().unpolish(widget)
-            widget.style().polish(widget)
-            widget.update()
-
-
-def main() -> int:
-    # Install global error handler FIRST (before any Qt code)
-    from ..services.error_handler import get_error_handler, install_qt_message_handler
-    error_handler = get_error_handler()
-    print("✅ Global error handler installed")
-    
-    # Increase Qt's image allocation limit to support large SVG cache files
-    # Default is 256MB, we set to 1GB to allow high-resolution cached PNGs
-    # This must be set BEFORE creating QApplication
-    os.environ['QT_IMAGEIO_MAXALLOC'] = '1024'  # In MB
-    
-    # Configure OpenGL surface format BEFORE creating QApplication
-    # This ensures all OpenGL widgets use the same format with antialiasing
+def _configure_opengl() -> None:
+    """Configure OpenGL surface format before QApplication creation."""
     try:
         fmt = QtGui.QSurfaceFormat()
         fmt.setDepthBufferSize(24)
@@ -519,67 +28,109 @@ def main() -> int:
         fmt.setProfile(QtGui.QSurfaceFormat.OpenGLContextProfile.CompatibilityProfile)
         fmt.setAlphaBufferSize(8)  # Enable alpha channel for transparency
         QtGui.QSurfaceFormat.setDefaultFormat(fmt)
-        print("✅ OpenGL surface format configured: 4x MSAA, OpenGL 2.1")
+        _logger.info("OpenGL surface format configured: 4x MSAA, OpenGL 2.1")
     except Exception as e:
-        print(f"⚠️  Failed to configure OpenGL format: {e}")
+        _logger.warning("Failed to configure OpenGL format: %s", e)
+
+
+def _configure_macos_app_name() -> str:
+    """
+    Configure macOS app name in menu bar.
     
-    # On macOS, set the app name in the menu bar
-    # Multiple approaches are needed because macOS is finicky about this
-    
-    # Method 1: Change sys.argv[0] BEFORE creating QApplication
+    Returns the original argv[0] to restore after QApplication creation.
+    """
     original_argv0 = sys.argv[0]
     sys.argv[0] = 'Optiverse'
     
-    # Method 2: Use pyobjc to set process name (macOS only)
+    # Use pyobjc to set process name (macOS only)
     try:
         from Foundation import NSProcessInfo
         processInfo = NSProcessInfo.processInfo()
         processInfo.setProcessName_('Optiverse')
-        print("✅ macOS process name set to 'Optiverse' via pyobjc")
+        _logger.info("macOS process name set to 'Optiverse' via pyobjc")
     except ImportError:
-        print("⚠️  pyobjc not available - app name in menu bar may show as 'Python'")
+        _logger.debug("pyobjc not available - app name in menu bar may show as 'Python'")
     except Exception as e:
-        print(f"⚠️  Failed to set macOS process name: {e}")
+        _logger.warning("Failed to set macOS process name: %s", e)
     
-    # Minimal app that opens the main window (Qt6 enables high DPI by default)
+    return original_argv0
+
+
+def _configure_macos_activation() -> None:
+    """Configure macOS NSApp activation after QApplication creation."""
+    try:
+        from AppKit import NSRunningApplication
+        NSRunningApplication.currentApplication().activateWithOptions_(1 << 1)
+        _logger.info("macOS NSApp activation configured")
+    except Exception as e:
+        _logger.debug("Failed to configure NSApp: %s", e)
+
+
+def main() -> int:
+    """
+    Application entry point.
+    
+    Bootstraps the Qt application, configures platform-specific settings,
+    and launches the main window.
+    
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
+    # Configure basic logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s [%(name)s] %(message)s",
+    )
+    
+    # Install global error handler FIRST (before any Qt code)
+    from ..services.error_handler import get_error_handler, install_qt_message_handler
+    error_handler = get_error_handler()
+    _logger.info("Global error handler installed")
+    
+    # Increase Qt's image allocation limit for large SVG cache files
+    # Default is 256MB, we set to 1GB to allow high-resolution cached PNGs
+    os.environ['QT_IMAGEIO_MAXALLOC'] = '1024'  # In MB
+    
+    # Configure OpenGL before QApplication
+    _configure_opengl()
+    
+    # Configure macOS app name before QApplication
+    original_argv0 = _configure_macos_app_name()
+    
+    # Create QApplication (Qt6 enables high DPI by default)
     app = QtWidgets.QApplication(sys.argv)
     
-    # Install Qt message handler to catch Qt warnings/errors
+    # Install Qt message handler
     install_qt_message_handler()
-    print("✅ Qt message handler installed")
+    _logger.info("Qt message handler installed")
     
-    # Restore original argv[0] after QApplication creation
+    # Restore original argv[0]
     sys.argv[0] = original_argv0
     
-    # Method 3: Set Qt application metadata
+    # Configure Qt application metadata
     app.setApplicationName("Optiverse")
     app.setApplicationDisplayName("Optiverse")
     app.setOrganizationName("Optiverse")
     app.setOrganizationDomain("optiverse.app")
     
-    # Method 4: Try to set macOS NSApp activation policy after QApplication is created
-    try:
-        from AppKit import NSRunningApplication
-        NSRunningApplication.currentApplication().activateWithOptions_(1 << 1)  # NSApplicationActivateIgnoringOtherApps
-        print("✅ macOS NSApp activation configured")
-    except Exception as e:
-        print(f"⚠️  Failed to configure NSApp: {e}")
+    # Configure macOS activation
+    _configure_macos_activation()
     
     # Set application icon
-    from pathlib import Path
     icon_path = Path(__file__).parent.parent / "ui" / "icons" / "optiverse.png"
     if icon_path.exists():
         app.setWindowIcon(QtGui.QIcon(str(icon_path)))
     
-    # Detect system dark mode and apply initial stylesheet
-    # Note: MainWindow will load user preference and override if needed
+    # Apply initial theme based on system preference
+    from ..ui.theme_manager import detect_system_dark_mode, apply_theme
     system_dark_mode = detect_system_dark_mode()
     apply_theme(system_dark_mode)
     
-    # Wrap main window creation in try/except to handle startup errors
+    # Create and show main window
+    from ..ui.views.main_window import MainWindow
     try:
-        w = MainWindow()
-        w.show()
+        window = MainWindow()
+        window.show()
     except Exception as e:
         error_handler.handle_error(e, "during application startup")
         return 1
@@ -589,5 +140,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-
