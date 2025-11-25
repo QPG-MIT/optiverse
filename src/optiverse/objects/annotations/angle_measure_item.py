@@ -94,7 +94,7 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         return self.mapToScene(self._point2)
     
     def _calculate_angle(self) -> float:
-        """Calculate angle in degrees between the two lines."""
+        """Calculate inner angle in degrees between the two lines (always < 180°)."""
         # Vectors from vertex to each point
         v1 = self._point1 - self._vertex
         v2 = self._point2 - self._vertex
@@ -112,11 +112,9 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         angle_rad = math.acos(cos_angle)
         angle_deg = math.degrees(angle_rad)
         
-        # Use cross product to determine orientation (which side of the angle)
-        # If cross product is negative, the angle goes "the long way around"
-        cross = v1.x() * v2.y() - v1.y() * v2.x()
-        if cross < 0:
-            # Return the larger angle (exterior angle)
+        # Always return the inner angle (smaller angle, 0-180°)
+        # If the calculated angle is > 180, use the complement
+        if angle_deg > 180:
             angle_deg = 360.0 - angle_deg
         
         return angle_deg
@@ -139,35 +137,27 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         angle1_deg = angle1_deg % 360
         angle2_deg = angle2_deg % 360
         
-        # Calculate the measured angle
+        # Calculate the measured angle (always inner angle < 180°)
         measured_angle = self._calculate_angle()
         
-        # Calculate span going counterclockwise from angle1 to angle2
-        span_ccw = (angle2_deg - angle1_deg) % 360
+        # Calculate span going counterclockwise from angle2 to angle1
+        span_ccw = (angle1_deg - angle2_deg) % 360
         if span_ccw == 0:
             span_ccw = 360
         
-        # Calculate span going clockwise from angle1 to angle2
+        # Calculate span going clockwise from angle2 to angle1
         span_cw = 360 - span_ccw if span_ccw != 360 else 360
         
-        start_angle = angle1_deg
+        # Start from angle2 (third point)
+        start_angle = angle2_deg
         
-        if measured_angle > 180:
-            # Exterior angle - draw the larger arc
-            # Use whichever direction gives the larger span
-            if span_ccw > span_cw:
-                span = span_ccw
-            else:
-                # Go clockwise (negative span in Qt)
-                span = -span_cw
+        # Always draw the inner angle (smaller arc)
+        # Use whichever direction gives the smaller span
+        if span_ccw < span_cw:
+            span = span_ccw
         else:
-            # Interior angle - draw the smaller arc
-            # Use whichever direction gives the smaller span
-            if span_ccw < span_cw:
-                span = span_ccw
-            else:
-                # Go clockwise (negative span in Qt)
-                span = -span_cw
+            # Go clockwise (negative span in Qt)
+            span = -span_cw
         
         return start_angle, span
     

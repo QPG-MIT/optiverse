@@ -75,7 +75,7 @@ class ToolModeController(QtCore.QObject):
             self._view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
             QtWidgets.QToolTip.showText(
                 QtGui.QCursor.pos(),
-                "Click vertex (corner), then first point, then second point."
+                "Click first point, then vertex (corner), then second point."
             )
         else:
             self._editor_state.enter_default()

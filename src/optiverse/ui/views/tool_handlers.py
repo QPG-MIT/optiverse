@@ -224,8 +224,8 @@ class AngleMeasureToolHandler:
     Handler for the angle measure tool.
     
     Allows users to measure angles with a three-click workflow:
-    1. Click vertex (corner of angle)
-    2. Click first point (one side)
+    1. Click first point (one side)
+    2. Click vertex (corner of angle)
     3. Click second point (other side)
     """
     
@@ -254,24 +254,29 @@ class AngleMeasureToolHandler:
         self.on_complete = on_complete
         
         # State for three-click workflow
-        self._state: Optional[str] = None  # 'waiting_vertex', 'waiting_point1', 'waiting_point2'
-        self._vertex: Optional[QtCore.QPointF] = None
+        self._state: Optional[str] = None  # 'waiting_point1', 'waiting_vertex', 'waiting_point2'
         self._point1: Optional[QtCore.QPointF] = None
-        self._temp_item = None
+        self._vertex: Optional[QtCore.QPointF] = None
+        self._preview_line = None  # Preview line from point1 to vertex
+        self._temp_item = None  # Preview angle item
     
     def activate(self) -> None:
         """Activate the angle measure tool."""
-        self._state = 'waiting_vertex'
-        self._vertex = None
+        self._state = 'waiting_point1'
         self._point1 = None
+        self._vertex = None
+        self._preview_line = None
         self._temp_item = None
     
     def deactivate(self) -> None:
         """Deactivate the angle measure tool and clean up."""
         self._state = None
-        self._vertex = None
         self._point1 = None
-        # Remove temporary item if exists
+        self._vertex = None
+        # Remove temporary items if they exist
+        if self._preview_line and self.scene:
+            self.scene.removeItem(self._preview_line)
+            self._preview_line = None
         if self._temp_item and self.scene:
             self.scene.removeItem(self._temp_item)
             self._temp_item = None
@@ -293,34 +298,48 @@ class AngleMeasureToolHandler:
         from ...objects.annotations.angle_measure_item import AngleMeasureItem
         from ...core.undo_commands import AddItemCommand
         
-        if self._state == 'waiting_vertex':
-            return self._handle_vertex_click(scene_pos)
-        elif self._state == 'waiting_point1':
+        if self._state == 'waiting_point1':
             return self._handle_point1_click(scene_pos)
+        elif self._state == 'waiting_vertex':
+            return self._handle_vertex_click(scene_pos)
         elif self._state == 'waiting_point2':
             return self._handle_point2_click(scene_pos)
         
         return False
     
-    def _handle_vertex_click(self, scene_pos: QtCore.QPointF) -> bool:
-        """Handle vertex click (first click)."""
-        self._vertex = QtCore.QPointF(scene_pos)
-        self._state = 'waiting_point1'
+    def _handle_point1_click(self, scene_pos: QtCore.QPointF) -> bool:
+        """Handle first point click (first click)."""
+        self._point1 = QtCore.QPointF(scene_pos)
+        self._state = 'waiting_vertex'
+        
+        # Create preview line that will follow mouse
+        self._preview_line = QtWidgets.QGraphicsLineItem(
+            QtCore.QLineF(self._point1, self._point1)
+        )
+        pen = QtGui.QPen(QtGui.QColor(0, 150, 255, 150), 2.0)
+        pen.setCosmetic(True)
+        self._preview_line.setPen(pen)
+        self.scene.addItem(self._preview_line)
         
         QtWidgets.QToolTip.showText(
             QtGui.QCursor.pos(),
-            "Vertex set. Click to set first point."
+            "First point set. Click to set vertex (corner)."
         )
         return True
     
-    def _handle_point1_click(self, scene_pos: QtCore.QPointF) -> bool:
-        """Handle first point click (second click)."""
+    def _handle_vertex_click(self, scene_pos: QtCore.QPointF) -> bool:
+        """Handle vertex click (second click)."""
         from ...objects.annotations.angle_measure_item import AngleMeasureItem
         
-        self._point1 = QtCore.QPointF(scene_pos)
+        self._vertex = QtCore.QPointF(scene_pos)
         self._state = 'waiting_point2'
         
-        # Create temporary preview item
+        # Remove preview line
+        if self._preview_line:
+            self.scene.removeItem(self._preview_line)
+            self._preview_line = None
+        
+        # Create temporary preview angle item
         temp_point2 = QtCore.QPointF(scene_pos)  # Temporary, will follow mouse
         self._temp_item = AngleMeasureItem(
             vertex=self._vertex,
@@ -331,7 +350,7 @@ class AngleMeasureToolHandler:
         
         QtWidgets.QToolTip.showText(
             QtGui.QCursor.pos(),
-            "First point set. Click to set second point."
+            "Vertex set. Click to set second point."
         )
         return True
     
@@ -370,8 +389,8 @@ class AngleMeasureToolHandler:
         
         # Reset state
         self._state = None
-        self._vertex = None
         self._point1 = None
+        self._vertex = None
         
         # Call completion callback
         if self.on_complete:
@@ -381,7 +400,10 @@ class AngleMeasureToolHandler:
     
     def handle_mouse_move(self, scene_pos: QtCore.QPointF) -> None:
         """Handle mouse move to update preview."""
-        if self._state == 'waiting_point2' and self._temp_item:
+        if self._state == 'waiting_vertex' and self._preview_line:
+            # Update preview line from point1 to current mouse position
+            self._preview_line.setLine(QtCore.QLineF(self._point1, scene_pos))
+        elif self._state == 'waiting_point2' and self._temp_item:
             # Update temporary item's second point
             self._temp_item.set_point2(scene_pos)
 
