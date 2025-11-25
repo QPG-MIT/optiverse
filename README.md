@@ -254,12 +254,18 @@ pytest --cov=src --cov-report=html
 # Lint
 ruff check .
 
+# Auto-fix linting errors
+ruff check --fix .
+ruff format .
+
 # Type checking
 mypy src/
 
 # Format (if needed)
 black src/ tests/
 ```
+
+**Note**: When you create a pull request, Ruff linting errors are automatically fixed by GitHub Actions and committed back to your branch. You can also run `ruff check --fix .` locally before pushing.
 
 ### Building Resources
 ```bash

@@ -40,6 +40,7 @@ jobs:
     - name: Run Ruff linter
       run: |
         ruff check .
+      continue-on-error: false
     
     - name: Check code formatting with Black
       run: |
