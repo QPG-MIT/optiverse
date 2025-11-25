@@ -2,11 +2,14 @@
 """
 Fix linting errors that ruff --fix cannot automatically fix.
 
-This script uses pattern matching and heuristics to fix common issues like:
+This script uses intelligent pattern matching and heuristics to fix common issues like:
 - Quote consistency
 - Complex import ordering
 - Unused imports that require context
 - Other fixable but not auto-fixable issues
+
+Note: GitHub Copilot doesn't have a public API for programmatic access from GitHub Actions,
+so we use heuristic-based fixes that intelligently handle common patterns.
 """
 
 import re
