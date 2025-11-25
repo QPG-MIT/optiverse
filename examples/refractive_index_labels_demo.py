@@ -11,10 +11,12 @@ refractive index, making it easier to correctly configure optical components.
 """
 
 import sys
-from PyQt6 import QtWidgets, QtGui, QtCore
+
+from PyQt6 import QtCore, QtGui, QtWidgets
+
+from src.optiverse.core.interface_definition import InterfaceDefinition
 from src.optiverse.services.storage_service import StorageService
 from src.optiverse.ui.views.component_editor_dialog import ComponentEditor
-from src.optiverse.core.interface_definition import InterfaceDefinition
 
 
 def create_demo_image():
@@ -41,9 +43,9 @@ def create_demo_image():
     font = QtGui.QFont()
     font.setPointSize(12)
     painter.setFont(font)
-    painter.drawText(QtCore.QRect(0, 10, 600, 30),
-                     QtCore.Qt.AlignmentFlag.AlignCenter,
-                     "Glass Block Example")
+    painter.drawText(
+        QtCore.QRect(0, 10, 600, 30), QtCore.Qt.AlignmentFlag.AlignCenter, "Glass Block Example"
+    )
 
     painter.drawText(20, 200, "Air")
     painter.drawText(480, 200, "Air")
@@ -74,32 +76,38 @@ def main():
 
     # Create left interface (air → glass)
     left_interface = InterfaceDefinition(
-        x1_mm=-75, y1_mm=-50,  # Top point
-        x2_mm=-75, y2_mm=50,   # Bottom point
-        element_type='refractive_interface',
-        n1=1.0,      # Air (left side)
-        n2=1.517,    # BK7 glass (right side)
-        name="Entry Surface"
+        x1_mm=-75,
+        y1_mm=-50,  # Top point
+        x2_mm=-75,
+        y2_mm=50,  # Bottom point
+        element_type="refractive_interface",
+        n1=1.0,  # Air (left side)
+        n2=1.517,  # BK7 glass (right side)
+        name="Entry Surface",
     )
 
     # Create right interface (glass → air)
     right_interface = InterfaceDefinition(
-        x1_mm=75, y1_mm=-50,   # Top point
-        x2_mm=75, y2_mm=50,    # Bottom point
-        element_type='refractive_interface',
-        n1=1.517,    # BK7 glass (left side)
-        n2=1.0,      # Air (right side)
-        name="Exit Surface"
+        x1_mm=75,
+        y1_mm=-50,  # Top point
+        x2_mm=75,
+        y2_mm=50,  # Bottom point
+        element_type="refractive_interface",
+        n1=1.517,  # BK7 glass (left side)
+        n2=1.0,  # Air (right side)
+        name="Exit Surface",
     )
 
     # Create a diagonal interface for variety
     diagonal_interface = InterfaceDefinition(
-        x1_mm=-50, y1_mm=-30,
-        x2_mm=0, y2_mm=0,
-        element_type='refractive_interface',
-        n1=1.0,      # Air
-        n2=1.785,    # SF11 glass (high index)
-        name="Diagonal Surface"
+        x1_mm=-50,
+        y1_mm=-30,
+        x2_mm=0,
+        y2_mm=0,
+        element_type="refractive_interface",
+        n1=1.0,  # Air
+        n2=1.785,  # SF11 glass (high index)
+        name="Diagonal Surface",
     )
 
     # Add interfaces to the panel
@@ -131,9 +139,9 @@ def main():
     editor.show()
     editor.resize(1200, 700)
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Refractive Index Labels Demo")
-    print("="*70)
+    print("=" * 70)
     print("\nNew Feature:")
     print("  ✓ Refractive interfaces now show n₁ and n₂ labels at endpoints")
     print("  ✓ Labels help identify which side has which refractive index")
@@ -146,13 +154,10 @@ def main():
     print("  • Drag any endpoint to move the interface")
     print("  • Labels stay positioned relative to the line")
     print("  • Click 'Edit' to modify refractive indices")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     sys.exit(app.exec())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-
-
-

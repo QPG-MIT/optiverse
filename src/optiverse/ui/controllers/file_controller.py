@@ -3,20 +3,21 @@ File controller for handling save/load/autosave operations.
 
 Extracts file management UI logic from MainWindow.
 """
+
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Optional, Callable
+from typing import TYPE_CHECKING, Callable
 
 from PyQt6 import QtCore, QtWidgets
 
-from ...services.scene_file_manager import SceneFileManager
-from ...services.error_handler import ErrorContext
 from ...core.constants import AUTOSAVE_DEBOUNCE_MS
+from ...services.error_handler import ErrorContext
+from ...services.scene_file_manager import SceneFileManager
 
 if TYPE_CHECKING:
-    from ...services.log_service import LogService
     from ...core.undo_stack import UndoStack
+    from ...services.log_service import LogService
 
 
 class FileController(QtCore.QObject):
@@ -34,11 +35,11 @@ class FileController(QtCore.QObject):
     def __init__(
         self,
         scene: QtWidgets.QGraphicsScene,
-        undo_stack: "UndoStack",
-        log_service: "LogService",
+        undo_stack: UndoStack,
+        log_service: LogService,
         get_ray_data: Callable,
         parent_widget: QtWidgets.QWidget,
-        connect_item_signals: Optional[Callable] = None,
+        connect_item_signals: Callable | None = None,
     ):
         super().__init__(parent_widget)
 
@@ -66,12 +67,12 @@ class FileController(QtCore.QObject):
         undo_stack.commandPushed.connect(self._on_command_pushed)
 
     @property
-    def saved_file_path(self) -> Optional[str]:
+    def saved_file_path(self) -> str | None:
         """Get the current saved file path."""
         return self.file_manager.saved_file_path
 
     @saved_file_path.setter
-    def saved_file_path(self, value: Optional[str]):
+    def saved_file_path(self, value: str | None):
         """Set the saved file path."""
         self.file_manager.saved_file_path = value
 
@@ -186,6 +187,3 @@ class FileController(QtCore.QObject):
         self._undo_stack.clear()
         self.traceRequested.emit()
         return True
-
-
-

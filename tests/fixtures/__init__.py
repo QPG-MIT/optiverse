@@ -9,18 +9,17 @@ Usage in tests:
 """
 
 from .factories import (
-    create_source_item,
+    create_component_item,
     create_lens_item,
     create_mirror_item,
-    create_component_item,
     create_scene_with_items,
+    create_source_item,
 )
-
 from .mocks import (
-    MockStorageService,
-    MockSettingsService,
     MockCollaborationManager,
     MockLogService,
+    MockSettingsService,
+    MockStorageService,
 )
 
 __all__ = [
@@ -36,6 +35,3 @@ __all__ = [
     "MockCollaborationManager",
     "MockLogService",
 ]
-
-
-

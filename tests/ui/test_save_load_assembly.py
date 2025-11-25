@@ -4,36 +4,33 @@ Comprehensive tests for save/load assembly functionality.
 This test suite ensures that all component types and their parameters
 are correctly saved to and loaded from JSON files.
 """
+
 from __future__ import annotations
 
 import json
-import pytest
-from pathlib import Path
 
-from PyQt6 import QtWidgets, QtCore
+import pytest
+from PyQt6 import QtWidgets
 
 from optiverse.core.models import (
-    SourceParams,
-    LensParams,
-    MirrorParams,
     BeamsplitterParams,
     DichroicParams,
-    WaveplateParams,
+    LensParams,
+    MirrorParams,
     SLMParams,
+    SourceParams,
+    WaveplateParams,
 )
 from optiverse.objects import (
     SourceItem,
-    ComponentItem,
-    RulerItem,
-    TextNoteItem,
 )
+from optiverse.ui.views.main_window import MainWindow
+from tests.fixtures.factories import create_component_from_params
 from tests.helpers.ui_test_helpers import (
+    is_beamsplitter_component,
     is_lens_component,
     is_mirror_component,
-    is_beamsplitter_component,
 )
-from tests.fixtures.factories import create_component_from_params
-from optiverse.ui.views.main_window import MainWindow
 
 
 @pytest.fixture
@@ -71,6 +68,7 @@ class TestSaveLoadAssembly:
 
         # Mock the file dialog
         import unittest.mock as mock
+
         with mock.patch.object(
             QtWidgets.QFileDialog, "getSaveFileName", return_value=(str(save_path), "")
         ):
@@ -234,7 +232,9 @@ class TestSaveLoadAssembly:
             main_window.open_assembly()
 
         # Verify beamsplitters were loaded
-        beamsplitters = [item for item in main_window.scene.items() if is_beamsplitter_component(item)]
+        beamsplitters = [
+            item for item in main_window.scene.items() if is_beamsplitter_component(item)
+        ]
         assert len(beamsplitters) == 2
 
         # Find the regular BS and PBS
@@ -425,7 +425,7 @@ class TestSaveLoadAssembly:
             main_window.save_assembly()
 
         # Verify JSON file structure
-        with open(save_path, 'r') as f:
+        with open(save_path) as f:
             data = json.load(f)
 
         assert "sources" in data
@@ -478,9 +478,8 @@ class TestSaveLoadAssembly:
 
         # Mock the file dialog to return empty path (cancel)
         import unittest.mock as mock
-        with mock.patch.object(
-            QtWidgets.QFileDialog, "getSaveFileName", return_value=("", "")
-        ):
+
+        with mock.patch.object(QtWidgets.QFileDialog, "getSaveFileName", return_value=("", "")):
             main_window.save_assembly()
 
         # No file should be created
@@ -494,9 +493,8 @@ class TestSaveLoadAssembly:
 
         # Mock the file dialog to return empty path (cancel)
         import unittest.mock as mock
-        with mock.patch.object(
-            QtWidgets.QFileDialog, "getOpenFileName", return_value=("", "")
-        ):
+
+        with mock.patch.object(QtWidgets.QFileDialog, "getOpenFileName", return_value=("", "")):
             main_window.open_assembly()
 
         # Scene should be unchanged
@@ -506,28 +504,32 @@ class TestSaveLoadAssembly:
         """Test that loading old files without new fields works (backward compatibility)."""
         # Create a JSON file without new fields (simulating old format)
         old_format_data = {
-            "sources": [{
-                "x_mm": 100.0,
-                "y_mm": 200.0,
-                "angle_deg": 0.0,
-                "size_mm": 10.0,
-                "n_rays": 5,
-                "ray_length_mm": 1000.0,
-                "spread_deg": 0.0,
-                "color_hex": "#FF0000",
-                # Missing new fields: wavelength_nm, polarization_type, etc.
-            }],
+            "sources": [
+                {
+                    "x_mm": 100.0,
+                    "y_mm": 200.0,
+                    "angle_deg": 0.0,
+                    "size_mm": 10.0,
+                    "n_rays": 5,
+                    "ray_length_mm": 1000.0,
+                    "spread_deg": 0.0,
+                    "color_hex": "#FF0000",
+                    # Missing new fields: wavelength_nm, polarization_type, etc.
+                }
+            ],
             "lenses": [],
             "mirrors": [],
-            "beamsplitters": [{
-                "x_mm": 0.0,
-                "y_mm": 0.0,
-                "angle_deg": 45.0,
-                "object_height_mm": 30.0,
-                "split_T": 50.0,
-                "split_R": 50.0,
-                # Missing: is_polarizing, pbs_transmission_axis_deg
-            }],
+            "beamsplitters": [
+                {
+                    "x_mm": 0.0,
+                    "y_mm": 0.0,
+                    "angle_deg": 45.0,
+                    "object_height_mm": 30.0,
+                    "split_T": 50.0,
+                    "split_R": 50.0,
+                    # Missing: is_polarizing, pbs_transmission_axis_deg
+                }
+            ],
             "dichroics": [],
             "waveplates": [],
             # Missing: slms (old format didn't have this)
@@ -536,11 +538,12 @@ class TestSaveLoadAssembly:
         }
 
         save_path = tmp_path / "old_format.json"
-        with open(save_path, 'w') as f:
+        with open(save_path, "w") as f:
             json.dump(old_format_data, f, indent=2)
 
         # Load the old format file
         import unittest.mock as mock
+
         with mock.patch.object(
             QtWidgets.QFileDialog, "getOpenFileName", return_value=(str(save_path), "")
         ):
@@ -548,19 +551,18 @@ class TestSaveLoadAssembly:
 
         # Verify components were loaded with default values for missing fields
         sources = [item for item in main_window.scene.items() if isinstance(item, SourceItem)]
-        beamsplitters = [item for item in main_window.scene.items() if is_beamsplitter_component(item)]
+        beamsplitters = [
+            item for item in main_window.scene.items() if is_beamsplitter_component(item)
+        ]
 
         assert len(sources) == 1
         assert len(beamsplitters) == 1
 
         # Check that default values are used for missing fields
         source = sources[0]
-        assert hasattr(source.params, 'wavelength_nm')
-        assert hasattr(source.params, 'polarization_type')
+        assert hasattr(source.params, "wavelength_nm")
+        assert hasattr(source.params, "polarization_type")
 
         bs = beamsplitters[0]
-        assert hasattr(bs.params, 'is_polarizing')
-        assert hasattr(bs.params, 'pbs_transmission_axis_deg')
-
-
-
+        assert hasattr(bs.params, "is_polarizing")
+        assert hasattr(bs.params, "pbs_transmission_axis_deg")

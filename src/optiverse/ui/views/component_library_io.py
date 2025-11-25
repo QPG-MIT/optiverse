@@ -3,12 +3,13 @@ Component Library I/O - Handles saving, loading, importing, and exporting compon
 
 Extracted from ComponentEditor to reduce file size and improve separation of concerns.
 """
+
 from __future__ import annotations
 
 import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Callable
 
 from PyQt6 import QtWidgets
 
@@ -35,9 +36,9 @@ class ComponentLibraryIO:
 
     def __init__(
         self,
-        storage: "StorageService",
+        storage: StorageService,
         parent_widget: QtWidgets.QWidget,
-        build_record_callback: Callable[[], Optional[ComponentRecord]],
+        build_record_callback: Callable[[], ComponentRecord | None],
         refresh_callback: Callable[[], None],
         saved_callback: Callable[[], None],
     ):
@@ -85,7 +86,7 @@ class ComponentLibraryIO:
                     f"Saved component '{rec.name}'\n\n"
                     f"Interfaces: {len(rec.interfaces) if rec.interfaces else 0}\n"
                     f"Library location:\n{library_path}\n\n"
-                    f"Component JSON copied to clipboard."
+                    f"Component JSON copied to clipboard.",
                 )
 
                 self._refresh_library()
@@ -96,7 +97,7 @@ class ComponentLibraryIO:
                 QtWidgets.QMessageBox.critical(
                     self.parent,
                     "Save Failed",
-                    f"Failed to save component '{rec.name}':\n\n{str(e)}"
+                    f"Failed to save component '{rec.name}':\n\n{str(e)}",
                 )
                 return False
         return False
@@ -112,9 +113,7 @@ class ComponentLibraryIO:
             rec = self._build_record()
             if not rec:
                 QtWidgets.QMessageBox.warning(
-                    self.parent,
-                    "No Component",
-                    "Please create or load a component first."
+                    self.parent, "No Component", "Please create or load a component first."
                 )
                 return False
 
@@ -123,7 +122,7 @@ class ComponentLibraryIO:
                 self.parent,
                 "Select Export Destination",
                 "",
-                QtWidgets.QFileDialog.Option.ShowDirsOnly
+                QtWidgets.QFileDialog.Option.ShowDirsOnly,
             )
 
             if not dest_dir:
@@ -144,21 +143,17 @@ class ComponentLibraryIO:
                         self.parent,
                         "Export Successful",
                         f"Component '{rec.name}' exported to:\n{export_path}\n\n"
-                        f"You can share this folder with others."
+                        f"You can share this folder with others.",
                     )
                     return True
                 else:
                     QtWidgets.QMessageBox.critical(
-                        self.parent,
-                        "Export Failed",
-                        f"Failed to export component '{rec.name}'."
+                        self.parent, "Export Failed", f"Failed to export component '{rec.name}'."
                     )
                     return False
             except OSError as e:
                 QtWidgets.QMessageBox.critical(
-                    self.parent,
-                    "Export Error",
-                    f"Error exporting component:\n\n{str(e)}"
+                    self.parent, "Export Error", f"Error exporting component:\n\n{str(e)}"
                 )
                 return False
         return False
@@ -175,7 +170,7 @@ class ComponentLibraryIO:
             self.parent,
             "Select Component Folder to Import",
             "",
-            QtWidgets.QFileDialog.Option.ShowDirsOnly
+            QtWidgets.QFileDialog.Option.ShowDirsOnly,
         )
 
         if not source_dir:
@@ -189,21 +184,19 @@ class ComponentLibraryIO:
             QtWidgets.QMessageBox.warning(
                 self.parent,
                 "Invalid Component",
-                f"Selected folder does not contain a component.json file:\n{source_dir}"
+                f"Selected folder does not contain a component.json file:\n{source_dir}",
             )
             return False
 
         try:
             # Load component name to check for conflicts
-            with open(json_path, "r", encoding="utf-8") as f:
+            with open(json_path, encoding="utf-8") as f:
                 data = json.load(f)
             component_name = data.get("name", "")
 
             if not component_name:
                 QtWidgets.QMessageBox.warning(
-                    self.parent,
-                    "Invalid Component",
-                    "Component JSON does not have a valid name."
+                    self.parent, "Invalid Component", "Component JSON does not have a valid name."
                 )
                 return False
 
@@ -217,8 +210,9 @@ class ComponentLibraryIO:
                     "Component Exists",
                     f"Component '{component_name}' already exists in the library.\n\n"
                     f"Do you want to overwrite it?",
-                    QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
-                    QtWidgets.QMessageBox.StandardButton.No
+                    QtWidgets.QMessageBox.StandardButton.Yes
+                    | QtWidgets.QMessageBox.StandardButton.No,
+                    QtWidgets.QMessageBox.StandardButton.No,
                 )
 
                 if reply == QtWidgets.QMessageBox.StandardButton.Yes:
@@ -233,23 +227,19 @@ class ComponentLibraryIO:
                 QtWidgets.QMessageBox.information(
                     self.parent,
                     "Import Successful",
-                    f"Component '{component_name}' imported successfully."
+                    f"Component '{component_name}' imported successfully.",
                 )
                 self._refresh_library()
                 self._on_saved()
                 return True
             else:
                 QtWidgets.QMessageBox.critical(
-                    self.parent,
-                    "Import Failed",
-                    f"Failed to import component from:\n{source_dir}"
+                    self.parent, "Import Failed", f"Failed to import component from:\n{source_dir}"
                 )
                 return False
         except OSError as e:
             QtWidgets.QMessageBox.critical(
-                self.parent,
-                "Import Error",
-                f"Error importing component:\n\n{str(e)}"
+                self.parent, "Import Error", f"Error importing component:\n\n{str(e)}"
             )
             return False
 
@@ -261,7 +251,7 @@ class ComponentLibraryIO:
         QtWidgets.QMessageBox.information(
             self.parent,
             "Library",
-            f"Loaded {len(rows)} component(s).\n\nLibrary folder:\n{library_root}"
+            f"Loaded {len(rows)} component(s).\n\nLibrary folder:\n{library_root}",
         )
 
     def load_library_from_path(self) -> bool:
@@ -272,23 +262,20 @@ class ComponentLibraryIO:
             True if any new components were loaded, False otherwise
         """
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self.parent,
-            "Load Library File",
-            "",
-            "JSON files (*.json);;All files (*.*)"
+            self.parent, "Load Library File", "", "JSON files (*.json);;All files (*.*)"
         )
         if not path:
             return False
 
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
 
             if not isinstance(data, list):
                 QtWidgets.QMessageBox.warning(
                     self.parent,
                     "Invalid Library",
-                    "The selected file does not contain a valid component library (expected JSON array)."
+                    "The selected file does not contain a valid component library (expected JSON array).",
                 )
                 return False
 
@@ -311,31 +298,24 @@ class ComponentLibraryIO:
                     self.parent,
                     "Library Loaded",
                     f"Loaded {new_count} new component(s) from:\n{path}\n\n"
-                    f"Total components: {len(existing)}"
+                    f"Total components: {len(existing)}",
                 )
                 return True
             else:
                 QtWidgets.QMessageBox.information(
                     self.parent,
                     "Library Loaded",
-                    "No new components found in the library file (all components already exist)."
+                    "No new components found in the library file (all components already exist).",
                 )
                 return False
 
         except json.JSONDecodeError as e:
             QtWidgets.QMessageBox.warning(
-                self.parent,
-                "Invalid JSON",
-                f"Could not parse JSON file:\n{e}"
+                self.parent, "Invalid JSON", f"Could not parse JSON file:\n{e}"
             )
             return False
         except OSError as e:
             QtWidgets.QMessageBox.warning(
-                self.parent,
-                "Load Error",
-                f"Could not load library file:\n{e}"
+                self.parent, "Load Error", f"Could not load library file:\n{e}"
             )
             return False
-
-
-

@@ -7,13 +7,14 @@ Tests for:
 3. Conflict resolution (host wins)
 4. Re-sync after reconnection
 """
-import unittest
-from unittest.mock import Mock, MagicMock, patch, call
-from PyQt6.QtCore import QPointF
-from PyQt6.QtWidgets import QApplication, QGraphicsScene
+
 import sys
+import unittest
 import uuid
 from datetime import datetime, timedelta
+from unittest.mock import Mock
+
+from PyQt6.QtWidgets import QApplication, QGraphicsScene
 
 # Ensure QApplication exists for tests
 if not QApplication.instance():
@@ -35,14 +36,14 @@ class TestDisconnectionDetection(unittest.TestCase):
         collab.collaboration_service.is_connected = Mock(return_value=True)
 
         # Initially connected
-        assert collab.is_connected() == True
+        assert collab.is_connected()
 
         # Simulate disconnection
         collab.collaboration_service.is_connected = Mock(return_value=False)
         collab._on_disconnected()
 
         # Should be marked as disconnected
-        assert collab.is_connected() == False
+        assert not collab.is_connected()
 
     def test_store_state_before_disconnection(self):
         """Test that state is preserved when disconnecting."""
@@ -58,19 +59,19 @@ class TestDisconnectionDetection(unittest.TestCase):
         # Add items
         item = Mock()
         item.item_uuid = str(uuid.uuid4())
-        item.to_dict = Mock(return_value={'uuid': item.item_uuid, 'x_mm': 100.0})
-        item.__class__.__name__ = 'LensItem'
+        item.to_dict = Mock(return_value={"uuid": item.item_uuid, "x_mm": 100.0})
+        item.__class__.__name__ = "LensItem"
         collab.item_uuid_map[item.item_uuid] = item
 
         # Get state before disconnection
-        state_before = collab.get_session_state()
+        collab.get_session_state()
 
         # Simulate disconnection
         collab._on_disconnected()
 
         # State should still be accessible (cached)
         assert collab.last_known_state is not None
-        assert len(collab.last_known_state['items']) > 0
+        assert len(collab.last_known_state["items"]) > 0
 
     def test_disconnection_sets_pending_sync_flag(self):
         """Test that disconnection sets a flag to trigger sync on reconnect."""
@@ -84,7 +85,7 @@ class TestDisconnectionDetection(unittest.TestCase):
         collab._on_disconnected()
 
         # Should set pending sync flag
-        assert collab.needs_resync == True
+        assert collab.needs_resync
 
 
 class TestReconnection(unittest.TestCase):
@@ -133,10 +134,10 @@ class TestReconnection(unittest.TestCase):
         sync_request_sent = False
         for call_args in calls:
             msg = call_args[0][0]
-            if msg.get('type') == 'sync:request':
+            if msg.get("type") == "sync:request":
                 sync_request_sent = True
-                assert 'local_version' in msg
-                assert msg['local_version'] == 5
+                assert "local_version" in msg
+                assert msg["local_version"] == 5
                 break
 
         assert sync_request_sent
@@ -162,27 +163,27 @@ class TestConflictResolution(unittest.TestCase):
         # Client has local items
         local_item = Mock()
         local_item.item_uuid = str(uuid.uuid4())
-        local_item.__class__.__name__ = 'LensItem'
+        local_item.__class__.__name__ = "LensItem"
         collab.item_uuid_map[local_item.item_uuid] = local_item
         main_window.scene.addItem(local_item)
 
         # Receive host's state (different version)
         host_state = {
-            'type': 'sync:full_state',
-            'state': {
-                'items': [
+            "type": "sync:full_state",
+            "state": {
+                "items": [
                     {
-                        'item_type': 'mirror',
-                        'uuid': str(uuid.uuid4()),
-                        'x_mm': 200.0,
-                        'y_mm': 100.0,
-                        'angle_deg': 45.0
+                        "item_type": "mirror",
+                        "uuid": str(uuid.uuid4()),
+                        "x_mm": 200.0,
+                        "y_mm": 100.0,
+                        "angle_deg": 45.0,
                     }
                 ],
-                'version': 5,  # Host's version is newer
-                'timestamp': datetime.now().isoformat()
+                "version": 5,  # Host's version is newer
+                "timestamp": datetime.now().isoformat(),
             },
-            'conflict_resolution': 'host_wins'
+            "conflict_resolution": "host_wins",
         }
 
         # Apply host's state
@@ -204,14 +205,11 @@ class TestConflictResolution(unittest.TestCase):
         collab.session_version = 3
 
         # Receive state with different version
-        remote_state = {
-            'items': [],
-            'version': 5
-        }
+        remote_state = {"items": [], "version": 5}
 
         has_conflict = collab._detect_version_conflict(remote_state)
 
-        assert has_conflict == True
+        assert has_conflict
 
     def test_no_conflict_when_versions_match(self):
         """Test no conflict when versions match."""
@@ -223,14 +221,11 @@ class TestConflictResolution(unittest.TestCase):
         collab.session_version = 5
 
         # Receive state with same version
-        remote_state = {
-            'items': [],
-            'version': 5
-        }
+        remote_state = {"items": [], "version": 5}
 
         has_conflict = collab._detect_version_conflict(remote_state)
 
-        assert has_conflict == False
+        assert not has_conflict
 
     def test_clear_scene_before_applying_host_state(self):
         """Test that scene is cleared before applying host's state on conflict."""
@@ -244,12 +239,12 @@ class TestConflictResolution(unittest.TestCase):
         # Add local items
         local_item1 = Mock()
         local_item1.item_uuid = str(uuid.uuid4())
-        local_item1.__class__.__name__ = 'LensItem'
+        local_item1.__class__.__name__ = "LensItem"
         main_window.scene.addItem(local_item1)
 
         local_item2 = Mock()
         local_item2.item_uuid = str(uuid.uuid4())
-        local_item2.__class__.__name__ = 'MirrorItem'
+        local_item2.__class__.__name__ = "MirrorItem"
         main_window.scene.addItem(local_item2)
 
         collab = CollaborationManager(main_window)
@@ -262,21 +257,21 @@ class TestConflictResolution(unittest.TestCase):
 
         # Receive host's conflicting state
         host_state = {
-            'type': 'sync:full_state',
-            'state': {
-                'items': [
+            "type": "sync:full_state",
+            "state": {
+                "items": [
                     {
-                        'item_type': 'source',
-                        'uuid': str(uuid.uuid4()),
-                        'x_mm': 0.0,
-                        'y_mm': 0.0,
-                        'angle_deg': 0.0
+                        "item_type": "source",
+                        "uuid": str(uuid.uuid4()),
+                        "x_mm": 0.0,
+                        "y_mm": 0.0,
+                        "angle_deg": 0.0,
                     }
                 ],
-                'version': 5,
-                'timestamp': datetime.now().isoformat()
+                "version": 5,
+                "timestamp": datetime.now().isoformat(),
             },
-            'conflict_resolution': 'host_wins'
+            "conflict_resolution": "host_wins",
         }
 
         # Apply state
@@ -303,28 +298,28 @@ class TestResync(unittest.TestCase):
 
         # Receive full state sync
         full_state = {
-            'type': 'sync:full_state',
-            'state': {
-                'items': [
+            "type": "sync:full_state",
+            "state": {
+                "items": [
                     {
-                        'item_type': 'lens',
-                        'uuid': str(uuid.uuid4()),
-                        'x_mm': 100.0,
-                        'y_mm': 50.0,
-                        'angle_deg': 0.0,
-                        'focal_length_mm': 100.0
+                        "item_type": "lens",
+                        "uuid": str(uuid.uuid4()),
+                        "x_mm": 100.0,
+                        "y_mm": 50.0,
+                        "angle_deg": 0.0,
+                        "focal_length_mm": 100.0,
                     },
                     {
-                        'item_type': 'mirror',
-                        'uuid': str(uuid.uuid4()),
-                        'x_mm': 200.0,
-                        'y_mm': 100.0,
-                        'angle_deg': 45.0
-                    }
+                        "item_type": "mirror",
+                        "uuid": str(uuid.uuid4()),
+                        "x_mm": 200.0,
+                        "y_mm": 100.0,
+                        "angle_deg": 45.0,
+                    },
                 ],
-                'version': 1,
-                'timestamp': datetime.now().isoformat()
-            }
+                "version": 1,
+                "timestamp": datetime.now().isoformat(),
+            },
         }
 
         collab._on_sync_state_received(full_state)
@@ -347,18 +342,14 @@ class TestResync(unittest.TestCase):
 
         # Receive full state
         full_state = {
-            'type': 'sync:full_state',
-            'state': {
-                'items': [],
-                'version': 1,
-                'timestamp': datetime.now().isoformat()
-            }
+            "type": "sync:full_state",
+            "state": {"items": [], "version": 1, "timestamp": datetime.now().isoformat()},
         }
 
         collab._on_sync_state_received(full_state)
 
         # Flag should be cleared
-        assert collab.needs_resync == False
+        assert not collab.needs_resync
 
     def test_resync_preserves_local_changes_if_newer(self):
         """Test that local changes made offline are sent to host after resync."""
@@ -375,11 +366,11 @@ class TestResync(unittest.TestCase):
         # Client made changes while offline
         local_changes = [
             {
-                'action': 'add_item',
-                'item_type': 'lens',
-                'uuid': str(uuid.uuid4()),
-                'x_mm': 150.0,
-                'y_mm': 75.0
+                "action": "add_item",
+                "item_type": "lens",
+                "uuid": str(uuid.uuid4()),
+                "x_mm": 150.0,
+                "y_mm": 75.0,
             }
         ]
         collab.pending_changes = local_changes
@@ -390,12 +381,12 @@ class TestResync(unittest.TestCase):
 
         # Receive host state (older version)
         host_state = {
-            'type': 'sync:full_state',
-            'state': {
-                'items': [],
-                'version': 2,  # Older than client
-                'timestamp': (datetime.now() - timedelta(minutes=5)).isoformat()
-            }
+            "type": "sync:full_state",
+            "state": {
+                "items": [],
+                "version": 2,  # Older than client
+                "timestamp": (datetime.now() - timedelta(minutes=5)).isoformat(),
+            },
         }
 
         # Apply state and send local changes
@@ -424,8 +415,5 @@ class TestServerStateManagement(unittest.TestCase):
 
 
 # Run tests if executed directly
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-
-
-

@@ -10,12 +10,14 @@ To test manually:
 """
 
 import sys
-from PyQt6 import QtWidgets, QtCore
+
+from PyQt6 import QtCore, QtWidgets
+
+from optiverse.core.models import BeamsplitterParams, MirrorParams, SourceParams, WaveplateParams
+from optiverse.objects import BeamsplitterItem, MirrorItem, SourceItem, WaveplateItem
 
 # Import the main application
 from optiverse.ui.views.main_window import MainWindow
-from optiverse.core.models import SourceParams, MirrorParams, WaveplateParams, BeamsplitterParams
-from optiverse.objects import SourceItem, MirrorItem, WaveplateItem, BeamsplitterItem
 
 
 def setup_test_scene(window: MainWindow):
@@ -37,7 +39,7 @@ def setup_test_scene(window: MainWindow):
         ray_length_mm=500,
         color_hex="#FF0000",
         wavelength_nm=633,  # Red laser
-        polarization_type="horizontal"  # Horizontal polarization
+        polarization_type="horizontal",  # Horizontal polarization
     )
     source = SourceItem(source_params)
     window.scene.addItem(source)
@@ -51,7 +53,7 @@ def setup_test_scene(window: MainWindow):
         object_height_mm=80,
         phase_shift_deg=90,  # QWP
         fast_axis_deg=90,  # Fast axis vertical
-        name="QWP"
+        name="QWP",
     )
     qwp = WaveplateItem(qwp_params)
     window.scene.addItem(qwp)
@@ -67,7 +69,7 @@ def setup_test_scene(window: MainWindow):
         split_R=50,
         is_polarizing=True,
         pbs_transmission_axis_deg=0,  # Horizontal transmission
-        name="PBS"
+        name="PBS",
     )
     pbs = BeamsplitterItem(pbs_params)
     window.scene.addItem(pbs)
@@ -79,7 +81,7 @@ def setup_test_scene(window: MainWindow):
         y_mm=150,
         angle_deg=135,  # Angled to reflect back
         object_height_mm=80,
-        name="Mirror"
+        name="Mirror",
     )
     mirror = MirrorItem(mirror_params)
     window.scene.addItem(mirror)
@@ -90,8 +92,7 @@ def setup_test_scene(window: MainWindow):
 
     # Fit the view to show all elements
     window.view.fitInView(
-        window.scene.itemsBoundingRect(),
-        QtCore.Qt.AspectRatioMode.KeepAspectRatio
+        window.scene.itemsBoundingRect(), QtCore.Qt.AspectRatioMode.KeepAspectRatio
     )
 
     # Show instructions
@@ -115,7 +116,7 @@ To test the inspect tool:
 3. Notice how intensity and polarization change!
 4. Click the inspect icon again to deactivate
 
-Have fun exploring! 🔬"""
+Have fun exploring! 🔬""",
     )
 
 
@@ -135,6 +136,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-

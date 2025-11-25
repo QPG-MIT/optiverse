@@ -3,11 +3,12 @@ Component Image Handler - Handles image loading, pasting, and asset management.
 
 Extracted from ComponentEditor to reduce file size and improve separation of concerns.
 """
+
 from __future__ import annotations
 
 import os
 import time
-from typing import TYPE_CHECKING, Optional, Callable
+from typing import TYPE_CHECKING, Callable
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -34,9 +35,9 @@ class ComponentImageHandler:
 
     def __init__(
         self,
-        canvas: "MultiLineCanvas",
+        canvas: MultiLineCanvas,
         parent_widget: QtWidgets.QWidget,
-        set_image_callback: Callable[[QtGui.QPixmap, Optional[str]], None],
+        set_image_callback: Callable[[QtGui.QPixmap, str | None], None],
         paste_json_callback: Callable[[], None],
     ):
         """
@@ -61,10 +62,7 @@ class ComponentImageHandler:
             True if image was loaded successfully, False otherwise
         """
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self.parent,
-            "Open Image",
-            "",
-            "Images (*.png *.jpg *.jpeg *.tif *.tiff *.svg)"
+            self.parent, "Open Image", "", "Images (*.png *.jpg *.jpeg *.tif *.tiff *.svg)"
         )
         if not path:
             return False
@@ -72,6 +70,7 @@ class ComponentImageHandler:
         if path.lower().endswith(".svg"):
             # Import here to avoid circular import
             from ...objects.views import MultiLineCanvas
+
             pix = MultiLineCanvas._render_svg_to_pixmap(path)
             if not pix:
                 QtWidgets.QMessageBox.warning(self.parent, "Load failed", "Invalid SVG.")
@@ -107,6 +106,7 @@ class ComponentImageHandler:
                     if low.endswith(self.IMAGE_EXTENSIONS):
                         if low.endswith(".svg"):
                             from ...objects.views import MultiLineCanvas
+
                             pix = MultiLineCanvas._render_svg_to_pixmap(path)
                             if pix:
                                 self._set_image(pix, path)
@@ -122,6 +122,7 @@ class ComponentImageHandler:
         if text and os.path.exists(text) and text.lower().endswith(self.IMAGE_EXTENSIONS):
             if text.lower().endswith(".svg"):
                 from ...objects.views import MultiLineCanvas
+
                 pix = MultiLineCanvas._render_svg_to_pixmap(text)
                 if pix:
                     self._set_image(pix, text)
@@ -135,11 +136,11 @@ class ComponentImageHandler:
         QtWidgets.QMessageBox.information(
             self.parent,
             "Paste Image",
-            "Clipboard doesn't contain an image (PNG/JPEG/TIFF/SVG) or an image file path/URL."
+            "Clipboard doesn't contain an image (PNG/JPEG/TIFF/SVG) or an image file path/URL.",
         )
         return False
 
-    def _pixmap_from_mime(self, mime: QtCore.QMimeData) -> Optional[QtGui.QPixmap]:
+    def _pixmap_from_mime(self, mime: QtCore.QMimeData) -> QtGui.QPixmap | None:
         """Extract pixmap from mime data."""
         if not mime:
             return None
@@ -160,6 +161,7 @@ class ComponentImageHandler:
 
         if "image/svg+xml" in mime.formats():
             from ...objects.views import MultiLineCanvas
+
             svg_bytes = mime.data("image/svg+xml")
             pix = MultiLineCanvas._render_svg_to_pixmap(bytes(svg_bytes))
             if pix:
@@ -267,6 +269,3 @@ class ComponentImageHandler:
         img.setDevicePixelRatio(1.0)
         img.save(dst, "PNG")
         return dst
-
-
-

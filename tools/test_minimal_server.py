@@ -5,6 +5,7 @@ Minimal WebSocket test server to verify Qt compatibility.
 This is a bare-bones server to test if Qt's QWebSocket can connect and stay connected.
 If this works, we know the problem is in the collaboration logic, not the base protocol.
 """
+
 import asyncio
 import signal
 import sys
@@ -68,10 +69,10 @@ async def main():
         host,
         port,
         # Critical settings for Qt compatibility
-        ping_interval=None,     # No automatic ping
-        ping_timeout=None,      # No timeout
-        close_timeout=10,       # Give time for clean shutdown
-        compression=None,       # No compression
+        ping_interval=None,  # No automatic ping
+        ping_timeout=None,  # No timeout
+        close_timeout=10,  # Give time for clean shutdown
+        compression=None,  # No compression
     )
 
     print(f"✓ Server ready and listening on ws://{host}:{port}")
@@ -110,8 +111,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"ERROR: {e}")
         import traceback
+
         traceback.print_exc()
         cleanup()
-
-
-

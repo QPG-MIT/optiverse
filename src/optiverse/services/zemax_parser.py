@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 _logger = logging.getLogger(__name__)
 
@@ -20,6 +19,7 @@ _logger = logging.getLogger(__name__)
 @dataclass
 class ZemaxSurface:
     """Parsed Zemax surface data."""
+
     number: int
     type: str = "STANDARD"
     curvature: float = 0.0  # 1/mm
@@ -34,7 +34,7 @@ class ZemaxSurface:
     def radius_mm(self) -> float:
         """Radius of curvature (mm). Returns inf for flat surfaces."""
         if abs(self.curvature) < 1e-10:
-            return float('inf')
+            return float("inf")
         return 1.0 / self.curvature
 
     @property
@@ -46,12 +46,13 @@ class ZemaxSurface:
 @dataclass
 class ZemaxFile:
     """Parsed Zemax file data."""
+
     name: str = ""
     mode: str = "SEQ"  # SEQ or NSC
-    wavelengths_um: List[float] = field(default_factory=list)
+    wavelengths_um: list[float] = field(default_factory=list)
     primary_wavelength_idx: int = 1  # 1-indexed
-    surfaces: List[ZemaxSurface] = field(default_factory=list)
-    notes: List[str] = field(default_factory=list)
+    surfaces: list[ZemaxSurface] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
     entrance_pupil_diameter: float = 0.0  # mm
 
     @property
@@ -79,7 +80,7 @@ class ZemaxParser:
         print(f"Surfaces: {zemax_data.num_surfaces}")
     """
 
-    def parse(self, filepath: str) -> Optional[ZemaxFile]:
+    def parse(self, filepath: str) -> ZemaxFile | None:
         """
         Parse a Zemax ZMX file.
 
@@ -90,7 +91,7 @@ class ZemaxParser:
             ZemaxFile object, or None if parsing fails
         """
         try:
-            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(filepath, encoding="utf-8", errors="ignore") as f:
                 lines = f.readlines()
 
             return self._parse_lines(lines)
@@ -102,7 +103,7 @@ class ZemaxParser:
             _logger.error(f"Error parsing Zemax file '{filepath}': {e}")
             return None
 
-    def _parse_lines(self, lines: List[str]) -> ZemaxFile:
+    def _parse_lines(self, lines: list[str]) -> ZemaxFile:
         """Parse lines from Zemax file."""
         zemax = ZemaxFile()
 
@@ -116,27 +117,27 @@ class ZemaxParser:
                 continue
 
             # Parse header fields
-            if line.startswith('NAME '):
+            if line.startswith("NAME "):
                 zemax.name = line[5:].strip()
 
-            elif line.startswith('MODE '):
+            elif line.startswith("MODE "):
                 zemax.mode = line[5:].strip()
 
-            elif line.startswith('NOTE '):
+            elif line.startswith("NOTE "):
                 # Extract note content (skip leading "0 ")
                 note_content = line[5:].strip()
-                if note_content.startswith('0 '):
+                if note_content.startswith("0 "):
                     note_content = note_content[2:]
                 zemax.notes.append(note_content)
 
-            elif line.startswith('ENPD '):
+            elif line.startswith("ENPD "):
                 # Entrance pupil diameter
                 try:
                     zemax.entrance_pupil_diameter = self._parse_float(line[5:])
                 except ValueError:
                     pass
 
-            elif line.startswith('WAVM '):
+            elif line.startswith("WAVM "):
                 # Wavelength: WAVM <index> <wavelength_um> <weight>
                 parts = line[5:].split()
                 if len(parts) >= 2:
@@ -146,14 +147,14 @@ class ZemaxParser:
                     except ValueError:
                         pass
 
-            elif line.startswith('PWAV '):
+            elif line.startswith("PWAV "):
                 # Primary wavelength index
                 try:
                     zemax.primary_wavelength_idx = int(line[5:].strip())
                 except ValueError:
                     pass
 
-            elif line.startswith('SURF '):
+            elif line.startswith("SURF "):
                 # Surface definition
                 surf_num = int(line[5:].strip())
                 i, surface = self._parse_surface_block(lines, i + 1, surf_num)
@@ -165,10 +166,7 @@ class ZemaxParser:
         return zemax
 
     def _parse_surface_block(
-        self,
-        lines: List[str],
-        start_idx: int,
-        surf_num: int
+        self, lines: list[str], start_idx: int, surf_num: int
     ) -> tuple[int, ZemaxSurface]:
         """
         Parse a SURF block.
@@ -184,57 +182,57 @@ class ZemaxParser:
             line = line_raw.strip()
 
             # End of surface block when we hit next SURF or major keyword
-            if line.startswith(('SURF ', 'BLNK', 'TOL', 'MNUM', 'MOFF')):
+            if line.startswith(("SURF ", "BLNK", "TOL", "MNUM", "MOFF")):
                 break
 
             # Skip empty lines or lines that aren't indented (surface properties are indented)
-            if not line or not line_raw.startswith('  '):
+            if not line or not line_raw.startswith("  "):
                 i += 1
                 continue
 
             # Parse surface properties (indented lines)
-            if line.startswith('TYPE '):
+            if line.startswith("TYPE "):
                 surface.type = line[5:].split()[0]
 
-            elif line.startswith('CURV '):
+            elif line.startswith("CURV "):
                 # CURV <value> ...
                 parts = line[5:].split()
                 if parts:
                     surface.curvature = self._parse_float(parts[0])
 
-            elif line.startswith('DISZ '):
+            elif line.startswith("DISZ "):
                 # DISZ <value>
                 parts = line[5:].split()
                 if parts:
                     val_str = parts[0]
-                    if val_str.upper() == 'INFINITY':
-                        surface.thickness = float('inf')
+                    if val_str.upper() == "INFINITY":
+                        surface.thickness = float("inf")
                     else:
                         surface.thickness = self._parse_float(val_str)
 
-            elif line.startswith('GLAS '):
+            elif line.startswith("GLAS "):
                 # GLAS <material> ...
                 parts = line[5:].split()
                 if parts:
                     surface.glass = parts[0]
 
-            elif line.startswith('DIAM '):
+            elif line.startswith("DIAM "):
                 # DIAM <value> ...
                 parts = line[5:].split()
                 if parts:
                     surface.diameter = self._parse_float(parts[0])
 
-            elif line.startswith('COAT '):
+            elif line.startswith("COAT "):
                 # COAT <coating_name>
                 parts = line[5:].split()
                 if parts:
                     surface.coating = parts[0]
 
-            elif line.startswith('COMM '):
+            elif line.startswith("COMM "):
                 # COMM <comment>
                 surface.comment = line[5:].strip()
 
-            elif line.startswith('STOP'):
+            elif line.startswith("STOP"):
                 surface.is_stop = True
 
             i += 1
@@ -276,12 +274,10 @@ class ZemaxParser:
 # Quick test
 if __name__ == "__main__":
     import sys
+
     logging.basicConfig(level=logging.DEBUG, format="%(message)s")
     if len(sys.argv) > 1:
         parser = ZemaxParser()
         data = parser.parse(sys.argv[1])
         if data:
             _logger.info(parser.format_summary(data))
-
-
-

@@ -4,9 +4,9 @@ Log window for viewing application debug messages.
 
 from __future__ import annotations
 
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtGui, QtWidgets
 
-from ...services.log_service import get_log_service, LogMessage, LogLevel
+from ...services.log_service import LogLevel, LogMessage, get_log_service
 
 
 class LogWindow(QtWidgets.QDialog):
@@ -135,8 +135,9 @@ class LogWindow(QtWidgets.QDialog):
     def _on_new_message(self, message: LogMessage):
         """Handle new log message from service."""
         # Update category combo if needed
-        if message.category not in [self.category_combo.itemData(i)
-                                     for i in range(self.category_combo.count())]:
+        if message.category not in [
+            self.category_combo.itemData(i) for i in range(self.category_combo.count())
+        ]:
             self._update_category_combo()
 
         # Add message if it passes filters
@@ -213,7 +214,7 @@ class LogWindow(QtWidgets.QDialog):
             self,
             "Clear Log",
             "Are you sure you want to clear all log messages?",
-            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
         )
 
         if reply == QtWidgets.QMessageBox.StandardButton.Yes:
@@ -224,36 +225,24 @@ class LogWindow(QtWidgets.QDialog):
     def _export_log(self):
         """Export log to file."""
         filename, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self,
-            "Export Log",
-            "optiverse_log.txt",
-            "Text Files (*.txt);;All Files (*)"
+            self, "Export Log", "optiverse_log.txt", "Text Files (*.txt);;All Files (*)"
         )
 
         if filename:
             try:
-                with open(filename, 'w', encoding='utf-8') as f:
+                with open(filename, "w", encoding="utf-8") as f:
                     messages = self.log_service.get_messages()
                     for msg in messages:
                         f.write(msg.format() + "\n")
 
                 QtWidgets.QMessageBox.information(
-                    self,
-                    "Export Successful",
-                    f"Log exported to:\n{filename}"
+                    self, "Export Successful", f"Log exported to:\n{filename}"
                 )
             except OSError as e:
-                QtWidgets.QMessageBox.critical(
-                    self,
-                    "Export Failed",
-                    f"Failed to export log:\n{e}"
-                )
+                QtWidgets.QMessageBox.critical(self, "Export Failed", f"Failed to export log:\n{e}")
 
     def closeEvent(self, event):
         """Clean up when window is closed."""
         # Unregister from log service
         self.log_service.remove_listener(self._on_new_message)
         super().closeEvent(event)
-
-
-

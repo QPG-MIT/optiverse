@@ -18,9 +18,10 @@ Example usage:
         if hasattr(item, 'edited'):
             item.edited.emit()  # No type checking here
 """
+
 from __future__ import annotations
 
-from typing import Any, Dict, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from PyQt6.QtCore import pyqtSignal
 
@@ -56,7 +57,7 @@ class Serializable(Protocol):
     type_name: str
     item_uuid: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert item state to a dictionary for serialization."""
         ...
 
@@ -71,11 +72,11 @@ class Undoable(Protocol):
     - Can restore state via `apply_state()`
     """
 
-    def capture_state(self) -> Dict[str, Any]:
+    def capture_state(self) -> dict[str, Any]:
         """Capture current state for undo/redo."""
         ...
 
-    def apply_state(self, state: Dict[str, Any]) -> None:
+    def apply_state(self, state: dict[str, Any]) -> None:
         """Apply a previously captured state."""
         ...
 
@@ -164,7 +165,7 @@ class HasInterfaces(Protocol):
         """Get the interface definitions."""
         ...
 
-    def get_interface_positions(self) -> Dict[str, tuple[float, float]]:
+    def get_interface_positions(self) -> dict[str, tuple[float, float]]:
         """Get positions of all interfaces in scene coordinates."""
         ...
 
@@ -212,6 +213,3 @@ class HasSnapping(Protocol):
 
     magnetic_snap: bool
     _snap_helper: Any  # SnapHelper
-
-
-

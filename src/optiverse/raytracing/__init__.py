@@ -13,17 +13,10 @@ Architecture:
     - trace_rays_polymorphic: Main raytracing engine (O(n) per ray)
 """
 
-from .ray import Ray, RayPath, Polarization
+from .elements import Beamsplitter, Dichroic, Lens, Mirror, RefractiveInterfaceElement, Waveplate
 from .elements.base import IOpticalElement, RayIntersection
-from .elements import (
-    Mirror,
-    Lens,
-    RefractiveInterfaceElement,
-    Beamsplitter,
-    Waveplate,
-    Dichroic
-)
 from .engine import trace_rays_polymorphic
+from .ray import Polarization, Ray, RayPath
 
 __all__ = [
     # Ray data structures
@@ -42,6 +35,3 @@ __all__ = [
     # Raytracing engine
     "trace_rays_polymorphic",
 ]
-
-
-

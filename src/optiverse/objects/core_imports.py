@@ -15,7 +15,5 @@ def get_rotate_commands():
         Tuple of (RotateItemCommand, RotateItemsCommand)
     """
     from ..core.undo_commands import RotateItemCommand, RotateItemsCommand
+
     return RotateItemCommand, RotateItemsCommand
-
-
-

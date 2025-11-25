@@ -3,6 +3,7 @@ Core utility functions for Optiverse.
 
 This module provides common utility functions used across the codebase.
 """
+
 from __future__ import annotations
 
 import re
@@ -29,6 +30,3 @@ def slugify(name: str, separator: str = "_") -> str:
     # Replace any non-alphanumeric characters with the separator
     s = re.sub(r"[^a-z0-9]+", separator, s).strip(separator)
     return s or "component"
-
-
-

@@ -4,6 +4,7 @@ Optiverse Application Entry Point.
 This module provides the main() function that bootstraps the Qt application.
 Theme management is delegated to ui.theme_manager.
 """
+
 from __future__ import annotations
 
 import logging
@@ -11,7 +12,7 @@ import os
 import sys
 from pathlib import Path
 
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtGui, QtWidgets
 
 # Module logger
 _logger = logging.getLogger(__name__)
@@ -40,13 +41,14 @@ def _configure_macos_app_name() -> str:
     Returns the original argv[0] to restore after QApplication creation.
     """
     original_argv0 = sys.argv[0]
-    sys.argv[0] = 'Optiverse'
+    sys.argv[0] = "Optiverse"
 
     # Use pyobjc to set process name (macOS only)
     try:
         from Foundation import NSProcessInfo
+
         processInfo = NSProcessInfo.processInfo()
-        processInfo.setProcessName_('Optiverse')
+        processInfo.setProcessName_("Optiverse")
         _logger.info("macOS process name set to 'Optiverse' via pyobjc")
     except ImportError:
         _logger.debug("pyobjc not available - app name in menu bar may show as 'Python'")
@@ -60,6 +62,7 @@ def _configure_macos_activation() -> None:
     """Configure macOS NSApp activation after QApplication creation."""
     try:
         from AppKit import NSRunningApplication
+
         NSRunningApplication.currentApplication().activateWithOptions_(1 << 1)
         _logger.info("macOS NSApp activation configured")
     except Exception as e:
@@ -84,12 +87,13 @@ def main() -> int:
 
     # Install global error handler FIRST (before any Qt code)
     from ..services.error_handler import get_error_handler, install_qt_message_handler
+
     error_handler = get_error_handler()
     _logger.info("Global error handler installed")
 
     # Increase Qt's image allocation limit for large SVG cache files
     # Default is 256MB, we set to 1GB to allow high-resolution cached PNGs
-    os.environ['QT_IMAGEIO_MAXALLOC'] = '1024'  # In MB
+    os.environ["QT_IMAGEIO_MAXALLOC"] = "1024"  # In MB
 
     # Configure OpenGL before QApplication
     _configure_opengl()
@@ -122,12 +126,14 @@ def main() -> int:
         app.setWindowIcon(QtGui.QIcon(str(icon_path)))
 
     # Apply initial theme based on system preference
-    from ..ui.theme_manager import detect_system_dark_mode, apply_theme
+    from ..ui.theme_manager import apply_theme, detect_system_dark_mode
+
     system_dark_mode = detect_system_dark_mode()
     apply_theme(system_dark_mode)
 
     # Create and show main window
     from ..ui.views.main_window import MainWindow
+
     try:
         window = MainWindow()
         window.show()
@@ -140,5 +146,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-

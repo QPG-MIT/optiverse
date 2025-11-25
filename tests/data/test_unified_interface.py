@@ -4,9 +4,11 @@ Test suite for unified optical interface model.
 This test suite defines the expected behavior of the new unified interface model
 before implementation (TDD approach).
 """
-import pytest
-import numpy as np
+
 from dataclasses import asdict
+
+import numpy as np
+import pytest
 
 
 class TestOpticalProperties:
@@ -69,10 +71,7 @@ class TestOpticalProperties:
         from optiverse.data.optical_properties import BeamsplitterProperties
 
         props = BeamsplitterProperties(
-            transmission=0.99,
-            reflection=0.99,
-            is_polarizing=True,
-            polarization_axis_deg=0.0
+            transmission=0.99, reflection=0.99, is_polarizing=True, polarization_axis_deg=0.0
         )
 
         assert props.is_polarizing is True
@@ -92,9 +91,7 @@ class TestOpticalProperties:
         from optiverse.data.optical_properties import DichroicProperties
 
         props = DichroicProperties(
-            cutoff_wavelength_nm=550.0,
-            transition_width_nm=50.0,
-            pass_type="longpass"
+            cutoff_wavelength_nm=550.0, transition_width_nm=50.0, pass_type="longpass"
         )
 
         assert props.cutoff_wavelength_nm == 550.0
@@ -104,8 +101,12 @@ class TestOpticalProperties:
     def test_properties_are_serializable(self):
         """Test that all properties can be converted to dict"""
         from optiverse.data.optical_properties import (
-            RefractiveProperties, LensProperties, MirrorProperties,
-            BeamsplitterProperties, WaveplateProperties, DichroicProperties
+            BeamsplitterProperties,
+            DichroicProperties,
+            LensProperties,
+            MirrorProperties,
+            RefractiveProperties,
+            WaveplateProperties,
         )
 
         props_list = [
@@ -114,7 +115,9 @@ class TestOpticalProperties:
             MirrorProperties(),
             BeamsplitterProperties(transmission=0.5, reflection=0.5),
             WaveplateProperties(phase_shift_deg=90.0, fast_axis_deg=45.0),
-            DichroicProperties(cutoff_wavelength_nm=550.0, transition_width_nm=50.0, pass_type="longpass"),
+            DichroicProperties(
+                cutoff_wavelength_nm=550.0, transition_width_nm=50.0, pass_type="longpass"
+            ),
         ]
 
         for props in props_list:
@@ -194,21 +197,14 @@ class TestOpticalInterface:
 
     def test_create_lens_interface(self):
         """Test creating a lens interface"""
-        from optiverse.data.optical_interface import OpticalInterface
         from optiverse.data.geometry import LineSegment
+        from optiverse.data.optical_interface import OpticalInterface
         from optiverse.data.optical_properties import LensProperties
 
-        geometry = LineSegment(
-            p1=np.array([0.0, -15.0]),
-            p2=np.array([0.0, 15.0])
-        )
+        geometry = LineSegment(p1=np.array([0.0, -15.0]), p2=np.array([0.0, 15.0]))
         properties = LensProperties(efl_mm=100.0)
 
-        interface = OpticalInterface(
-            geometry=geometry,
-            properties=properties,
-            name="Test Lens"
-        )
+        interface = OpticalInterface(geometry=geometry, properties=properties, name="Test Lens")
 
         assert interface.name == "Test Lens"
         assert interface.geometry.length() == 30.0
@@ -216,39 +212,28 @@ class TestOpticalInterface:
 
     def test_create_mirror_interface(self):
         """Test creating a mirror interface"""
-        from optiverse.data.optical_interface import OpticalInterface
         from optiverse.data.geometry import LineSegment
+        from optiverse.data.optical_interface import OpticalInterface
         from optiverse.data.optical_properties import MirrorProperties
 
-        geometry = LineSegment(
-            p1=np.array([0.0, -20.0]),
-            p2=np.array([0.0, 20.0])
-        )
+        geometry = LineSegment(p1=np.array([0.0, -20.0]), p2=np.array([0.0, 20.0]))
         properties = MirrorProperties(reflectivity=0.99)
 
-        interface = OpticalInterface(
-            geometry=geometry,
-            properties=properties
-        )
+        interface = OpticalInterface(geometry=geometry, properties=properties)
 
         assert interface.properties.reflectivity == 0.99
 
     def test_create_refractive_interface(self):
         """Test creating a refractive interface"""
-        from optiverse.data.optical_interface import OpticalInterface
         from optiverse.data.geometry import LineSegment
+        from optiverse.data.optical_interface import OpticalInterface
         from optiverse.data.optical_properties import RefractiveProperties
 
-        geometry = LineSegment(
-            p1=np.array([0.0, -5.0]),
-            p2=np.array([0.0, 5.0])
-        )
+        geometry = LineSegment(p1=np.array([0.0, -5.0]), p2=np.array([0.0, 5.0]))
         properties = RefractiveProperties(n1=1.0, n2=1.5)
 
         interface = OpticalInterface(
-            geometry=geometry,
-            properties=properties,
-            name="Air-Glass Interface"
+            geometry=geometry, properties=properties, name="Air-Glass Interface"
         )
 
         assert interface.properties.n1 == 1.0
@@ -257,17 +242,18 @@ class TestOpticalInterface:
 
     def test_interface_get_element_type(self):
         """Test getting element type from interface"""
-        from optiverse.data.optical_interface import OpticalInterface
         from optiverse.data.geometry import LineSegment
+        from optiverse.data.optical_interface import OpticalInterface
         from optiverse.data.optical_properties import (
-            LensProperties, MirrorProperties, RefractiveProperties,
-            BeamsplitterProperties, WaveplateProperties, DichroicProperties
+            BeamsplitterProperties,
+            DichroicProperties,
+            LensProperties,
+            MirrorProperties,
+            RefractiveProperties,
+            WaveplateProperties,
         )
 
-        geometry = LineSegment(
-            p1=np.array([0.0, -5.0]),
-            p2=np.array([0.0, 5.0])
-        )
+        geometry = LineSegment(p1=np.array([0.0, -5.0]), p2=np.array([0.0, 5.0]))
 
         # Test different property types
         test_cases = [
@@ -276,7 +262,12 @@ class TestOpticalInterface:
             (RefractiveProperties(n1=1.0, n2=1.5), "refractive"),
             (BeamsplitterProperties(transmission=0.5, reflection=0.5), "beamsplitter"),
             (WaveplateProperties(phase_shift_deg=90.0, fast_axis_deg=0.0), "waveplate"),
-            (DichroicProperties(cutoff_wavelength_nm=550.0, transition_width_nm=50.0, pass_type="longpass"), "dichroic"),
+            (
+                DichroicProperties(
+                    cutoff_wavelength_nm=550.0, transition_width_nm=50.0, pass_type="longpass"
+                ),
+                "dichroic",
+            ),
         ]
 
         for properties, expected_type in test_cases:
@@ -285,21 +276,14 @@ class TestOpticalInterface:
 
     def test_interface_serialization(self):
         """Test interface serialization to dict"""
-        from optiverse.data.optical_interface import OpticalInterface
         from optiverse.data.geometry import LineSegment
+        from optiverse.data.optical_interface import OpticalInterface
         from optiverse.data.optical_properties import LensProperties
 
-        geometry = LineSegment(
-            p1=np.array([0.0, -15.0]),
-            p2=np.array([0.0, 15.0])
-        )
+        geometry = LineSegment(p1=np.array([0.0, -15.0]), p2=np.array([0.0, 15.0]))
         properties = LensProperties(efl_mm=100.0)
 
-        interface = OpticalInterface(
-            geometry=geometry,
-            properties=properties,
-            name="Test Lens"
-        )
+        interface = OpticalInterface(geometry=geometry, properties=properties, name="Test Lens")
 
         # Serialize
         data = interface.to_dict()
@@ -321,15 +305,10 @@ class TestOpticalInterface:
         from optiverse.data.optical_interface import OpticalInterface
 
         data = {
-            "geometry": {
-                "p1": [0.0, -15.0],
-                "p2": [0.0, 15.0]
-            },
-            "properties": {
-                "efl_mm": 100.0
-            },
+            "geometry": {"p1": [0.0, -15.0], "p2": [0.0, 15.0]},
+            "properties": {"efl_mm": 100.0},
             "property_type": "lens",
-            "name": "Test Lens"
+            "name": "Test Lens",
         }
 
         # Deserialize
@@ -343,18 +322,15 @@ class TestOpticalInterface:
 
     def test_interface_roundtrip_serialization(self):
         """Test that serialization roundtrip preserves data"""
-        from optiverse.data.optical_interface import OpticalInterface
         from optiverse.data.geometry import LineSegment
+        from optiverse.data.optical_interface import OpticalInterface
         from optiverse.data.optical_properties import RefractiveProperties
 
         # Create interface
         original = OpticalInterface(
-            geometry=LineSegment(
-                p1=np.array([1.0, 2.0]),
-                p2=np.array([3.0, 4.0])
-            ),
+            geometry=LineSegment(p1=np.array([1.0, 2.0]), p2=np.array([3.0, 4.0])),
             properties=RefractiveProperties(n1=1.0, n2=1.5, curvature_radius_mm=50.0),
-            name="Glass Surface"
+            name="Glass Surface",
         )
 
         # Roundtrip
@@ -375,8 +351,8 @@ class TestBackwardCompatibility:
 
     def test_convert_from_old_interface_definition(self):
         """Test converting old InterfaceDefinition to new OpticalInterface"""
-        from optiverse.data.optical_interface import OpticalInterface
         from optiverse.core.interface_definition import InterfaceDefinition
+        from optiverse.data.optical_interface import OpticalInterface
 
         # Create old-style interface
         old_interface = InterfaceDefinition(
@@ -386,7 +362,7 @@ class TestBackwardCompatibility:
             y2_mm=10.0,
             element_type="lens",
             efl_mm=100.0,
-            name="Old Lens"
+            name="Old Lens",
         )
 
         # Convert to new format
@@ -400,18 +376,12 @@ class TestBackwardCompatibility:
 
     def test_convert_from_old_refractive_interface(self):
         """Test converting old RefractiveInterface to new OpticalInterface"""
-        from optiverse.data.optical_interface import OpticalInterface
         from optiverse.core.models import RefractiveInterface
+        from optiverse.data.optical_interface import OpticalInterface
 
         # Create old-style refractive interface
         old_interface = RefractiveInterface(
-            x1_mm=0.0,
-            y1_mm=-5.0,
-            x2_mm=0.0,
-            y2_mm=5.0,
-            n1=1.0,
-            n2=1.5,
-            is_beam_splitter=False
+            x1_mm=0.0, y1_mm=-5.0, x2_mm=0.0, y2_mm=5.0, n1=1.0, n2=1.5, is_beam_splitter=False
         )
 
         # Convert to new format
@@ -441,21 +411,24 @@ class TestTypeChecking:
 
     def test_interface_property_type_checking(self):
         """Test checking what type of properties an interface has"""
-        from optiverse.data.optical_interface import OpticalInterface
         from optiverse.data.geometry import LineSegment
+        from optiverse.data.optical_interface import OpticalInterface
         from optiverse.data.optical_properties import (
-            LensProperties, MirrorProperties, RefractiveProperties
+            LensProperties,
+            MirrorProperties,
+            RefractiveProperties,
         )
 
-        geometry = LineSegment(
-            p1=np.array([0.0, -5.0]),
-            p2=np.array([0.0, 5.0])
-        )
+        geometry = LineSegment(p1=np.array([0.0, -5.0]), p2=np.array([0.0, 5.0]))
 
         # Test with different property types
-        lens_interface = OpticalInterface(geometry=geometry, properties=LensProperties(efl_mm=100.0))
+        lens_interface = OpticalInterface(
+            geometry=geometry, properties=LensProperties(efl_mm=100.0)
+        )
         mirror_interface = OpticalInterface(geometry=geometry, properties=MirrorProperties())
-        refractive_interface = OpticalInterface(geometry=geometry, properties=RefractiveProperties(n1=1.0, n2=1.5))
+        refractive_interface = OpticalInterface(
+            geometry=geometry, properties=RefractiveProperties(n1=1.0, n2=1.5)
+        )
 
         assert isinstance(lens_interface.properties, LensProperties)
         assert isinstance(mirror_interface.properties, MirrorProperties)
@@ -464,6 +437,3 @@ class TestTypeChecking:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-
-
-

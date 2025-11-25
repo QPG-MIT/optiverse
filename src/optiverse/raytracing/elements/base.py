@@ -3,9 +3,10 @@ Base interface for all optical elements.
 
 Defines the contract that all optical elements must implement.
 """
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Optional
 
 import numpy as np
 
@@ -17,12 +18,13 @@ class RayIntersection:
     """
     Data structure for ray-element intersection information.
     """
-    distance: float                # Distance from ray origin to hit point
-    point: np.ndarray             # Hit point coordinates [x, y]
-    tangent: np.ndarray           # Surface tangent at hit point (normalized)
-    normal: np.ndarray            # Surface normal at hit point (normalized)
-    center: np.ndarray            # Center point of the surface segment
-    length: float                 # Length of the surface segment
+
+    distance: float  # Distance from ray origin to hit point
+    point: np.ndarray  # Hit point coordinates [x, y]
+    tangent: np.ndarray  # Surface tangent at hit point (normalized)
+    normal: np.ndarray  # Surface normal at hit point (normalized)
+    center: np.ndarray  # Center point of the surface segment
+    length: float  # Length of the surface segment
     interface: Optional[object] = None  # Optional: Reference to optical interface
 
 
@@ -41,7 +43,7 @@ class IOpticalElement(ABC):
     """
 
     @abstractmethod
-    def get_geometry(self) -> Tuple[np.ndarray, np.ndarray]:
+    def get_geometry(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Get element geometry as line segment.
 
@@ -52,12 +54,8 @@ class IOpticalElement(ABC):
 
     @abstractmethod
     def interact(
-        self,
-        ray: RayState,
-        hit_point: np.ndarray,
-        normal: np.ndarray,
-        tangent: np.ndarray
-    ) -> List[RayState]:
+        self, ray: RayState, hit_point: np.ndarray, normal: np.ndarray, tangent: np.ndarray
+    ) -> list[RayState]:
         """
         Process ray interaction with this element.
 
@@ -77,7 +75,7 @@ class IOpticalElement(ABC):
         pass
 
     @abstractmethod
-    def get_bounding_box(self) -> Tuple[np.ndarray, np.ndarray]:
+    def get_bounding_box(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Get axis-aligned bounding box for spatial indexing.
 
@@ -85,6 +83,3 @@ class IOpticalElement(ABC):
             Tuple of (min_corner, max_corner) where each is [x, y] in mm
         """
         pass
-
-
-

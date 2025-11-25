@@ -2,16 +2,19 @@
 """
 Quick test to verify PathMeasureItem undo/redo functionality.
 """
+
 import sys
+
 import numpy as np
-from PyQt6 import QtWidgets, QtCore
+from PyQt6 import QtWidgets
 
 # Add src to path
-sys.path.insert(0, 'src')
+sys.path.insert(0, "src")
 
-from optiverse.objects.annotations.path_measure_item import PathMeasureItem
 from optiverse.core.undo_commands import AddItemCommand, AddMultipleItemsCommand
 from optiverse.core.undo_stack import UndoStack
+from optiverse.objects.annotations.path_measure_item import PathMeasureItem
+
 
 def test_single_path_measure():
     """Test single PathMeasureItem with undo/redo."""
@@ -48,6 +51,7 @@ def test_single_path_measure():
     print("✅ Redo works - item restored")
 
     print("✅ Single PathMeasureItem test PASSED\n")
+
 
 def test_multiple_path_measures():
     """Test multiple PathMeasureItems (beam splitter case) with undo/redo."""
@@ -93,6 +97,7 @@ def test_multiple_path_measures():
     print("✅ Redo works - all 3 items restored atomically")
 
     print("✅ Multiple PathMeasureItems test PASSED\n")
+
 
 def test_delete_with_undo():
     """Test that deletion also works with undo."""
@@ -146,6 +151,7 @@ def test_delete_with_undo():
 
     print("✅ Delete with undo test PASSED\n")
 
+
 if __name__ == "__main__":
     print("=" * 60)
     print("PathMeasureItem Undo/Redo Functionality Tests")
@@ -171,7 +177,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ UNEXPECTED ERROR: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
-
-

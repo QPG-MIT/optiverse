@@ -25,7 +25,3 @@ class SettingsService:
 
     def set_value(self, key: str, value: Any) -> None:
         self._settings.setValue(key, value)
-
-
-
-

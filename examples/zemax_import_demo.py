@@ -11,17 +11,17 @@ Usage:
     python examples/zemax_import_demo.py /path/to/file.zmx
 """
 
-import sys
 import os
+import sys
 
 # Add src to path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, os.path.join(project_root, 'src'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(project_root, "src"))
 
 try:
-    from optiverse.services.zemax_parser import ZemaxParser
-    from optiverse.services.zemax_converter import ZemaxToInterfaceConverter
     from optiverse.services.glass_catalog import GlassCatalog
+    from optiverse.services.zemax_converter import ZemaxToInterfaceConverter
+    from optiverse.services.zemax_parser import ZemaxParser
 except ImportError as e:
     print(f"Import error: {e}")
     print("Make sure you run this from the project root.")
@@ -83,9 +83,9 @@ def demo_zemax_import(zmx_filepath: str):
     for material in sorted(unique_materials):
         n = catalog.get_refractive_index(material, wavelength_um)
         if n:
-            print(f"  {material:20s} @ {wavelength_um*1000:.1f}nm: n = {n:.5f}")
+            print(f"  {material:20s} @ {wavelength_um * 1000:.1f}nm: n = {n:.5f}")
         else:
-            print(f"  {material:20s} @ {wavelength_um*1000:.1f}nm: NOT FOUND")
+            print(f"  {material:20s} @ {wavelength_um * 1000:.1f}nm: NOT FOUND")
     print()
 
     # Step 3: Convert to InterfaceDefinition objects
@@ -111,7 +111,7 @@ def demo_zemax_import(zmx_filepath: str):
 
     if component.interfaces_v2:
         for i, iface in enumerate(component.interfaces_v2):
-            print(f"Interface {i+1}:")
+            print(f"Interface {i + 1}:")
             print(f"  Name:     {iface.name}")
             print(f"  Type:     {iface.element_type}")
             print(f"  Position: x={iface.x1_mm:.3f} mm, y=±{abs(iface.y1_mm):.3f} mm")
@@ -150,8 +150,9 @@ def demo_zemax_import(zmx_filepath: str):
     print_separator("-")
     print()
 
-    from optiverse.core.models import serialize_component
     import json
+
+    from optiverse.core.models import serialize_component
 
     component_dict = serialize_component(component)
 
@@ -162,7 +163,9 @@ def demo_zemax_import(zmx_filepath: str):
         "kind": component_dict["kind"],
         "object_height_mm": component_dict["object_height_mm"],
         "num_interfaces": len(component_dict.get("interfaces_v2", [])),
-        "first_interface": component_dict.get("interfaces_v2", [{}])[0] if component_dict.get("interfaces_v2") else {}
+        "first_interface": component_dict.get("interfaces_v2", [{}])[0]
+        if component_dict.get("interfaces_v2")
+        else {},
     }
 
     print(json.dumps(excerpt, indent=2))
@@ -202,6 +205,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-

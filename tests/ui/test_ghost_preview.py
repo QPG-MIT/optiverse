@@ -4,17 +4,18 @@ Tests for ghost preview during drag/drop operations.
 Ghost preview shows a semi-transparent preview of components when
 dragging from the library to the canvas.
 """
+
 import json
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
 import pytest
-from PyQt6 import QtCore, QtWidgets, QtGui
+from PyQt6 import QtCore, QtGui, QtWidgets
 
-from optiverse.objects import GraphicsView, ComponentItem
+from optiverse.objects import GraphicsView
 from tests.helpers.ui_test_helpers import (
+    is_beamsplitter_component,
     is_lens_component,
     is_mirror_component,
-    is_beamsplitter_component,
 )
 
 
@@ -208,8 +209,7 @@ class TestGhostPreviewDragEvents:
         # Create drag enter event with component mime data
         mime_data = QtCore.QMimeData()
         mime_data.setData(
-            "application/x-optics-component",
-            json.dumps(sample_lens_record).encode("utf-8")
+            "application/x-optics-component", json.dumps(sample_lens_record).encode("utf-8")
         )
 
         event = QtGui.QDragEnterEvent(
@@ -217,7 +217,7 @@ class TestGhostPreviewDragEvents:
             QtCore.Qt.DropAction.CopyAction,
             mime_data,
             QtCore.Qt.MouseButton.LeftButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
 
         # Initially no ghost
@@ -239,8 +239,7 @@ class TestGhostPreviewDragEvents:
         # Create drag move event at different position
         mime_data = QtCore.QMimeData()
         mime_data.setData(
-            "application/x-optics-component",
-            json.dumps(sample_lens_record).encode("utf-8")
+            "application/x-optics-component", json.dumps(sample_lens_record).encode("utf-8")
         )
 
         event = QtGui.QDragMoveEvent(
@@ -248,7 +247,7 @@ class TestGhostPreviewDragEvents:
             QtCore.Qt.DropAction.CopyAction,
             mime_data,
             QtCore.Qt.MouseButton.LeftButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
 
         # Process event
@@ -286,8 +285,7 @@ class TestGhostPreviewDragEvents:
         # Create drop event
         mime_data = QtCore.QMimeData()
         mime_data.setData(
-            "application/x-optics-component",
-            json.dumps(sample_lens_record).encode("utf-8")
+            "application/x-optics-component", json.dumps(sample_lens_record).encode("utf-8")
         )
 
         event = QtGui.QDropEvent(
@@ -295,7 +293,7 @@ class TestGhostPreviewDragEvents:
             QtCore.Qt.DropAction.CopyAction,
             mime_data,
             QtCore.Qt.MouseButton.LeftButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
 
         # Process event (need parent with on_drop_component method)
@@ -380,6 +378,3 @@ class TestGhostPreviewDefaultAngles:
         ghost = graphics_view._ghost_item
 
         assert ghost.rotation() == 45.0
-
-
-

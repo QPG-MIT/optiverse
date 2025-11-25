@@ -8,11 +8,11 @@ Tests the full workflow:
 3. Messages are exchanged
 4. Server cleans up properly
 """
+
 import sys
 import time
-import subprocess
-import signal
-from PyQt6.QtCore import QCoreApplication, QUrl, QTimer
+
+from PyQt6.QtCore import QCoreApplication, QTimer, QUrl
 from PyQt6.QtWebSockets import QWebSocket
 
 
@@ -95,14 +95,14 @@ class CollaborationTest:
     def on_message(self, message: str):
         """Called when message received."""
         self.messages_received.append(message)
-        print(f"\n✓ TEST STEP 2: MESSAGE RECEIVED")
+        print("\n✓ TEST STEP 2: MESSAGE RECEIVED")
         print(f"  Message: {message[:100]}")
         print(f"  Total messages: {len(self.messages_received)}")
 
     def on_error(self, error_code):
         """Called on error."""
         error_str = self.ws.errorString()
-        print(f"\n✗ TEST FAILED: ERROR")
+        print("\n✗ TEST FAILED: ERROR")
         print(f"  Code: {error_code}")
         print(f"  Error: {error_str}")
 
@@ -113,9 +113,10 @@ class CollaborationTest:
         """Send heartbeat ping."""
         if self.connected:
             import json
+
             message = json.dumps({"type": "ping"})
             self.ws.sendTextMessage(message)
-            print(f"\n→ Sent heartbeat ping")
+            print("\n→ Sent heartbeat ping")
 
     def check_success(self):
         """Check if test passed after 15 seconds."""
@@ -123,7 +124,7 @@ class CollaborationTest:
             print("\n" + "=" * 70)
             print("✓ TEST PASSED")
             print("=" * 70)
-            print(f"Connection stayed alive for 15+ seconds")
+            print("Connection stayed alive for 15+ seconds")
             print(f"Messages received: {len(self.messages_received)}")
             print(f"Connection state: {self.ws.state()}")
             print("=" * 70)
@@ -184,7 +185,7 @@ def main():
     test = CollaborationTest()
     test.start_test("ws://localhost:8765/ws/test_session/test_user")
 
-    exit_code = app.exec()
+    app.exec()
 
     # Return appropriate exit code
     if test.test_passed:
@@ -197,6 +198,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-

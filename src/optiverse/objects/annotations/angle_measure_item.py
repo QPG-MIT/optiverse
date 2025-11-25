@@ -3,28 +3,29 @@ Angle Measure Item - Measures angles between two lines.
 
 Displays an angle arc with the angle value in degrees.
 """
+
 from __future__ import annotations
 
 import math
 import uuid
-from typing import Optional, Dict, Any
+from typing import Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
-from ...core.zorder_utils import handle_z_order_from_menu
 from ...core.ui_constants import (
-    ANGLE_MEASURE_LINE_WIDTH,
-    ANGLE_MEASURE_ARC_WIDTH,
-    ANGLE_MEASURE_ARC_RADIUS,
-    ANGLE_MEASURE_ENDPOINT_RADIUS,
-    ANGLE_MEASURE_LINE_COLOR,
     ANGLE_MEASURE_ARC_COLOR,
+    ANGLE_MEASURE_ARC_RADIUS,
+    ANGLE_MEASURE_ARC_WIDTH,
+    ANGLE_MEASURE_ENDPOINT_COLOR,
+    ANGLE_MEASURE_ENDPOINT_RADIUS,
+    ANGLE_MEASURE_ENDPOINT_SELECTED_COLOR,
     ANGLE_MEASURE_LABEL_BG_COLOR,
     ANGLE_MEASURE_LABEL_TEXT_COLOR,
-    ANGLE_MEASURE_ENDPOINT_COLOR,
-    ANGLE_MEASURE_ENDPOINT_SELECTED_COLOR,
+    ANGLE_MEASURE_LINE_COLOR,
+    ANGLE_MEASURE_LINE_WIDTH,
     SELECTION_INDICATOR_COLOR,
 )
+from ...core.zorder_utils import handle_z_order_from_menu
 
 
 class AngleMeasureItem(QtWidgets.QGraphicsObject):
@@ -85,8 +86,8 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         self._point2 = QtCore.QPointF(point2 - vertex)
 
         # Dragging state
-        self._dragging_point: Optional[str] = None  # 'vertex', 'point1', 'point2', or None
-        self._initial_points: Optional[Dict[str, QtCore.QPointF]] = None
+        self._dragging_point: str | None = None  # 'vertex', 'point1', 'point2', or None
+        self._initial_points: dict[str, QtCore.QPointF] | None = None
 
         # Appearance (from constants)
         self._line_color = QtGui.QColor(*ANGLE_MEASURE_LINE_COLOR)
@@ -163,7 +164,7 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         angle2_deg = angle2_deg % 360
 
         # Calculate the measured angle (always inner angle < 180°)
-        measured_angle = self._calculate_angle()
+        self._calculate_angle()
 
         # Calculate span going counterclockwise from angle2 to angle1
         span_ccw = (angle1_deg - angle2_deg) % 360
@@ -200,9 +201,7 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         pad = max(80.0, self._arc_radius + 30.0)
 
         return QtCore.QRectF(
-            min_x - pad, min_y - pad,
-            (max_x - min_x) + 2 * pad,
-            (max_y - min_y) + 2 * pad
+            min_x - pad, min_y - pad, (max_x - min_x) + 2 * pad, (max_y - min_y) + 2 * pad
         )
 
     def shape(self) -> QtGui.QPainterPath:
@@ -221,7 +220,7 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
             self._vertex.x() - self._arc_radius,
             self._vertex.y() - self._arc_radius,
             self._arc_radius * 2,
-            self._arc_radius * 2
+            self._arc_radius * 2,
         )
         arc_path = QtGui.QPainterPath()
         arc_path.arcMoveTo(arc_rect, start_angle)
@@ -262,18 +261,21 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
             self._vertex.x() - self._arc_radius,
             self._vertex.y() - self._arc_radius,
             self._arc_radius * 2,
-            self._arc_radius * 2
+            self._arc_radius * 2,
         )
 
         arc_pen = QtGui.QPen(self._arc_color, self._arc_width)
         arc_pen.setCosmetic(True)
         painter.setPen(arc_pen)
-        painter.drawArc(arc_rect, int(start_angle * 16), int(span * 16))  # Qt uses 1/16th degree units
+        painter.drawArc(
+            arc_rect, int(start_angle * 16), int(span * 16)
+        )  # Qt uses 1/16th degree units
 
         # Draw endpoint markers
         painter.setPen(QtCore.Qt.PenStyle.NoPen)
         endpoint_color = (
-            QtGui.QColor(*ANGLE_MEASURE_ENDPOINT_SELECTED_COLOR) if is_selected
+            QtGui.QColor(*ANGLE_MEASURE_ENDPOINT_SELECTED_COLOR)
+            if is_selected
             else QtGui.QColor(*ANGLE_MEASURE_ENDPOINT_COLOR)
         )
         painter.setBrush(QtGui.QBrush(endpoint_color))
@@ -321,8 +323,7 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         painter.setPen(QtCore.Qt.PenStyle.NoPen)
         painter.setBrush(QtGui.QBrush(self._label_bg_color))
         painter.drawRoundedRect(
-            QtCore.QRectF(-text_width / 2, -text_height / 2, text_width, text_height),
-            5.0, 5.0
+            QtCore.QRectF(-text_width / 2, -text_height / 2, text_width, text_height), 5.0, 5.0
         )
 
         # Draw text
@@ -330,7 +331,7 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         painter.drawText(
             QtCore.QRectF(-text_width / 2, -text_height / 2, text_width, text_height),
             QtCore.Qt.AlignmentFlag.AlignCenter,
-            txt
+            txt,
         )
 
         painter.restore()
@@ -353,7 +354,7 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         self.prepareGeometryChange()
         self.update()
 
-    def _point_at_pos(self, scene_pos: QtCore.QPointF) -> Optional[str]:
+    def _point_at_pos(self, scene_pos: QtCore.QPointF) -> str | None:
         """
         Check if position is near a point.
 
@@ -368,11 +369,11 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
 
         # Vertex is always at origin in item coordinates
         if item_pos.manhattanLength() < tolerance:
-            return 'vertex'
+            return "vertex"
         if (item_pos - self._point1).manhattanLength() < tolerance:
-            return 'point1'
+            return "point1"
         if (item_pos - self._point2).manhattanLength() < tolerance:
-            return 'point2'
+            return "point2"
 
         return None
 
@@ -397,12 +398,16 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
                 self.requestDelete.emit(self)
             else:
                 # Handle z-order actions via utility
-                handle_z_order_from_menu(self, action, {
-                    act_bring_to_front: "bring_to_front",
-                    act_bring_forward: "bring_forward",
-                    act_send_backward: "send_backward",
-                    act_send_to_back: "send_to_back",
-                })
+                handle_z_order_from_menu(
+                    self,
+                    action,
+                    {
+                        act_bring_to_front: "bring_to_front",
+                        act_bring_forward: "bring_forward",
+                        act_send_backward: "send_backward",
+                        act_send_to_back: "send_to_back",
+                    },
+                )
 
             event.accept()
             return
@@ -413,9 +418,9 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
             if self._dragging_point:
                 # Store initial points in scene coordinates for undo
                 self._initial_points = {
-                    'vertex': self.pos(),
-                    'point1': self.mapToScene(self._point1),
-                    'point2': self.mapToScene(self._point2),
+                    "vertex": self.pos(),
+                    "point1": self.mapToScene(self._point1),
+                    "point2": self.mapToScene(self._point2),
                 }
                 event.accept()
                 self.setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
@@ -428,12 +433,12 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         if self._dragging_point:
             item_pos = self.mapFromScene(event.scenePos())
 
-            if self._dragging_point == 'vertex':
+            if self._dragging_point == "vertex":
                 # Move the item position (vertex)
                 self.setPos(event.scenePos())
-            elif self._dragging_point == 'point1':
+            elif self._dragging_point == "point1":
                 self._point1 = item_pos
-            elif self._dragging_point == 'point2':
+            elif self._dragging_point == "point2":
                 self._point2 = item_pos
 
             self.prepareGeometryChange()
@@ -448,26 +453,42 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         if self._dragging_point and self._initial_points:
             # Check if points actually changed (compare scene coordinates)
             points_changed = False
-            if self._dragging_point == 'vertex':
+            if self._dragging_point == "vertex":
                 # self.pos() is the vertex in scene coordinates
-                points_changed = (self.pos() - self._initial_points['vertex']).manhattanLength() > 0.1
-            elif self._dragging_point == 'point1':
+                points_changed = (
+                    self.pos() - self._initial_points["vertex"]
+                ).manhattanLength() > 0.1
+            elif self._dragging_point == "point1":
                 # Convert current item coords to scene coords for comparison
                 current_point1_scene = self.mapToScene(self._point1)
-                points_changed = (current_point1_scene - self._initial_points['point1']).manhattanLength() > 0.1
-            elif self._dragging_point == 'point2':
+                points_changed = (
+                    current_point1_scene - self._initial_points["point1"]
+                ).manhattanLength() > 0.1
+            elif self._dragging_point == "point2":
                 # Convert current item coords to scene coords for comparison
                 current_point2_scene = self.mapToScene(self._point2)
-                points_changed = (current_point2_scene - self._initial_points['point2']).manhattanLength() > 0.1
+                points_changed = (
+                    current_point2_scene - self._initial_points["point2"]
+                ).manhattanLength() > 0.1
 
             if points_changed:
                 # Create undo command for point changes
                 from ...core.undo_commands import PropertyChangeCommand
+
                 # Create before state from initial points (already in scene coordinates)
                 before_state = {
-                    'vertex': [float(self._initial_points['vertex'].x()), float(self._initial_points['vertex'].y())],
-                    'point1': [float(self._initial_points['point1'].x()), float(self._initial_points['point1'].y())],
-                    'point2': [float(self._initial_points['point2'].x()), float(self._initial_points['point2'].y())],
+                    "vertex": [
+                        float(self._initial_points["vertex"].x()),
+                        float(self._initial_points["vertex"].y()),
+                    ],
+                    "point1": [
+                        float(self._initial_points["point1"].x()),
+                        float(self._initial_points["point1"].y()),
+                    ],
+                    "point2": [
+                        float(self._initial_points["point2"].x()),
+                        float(self._initial_points["point2"].y()),
+                    ],
                 }
                 # Create after state from current points
                 after_state = self.capture_state()
@@ -480,7 +501,7 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         self.unsetCursor()
         super().mouseReleaseEvent(event)
 
-    def capture_state(self) -> Dict[str, Any]:
+    def capture_state(self) -> dict[str, Any]:
         """Capture current state for undo/redo."""
         # Return points in scene coordinates
         vertex_scene = self.pos()
@@ -488,27 +509,27 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         point2_scene = self.mapToScene(self._point2)
 
         return {
-            'vertex': [float(vertex_scene.x()), float(vertex_scene.y())],
-            'point1': [float(point1_scene.x()), float(point1_scene.y())],
-            'point2': [float(point2_scene.x()), float(point2_scene.y())],
+            "vertex": [float(vertex_scene.x()), float(vertex_scene.y())],
+            "point1": [float(point1_scene.x()), float(point1_scene.y())],
+            "point2": [float(point2_scene.x()), float(point2_scene.y())],
         }
 
-    def apply_state(self, state: Dict[str, Any]) -> None:
+    def apply_state(self, state: dict[str, Any]) -> None:
         """Apply a previously captured state."""
-        if 'vertex' in state:
-            vertex_scene = QtCore.QPointF(float(state['vertex'][0]), float(state['vertex'][1]))
+        if "vertex" in state:
+            vertex_scene = QtCore.QPointF(float(state["vertex"][0]), float(state["vertex"][1]))
             self.setPos(vertex_scene)
-        if 'point1' in state:
-            point1_scene = QtCore.QPointF(float(state['point1'][0]), float(state['point1'][1]))
+        if "point1" in state:
+            point1_scene = QtCore.QPointF(float(state["point1"][0]), float(state["point1"][1]))
             self._point1 = self.mapFromScene(point1_scene)
-        if 'point2' in state:
-            point2_scene = QtCore.QPointF(float(state['point2'][0]), float(state['point2'][1]))
+        if "point2" in state:
+            point2_scene = QtCore.QPointF(float(state["point2"][0]), float(state["point2"][1]))
             self._point2 = self.mapFromScene(point2_scene)
 
         self.prepareGeometryChange()
         self.update()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary for save/load."""
         # Save absolute points in scene space
         vertex_scene = self.mapToScene(self._vertex)
@@ -525,7 +546,7 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         }
 
     @staticmethod
-    def from_dict(d: Dict[str, Any]) -> "AngleMeasureItem":
+    def from_dict(d: dict[str, Any]) -> AngleMeasureItem:
         """Deserialize from dictionary."""
         item_uuid = d.get("item_uuid")
 
@@ -540,6 +561,3 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
             item.setZValue(float(d["z_value"]))
 
         return item
-
-
-

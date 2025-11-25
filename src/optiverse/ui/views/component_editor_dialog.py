@@ -2,19 +2,13 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import os
-from typing import List, Optional, Tuple
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
-from ...core import interface_types
-from ...core.interface_definition import InterfaceDefinition
 from ...core.models import ComponentRecord, deserialize_component, serialize_component
-from ...core.undo_commands import Command
 from ...core.undo_stack import UndoStack
 from ...objects.views import InterfaceLine, MultiLineCanvas
-from ...services.error_handler import ErrorContext, get_error_handler
 from ...services.storage_service import StorageService
 from ..widgets.interface_tree_panel import InterfaceTreePanel
 from ..widgets.ruler_widget import CanvasWithRulers
@@ -28,9 +22,13 @@ _logger = logging.getLogger(__name__)
 class MoveInterfaceCommand(QtGui.QUndoCommand):
     """Undo command for moving one or more interfaces."""
 
-    def __init__(self, editor: 'ComponentEditor', interface_indices: List[int],
-                 old_positions: List[Tuple[float, float, float, float]],
-                 new_positions: List[Tuple[float, float, float, float]]):
+    def __init__(
+        self,
+        editor: ComponentEditor,
+        interface_indices: list[int],
+        old_positions: list[tuple[float, float, float, float]],
+        new_positions: list[tuple[float, float, float, float]],
+    ):
         """
         Initialize move command.
 
@@ -53,7 +51,7 @@ class MoveInterfaceCommand(QtGui.QUndoCommand):
         """Restore old positions."""
         self._apply_positions(self.old_positions)
 
-    def _apply_positions(self, positions: List[Tuple[float, float, float, float]]):
+    def _apply_positions(self, positions: list[tuple[float, float, float, float]]):
         """Apply given positions to interfaces."""
         interfaces = self.editor.interface_panel.get_interfaces()
 
@@ -75,6 +73,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
     Full-featured component editor with library management.
     Upgraded from Dialog to MainWindow with toolbar, library dock, and clipboard operations.
     """
+
     saved = QtCore.pyqtSignal()
 
     def __init__(self, storage: StorageService, parent: QtWidgets.QWidget | None = None):
@@ -234,11 +233,20 @@ class ComponentEditor(QtWidgets.QMainWindow):
         # Category selector (editable to allow custom categories)
         self.category_combo = QtWidgets.QComboBox()
         self.category_combo.setEditable(True)
-        self.category_combo.addItems([
-            "Lenses", "Objectives", "Mirrors", "Beamsplitters",
-            "Dichroics", "Waveplates", "Sources", "Background",
-            "Misc", "Other"
-        ])
+        self.category_combo.addItems(
+            [
+                "Lenses",
+                "Objectives",
+                "Mirrors",
+                "Beamsplitters",
+                "Dichroics",
+                "Waveplates",
+                "Sources",
+                "Background",
+                "Misc",
+                "Other",
+            ]
+        )
         self.category_combo.setToolTip("Select a category or type a custom one")
         info_form.addRow("Category", self.category_combo)
 
@@ -248,7 +256,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.object_height_mm.setDecimals(3)
         self.object_height_mm.setSuffix(" mm")
         self.object_height_mm.setValue(25.4)  # Default: 1 inch
-        self.object_height_mm.setToolTip("Physical height for calibration (typically size of first interface)")
+        self.object_height_mm.setToolTip(
+            "Physical height for calibration (typically size of first interface)"
+        )
         self.object_height_mm.valueChanged.connect(self._on_object_height_changed)
         info_form.addRow("Object Height", self.object_height_mm)
 
@@ -325,19 +335,22 @@ class ComponentEditor(QtWidgets.QMainWindow):
         if 0 <= index < len(self.canvas.get_all_lines()):
             self.canvas.select_line(index)
 
-    def _on_interface_panel_multi_selection(self, indices: List[int]):
+    def _on_interface_panel_multi_selection(self, indices: list[int]):
         """Handle multiple interface selection in panel."""
         # Highlight corresponding lines on canvas
         self.canvas.select_lines(indices)
 
-    def _on_canvas_lines_selected(self, indices: List[int]):
+    def _on_canvas_lines_selected(self, indices: list[int]):
         """Handle multiple line selection on canvas."""
         # Sync selection to interface panel
         self.interface_panel.select_interfaces(indices)
 
-    def _on_canvas_lines_moved(self, indices: List[int],
-                                old_positions: List[Tuple[float, float, float, float]],
-                                new_positions: List[Tuple[float, float, float, float]]):
+    def _on_canvas_lines_moved(
+        self,
+        indices: list[int],
+        old_positions: list[tuple[float, float, float, float]],
+        new_positions: list[tuple[float, float, float, float]],
+    ):
         """Handle line movement completion - create undo command."""
         if indices and old_positions and new_positions:
             # Create and push undo command
@@ -348,7 +361,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
 
     def _update_derived_labels(self, *args):
         """Update computed values from object height and picked line."""
-        object_height = float(self.object_height_mm.value())
+        float(self.object_height_mm.value())
 
         # For simple components, get first line if it exists
         lines = self.canvas.get_all_lines()
@@ -393,7 +406,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         if self.canvas.has_image() and p1_norm and p2_norm and object_height > 0:
             dx = p2_norm[0] - p1_norm[0]
             dy = p2_norm[1] - p1_norm[1]
-            px_len = (dx*dx + dy*dy)**0.5
+            px_len = (dx * dx + dy * dy) ** 0.5
 
             if px_len > 0:
                 # Compute mm_per_pixel from object height and line length (in normalized space)
@@ -474,15 +487,15 @@ class ComponentEditor(QtWidgets.QMainWindow):
 
     def _get_interface_color(self, iface: dict) -> QtGui.QColor:
         """Get color for interface based on its properties."""
-        if iface.get('is_beam_splitter', False):
-            if iface.get('is_polarizing', False):
+        if iface.get("is_beam_splitter", False):
+            if iface.get("is_polarizing", False):
                 return QtGui.QColor(150, 0, 150)  # Purple for PBS
             else:
                 return QtGui.QColor(0, 150, 120)  # Green for BS
         else:
             # Regular refractive interface
-            n1 = iface.get('n1', 1.0)
-            n2 = iface.get('n2', 1.0)
+            n1 = iface.get("n1", 1.0)
+            n2 = iface.get("n2", 1.0)
             if abs(n1 - n2) > 0.01:
                 return QtGui.QColor(100, 100, 255)  # Blue for refraction
             else:
@@ -492,10 +505,10 @@ class ComponentEditor(QtWidgets.QMainWindow):
         """Get color for simple component types."""
         kind = self.kind_combo.currentText()
         colors = {
-            'lens': QtGui.QColor(0, 180, 180),      # Cyan
-            'mirror': QtGui.QColor(255, 140, 0),    # Orange
-            'beamsplitter': QtGui.QColor(0, 150, 120),  # Green
-            'dichroic': QtGui.QColor(255, 0, 255),  # Magenta
+            "lens": QtGui.QColor(0, 180, 180),  # Cyan
+            "mirror": QtGui.QColor(255, 140, 0),  # Orange
+            "beamsplitter": QtGui.QColor(0, 150, 120),  # Green
+            "dichroic": QtGui.QColor(255, 0, 255),  # Magenta
         }
         return colors.get(kind, QtGui.QColor(100, 100, 255))
 
@@ -549,22 +562,35 @@ class ComponentEditor(QtWidgets.QMainWindow):
 
             # Debug validation: Check if coordinates are reasonable
             max_coord = object_height * 2  # Sanity check: coords shouldn't exceed 2x object height
-            if (abs(x1_canvas) > max_coord or abs(y1_canvas) > max_coord or
-                abs(x2_canvas) > max_coord or abs(y2_canvas) > max_coord):
+            if (
+                abs(x1_canvas) > max_coord
+                or abs(y1_canvas) > max_coord
+                or abs(x2_canvas) > max_coord
+                or abs(y2_canvas) > max_coord
+            ):
                 _logger.warning(
                     "Interface %d has unusually large coordinates: "
                     "Storage: (%.2f, %.2f) to (%.2f, %.2f), Canvas: (%.2f, %.2f) to (%.2f, %.2f)",
-                    i, interface.x1_mm, interface.y1_mm, interface.x2_mm, interface.y2_mm,
-                    x1_canvas, y1_canvas, x2_canvas, y2_canvas
+                    i,
+                    interface.x1_mm,
+                    interface.y1_mm,
+                    interface.x2_mm,
+                    interface.y2_mm,
+                    x1_canvas,
+                    y1_canvas,
+                    x2_canvas,
+                    y2_canvas,
                 )
 
             # Create InterfaceLine for canvas display
             line = InterfaceLine(
-                x1=x1_canvas, y1=y1_canvas,
-                x2=x2_canvas, y2=y2_canvas,
+                x1=x1_canvas,
+                y1=y1_canvas,
+                x2=x2_canvas,
+                y2=y2_canvas,
                 color=color,
                 label=interface.get_label(),
-                properties={'interface': interface}
+                properties={"interface": interface},
             )
             self.canvas.add_line(line)
 
@@ -599,8 +625,15 @@ class ComponentEditor(QtWidgets.QMainWindow):
                     _logger.debug(
                         "Interface %d dragged: Canvas (Y-up): (%.2f, %.2f) to (%.2f, %.2f), "
                         "Storage (Y-up): (%.2f, %.2f) to (%.2f, %.2f)",
-                        i, line.x1, line.y1, line.x2, line.y2,
-                        interfaces[i].x1_mm, interfaces[i].y1_mm, interfaces[i].x2_mm, interfaces[i].y2_mm
+                        i,
+                        line.x1,
+                        line.y1,
+                        line.x2,
+                        line.y2,
+                        interfaces[i].x1_mm,
+                        interfaces[i].y1_mm,
+                        interfaces[i].x2_mm,
+                        interfaces[i].y2_mm,
                     )
 
                     # Update the interface in the panel (silently - signals blocked)
@@ -613,7 +646,6 @@ class ComponentEditor(QtWidgets.QMainWindow):
         """Called when a line is selected on canvas - v2 system."""
         # Select corresponding interface in panel
         self.interface_panel.select_interface(index)
-
 
     # ---------- File & Clipboard ----------
     def open_image(self):
@@ -663,7 +695,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
             self._image_handler.smart_paste()
 
     # ---------- JSON Copy/Paste ----------
-    def _build_record_from_ui(self) -> Optional[ComponentRecord]:
+    def _build_record_from_ui(self) -> ComponentRecord | None:
         """Build ComponentRecord from UI state (v2 format)."""
         # Get interfaces from panel first
         interfaces = self.interface_panel.get_interfaces()
@@ -674,7 +706,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(
                 self,
                 "Missing data",
-                "Either load an image with calibration line, or import interfaces from Zemax."
+                "Either load an image with calibration line, or import interfaces from Zemax.",
             )
             return None
 
@@ -682,7 +714,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.information(
                 self,
                 "No interfaces",
-                "This component has no interfaces defined. It will be saved as a decorative/background item with no optical properties."
+                "This component has no interfaces defined. It will be saved as a decorative/background item with no optical properties.",
             )
             # Continue without returning None - allow saving as decorative item
 
@@ -695,9 +727,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
 
         if object_height <= 0:
             QtWidgets.QMessageBox.warning(
-                self,
-                "Missing object height",
-                "Please set a positive object height (mm)."
+                self, "Missing object height", "Please set a positive object height (mm)."
             )
             return None
 
@@ -716,7 +746,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
             object_height_mm=object_height,
             interfaces=interfaces,
             category=category,
-            notes=self.notes.toPlainText().strip()
+            notes=self.notes.toPlainText().strip(),
         )
 
     def copy_component_json(self):
@@ -738,11 +768,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         try:
             data = json.loads(text)
         except json.JSONDecodeError as e:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Invalid JSON",
-                f"Could not parse JSON:\n{e}"
-            )
+            QtWidgets.QMessageBox.warning(self, "Invalid JSON", f"Could not parse JSON:\n{e}")
             return
 
         self._load_from_dict(data)
@@ -858,5 +884,3 @@ class ComponentEditor(QtWidgets.QMainWindow):
 
 # Keep old name for backward compatibility
 ComponentEditorDialog = ComponentEditor
-
-

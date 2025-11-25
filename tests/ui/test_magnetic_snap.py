@@ -3,11 +3,10 @@ Integration tests for magnetic snap feature.
 
 Tests the complete flow of magnetic snap alignment.
 """
-import pytest
-from PyQt6 import QtCore, QtWidgets
-from optiverse.ui.views.main_window import MainWindow
-from optiverse.objects import LensItem
+
 from optiverse.core.models import LensParams
+from optiverse.objects import LensItem
+from optiverse.ui.views.main_window import MainWindow
 
 
 def test_magnetic_snap_toggle(qtbot):
@@ -52,13 +51,11 @@ def test_magnetic_snap_aligns_components(qtbot):
     # Simulate position change (as would happen during drag)
     # The itemChange method will intercept and snap
     from PyQt6.QtCore import QPointF
+
     proposed_pos = QPointF(300, 205)
 
     # Trigger itemChange by simulating a position change
-    snapped_pos = lens2.itemChange(
-        lens2.GraphicsItemChange.ItemPositionChange,
-        proposed_pos
-    )
+    snapped_pos = lens2.itemChange(lens2.GraphicsItemChange.ItemPositionChange, proposed_pos)
 
     # Should snap to Y=200 (within tolerance of lens1)
     # The itemChange returns the snapped position
@@ -83,12 +80,7 @@ def test_magnetic_snap_shows_guides(qtbot):
     window.scene.addItem(lens2)
 
     # Calculate snap
-    snap_result = window._snap_helper.calculate_snap(
-        lens2.pos(),
-        lens2,
-        window.scene,
-        window.view
-    )
+    snap_result = window._snap_helper.calculate_snap(lens2.pos(), lens2, window.scene, window.view)
 
     # Set guides
     window.view.set_snap_guides(snap_result.guide_lines)
@@ -118,12 +110,7 @@ def test_magnetic_snap_respects_tolerance(qtbot):
     window.scene.addItem(lens2)
 
     # Calculate snap
-    snap_result = window._snap_helper.calculate_snap(
-        lens2.pos(),
-        lens2,
-        window.scene,
-        window.view
-    )
+    snap_result = window._snap_helper.calculate_snap(lens2.pos(), lens2, window.scene, window.view)
 
     # Should NOT snap (too far)
     assert not snap_result.snapped
@@ -174,6 +161,3 @@ def test_magnetic_snap_persistence(qtbot):
 
     # Cleanup: reset to default
     window2.settings_service.set_value("magnetic_snap", True)
-
-
-

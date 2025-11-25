@@ -6,9 +6,14 @@ assemblies are portable across different computers.
 """
 
 from pathlib import Path
-from optiverse.core.models import ComponentRecord, serialize_component, deserialize_component
+
+from optiverse.core.models import ComponentRecord, deserialize_component, serialize_component
+from optiverse.platform.paths import (
+    get_all_library_roots,
+    make_library_relative,
+    resolve_library_relative_path,
+)
 from optiverse.services.settings_service import SettingsService
-from optiverse.platform.paths import get_all_library_roots, make_library_relative, resolve_library_relative_path
 
 
 def test_library_relative_paths():
@@ -37,9 +42,7 @@ def test_library_relative_paths():
         test_image = user_lib / "test_component" / "images" / "test.png"
 
         rec = ComponentRecord(
-            name="Test Component",
-            image_path=str(test_image),
-            object_height_mm=25.4
+            name="Test Component", image_path=str(test_image), object_height_mm=25.4
         )
 
         print(f"Original path: {rec.image_path}")
@@ -62,7 +65,9 @@ def test_library_relative_paths():
         rec2 = deserialize_component(data, settings)
         if rec2:
             print(f"Deserialized path: {rec2.image_path}")
-            print(f"Paths match: {Path(rec.image_path).resolve() == Path(rec2.image_path).resolve()}")
+            print(
+                f"Paths match: {Path(rec.image_path).resolve() == Path(rec2.image_path).resolve()}"
+            )
             print("✓ Path correctly resolved back to absolute")
         else:
             print("✗ Failed to deserialize component")
@@ -101,7 +106,7 @@ def test_library_relative_paths():
     old_data = {
         "name": "Old Component",
         "image_path": "/absolute/path/to/image.png",
-        "object_height_mm": 25.4
+        "object_height_mm": 25.4,
     }
 
     rec3 = deserialize_component(old_data, settings)
@@ -119,5 +124,3 @@ def test_library_relative_paths():
 
 if __name__ == "__main__":
     test_library_relative_paths()
-
-

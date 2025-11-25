@@ -4,9 +4,8 @@ Factory fixtures for creating test objects.
 These factories create properly configured optical items for testing,
 avoiding the need to manually construct items with all their parameters.
 """
-from __future__ import annotations
 
-from typing import List, Optional
+from __future__ import annotations
 
 from PyQt6 import QtWidgets
 
@@ -18,7 +17,7 @@ def create_source_item(
     num_rays: int = 5,
     divergence_deg: float = 10.0,
     wavelength_nm: float = 550.0,
-) -> "SourceItem":
+) -> SourceItem:
     """
     Create a SourceItem with specified parameters.
 
@@ -53,7 +52,7 @@ def create_lens_item(
     angle_deg: float = 90.0,
     object_height_mm: float = 60.0,
     efl_mm: float = 50.0,
-) -> "ComponentItem":
+) -> ComponentItem:
     """
     Create a ComponentItem with lens interface.
 
@@ -67,8 +66,8 @@ def create_lens_item(
     Returns:
         Configured ComponentItem with lens interface
     """
-    from optiverse.core.models import ComponentParams
     from optiverse.core.interface_definition import InterfaceDefinition
+    from optiverse.core.models import ComponentParams
     from optiverse.objects import ComponentItem
 
     # Create lens interface
@@ -97,7 +96,7 @@ def create_mirror_item(
     y_mm: float = 0.0,
     angle_deg: float = 45.0,
     object_height_mm: float = 80.0,
-) -> "ComponentItem":
+) -> ComponentItem:
     """
     Create a ComponentItem with mirror interface.
 
@@ -110,8 +109,8 @@ def create_mirror_item(
     Returns:
         Configured ComponentItem with mirror interface
     """
-    from optiverse.core.models import ComponentParams
     from optiverse.core.interface_definition import InterfaceDefinition
+    from optiverse.core.models import ComponentParams
     from optiverse.objects import ComponentItem
 
     # Create mirror interface
@@ -141,8 +140,8 @@ def create_component_item(
     y_mm: float = 0.0,
     angle_deg: float = 0.0,
     object_height_mm: float = 60.0,
-    interfaces: Optional[List] = None,
-) -> "ComponentItem":
+    interfaces: list | None = None,
+) -> ComponentItem:
     """
     Create a generic ComponentItem with specified parameters.
 
@@ -171,7 +170,7 @@ def create_component_item(
     return ComponentItem(params)
 
 
-def create_component_from_params(params) -> "ComponentItem":
+def create_component_from_params(params) -> ComponentItem:
     """
     Create a ComponentItem from legacy params (LensParams, MirrorParams, etc.).
 
@@ -183,14 +182,14 @@ def create_component_from_params(params) -> "ComponentItem":
     Returns:
         ComponentItem with appropriate interfaces
     """
-    from optiverse.core.models import ComponentParams
     from optiverse.core.interface_definition import InterfaceDefinition
+    from optiverse.core.models import ComponentParams
     from optiverse.objects import ComponentItem
 
     # Determine component type and create appropriate interface
     half_height = params.object_height_mm / 2.0
 
-    if hasattr(params, 'efl_mm'):
+    if hasattr(params, "efl_mm"):
         # LensParams
         interface = InterfaceDefinition(
             x1_mm=0.0,
@@ -200,7 +199,7 @@ def create_component_from_params(params) -> "ComponentItem":
             element_type="lens",
             efl_mm=params.efl_mm,
         )
-    elif hasattr(params, 'split_T'):
+    elif hasattr(params, "split_T"):
         # BeamsplitterParams
         interface = InterfaceDefinition(
             x1_mm=0.0,
@@ -210,10 +209,10 @@ def create_component_from_params(params) -> "ComponentItem":
             element_type="beam_splitter",
             split_T=params.split_T,
             split_R=params.split_R,
-            is_polarizing=getattr(params, 'is_polarizing', False),
-            pbs_transmission_axis_deg=getattr(params, 'pbs_transmission_axis_deg', 0.0),
+            is_polarizing=getattr(params, "is_polarizing", False),
+            pbs_transmission_axis_deg=getattr(params, "pbs_transmission_axis_deg", 0.0),
         )
-    elif hasattr(params, 'reflectivity'):
+    elif hasattr(params, "reflectivity"):
         # MirrorParams
         interface = InterfaceDefinition(
             x1_mm=0.0,
@@ -221,9 +220,9 @@ def create_component_from_params(params) -> "ComponentItem":
             x2_mm=0.0,
             y2_mm=half_height,
             element_type="mirror",
-            reflectivity=getattr(params, 'reflectivity', 100.0),
+            reflectivity=getattr(params, "reflectivity", 100.0),
         )
-    elif hasattr(params, 'cutoff_wavelength_nm'):
+    elif hasattr(params, "cutoff_wavelength_nm"):
         # DichroicParams
         interface = InterfaceDefinition(
             x1_mm=0.0,
@@ -232,10 +231,10 @@ def create_component_from_params(params) -> "ComponentItem":
             y2_mm=half_height,
             element_type="dichroic",
             cutoff_wavelength_nm=params.cutoff_wavelength_nm,
-            transition_width_nm=getattr(params, 'transition_width_nm', 50.0),
-            pass_type=getattr(params, 'pass_type', 'longpass'),
+            transition_width_nm=getattr(params, "transition_width_nm", 50.0),
+            pass_type=getattr(params, "pass_type", "longpass"),
         )
-    elif hasattr(params, 'phase_shift_deg'):
+    elif hasattr(params, "phase_shift_deg"):
         # WaveplateParams
         interface = InterfaceDefinition(
             x1_mm=0.0,
@@ -244,7 +243,7 @@ def create_component_from_params(params) -> "ComponentItem":
             y2_mm=half_height,
             element_type="waveplate",
             phase_shift_deg=params.phase_shift_deg,
-            fast_axis_deg=getattr(params, 'fast_axis_deg', 0.0),
+            fast_axis_deg=getattr(params, "fast_axis_deg", 0.0),
         )
     else:
         # Unknown - create empty component
@@ -255,16 +254,16 @@ def create_component_from_params(params) -> "ComponentItem":
         y_mm=params.y_mm,
         angle_deg=params.angle_deg,
         object_height_mm=params.object_height_mm,
-        name=getattr(params, 'name', None),
-        image_path=getattr(params, 'image_path', None),
-        mm_per_pixel=getattr(params, 'mm_per_pixel', 0.1),
+        name=getattr(params, "name", None),
+        image_path=getattr(params, "image_path", None),
+        mm_per_pixel=getattr(params, "mm_per_pixel", 0.1),
         interfaces=[interface] if interface else [],
     )
     return ComponentItem(component_params)
 
 
 def create_scene_with_items(
-    items: Optional[List] = None,
+    items: list | None = None,
 ) -> QtWidgets.QGraphicsScene:
     """
     Create a QGraphicsScene with optional pre-added items.
@@ -275,7 +274,7 @@ def create_scene_with_items(
     Returns:
         QGraphicsScene with items added
     """
-    from optiverse.core.constants import SCENE_SIZE_MM, SCENE_MIN_COORD
+    from optiverse.core.constants import SCENE_MIN_COORD, SCENE_SIZE_MM
 
     scene = QtWidgets.QGraphicsScene()
     scene.setSceneRect(
@@ -305,6 +304,3 @@ def create_basic_optical_setup() -> tuple:
 
     scene = create_scene_with_items([source, lens, mirror])
     return scene, source, lens, mirror
-
-
-

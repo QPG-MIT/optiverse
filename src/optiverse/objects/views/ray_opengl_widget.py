@@ -4,18 +4,26 @@ OpenGL-accelerated ray rendering widget.
 Uses GPU vertex buffers and shaders to render rays at 60fps, even with thousands
 of segments. This replaces Qt's slow software rasterizer with hardware acceleration.
 """
+
 from __future__ import annotations
 
 import logging
+
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6.QtOpenGL import (
+    QOpenGLBuffer,
+    QOpenGLShader,
+    QOpenGLShaderProgram,
+    QOpenGLVertexArrayObject,
+)
 from PyQt6.QtOpenGLWidgets import QOpenGLWidget
-from PyQt6.QtOpenGL import QOpenGLShaderProgram, QOpenGLShader, QOpenGLVertexArrayObject, QOpenGLBuffer
 
 _logger = logging.getLogger(__name__)
 
 try:
     from OpenGL import GL
+
     OPENGL_AVAILABLE = True
 except ImportError:
     OPENGL_AVAILABLE = False
@@ -130,11 +138,15 @@ class RayOpenGLWidget(QOpenGLWidget):
         """
 
         # Compile shaders
-        if not self.shader_program.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Vertex, vertex_shader_source):
+        if not self.shader_program.addShaderFromSourceCode(
+            QOpenGLShader.ShaderTypeBit.Vertex, vertex_shader_source
+        ):
             _logger.error("Vertex shader error: %s", self.shader_program.log())
             return
 
-        if not self.shader_program.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Fragment, fragment_shader_source):
+        if not self.shader_program.addShaderFromSourceCode(
+            QOpenGLShader.ShaderTypeBit.Fragment, fragment_shader_source
+        ):
             _logger.error("Fragment shader error: %s", self.shader_program.log())
             return
 
@@ -172,10 +184,12 @@ class RayOpenGLWidget(QOpenGLWidget):
             return
 
         # Set uniforms
-        self.shader_program.setUniformValue("viewMatrix",
-                                           QtGui.QMatrix3x3(self.view_matrix.flatten().tolist()))
-        self.shader_program.setUniformValue("viewportSize",
-                                           QtCore.QPointF(self.viewport_size[0], self.viewport_size[1]))
+        self.shader_program.setUniformValue(
+            "viewMatrix", QtGui.QMatrix3x3(self.view_matrix.flatten().tolist())
+        )
+        self.shader_program.setUniformValue(
+            "viewportSize", QtCore.QPointF(self.viewport_size[0], self.viewport_size[1])
+        )
 
         # Bind VAO
         self.vao.bind()
@@ -193,7 +207,9 @@ class RayOpenGLWidget(QOpenGLWidget):
         # Track frames
         self.frame_count += 1
         if self.frame_count % 300 == 0:
-            _logger.debug("OpenGL: Rendered %d frames, %d segments", self.frame_count, self.vertex_count // 2)
+            _logger.debug(
+                "OpenGL: Rendered %d frames, %d segments", self.frame_count, self.vertex_count // 2
+            )
 
     def resizeGL(self, w: int, h: int):
         """Handle widget resize."""
@@ -236,16 +252,28 @@ class RayOpenGLWidget(QOpenGLWidget):
                 p2 = ray_path.points[i + 1]
 
                 # Vertex 1 (position + color)
-                vertex_data.extend([
-                    float(p1[0]), float(p1[1]),  # position
-                    r_norm, g_norm, b_norm, a_norm  # color
-                ])
+                vertex_data.extend(
+                    [
+                        float(p1[0]),
+                        float(p1[1]),  # position
+                        r_norm,
+                        g_norm,
+                        b_norm,
+                        a_norm,  # color
+                    ]
+                )
 
                 # Vertex 2 (position + color)
-                vertex_data.extend([
-                    float(p2[0]), float(p2[1]),  # position
-                    r_norm, g_norm, b_norm, a_norm  # color
-                ])
+                vertex_data.extend(
+                    [
+                        float(p2[0]),
+                        float(p2[1]),  # position
+                        r_norm,
+                        g_norm,
+                        b_norm,
+                        a_norm,  # color
+                    ]
+                )
 
         # Convert to numpy array
         self.ray_vertices = np.array(vertex_data, dtype=np.float32)
@@ -287,7 +315,9 @@ class RayOpenGLWidget(QOpenGLWidget):
         # Color attribute
         if color_location >= 0:
             GL.glEnableVertexAttribArray(color_location)
-            GL.glVertexAttribPointer(color_location, 4, GL.GL_FLOAT, GL.GL_FALSE, 6 * 4, GL.ctypes.c_void_p(2 * 4))
+            GL.glVertexAttribPointer(
+                color_location, 4, GL.GL_FLOAT, GL.GL_FALSE, 6 * 4, GL.ctypes.c_void_p(2 * 4)
+            )
 
         # Unbind
         self.vbo.release()
@@ -303,11 +333,14 @@ class RayOpenGLWidget(QOpenGLWidget):
             transform: Qt transform from scene to viewport coordinates
         """
         # Extract 3x3 matrix from QTransform
-        self.view_matrix = np.array([
-            [transform.m11(), transform.m21(), transform.m31()],
-            [transform.m12(), transform.m22(), transform.m32()],
-            [transform.m13(), transform.m23(), transform.m33()]
-        ], dtype=np.float32)
+        self.view_matrix = np.array(
+            [
+                [transform.m11(), transform.m21(), transform.m31()],
+                [transform.m12(), transform.m22(), transform.m32()],
+                [transform.m13(), transform.m23(), transform.m33()],
+            ],
+            dtype=np.float32,
+        )
 
         # Trigger repaint with new transform
         self.update()
@@ -316,6 +349,3 @@ class RayOpenGLWidget(QOpenGLWidget):
         """Clear all rays."""
         self.vertex_count = 0
         self.update()
-
-
-

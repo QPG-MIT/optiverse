@@ -6,34 +6,36 @@ Architecture:
 
 This adapter bridges the old and new systems, enabling gradual migration.
 """
+
 from __future__ import annotations
 
 import logging
-from typing import List, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 _logger = logging.getLogger(__name__)
 
 # Phase 1: Unified interface model
-from ..data import OpticalInterface, LineSegment, CurvedSegment, GeometrySegment
+from ..data import OpticalInterface
 from ..data.optical_properties import (
+    BeamsplitterProperties,
+    DichroicProperties,
     LensProperties,
     MirrorProperties,
     RefractiveProperties,
-    BeamsplitterProperties,
     WaveplateProperties,
-    DichroicProperties,
 )
 
 # Phase 2: Polymorphic elements
 from ..raytracing.elements import (
-    IOpticalElement,
-    Mirror,
-    Lens,
-    RefractiveInterfaceElement,
     Beamsplitter,
-    Waveplate,
     Dichroic,
+    IOpticalElement,
+    Lens,
+    Mirror,
+    RefractiveInterfaceElement,
+    Waveplate,
 )
 
 if TYPE_CHECKING:
@@ -58,11 +60,8 @@ def create_polymorphic_element(optical_iface: OpticalInterface) -> IOpticalEleme
     """
     element_type = optical_iface.get_element_type()
     properties = optical_iface.properties
-    geometry = optical_iface.geometry
 
     # Extract p1 and p2 from geometry
-    p1 = geometry.p1
-    p2 = geometry.p2
 
     if element_type == "mirror":
         assert isinstance(properties, MirrorProperties)
@@ -93,7 +92,7 @@ def create_polymorphic_element(optical_iface: OpticalInterface) -> IOpticalEleme
 
 
 def convert_legacy_interface_to_optical(
-    legacy_iface: Union['InterfaceDefinition', 'RefractiveInterface']
+    legacy_iface: InterfaceDefinition | RefractiveInterface,
 ) -> OpticalInterface:
     """
     Convert a legacy interface (InterfaceDefinition or RefractiveInterface) to OpticalInterface.
@@ -118,8 +117,8 @@ def convert_legacy_interface_to_optical(
 
 
 def convert_legacy_interfaces(
-    legacy_interfaces: List[Union['InterfaceDefinition', 'RefractiveInterface']]
-) -> List[IOpticalElement]:
+    legacy_interfaces: list[InterfaceDefinition | RefractiveInterface],
+) -> list[IOpticalElement]:
     """
     Convert a list of legacy interfaces to polymorphic elements.
 
@@ -145,7 +144,7 @@ def convert_legacy_interfaces(
     return elements
 
 
-def convert_scene_to_polymorphic(scene_items) -> List[IOpticalElement]:
+def convert_scene_to_polymorphic(scene_items) -> list[IOpticalElement]:
     """
     Convert all optical elements from a QGraphicsScene to polymorphic elements.
 
@@ -161,7 +160,7 @@ def convert_scene_to_polymorphic(scene_items) -> List[IOpticalElement]:
 
     for item in scene_items:
         # Check if item has get_interfaces_scene() method
-        if hasattr(item, 'get_interfaces_scene') and callable(item.get_interfaces_scene):
+        if hasattr(item, "get_interfaces_scene") and callable(item.get_interfaces_scene):
             try:
                 interfaces_scene = item.get_interfaces_scene()
 
@@ -174,7 +173,10 @@ def convert_scene_to_polymorphic(scene_items) -> List[IOpticalElement]:
 
                     # UPDATE geometry with CURRENT scene coordinates
                     # This is essential for dynamic updates when items move!
-                    if hasattr(optical_iface.geometry, 'is_curved') and optical_iface.geometry.is_curved:
+                    if (
+                        hasattr(optical_iface.geometry, "is_curved")
+                        and optical_iface.geometry.is_curved
+                    ):
                         # For curved geometry, preserve radius and curvature
                         optical_iface.geometry.p1 = p1
                         optical_iface.geometry.p2 = p2
@@ -197,10 +199,8 @@ def convert_scene_to_polymorphic(scene_items) -> List[IOpticalElement]:
 
 
 def create_legacy_optical_element_from_interface(
-    p1: np.ndarray,
-    p2: np.ndarray,
-    iface: Union['InterfaceDefinition', 'RefractiveInterface']
-) -> 'OpticalElement':
+    p1: np.ndarray, p2: np.ndarray, iface: InterfaceDefinition | RefractiveInterface
+) -> OpticalElement:
     """
     Create a legacy OpticalElement from an interface.
 
@@ -219,11 +219,7 @@ def create_legacy_optical_element_from_interface(
 
     # Handle legacy RefractiveInterface objects
     if isinstance(iface, RefractiveInterface):
-        elem = OpticalElement(
-            kind="refractive_interface",
-            p1=p1,
-            p2=p2
-        )
+        elem = OpticalElement(kind="refractive_interface", p1=p1, p2=p2)
         elem.n1 = iface.n1
         elem.n2 = iface.n2
         elem.is_beam_splitter = iface.is_beam_splitter
@@ -238,19 +234,10 @@ def create_legacy_optical_element_from_interface(
     element_type = iface.element_type
 
     if element_type == "lens":
-        return OpticalElement(
-            kind="lens",
-            p1=p1,
-            p2=p2,
-            efl_mm=iface.efl_mm
-        )
+        return OpticalElement(kind="lens", p1=p1, p2=p2, efl_mm=iface.efl_mm)
 
     elif element_type == "mirror":
-        return OpticalElement(
-            kind="mirror",
-            p1=p1,
-            p2=p2
-        )
+        return OpticalElement(kind="mirror", p1=p1, p2=p2)
 
     elif element_type in ["beam_splitter", "beamsplitter"]:
         return OpticalElement(
@@ -260,7 +247,7 @@ def create_legacy_optical_element_from_interface(
             split_T=iface.split_T,
             split_R=iface.split_R,
             is_polarizing=iface.is_polarizing,
-            pbs_transmission_axis_deg=iface.pbs_transmission_axis_deg
+            pbs_transmission_axis_deg=iface.pbs_transmission_axis_deg,
         )
 
     elif element_type == "dichroic":
@@ -270,7 +257,7 @@ def create_legacy_optical_element_from_interface(
             p2=p2,
             cutoff_wavelength_nm=iface.cutoff_wavelength_nm,
             transition_width_nm=iface.transition_width_nm,
-            pass_type=iface.pass_type
+            pass_type=iface.pass_type,
         )
 
     elif element_type == "polarizing_interface":
@@ -278,7 +265,7 @@ def create_legacy_optical_element_from_interface(
         if iface.polarizer_subtype == "waveplate":
             # Get angle_deg from parent item if available
             angle_deg = 0.0
-            if hasattr(iface, 'angle_deg'):
+            if hasattr(iface, "angle_deg"):
                 angle_deg = iface.angle_deg
 
             return OpticalElement(
@@ -287,7 +274,7 @@ def create_legacy_optical_element_from_interface(
                 p2=p2,
                 phase_shift_deg=iface.phase_shift_deg,
                 fast_axis_deg=iface.fast_axis_deg,
-                angle_deg=angle_deg
+                angle_deg=angle_deg,
             )
         else:
             # Future: handle other polarizer subtypes
@@ -295,8 +282,8 @@ def create_legacy_optical_element_from_interface(
 
     elif element_type == "waveplate":
         # Legacy support for old "waveplate" element type
-        phase_shift_deg = getattr(iface, 'phase_shift_deg', 90.0)
-        fast_axis_deg = getattr(iface, 'fast_axis_deg', 0.0)
+        phase_shift_deg = getattr(iface, "phase_shift_deg", 90.0)
+        fast_axis_deg = getattr(iface, "fast_axis_deg", 0.0)
         angle_deg = 0.0
 
         return OpticalElement(
@@ -305,24 +292,17 @@ def create_legacy_optical_element_from_interface(
             p2=p2,
             phase_shift_deg=phase_shift_deg,
             fast_axis_deg=fast_axis_deg,
-            angle_deg=angle_deg
+            angle_deg=angle_deg,
         )
 
     elif element_type == "refractive_interface":
-        elem = OpticalElement(
-            kind="refractive_interface",
-            p1=p1,
-            p2=p2
-        )
+        elem = OpticalElement(kind="refractive_interface", p1=p1, p2=p2)
         elem.n1 = iface.n1
         elem.n2 = iface.n2
-        elem.is_curved = getattr(iface, 'is_curved', False)
-        elem.radius_of_curvature_mm = getattr(iface, 'radius_of_curvature_mm', 0.0)
+        elem.is_curved = getattr(iface, "is_curved", False)
+        elem.radius_of_curvature_mm = getattr(iface, "radius_of_curvature_mm", 0.0)
         return elem
 
     else:
         # Unknown type - return None or raise error
         return None
-
-
-

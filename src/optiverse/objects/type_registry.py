@@ -9,21 +9,21 @@ from __future__ import annotations
 
 import logging
 from dataclasses import fields
-from typing import Dict, Any, Optional, Type, TYPE_CHECKING
+from typing import Any
 
-from ..core.protocols import Serializable, HasSettings
 from ..core.exceptions import UnknownTypeError
+from ..core.protocols import HasSettings, Serializable
 
 _logger = logging.getLogger(__name__)
 
+from ..core.interface_definition import InterfaceDefinition
 from ..platform.paths import (
-    to_relative_path,
-    to_absolute_path,
+    get_all_library_roots,
     make_component_relative,
     make_library_relative,
-    get_all_library_roots
+    to_absolute_path,
+    to_relative_path,
 )
-from ..core.interface_definition import InterfaceDefinition
 
 
 class TypeRegistry:
@@ -37,11 +37,12 @@ class TypeRegistry:
         class MirrorItem(BaseObj):
             pass
     """
-    _registry: Dict[str, Dict[str, Any]] = {}
-    _class_to_type: Dict[str, str] = {}  # Maps class name -> type string
+
+    _registry: dict[str, dict[str, Any]] = {}
+    _class_to_type: dict[str, str] = {}  # Maps class name -> type string
 
     @classmethod
-    def register(cls, type_name: str, params_class: Optional[Type] = None):
+    def register(cls, type_name: str, params_class: type | None = None):
         """
         Decorator to register an item class with the type registry.
 
@@ -52,30 +53,29 @@ class TypeRegistry:
         Returns:
             Decorator function that registers the class
         """
+
         def decorator(item_class):
-            cls._registry[type_name] = {
-                'class': item_class,
-                'params_class': params_class
-            }
+            cls._registry[type_name] = {"class": item_class, "params_class": params_class}
             # Build reverse mapping (class name -> type string)
             cls._class_to_type[item_class.__name__] = type_name
             # Set attributes on the class for easy access
             item_class.type_name = type_name
             item_class.params_class = params_class
             return item_class
+
         return decorator
 
     @classmethod
-    def get_class(cls, type_name: str) -> Optional[Type]:
+    def get_class(cls, type_name: str) -> type | None:
         """Get the item class for a given type name."""
         entry = cls._registry.get(type_name)
-        return entry['class'] if entry else None
+        return entry["class"] if entry else None
 
     @classmethod
-    def get_params_class(cls, type_name: str) -> Optional[Type]:
+    def get_params_class(cls, type_name: str) -> type | None:
         """Get the params class for a given type name."""
         entry = cls._registry.get(type_name)
-        return entry['params_class'] if entry else None
+        return entry["params_class"] if entry else None
 
     @classmethod
     def get_all_types(cls) -> list[str]:
@@ -83,7 +83,7 @@ class TypeRegistry:
         return list(cls._registry.keys())
 
     @classmethod
-    def get_type_for_class(cls, class_name: str) -> Optional[str]:
+    def get_type_for_class(cls, class_name: str) -> str | None:
         """
         Get the type string for a given class name.
 
@@ -98,7 +98,7 @@ class TypeRegistry:
         return cls._class_to_type.get(class_name)
 
     @classmethod
-    def get_type_for_item(cls, item: Any) -> Optional[str]:
+    def get_type_for_item(cls, item: Any) -> str | None:
         """
         Get the type string for an item instance.
 
@@ -112,7 +112,7 @@ class TypeRegistry:
             Type string or None if not found
         """
         # First check if item has type_name attribute (set by decorator)
-        if hasattr(item, 'type_name') and item.type_name:
+        if hasattr(item, "type_name") and item.type_name:
             return item.type_name
         # Fall back to class name lookup
         return cls._class_to_type.get(item.__class__.__name__)
@@ -122,7 +122,7 @@ class TypeRegistry:
 register_type = TypeRegistry.register
 
 
-def serialize_item(item: Serializable) -> Dict[str, Any]:
+def serialize_item(item: Serializable) -> dict[str, Any]:
     """
     Generic item serialization using vars() introspection.
 
@@ -143,13 +143,14 @@ def serialize_item(item: Serializable) -> Dict[str, Any]:
     d["y_mm"] = float(item.pos().y())
 
     # Convert Qt rotation to user angle (if item uses angles)
-    if hasattr(item, 'rotation'):
+    if hasattr(item, "rotation"):
         # Import here to avoid circular dependency
         from ..core.raytracing_math import qt_angle_to_user
+
         d["angle_deg"] = qt_angle_to_user(item.rotation())
 
     # Add item metadata from registry (extensible and automatic)
-    if hasattr(item, '_metadata_registry'):
+    if hasattr(item, "_metadata_registry"):
         for key, getter in item._metadata_registry.items():
             try:
                 d[key] = getter(item)
@@ -200,7 +201,7 @@ def serialize_item(item: Serializable) -> Dict[str, Any]:
     return d
 
 
-def deserialize_item(data: Dict[str, Any], strict: bool = False):
+def deserialize_item(data: dict[str, Any], strict: bool = False):
     """
     Generic item deserialization using registry lookup.
 
@@ -264,7 +265,7 @@ def deserialize_item(data: Dict[str, Any], strict: bool = False):
     # Restore dynamic attributes (handles ANY attribute automatically!)
     for key, value in dynamic_attrs.items():
         # JSON converts tuples to lists, convert back if needed
-        if isinstance(value, list) and key.endswith('_mm'):
+        if isinstance(value, list) and key.endswith("_mm"):
             value = tuple(value)
         setattr(params, key, value)
 
@@ -278,6 +279,3 @@ def deserialize_item(data: Dict[str, Any], strict: bool = False):
         item.set_locked(locked)
 
     return item
-
-
-

@@ -3,8 +3,8 @@ Waveplate element implementation.
 
 Implements phase shift between orthogonal polarization components.
 """
+
 import math
-from typing import List, Tuple
 
 import numpy as np
 
@@ -32,7 +32,7 @@ class WaveplateElement(IOpticalElement):
         p2: np.ndarray,
         phase_shift_deg: float,
         fast_axis_deg: float,
-        waveplate_angle_deg: float = 90.0
+        waveplate_angle_deg: float = 90.0,
     ):
         """
         Initialize waveplate element.
@@ -50,17 +50,13 @@ class WaveplateElement(IOpticalElement):
         self.fast_axis_deg = fast_axis_deg
         self.waveplate_angle_deg = waveplate_angle_deg
 
-    def get_geometry(self) -> Tuple[np.ndarray, np.ndarray]:
+    def get_geometry(self) -> tuple[np.ndarray, np.ndarray]:
         """Get waveplate line segment"""
         return self.p1, self.p2
 
     def interact(
-        self,
-        ray: RayState,
-        hit_point: np.ndarray,
-        normal: np.ndarray,
-        tangent: np.ndarray
-    ) -> List[RayState]:
+        self, ray: RayState, hit_point: np.ndarray, normal: np.ndarray, tangent: np.ndarray
+    ) -> list[RayState]:
         """
         Apply waveplate transformation to polarization.
 
@@ -76,10 +72,7 @@ class WaveplateElement(IOpticalElement):
         # Compute forward normal (perpendicular to waveplate)
         # For vertical waveplate (90°): normal points LEFT (-1, 0)
         # For horizontal waveplate (0°): normal points UP (0, 1)
-        forward_normal = np.array([
-            -math.sin(waveplate_angle_rad),
-            math.cos(waveplate_angle_rad)
-        ])
+        forward_normal = np.array([-math.sin(waveplate_angle_rad), math.cos(waveplate_angle_rad)])
 
         # Ray hits from forward side if traveling against the normal
         dot_v_n = float(np.dot(ray.direction, forward_normal))
@@ -87,10 +80,7 @@ class WaveplateElement(IOpticalElement):
 
         # Apply waveplate transformation
         polarization_out = transform_polarization_waveplate(
-            ray.polarization,
-            self.phase_shift_deg,
-            self.fast_axis_deg,
-            is_forward
+            ray.polarization, self.phase_shift_deg, self.fast_axis_deg, is_forward
         )
 
         # Ray continues in same direction with transformed polarization
@@ -104,16 +94,13 @@ class WaveplateElement(IOpticalElement):
             polarization=polarization_out,
             wavelength_nm=ray.wavelength_nm,
             path=ray.path + [hit_point],
-            events=ray.events + 1
+            events=ray.events + 1,
         )
 
         return [output_ray]
 
-    def get_bounding_box(self) -> Tuple[np.ndarray, np.ndarray]:
+    def get_bounding_box(self) -> tuple[np.ndarray, np.ndarray]:
         """Get axis-aligned bounding box"""
         min_corner = np.minimum(self.p1, self.p2)
         max_corner = np.maximum(self.p1, self.p2)
         return min_corner, max_corner
-
-
-

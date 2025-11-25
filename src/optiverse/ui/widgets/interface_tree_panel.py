@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtCore, QtWidgets
 
 from ...core import interface_types
 from ...core.interface_definition import InterfaceDefinition
 from .interface_widgets import (
-    EditableLabel,
     InterfaceTreeWidget,
     PropertyListWidget,
 )
@@ -36,13 +33,15 @@ class InterfaceTreePanel(QtWidgets.QWidget):
     interfaceSelected = QtCore.pyqtSignal(int)  # Single selection (backward compatibility)
     interfacesSelected = QtCore.pyqtSignal(list)  # Multi-selection
 
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
 
-        self._interfaces: List[InterfaceDefinition] = []
-        self._tree_items: List[QtWidgets.QTreeWidgetItem] = []
-        self._property_widgets: List[PropertyListWidget] = []
-        self._child_items: List[QtWidgets.QTreeWidgetItem] = []  # Store child items for size updates
+        self._interfaces: list[InterfaceDefinition] = []
+        self._tree_items: list[QtWidgets.QTreeWidgetItem] = []
+        self._property_widgets: list[PropertyListWidget] = []
+        self._child_items: list[
+            QtWidgets.QTreeWidgetItem
+        ] = []  # Store child items for size updates
 
         self._setup_ui()
 
@@ -152,7 +151,9 @@ class InterfaceTreePanel(QtWidgets.QWidget):
 
         self.add_interface(interface)
 
-    def _create_tree_item(self, interface: InterfaceDefinition, index: int) -> QtWidgets.QTreeWidgetItem:
+    def _create_tree_item(
+        self, interface: InterfaceDefinition, index: int
+    ) -> QtWidgets.QTreeWidgetItem:
         """Create a tree item for an interface."""
         item = QtWidgets.QTreeWidgetItem()
 
@@ -161,7 +162,9 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         item.setText(0, display_name)
 
         # Make item editable (for renaming with double-click)
-        item.setFlags(item.flags() | QtCore.Qt.ItemFlag.ItemIsSelectable | QtCore.Qt.ItemFlag.ItemIsEditable)
+        item.setFlags(
+            item.flags() | QtCore.Qt.ItemFlag.ItemIsSelectable | QtCore.Qt.ItemFlag.ItemIsEditable
+        )
 
         # Store interface index in item data for later retrieval
         item.setData(0, QtCore.Qt.ItemDataRole.UserRole, index)
@@ -282,14 +285,14 @@ class InterfaceTreePanel(QtWidgets.QWidget):
                 self,
                 "Delete Interface",
                 f"Delete interface {indices[0] + 1}?",
-                QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
+                QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
             )
         else:
             reply = QtWidgets.QMessageBox.question(
                 self,
                 "Delete Interfaces",
                 f"Delete {len(indices)} interfaces?",
-                QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
+                QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
             )
 
         if reply == QtWidgets.QMessageBox.StandardButton.Yes:
@@ -377,7 +380,7 @@ class InterfaceTreePanel(QtWidgets.QWidget):
                 self,
                 "Delete Interface",
                 f"Delete interface {index + 1}?",
-                QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
+                QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
             )
 
             if reply == QtWidgets.QMessageBox.StandardButton.Yes:
@@ -398,11 +401,11 @@ class InterfaceTreePanel(QtWidgets.QWidget):
             self._rebuild_tree()
             self.interfacesChanged.emit()
 
-    def get_interfaces(self) -> List[InterfaceDefinition]:
+    def get_interfaces(self) -> list[InterfaceDefinition]:
         """Get list of all interface definitions."""
         return self._interfaces.copy()
 
-    def set_interfaces(self, interfaces: List[InterfaceDefinition]):
+    def set_interfaces(self, interfaces: list[InterfaceDefinition]):
         """Set the complete list of interfaces."""
         self._interfaces = interfaces.copy()
         self._rebuild_tree()
@@ -413,7 +416,7 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         self._rebuild_tree()
         self.interfacesChanged.emit()
 
-    def get_interface(self, index: int) -> Optional[InterfaceDefinition]:
+    def get_interface(self, index: int) -> InterfaceDefinition | None:
         """Get interface at specified index."""
         if 0 <= index < len(self._interfaces):
             return self._interfaces[index]
@@ -433,7 +436,7 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         else:
             self._tree.setCurrentItem(None)
 
-    def select_interfaces(self, indices: List[int]):
+    def select_interfaces(self, indices: list[int]):
         """Select multiple interfaces by indices."""
         # Block signals during programmatic selection
         self._tree.blockSignals(True)
@@ -461,7 +464,7 @@ class InterfaceTreePanel(QtWidgets.QWidget):
 
         return self._tree.indexOfTopLevelItem(item)
 
-    def get_selected_indices(self) -> List[int]:
+    def get_selected_indices(self) -> list[int]:
         """Get all selected interface indices."""
         selected_items = self._tree.selectedItems()
         indices = []
@@ -483,14 +486,12 @@ class InterfaceTreePanel(QtWidgets.QWidget):
 
     def move_interface(self, from_index: int, to_index: int):
         """Move interface from one position to another."""
-        if (0 <= from_index < len(self._interfaces) and
-            0 <= to_index < len(self._interfaces) and
-            from_index != to_index):
-
+        if (
+            0 <= from_index < len(self._interfaces)
+            and 0 <= to_index < len(self._interfaces)
+            and from_index != to_index
+        ):
             interface = self._interfaces.pop(from_index)
             self._interfaces.insert(to_index, interface)
             self._rebuild_tree()
             self.interfacesChanged.emit()
-
-
-

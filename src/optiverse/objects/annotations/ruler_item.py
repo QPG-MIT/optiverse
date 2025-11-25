@@ -2,27 +2,27 @@ from __future__ import annotations
 
 import math
 import uuid
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
-from ...core.zorder_utils import handle_z_order_from_menu
 from ...core.ui_constants import (
-    RULER_LINE_WIDTH,
-    RULER_LINE_WIDTH_SELECTED,
-    RULER_BAR_WIDTH,
     RULER_BAR_HEIGHT,
-    RULER_HIT_RADIUS_PX,
+    RULER_BAR_WIDTH,
     RULER_BOUNDING_PAD_PX,
-    RULER_MIN_STROKE_WIDTH_PX,
-    RULER_LABEL_PADDING,
-    RULER_TOTAL_LABEL_PERP_OFFSET,
-    RULER_TOTAL_LABEL_ALONG_OFFSET,
-    RULER_LABEL_CORNER_RADIUS,
+    RULER_HIT_RADIUS_PX,
     RULER_LABEL_BG_ALPHA,
     RULER_LABEL_BG_ALPHA_SELECTED,
+    RULER_LABEL_CORNER_RADIUS,
+    RULER_LABEL_PADDING,
+    RULER_LINE_WIDTH,
+    RULER_LINE_WIDTH_SELECTED,
+    RULER_MIN_STROKE_WIDTH_PX,
     RULER_POINT_CHANGE_THRESHOLD,
+    RULER_TOTAL_LABEL_ALONG_OFFSET,
+    RULER_TOTAL_LABEL_PERP_OFFSET,
 )
+from ...core.zorder_utils import handle_z_order_from_menu
 
 
 class RulerItem(QtWidgets.QGraphicsObject):
@@ -55,7 +55,7 @@ class RulerItem(QtWidgets.QGraphicsObject):
         p1: QtCore.QPointF = QtCore.QPointF(-50, 0),
         p2: QtCore.QPointF = QtCore.QPointF(50, 0),
         item_uuid: str | None = None,
-        points: List[QtCore.QPointF] | None = None
+        points: list[QtCore.QPointF] | None = None,
     ):
         super().__init__()
         # Generate or use provided UUID for collaboration
@@ -81,12 +81,12 @@ class RulerItem(QtWidgets.QGraphicsObject):
             self._points = [QtCore.QPointF(-50, 0), QtCore.QPointF(50, 0)]
 
         # Interaction state
-        self._grab: Optional[int] = None  # index of grabbed point, or None
-        self._initial_points: Optional[List[QtCore.QPointF]] = None  # Track for undo
+        self._grab: int | None = None  # index of grabbed point, or None
+        self._initial_points: list[QtCore.QPointF] | None = None  # Track for undo
 
     # ========== Public API for Point Manipulation ==========
 
-    def get_points(self) -> List[QtCore.QPointF]:
+    def get_points(self) -> list[QtCore.QPointF]:
         """Return a copy of all points."""
         return [QtCore.QPointF(p) for p in self._points]
 
@@ -140,7 +140,7 @@ class RulerItem(QtWidgets.QGraphicsObject):
 
     # ========== Geometry Calculation Helpers ==========
 
-    def _compute_segment_data(self) -> Tuple[List[float], float]:
+    def _compute_segment_data(self) -> tuple[list[float], float]:
         """
         Compute segment lengths and total length.
 
@@ -170,8 +170,12 @@ class RulerItem(QtWidgets.QGraphicsObject):
         along_x, along_y = dx / length, dy / length
 
         return QtCore.QPointF(
-            last_end.x() + perp_x * RULER_TOTAL_LABEL_PERP_OFFSET + along_x * RULER_TOTAL_LABEL_ALONG_OFFSET,
-            last_end.y() + perp_y * RULER_TOTAL_LABEL_PERP_OFFSET + along_y * RULER_TOTAL_LABEL_ALONG_OFFSET
+            last_end.x()
+            + perp_x * RULER_TOTAL_LABEL_PERP_OFFSET
+            + along_x * RULER_TOTAL_LABEL_ALONG_OFFSET,
+            last_end.y()
+            + perp_y * RULER_TOTAL_LABEL_PERP_OFFSET
+            + along_y * RULER_TOTAL_LABEL_ALONG_OFFSET,
         )
 
     def _get_label_bounding_rect(self, pos: QtCore.QPointF, text: str) -> QtCore.QRectF:
@@ -184,10 +188,7 @@ class RulerItem(QtWidgets.QGraphicsObject):
         padding = RULER_BAR_HEIGHT / 2.0 + RULER_LABEL_PADDING
         max_dim = max(w, h) + padding
         return QtCore.QRectF(
-            pos.x() - max_dim / 2.0,
-            pos.y() - max_dim / 2.0 - padding,
-            max_dim,
-            max_dim
+            pos.x() - max_dim / 2.0, pos.y() - max_dim / 2.0 - padding, max_dim, max_dim
         )
 
     # ========== Qt Graphics Item Methods ==========
@@ -250,11 +251,11 @@ class RulerItem(QtWidgets.QGraphicsObject):
         dir_y: float,
         perp_x: float,
         perp_y: float,
-        color: QtGui.QColor
+        color: QtGui.QColor,
     ) -> None:
         """Draw a bar perpendicular to the line at center point."""
         cx, cy = center.x(), center.y()
-        hw = RULER_BAR_WIDTH / 2.0   # half-width along direction
+        hw = RULER_BAR_WIDTH / 2.0  # half-width along direction
         hh = RULER_BAR_HEIGHT / 2.0  # half-height along perpendicular
 
         pts = [
@@ -277,7 +278,7 @@ class RulerItem(QtWidgets.QGraphicsObject):
         text: str,
         seg_dx: float,
         seg_dy: float,
-        is_selected: bool
+        is_selected: bool,
     ) -> None:
         """Draw a text label at the given position with proper rotation."""
         # Ensure text is always readable (flip direction if needed)
@@ -397,9 +398,9 @@ class RulerItem(QtWidgets.QGraphicsObject):
 
     # ========== Mouse Event Handling ==========
 
-    def _nearest_point(self, pos: QtCore.QPointF) -> Optional[int]:
+    def _nearest_point(self, pos: QtCore.QPointF) -> int | None:
         """Check if pos is near any point, return index if found."""
-        min_dist = float('inf')
+        min_dist = float("inf")
         nearest_idx = None
         for i, point in enumerate(self._points):
             dist = QtCore.QLineF(pos, point).length()
@@ -408,9 +409,12 @@ class RulerItem(QtWidgets.QGraphicsObject):
                 nearest_idx = i
         return nearest_idx
 
-    def _emit_property_change_command(self, before_state: Dict[str, Any], after_state: Dict[str, Any]) -> None:
+    def _emit_property_change_command(
+        self, before_state: dict[str, Any], after_state: dict[str, Any]
+    ) -> None:
         """Create and emit a property change command for undo/redo."""
         from ...core.undo_commands import PropertyChangeCommand
+
         cmd = PropertyChangeCommand(self, before_state, after_state)
         self.commandCreated.emit(cmd)
 
@@ -466,12 +470,16 @@ class RulerItem(QtWidgets.QGraphicsObject):
             self._add_bend_at_nearest_segment(ev.pos())
         else:
             # Handle z-order actions
-            handle_z_order_from_menu(self, action, {
-                act_bring_to_front: "bring_to_front",
-                act_bring_forward: "bring_forward",
-                act_send_backward: "send_backward",
-                act_send_to_back: "send_to_back",
-            })
+            handle_z_order_from_menu(
+                self,
+                action,
+                {
+                    act_bring_to_front: "bring_to_front",
+                    act_bring_forward: "bring_forward",
+                    act_send_backward: "send_backward",
+                    act_send_to_back: "send_to_back",
+                },
+            )
 
     def _delete_bend_point(self, index: int) -> None:
         """Delete a bend point with undo support."""
@@ -492,7 +500,7 @@ class RulerItem(QtWidgets.QGraphicsObject):
             return
 
         # Find nearest segment
-        min_dist = float('inf')
+        min_dist = float("inf")
         insert_idx = 0
 
         for i in range(len(self._points) - 1):
@@ -504,7 +512,14 @@ class RulerItem(QtWidgets.QGraphicsObject):
                 # Project click point onto segment
                 seg_vec = seg_end - seg_start
                 click_vec = click_pos - seg_start
-                t = max(0, min(1, (click_vec.x() * seg_vec.x() + click_vec.y() * seg_vec.y()) / (seg_len * seg_len)))
+                t = max(
+                    0,
+                    min(
+                        1,
+                        (click_vec.x() * seg_vec.x() + click_vec.y() * seg_vec.y())
+                        / (seg_len * seg_len),
+                    ),
+                )
                 proj_point = seg_start + t * seg_vec
                 dist = QtCore.QLineF(click_pos, proj_point).length()
 
@@ -537,8 +552,8 @@ class RulerItem(QtWidgets.QGraphicsObject):
 
             if points_changed:
                 before_state = {
-                    'points': [[float(p.x()), float(p.y())] for p in self._initial_points],
-                    'pos': {'x': float(self.pos().x()), 'y': float(self.pos().y())},
+                    "points": [[float(p.x()), float(p.y())] for p in self._initial_points],
+                    "pos": {"x": float(self.pos().x()), "y": float(self.pos().y())},
                 }
                 after_state = self.capture_state()
                 self._emit_property_change_command(before_state, after_state)
@@ -561,37 +576,39 @@ class RulerItem(QtWidgets.QGraphicsObject):
 
     # ========== State Management (Undo/Redo) ==========
 
-    def capture_state(self) -> Dict[str, Any]:
+    def capture_state(self) -> dict[str, Any]:
         """Capture current state for undo/redo."""
         return {
-            'points': [[float(p.x()), float(p.y())] for p in self._points],
-            'pos': {'x': float(self.pos().x()), 'y': float(self.pos().y())},
+            "points": [[float(p.x()), float(p.y())] for p in self._points],
+            "pos": {"x": float(self.pos().x()), "y": float(self.pos().y())},
         }
 
-    def apply_state(self, state: Dict[str, Any]) -> None:
+    def apply_state(self, state: dict[str, Any]) -> None:
         """Apply a previously captured state."""
-        if 'points' in state:
+        if "points" in state:
             self.prepareGeometryChange()
-            self._points = [QtCore.QPointF(float(p[0]), float(p[1])) for p in state['points']]
+            self._points = [QtCore.QPointF(float(p[0]), float(p[1])) for p in state["points"]]
             self.update()
-        if 'pos' in state:
-            self.setPos(QtCore.QPointF(float(state['pos']['x']), float(state['pos']['y'])))
+        if "pos" in state:
+            self.setPos(QtCore.QPointF(float(state["pos"]["x"]), float(state["pos"]["y"])))
 
     # ========== Serialization ==========
 
-    def clone(self, offset_mm: tuple[float, float] = (20.0, 20.0)) -> 'RulerItem':
+    def clone(self, offset_mm: tuple[float, float] = (20.0, 20.0)) -> RulerItem:
         """Create a deep copy of this ruler with optional position offset."""
         # Get scene coordinates of all points
         points_scene = [self.mapToScene(p) for p in self._points]
 
         # Create new ruler with offset positions
-        new_points = [QtCore.QPointF(p.x() + offset_mm[0], p.y() + offset_mm[1]) for p in points_scene]
+        new_points = [
+            QtCore.QPointF(p.x() + offset_mm[0], p.y() + offset_mm[1]) for p in points_scene
+        ]
         new_ruler = RulerItem(points=new_points, item_uuid=str(uuid.uuid4()))
         new_ruler.setZValue(self.zValue())
 
         return new_ruler
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize ruler to dictionary."""
         # Save absolute points in scene space so reopening is exact
         points_scene = [self.mapToScene(p) for p in self._points]
@@ -603,7 +620,7 @@ class RulerItem(QtWidgets.QGraphicsObject):
         }
 
     @staticmethod
-    def from_dict(d: Dict[str, Any]) -> "RulerItem":
+    def from_dict(d: dict[str, Any]) -> RulerItem:
         """Deserialize ruler from dictionary."""
         item_uuid = d.get("item_uuid")
 
@@ -621,5 +638,3 @@ class RulerItem(QtWidgets.QGraphicsObject):
             item.setZValue(float(d["z_value"]))
 
         return item
-
-

@@ -6,7 +6,7 @@ Maps Zemax sequential surfaces to the interface-based component model.
 
 import logging
 import math
-from typing import List, Optional
+from typing import Optional
 
 from ..core.interface_definition import InterfaceDefinition
 from ..core.models import ComponentRecord
@@ -54,7 +54,7 @@ class ZemaxToInterfaceConverter:
         Returns:
             ComponentRecord with interfaces populated
         """
-        interfaces: List[InterfaceDefinition] = []
+        interfaces: list[InterfaceDefinition] = []
         cumulative_x = 0.0  # Position along optical axis
         current_material = ""  # Start in air
 
@@ -65,7 +65,7 @@ class ZemaxToInterfaceConverter:
                 continue
 
             # Check if this is the image surface (last surface)
-            is_image_surface = (i == len(zemax_file.surfaces) - 1)
+            is_image_surface = i == len(zemax_file.surfaces) - 1
 
             # Get next surface to determine material after this interface
             next_material = surf.glass if surf.glass else ""
@@ -77,11 +77,7 @@ class ZemaxToInterfaceConverter:
 
                 # Create interface
                 interface = self._create_interface(
-                    surf,
-                    cumulative_x,
-                    n1,
-                    n2,
-                    zemax_file.primary_wavelength_um
+                    surf, cumulative_x, n1, n2, zemax_file.primary_wavelength_um
                 )
                 interfaces.append(interface)
 
@@ -109,19 +105,11 @@ class ZemaxToInterfaceConverter:
         notes = "\n".join(notes_lines)
 
         return ComponentRecord(
-            name=name,
-            interfaces=interfaces,
-            object_height_mm=diameter_mm,
-            notes=notes
+            name=name, interfaces=interfaces, object_height_mm=diameter_mm, notes=notes
         )
 
     def _create_interface(
-        self,
-        surf: ZemaxSurface,
-        x_pos: float,
-        n1: float,
-        n2: float,
-        wavelength_um: float
+        self, surf: ZemaxSurface, x_pos: float, n1: float, n2: float, wavelength_um: float
     ) -> InterfaceDefinition:
         """
         Create InterfaceDefinition from Zemax surface.
@@ -156,8 +144,8 @@ class ZemaxToInterfaceConverter:
             # Sag formula: s = R - sqrt(R² - h²)
             # where h is the semi-diameter (half_diameter)
             R_abs = abs(radius_mm)
-            h_sq = half_diameter ** 2
-            if h_sq < R_abs ** 2:
+            h_sq = half_diameter**2
+            if h_sq < R_abs**2:
                 sag = R_abs - math.sqrt(R_abs**2 - h_sq)
                 if radius_mm < 0:
                     sag = -sag  # Concave from left
@@ -264,6 +252,7 @@ class ZemaxToInterfaceConverter:
 # Quick test
 if __name__ == "__main__":
     import sys
+
     from .zemax_parser import ZemaxParser
 
     logging.basicConfig(level=logging.DEBUG, format="%(message)s")
@@ -276,13 +265,13 @@ if __name__ == "__main__":
         if zemax_data:
             _logger.info("Zemax file parsed successfully")
             _logger.info(parser.format_summary(zemax_data))
-            _logger.info("\n" + "="*60)
+            _logger.info("\n" + "=" * 60)
 
             # Convert to interfaces
             converter = ZemaxToInterfaceConverter()
             component = converter.convert(zemax_data)
 
-            _logger.info(f"\nConverted to OptiVerse component:")
+            _logger.info("\nConverted to OptiVerse component:")
             _logger.info(f"Name: {component.name}")
             num_ifaces = len(component.interfaces) if component.interfaces else 0
             if num_ifaces > 1:
@@ -290,18 +279,15 @@ if __name__ == "__main__":
             elif num_ifaces == 1:
                 _logger.info(f"Type: {component.interfaces[0].element_type}")
             else:
-                _logger.info(f"Type: Unknown")
+                _logger.info("Type: Unknown")
             _logger.info(f"Object height: {component.object_height_mm:.2f} mm")
             _logger.info(f"Interfaces: {num_ifaces}")
             _logger.info("")
 
             if component.interfaces:
                 for i, iface in enumerate(component.interfaces):
-                    _logger.info(f"Interface {i+1}: {iface.name}")
+                    _logger.info(f"Interface {i + 1}: {iface.name}")
                     _logger.info(f"  Position: x={iface.x1_mm:.2f} mm")
                     _logger.info(f"  Height: {iface.length_mm():.2f} mm")
                     _logger.info(f"  Indices: n1={iface.n1:.4f} → n2={iface.n2:.4f}")
                     _logger.info("")
-
-
-

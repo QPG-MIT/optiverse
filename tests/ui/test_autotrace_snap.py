@@ -1,11 +1,7 @@
-from PyQt6 import QtCore
-
-
 def test_autotrace_triggers_on_scene_change(qtbot):
+    from optiverse.core.models import LensParams, SourceParams
+    from optiverse.objects import ComponentItem, SourceItem
     from optiverse.ui.views.main_window import MainWindow
-    from optiverse.objects import SourceItem
-    from optiverse.core.models import SourceParams, LensParams
-    from optiverse.objects import ComponentItem
 
     w = MainWindow()
     qtbot.addWidget(w)
@@ -20,9 +16,11 @@ def test_autotrace_triggers_on_scene_change(qtbot):
 
     called = {"n": 0}
     _orig = w.retrace
+
     def _wrap():
         called["n"] += 1
         _orig()
+
     w.retrace = _wrap  # type: ignore[assignment]
 
     # move lens → scene.changed should fire and schedule retrace
@@ -33,9 +31,9 @@ def test_autotrace_triggers_on_scene_change(qtbot):
 
 
 def test_snap_selected_to_grid(qtbot):
-    from optiverse.ui.views.main_window import MainWindow
     from optiverse.core.models import LensParams
     from optiverse.objects import ComponentItem
+    from optiverse.ui.views.main_window import MainWindow
 
     w = MainWindow()
     qtbot.addWidget(w)
@@ -52,7 +50,3 @@ def test_snap_selected_to_grid(qtbot):
     p = L.pos()
     assert int(p.x()) == round(10.7)
     assert int(p.y()) == round(9.3)
-
-
-
-

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Dict, Any
+from typing import Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -64,14 +64,18 @@ class TextNoteItem(QtWidgets.QGraphicsTextItem):
             self.scene().removeItem(self)
         else:
             # Handle z-order actions via utility
-            handle_z_order_from_menu(self, a, {
-                act_bring_to_front: "bring_to_front",
-                act_bring_forward: "bring_forward",
-                act_send_backward: "send_backward",
-                act_send_to_back: "send_to_back",
-            })
+            handle_z_order_from_menu(
+                self,
+                a,
+                {
+                    act_bring_to_front: "bring_to_front",
+                    act_bring_forward: "bring_forward",
+                    act_send_backward: "send_backward",
+                    act_send_to_back: "send_to_back",
+                },
+            )
 
-    def clone(self, offset_mm: tuple[float, float] = (20.0, 20.0)) -> 'TextNoteItem':
+    def clone(self, offset_mm: tuple[float, float] = (20.0, 20.0)) -> TextNoteItem:
         """Create a deep copy of this text note with optional position offset."""
         from PyQt6.QtCore import QPointF
 
@@ -89,7 +93,7 @@ class TextNoteItem(QtWidgets.QGraphicsTextItem):
 
         return new_item
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize text note to dictionary."""
         return {
             "type": "text",
@@ -103,7 +107,7 @@ class TextNoteItem(QtWidgets.QGraphicsTextItem):
         }
 
     @staticmethod
-    def from_dict(d: Dict[str, Any]) -> "TextNoteItem":
+    def from_dict(d: dict[str, Any]) -> TextNoteItem:
         """Deserialize text note from dictionary."""
         item_uuid = d.get("item_uuid")
         item = TextNoteItem(d.get("text", "Text"), item_uuid)
@@ -121,7 +125,3 @@ class TextNoteItem(QtWidgets.QGraphicsTextItem):
             item.setZValue(float(d["z_value"]))
 
         return item
-
-
-
-

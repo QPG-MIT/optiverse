@@ -8,10 +8,9 @@ This script tests the new folder-based component library system including:
 - Loading from multiple libraries
 """
 
+import json
 import sys
 import tempfile
-import shutil
-import json
 from pathlib import Path
 
 # Add src to path so we can import optiverse
@@ -23,9 +22,9 @@ def test_folder_based_storage():
     print("\n=== Test 1: Folder-Based Storage ===")
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        from optiverse.services.storage_service import StorageService
-        from optiverse.core.models import ComponentRecord
         from optiverse.core.interface_definition import InterfaceDefinition
+        from optiverse.core.models import ComponentRecord
+        from optiverse.services.storage_service import StorageService
 
         # Create a temporary library
         library_path = Path(tmpdir) / "test_library"
@@ -42,14 +41,17 @@ def test_folder_based_storage():
             category="lenses",
             interfaces=[
                 InterfaceDefinition(
-                    x1_mm=0.0, y1_mm=12.7,
-                    x2_mm=0.0, y2_mm=-12.7,
+                    x1_mm=0.0,
+                    y1_mm=12.7,
+                    x2_mm=0.0,
+                    y2_mm=-12.7,
                     element_type="lens",
-                    n1=1.0, n2=1.0,
-                    efl_mm=100.0
+                    n1=1.0,
+                    n2=1.0,
+                    efl_mm=100.0,
                 )
             ],
-            notes="Test component"
+            notes="Test component",
         )
 
         # Save component
@@ -76,9 +78,9 @@ def test_export_import():
     print("\n=== Test 2: Export/Import ===")
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        from optiverse.services.storage_service import StorageService
-        from optiverse.core.models import ComponentRecord
         from optiverse.core.interface_definition import InterfaceDefinition
+        from optiverse.core.models import ComponentRecord
+        from optiverse.services.storage_service import StorageService
 
         # Create source library
         source_lib = Path(tmpdir) / "source_library"
@@ -95,13 +97,16 @@ def test_export_import():
             category="mirrors",
             interfaces=[
                 InterfaceDefinition(
-                    x1_mm=0.0, y1_mm=25.0,
-                    x2_mm=0.0, y2_mm=-25.0,
+                    x1_mm=0.0,
+                    y1_mm=25.0,
+                    x2_mm=0.0,
+                    y2_mm=-25.0,
                     element_type="mirror",
-                    n1=1.0, n2=1.0
+                    n1=1.0,
+                    n2=1.0,
                 )
             ],
-            notes="Component for export test"
+            notes="Component for export test",
         )
 
         storage1.save_component(test_component)
@@ -173,8 +178,8 @@ def test_image_handling():
     print("\n=== Test 4: Image Handling ===")
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        from optiverse.services.storage_service import StorageService
         from optiverse.core.models import ComponentRecord
+        from optiverse.services.storage_service import StorageService
 
         # Create a test image
         test_image = Path(tmpdir) / "test_image.png"
@@ -194,7 +199,7 @@ def test_image_handling():
             angle_deg=0.0,
             category="lenses",
             interfaces=[],
-            notes=""
+            notes="",
         )
 
         # Save component
@@ -244,6 +249,7 @@ def main():
         print(f"[FAIL] Test failed: {e}")
         print("=" * 60)
         import traceback
+
         traceback.print_exc()
         return 1
 
@@ -252,7 +258,5 @@ def main():
 
 if __name__ == "__main__":
     import sys
+
     sys.exit(main())
-
-
-

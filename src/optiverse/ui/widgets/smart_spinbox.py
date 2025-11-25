@@ -1,7 +1,8 @@
 """Smart spinbox with cursor-aware increments and live updates."""
+
 from __future__ import annotations
 
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtCore, QtWidgets
 
 
 class SmartDoubleSpinBox(QtWidgets.QDoubleSpinBox):
@@ -77,7 +78,6 @@ class SmartDoubleSpinBox(QtWidgets.QDoubleSpinBox):
         prefix = self.prefix()
 
         # Keep original text for length comparison
-        original_text = text
 
         # Strip prefix
         prefix_len = 0
@@ -109,7 +109,7 @@ class SmartDoubleSpinBox(QtWidgets.QDoubleSpinBox):
             digit_pos = cursor_pos - 1
 
         # Find decimal point position
-        decimal_pos = text.find('.')
+        decimal_pos = text.find(".")
 
         # Determine step size based on the digit position (left of cursor)
         if decimal_pos == -1:
@@ -270,6 +270,3 @@ class SmartSpinBox(QtWidgets.QSpinBox):
 
         line_edit.setCursorPosition(adjusted_pos)
         self._last_cursor_pos = adjusted_pos
-
-
-

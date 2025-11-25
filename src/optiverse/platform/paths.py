@@ -4,7 +4,6 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 from PyQt6 import QtCore
 
@@ -28,10 +27,14 @@ def is_linux() -> bool:
 
 def _app_data_root() -> Path:
     # Prefer Qt standard writable location
-    base = QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.StandardLocation.AppDataLocation)
+    base = QtCore.QStandardPaths.writableLocation(
+        QtCore.QStandardPaths.StandardLocation.AppDataLocation
+    )
     if not base:
         # Fallback to HOME
-        home = os.environ.get("USERPROFILE") or os.environ.get("HOME") or str(Path("~").expanduser())
+        home = (
+            os.environ.get("USERPROFILE") or os.environ.get("HOME") or str(Path("~").expanduser())
+        )
         base = os.path.join(home, ".optiverse")
     root = Path(base) / "Optiverse"
     root.mkdir(parents=True, exist_ok=True)
@@ -76,7 +79,9 @@ def get_user_library_root() -> Path:
 
     if not docs_location:
         # Fallback to home directory
-        home = os.environ.get("USERPROFILE") or os.environ.get("HOME") or str(Path("~").expanduser())
+        home = (
+            os.environ.get("USERPROFILE") or os.environ.get("HOME") or str(Path("~").expanduser())
+        )
         docs_location = home
 
     # Create the library directory structure
@@ -104,7 +109,9 @@ def get_all_custom_library_roots() -> list[Path]:
 
     if not docs_location:
         # Fallback to home directory
-        home = os.environ.get("USERPROFILE") or os.environ.get("HOME") or str(Path("~").expanduser())
+        home = (
+            os.environ.get("USERPROFILE") or os.environ.get("HOME") or str(Path("~").expanduser())
+        )
         docs_location = home
 
     # Get the ComponentLibraries parent directory
@@ -125,7 +132,7 @@ def get_all_custom_library_roots() -> list[Path]:
     return library_paths
 
 
-def get_custom_library_path(library_path: str) -> Optional[Path]:
+def get_custom_library_path(library_path: str) -> Path | None:
     """
     Validate and return a custom library path.
 
@@ -188,7 +195,7 @@ def get_package_images_dir() -> Path:
     return get_package_root() / "objects" / "images"
 
 
-def is_package_image(image_path: Optional[str]) -> bool:
+def is_package_image(image_path: str | None) -> bool:
     """
     Check if an image path is within the package.
 
@@ -216,7 +223,7 @@ def is_package_image(image_path: Optional[str]) -> bool:
         return False
 
 
-def to_relative_path(image_path: Optional[str]) -> Optional[str]:
+def to_relative_path(image_path: str | None) -> str | None:
     """
     Convert an absolute image path to a relative path if it's within the package.
     Otherwise, keep it as absolute.
@@ -253,7 +260,9 @@ def to_relative_path(image_path: Optional[str]) -> Optional[str]:
         return image_path
 
 
-def to_absolute_path(image_path: Optional[str], library_roots: Optional[list[Path]] = None) -> Optional[str]:
+def to_absolute_path(
+    image_path: str | None, library_roots: list[Path] | None = None
+) -> str | None:
     """
     Convert a relative image path to absolute, assuming it's relative to package root.
     If already absolute, verify it exists or leave as-is.
@@ -340,7 +349,9 @@ def get_all_library_roots(settings_service=None) -> list[Path]:
     return unique_libraries
 
 
-def resolve_library_relative_path(rel_path: str, library_roots: Optional[list[Path]] = None) -> Optional[str]:
+def resolve_library_relative_path(
+    rel_path: str, library_roots: list[Path] | None = None
+) -> str | None:
     """
     Resolve a library-relative path to absolute path.
 
@@ -385,7 +396,9 @@ def resolve_library_relative_path(rel_path: str, library_roots: Optional[list[Pa
     return None
 
 
-def make_library_relative(abs_path: str, library_roots: Optional[list[Path]] = None) -> Optional[str]:
+def make_library_relative(
+    abs_path: str, library_roots: list[Path] | None = None
+) -> str | None:
     """
     Convert an absolute path to library-relative format if it's within a library.
 
@@ -426,7 +439,9 @@ def make_library_relative(abs_path: str, library_roots: Optional[list[Path]] = N
         return None
 
 
-def resolve_component_path(component_path: str, library_roots: Optional[list[Path]] = None) -> Optional[str]:
+def resolve_component_path(
+    component_path: str, library_roots: list[Path] | None = None
+) -> str | None:
     """
     Resolve a component-relative path to absolute path.
 
@@ -481,7 +496,9 @@ def resolve_component_path(component_path: str, library_roots: Optional[list[Pat
     return None
 
 
-def make_component_relative(abs_path: str, library_roots: Optional[list[Path]] = None) -> Optional[str]:
+def make_component_relative(
+    abs_path: str, library_roots: list[Path] | None = None
+) -> str | None:
     """
     Convert an absolute path to component-relative format if it's within a library.
 
@@ -532,7 +549,3 @@ def make_component_relative(abs_path: str, library_roots: Optional[list[Path]] =
     except OSError as e:
         _logger.debug("Failed to convert to component path %r: %s", abs_path, e)
         return None
-
-
-
-

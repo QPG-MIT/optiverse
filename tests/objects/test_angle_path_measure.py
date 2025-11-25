@@ -1,12 +1,13 @@
 """Tests for AngleMeasureItem and PathMeasureItem."""
+
 import numpy as np
 from PyQt6 import QtCore, QtWidgets
 
 
 def test_angle_measure_item_smoke(qtbot):
     """Basic smoke test for AngleMeasureItem."""
-    from optiverse.objects.annotations.angle_measure_item import AngleMeasureItem
     from optiverse.objects import GraphicsView
+    from optiverse.objects.annotations.angle_measure_item import AngleMeasureItem
 
     scene = QtWidgets.QGraphicsScene()
     view = GraphicsView(scene)
@@ -117,21 +118,17 @@ def test_angle_measure_item_has_command_signal():
     """Test that AngleMeasureItem has commandCreated and requestDelete signals."""
     from optiverse.objects.annotations.angle_measure_item import AngleMeasureItem
 
-    item = AngleMeasureItem(
-        QtCore.QPointF(0, 0),
-        QtCore.QPointF(100, 0),
-        QtCore.QPointF(0, 100)
-    )
+    item = AngleMeasureItem(QtCore.QPointF(0, 0), QtCore.QPointF(100, 0), QtCore.QPointF(0, 100))
 
     # Verify signals exist
-    assert hasattr(item, 'commandCreated')
-    assert hasattr(item, 'requestDelete')
+    assert hasattr(item, "commandCreated")
+    assert hasattr(item, "requestDelete")
 
 
 def test_path_measure_item_smoke(qtbot):
     """Basic smoke test for PathMeasureItem."""
-    from optiverse.objects.annotations.path_measure_item import PathMeasureItem
     from optiverse.objects import GraphicsView
+    from optiverse.objects.annotations.path_measure_item import PathMeasureItem
 
     scene = QtWidgets.QGraphicsScene()
     view = GraphicsView(scene)
@@ -141,18 +138,9 @@ def test_path_measure_item_smoke(qtbot):
     qtbot.waitExposed(view)
 
     # Create path measure with simple path
-    points = [
-        np.array([0, 0]),
-        np.array([100, 0]),
-        np.array([100, 100])
-    ]
+    points = [np.array([0, 0]), np.array([100, 0]), np.array([100, 100])]
 
-    item = PathMeasureItem(
-        ray_path_points=points,
-        start_param=0.0,
-        end_param=1.0,
-        ray_index=0
-    )
+    item = PathMeasureItem(ray_path_points=points, start_param=0.0, end_param=1.0, ray_index=0)
     scene.addItem(item)
 
     assert item.boundingRect().isValid()
@@ -169,19 +157,14 @@ def test_path_measure_item_partial_path():
     scene = QtWidgets.QGraphicsScene()
 
     # Create path with 3 segments of 100mm each
-    points = [
-        np.array([0, 0]),
-        np.array([100, 0]),
-        np.array([200, 0]),
-        np.array([300, 0])
-    ]
+    points = [np.array([0, 0]), np.array([100, 0]), np.array([200, 0]), np.array([300, 0])]
 
     # Measure only the middle portion
     item = PathMeasureItem(
         ray_path_points=points,
         start_param=0.25,  # 75mm from start
-        end_param=0.75,    # 225mm from start
-        ray_index=0
+        end_param=0.75,  # 225mm from start
+        ray_index=0,
     )
     scene.addItem(item)
 
@@ -195,18 +178,9 @@ def test_path_measure_item_capture_apply_state():
 
     scene = QtWidgets.QGraphicsScene()
 
-    points = [
-        np.array([0, 0]),
-        np.array([100, 0]),
-        np.array([200, 0])
-    ]
+    points = [np.array([0, 0]), np.array([100, 0]), np.array([200, 0])]
 
-    item = PathMeasureItem(
-        ray_path_points=points,
-        start_param=0.0,
-        end_param=1.0,
-        ray_index=0
-    )
+    item = PathMeasureItem(ray_path_points=points, start_param=0.0, end_param=1.0, ray_index=0)
     scene.addItem(item)
 
     # Capture initial state
@@ -216,7 +190,7 @@ def test_path_measure_item_capture_apply_state():
     # Modify the item
     item.start_param = 0.25
     item.end_param = 0.75
-    item.apply_state({'start_param': 0.25, 'end_param': 0.75})
+    item.apply_state({"start_param": 0.25, "end_param": 0.75})
     length2 = item.segment_length
 
     # Verify length changed
@@ -237,8 +211,8 @@ def test_path_measure_item_has_command_signal():
     item = PathMeasureItem(ray_path_points=points)
 
     # Verify signals exist
-    assert hasattr(item, 'commandCreated')
-    assert hasattr(item, 'requestDelete')
+    assert hasattr(item, "commandCreated")
+    assert hasattr(item, "requestDelete")
 
 
 def test_path_measure_item_serialization():
@@ -247,18 +221,10 @@ def test_path_measure_item_serialization():
 
     scene = QtWidgets.QGraphicsScene()
 
-    points = [
-        np.array([0, 0]),
-        np.array([100, 0]),
-        np.array([100, 100])
-    ]
+    points = [np.array([0, 0]), np.array([100, 0]), np.array([100, 100])]
 
     original = PathMeasureItem(
-        ray_path_points=points,
-        start_param=0.1,
-        end_param=0.9,
-        ray_index=5,
-        label_prefix="Test: "
+        ray_path_points=points, start_param=0.1, end_param=0.9, ray_index=5, label_prefix="Test: "
     )
     original.setZValue(456.0)
     scene.addItem(original)
@@ -280,7 +246,4 @@ def test_ruler_item_has_delete_signal():
     item = RulerItem(QtCore.QPointF(0, 0), QtCore.QPointF(100, 0))
 
     # Verify signal exists
-    assert hasattr(item, 'requestDelete')
-
-
-
+    assert hasattr(item, "requestDelete")

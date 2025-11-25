@@ -3,9 +3,10 @@ Test Zemax to OptiVerse converter functionality.
 """
 
 import pytest
-from optiverse.services.zemax_parser import ZemaxParser
-from optiverse.services.zemax_converter import ZemaxToInterfaceConverter
+
 from optiverse.services.glass_catalog import GlassCatalog
+from optiverse.services.zemax_converter import ZemaxToInterfaceConverter
+from optiverse.services.zemax_parser import ZemaxParser
 
 
 @pytest.fixture
@@ -173,7 +174,7 @@ def test_converter_surface_sag(zemax_data, converter):
     # Calculate expected sag: s = R - sqrt(R² - h²)
     R = 66.68
     h = 6.35
-    expected_sag = R - (R**2 - h**2)**0.5
+    expected_sag = R - (R**2 - h**2) ** 0.5
     assert abs(sag_edge - expected_sag) < 0.01
 
 
@@ -202,6 +203,3 @@ def test_glass_catalog_lookup():
     # Air should always return 1.0
     assert catalog.get_refractive_index("", 0.855) == 1.0
     assert catalog.get_refractive_index("AIR", 0.855) == 1.0
-
-
-

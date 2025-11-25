@@ -1,6 +1,7 @@
 """Tests for AngleMeasureToolHandler and PathMeasureToolHandler."""
-from unittest.mock import Mock, MagicMock
-import numpy as np
+
+from unittest.mock import Mock
+
 from PyQt6 import QtCore, QtWidgets
 
 
@@ -19,7 +20,7 @@ def test_angle_measure_handler_activation():
         view=view,
         undo_stack=undo_stack,
         parent_widget=parent_widget,
-        on_complete=on_complete
+        on_complete=on_complete,
     )
 
     # Initially not active
@@ -28,7 +29,7 @@ def test_angle_measure_handler_activation():
     # Activate
     handler.activate()
     assert handler.is_active()
-    assert handler._state == 'waiting_point1'
+    assert handler._state == "waiting_point1"
 
     # Deactivate
     handler.deactivate()
@@ -50,7 +51,7 @@ def test_angle_measure_handler_escape():
         view=view,
         undo_stack=undo_stack,
         parent_widget=parent_widget,
-        on_complete=on_complete
+        on_complete=on_complete,
     )
 
     # Activate and start measurement
@@ -78,7 +79,7 @@ def test_angle_measure_handler_escape_not_active():
         view=view,
         undo_stack=undo_stack,
         parent_widget=parent_widget,
-        on_complete=on_complete
+        on_complete=on_complete,
     )
 
     # Escape should return False when not active
@@ -102,19 +103,19 @@ def test_angle_measure_handler_click_workflow():
         view=view,
         undo_stack=undo_stack,
         parent_widget=parent_widget,
-        on_complete=on_complete
+        on_complete=on_complete,
     )
 
     handler.activate()
 
     # First click: set point1
     handler.handle_click(QtCore.QPointF(0, 0))
-    assert handler._state == 'waiting_vertex'
+    assert handler._state == "waiting_vertex"
     assert handler._point1 is not None
 
     # Second click: set vertex
     handler.handle_click(QtCore.QPointF(50, 50))
-    assert handler._state == 'waiting_point2'
+    assert handler._state == "waiting_point2"
     assert handler._vertex is not None
 
     # Third click: set point2 and create measurement
@@ -148,7 +149,7 @@ def test_path_measure_handler_activation():
         undo_stack=undo_stack,
         get_ray_data=get_ray_data,
         parent_widget=parent_widget,
-        on_complete=on_complete
+        on_complete=on_complete,
     )
 
     # Initially not active
@@ -157,7 +158,7 @@ def test_path_measure_handler_activation():
     # Activate
     handler.activate()
     assert handler.is_active()
-    assert handler._state == 'waiting_first_click'
+    assert handler._state == "waiting_first_click"
 
     # Deactivate
     handler.deactivate()
@@ -181,7 +182,7 @@ def test_path_measure_handler_escape():
         undo_stack=undo_stack,
         get_ray_data=get_ray_data,
         parent_widget=parent_widget,
-        on_complete=on_complete
+        on_complete=on_complete,
     )
 
     # Activate
@@ -211,7 +212,7 @@ def test_path_measure_handler_escape_not_active():
         undo_stack=undo_stack,
         get_ray_data=get_ray_data,
         parent_widget=parent_widget,
-        on_complete=on_complete
+        on_complete=on_complete,
     )
 
     # Escape should return False when not active
@@ -230,10 +231,7 @@ def test_angle_measure_handler_cleanup_on_deactivate():
     parent_widget = Mock()
 
     handler = AngleMeasureToolHandler(
-        scene=scene,
-        view=view,
-        undo_stack=undo_stack,
-        parent_widget=parent_widget
+        scene=scene, view=view, undo_stack=undo_stack, parent_widget=parent_widget
     )
 
     handler.activate()
@@ -262,7 +260,7 @@ def test_path_measure_handler_handle_item_delete():
         view=view,
         undo_stack=undo_stack,
         get_ray_data=get_ray_data,
-        parent_widget=parent_widget
+        parent_widget=parent_widget,
     )
 
     # Create mock item with scene
@@ -286,10 +284,7 @@ def test_angle_measure_handler_handle_item_delete():
     parent_widget = Mock()
 
     handler = AngleMeasureToolHandler(
-        scene=scene,
-        view=view,
-        undo_stack=undo_stack,
-        parent_widget=parent_widget
+        scene=scene, view=view, undo_stack=undo_stack, parent_widget=parent_widget
     )
 
     # Create mock item with scene
@@ -301,6 +296,3 @@ def test_angle_measure_handler_handle_item_delete():
 
     # Should have pushed a RemoveItemCommand
     undo_stack.push.assert_called_once()
-
-
-

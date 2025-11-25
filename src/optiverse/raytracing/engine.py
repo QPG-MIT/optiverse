@@ -4,25 +4,25 @@ Simplified raytracing engine using polymorphic elements.
 This replaces the complex 358-line _trace_single_ray_worker function
 with a clean, extensible 50-line implementation.
 """
+
 import math
-from typing import List, Tuple
 
 import numpy as np
 
-from ..core.color_utils import qcolor_from_hex, wavelength_to_rgb
+from ..core.color_utils import qcolor_from_hex
 from ..core.models import SourceParams
 from ..core.raytracing_math import deg2rad, ray_hit_element
 from .elements.base import IOpticalElement, RayIntersection
-from .ray import Polarization, Ray, RayPath
+from .ray import Ray, RayPath
 
 
 def trace_rays_polymorphic(
-    elements: List[IOpticalElement],
-    sources: List[SourceParams],
+    elements: list[IOpticalElement],
+    sources: list[SourceParams],
     max_events: int = 80,
     epsilon: float = 1e-3,
-    min_intensity: float = 0.02
-) -> List[RayPath]:
+    min_intensity: float = 0.02,
+) -> list[RayPath]:
     """
     Trace rays from sources through optical elements using polymorphism.
 
@@ -59,7 +59,7 @@ def trace_rays_polymorphic(
     return paths
 
 
-def _generate_rays_from_source(source: SourceParams) -> List[Ray]:
+def _generate_rays_from_source(source: SourceParams) -> list[Ray]:
     """
     Generate initial rays from a source configuration.
 
@@ -76,7 +76,7 @@ def _generate_rays_from_source(source: SourceParams) -> List[Ray]:
     if source.n_rays <= 1 or source.size_mm == 0:
         y_offsets = [0.0]
     else:
-        y_offsets = list(np.linspace(-source.size_mm/2, source.size_mm/2, source.n_rays))
+        y_offsets = list(np.linspace(-source.size_mm / 2, source.size_mm / 2, source.n_rays))
 
     # Generate ray angles
     if spread == 0 or source.n_rays <= 1:
@@ -110,7 +110,7 @@ def _generate_rays_from_source(source: SourceParams) -> List[Ray]:
             base_rgb=base_rgb,
             intensity=1.0,
             events=0,
-            path_points=[position.copy()]  # Initialize with starting position
+            path_points=[position.copy()],  # Initialize with starting position
         )
         rays.append(ray)
 
@@ -119,12 +119,12 @@ def _generate_rays_from_source(source: SourceParams) -> List[Ray]:
 
 def _trace_single_ray(
     ray: Ray,
-    elements: List[IOpticalElement],
+    elements: list[IOpticalElement],
     max_events: int,
     epsilon: float,
     min_intensity: float,
-    source: SourceParams
-) -> List[RayPath]:
+    source: SourceParams,
+) -> list[RayPath]:
     """
     Trace a single ray through elements.
 
@@ -154,22 +154,28 @@ def _trace_single_ray(
         current_ray = stack.pop()
 
         # Check termination conditions
-        if current_ray.events >= max_events or current_ray.intensity < min_intensity or current_ray.remaining_length <= 0:
+        if (
+            current_ray.events >= max_events
+            or current_ray.intensity < min_intensity
+            or current_ray.remaining_length <= 0
+        ):
             # Finalize this path
             if len(current_ray.path_points) >= 2:
                 alpha = int(255 * max(0.0, min(1.0, current_ray.intensity)))
-                paths.append(RayPath(
-                    points=current_ray.path_points,
-                    rgba=(base_rgb[0], base_rgb[1], base_rgb[2], alpha),
-                    polarization=current_ray.polarization,
-                    wavelength_nm=current_ray.wavelength_nm
-                ))
+                paths.append(
+                    RayPath(
+                        points=current_ray.path_points,
+                        rgba=(base_rgb[0], base_rgb[1], base_rgb[2], alpha),
+                        polarization=current_ray.polarization,
+                        wavelength_nm=current_ray.wavelength_nm,
+                    )
+                )
             continue
 
         # Find nearest intersection
         # TODO Phase 4: Replace with BVH spatial index for O(log n)
         nearest_element = None
-        nearest_distance = float('inf')
+        nearest_distance = float("inf")
         nearest_intersection = None
         last_elem = last_element_for_ray.get(id(current_ray), None)
 
@@ -179,26 +185,29 @@ def _trace_single_ray(
                 continue
 
             # Get geometry (may be LineSegment or CurvedSegment)
-            geometry = getattr(element, '_geometry', None)
+            geometry = getattr(element, "_geometry", None)
 
             if geometry is not None:
                 # NEW: Support for curved surfaces!
-                is_curved = getattr(geometry, 'is_curved', False)
+                is_curved = getattr(geometry, "is_curved", False)
 
                 if is_curved:
                     # Use curved intersection for curved surfaces
                     from ...core.raytracing_math import ray_hit_curved_element
+
                     result = ray_hit_curved_element(
                         current_ray.position,
                         current_ray.direction,
                         geometry.get_center(),
                         geometry.get_radius(),
                         geometry.p1,
-                        geometry.p2
+                        geometry.p2,
                     )
                 else:
                     # Use flat intersection for flat surfaces
-                    result = ray_hit_element(current_ray.position, current_ray.direction, geometry.p1, geometry.p2)
+                    result = ray_hit_element(
+                        current_ray.position, current_ray.direction, geometry.p1, geometry.p2
+                    )
             else:
                 # Fallback for elements without _geometry attribute (legacy)
                 p1, p2 = element.get_geometry()
@@ -212,7 +221,9 @@ def _trace_single_ray(
                 if distance * np.linalg.norm(current_ray.direction) > current_ray.remaining_length:
                     continue
 
-                if distance < nearest_distance and distance > epsilon:  # epsilon prevents immediate re-intersection
+                if (
+                    distance < nearest_distance and distance > epsilon
+                ):  # epsilon prevents immediate re-intersection
                     nearest_distance = distance
                     nearest_element = element
                     # Get the optical interface from the element
@@ -224,22 +235,26 @@ def _trace_single_ray(
                         normal=normal,
                         center=center,
                         length=length,
-                        interface=getattr(element, 'interface', None)
+                        interface=getattr(element, "interface", None),
                     )
 
         # No intersection - ray escapes
         if nearest_element is None:
             # Extend ray to remaining length
-            final_point = current_ray.position + current_ray.direction * current_ray.remaining_length
+            final_point = (
+                current_ray.position + current_ray.direction * current_ray.remaining_length
+            )
             current_ray.path_points.append(final_point)
 
             alpha = int(255 * max(0.0, min(1.0, current_ray.intensity)))
-            paths.append(RayPath(
-                points=current_ray.path_points,
-                rgba=(base_rgb[0], base_rgb[1], base_rgb[2], alpha),
-                polarization=current_ray.polarization,
-                wavelength_nm=current_ray.wavelength_nm
-            ))
+            paths.append(
+                RayPath(
+                    points=current_ray.path_points,
+                    rgba=(base_rgb[0], base_rgb[1], base_rgb[2], alpha),
+                    polarization=current_ray.polarization,
+                    wavelength_nm=current_ray.wavelength_nm,
+                )
+            )
             continue
 
         # Add intersection point to path before interaction
@@ -252,7 +267,7 @@ def _trace_single_ray(
             current_ray,
             nearest_intersection.point,
             nearest_intersection.normal,
-            nearest_intersection.tangent
+            nearest_intersection.tangent,
         )
 
         # Track last element and propagate engine-specific fields to output rays
@@ -260,11 +275,11 @@ def _trace_single_ray(
             last_element_for_ray[id(out_ray)] = nearest_element
 
             # Propagate engine-specific fields that interact() doesn't know about
-            if not hasattr(out_ray, 'base_rgb') or out_ray.base_rgb is None:
+            if not hasattr(out_ray, "base_rgb") or out_ray.base_rgb is None:
                 out_ray.base_rgb = base_rgb
-            if not hasattr(out_ray, 'remaining_length'):
+            if not hasattr(out_ray, "remaining_length"):
                 out_ray.remaining_length = current_ray.remaining_length - nearest_distance
-            if not hasattr(out_ray, 'path_points') or len(out_ray.path_points) == 0:
+            if not hasattr(out_ray, "path_points") or len(out_ray.path_points) == 0:
                 # Copy path points from current ray (which includes the interaction point)
                 out_ray.path_points = current_ray.path_points.copy()
 
@@ -276,6 +291,3 @@ def _trace_single_ray(
 
 # Convenience alias for the main function
 trace_rays = trace_rays_polymorphic
-
-
-

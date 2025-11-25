@@ -93,6 +93,3 @@ class LibraryTree(QtWidgets.QTreeWidget):
         result = drag.exec(QtCore.Qt.DropAction.CopyAction)
         if result == QtCore.Qt.DropAction.CopyAction:
             self.clearSelection()
-
-
-

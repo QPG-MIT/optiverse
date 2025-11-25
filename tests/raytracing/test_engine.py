@@ -3,13 +3,12 @@ Tests for the new polymorphic raytracing engine.
 
 This tests the complete end-to-end raytracing using IOpticalElement polymorphism.
 """
+
 import numpy as np
-import pytest
 
 from optiverse.core.models import SourceParams
 from optiverse.data import LensProperties, LineSegment, MirrorProperties, OpticalInterface
 from optiverse.integration import create_polymorphic_element
-from optiverse.raytracing import Polarization, Ray, RayPath
 from optiverse.raytracing.engine import trace_rays_polymorphic
 
 
@@ -19,13 +18,16 @@ class TestPolymorphicEngine:
     def test_empty_scene(self):
         """Test with no elements - rays should propagate freely."""
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=3, size_mm=10.0,
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=3,
+            size_mm=10.0,
             ray_length_mm=100.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         paths = trace_rays_polymorphic([], [source], max_events=10)
@@ -47,13 +49,16 @@ class TestPolymorphicEngine:
 
         # Create source shooting rays to the right
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=1, size_mm=0.0,
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=1,
+            size_mm=0.0,
             ray_length_mm=200.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         paths = trace_rays_polymorphic([mirror], [source], max_events=10)
@@ -68,7 +73,7 @@ class TestPolymorphicEngine:
         # Ray should hit mirror around x=50
         # Find the point closest to x=50
         hit_point = None
-        for i, pt in enumerate(path.points):
+        for _i, pt in enumerate(path.points):
             if abs(pt[0] - 50.0) < 1.0:  # Within 1mm of mirror
                 hit_point = pt
                 break
@@ -85,13 +90,16 @@ class TestPolymorphicEngine:
 
         # Create source with rays at y=10 (off-axis)
         source = SourceParams(
-            x_mm=0.0, y_mm=10.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=1, size_mm=0.0,
+            x_mm=0.0,
+            y_mm=10.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=1,
+            size_mm=0.0,
             ray_length_mm=200.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         paths = trace_rays_polymorphic([lens], [source], max_events=10)
@@ -105,7 +113,7 @@ class TestPolymorphicEngine:
 
         # Ray should hit lens around x=50
         hit_point = None
-        for i, pt in enumerate(path.points):
+        for _i, pt in enumerate(path.points):
             if abs(pt[0] - 50.0) < 1.0:
                 hit_point = pt
                 break
@@ -135,13 +143,16 @@ class TestPolymorphicEngine:
 
         # Create source
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=1, size_mm=0.0,
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=1,
+            size_mm=0.0,
             ray_length_mm=200.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         paths = trace_rays_polymorphic([lens, mirror], [source], max_events=10)
@@ -163,13 +174,16 @@ class TestPolymorphicEngine:
 
         # Create source with 5 rays
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=5, size_mm=20.0,  # 5 rays spread over 20mm
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=5,
+            size_mm=20.0,  # 5 rays spread over 20mm
             ray_length_mm=200.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         paths = trace_rays_polymorphic([mirror], [source], max_events=10)
@@ -192,13 +206,16 @@ class TestPolymorphicEngine:
 
         # Create source
         source = SourceParams(
-            x_mm=75.0, y_mm=0.0,  # Start between mirrors
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=1, size_mm=0.0,
+            x_mm=75.0,
+            y_mm=0.0,  # Start between mirrors
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=1,
+            size_mm=0.0,
             ray_length_mm=1000.0,  # Very long
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         # Limit to 5 events
@@ -220,13 +237,16 @@ class TestPolymorphicEngine:
 
         # Create source
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=1, size_mm=0.0,
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=1,
+            size_mm=0.0,
             ray_length_mm=500.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         paths = trace_rays_polymorphic(mirrors, [source], max_events=10)
@@ -249,13 +269,16 @@ class TestEngineOutputFormat:
         mirror = create_polymorphic_element(iface)
 
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=1, size_mm=0.0,
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=1,
+            size_mm=0.0,
             ray_length_mm=100.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         paths = trace_rays_polymorphic([mirror], [source], max_events=10)
@@ -264,10 +287,10 @@ class TestEngineOutputFormat:
         path = paths[0]
 
         # Check RayPath structure
-        assert hasattr(path, 'points')
-        assert hasattr(path, 'rgba')
-        assert hasattr(path, 'polarization')
-        assert hasattr(path, 'wavelength_nm')
+        assert hasattr(path, "points")
+        assert hasattr(path, "rgba")
+        assert hasattr(path, "polarization")
+        assert hasattr(path, "wavelength_nm")
 
         # Check types
         assert isinstance(path.points, list)
@@ -285,13 +308,16 @@ class TestEngineOutputFormat:
         mirror = create_polymorphic_element(iface)
 
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=1, size_mm=0.0,
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=1,
+            size_mm=0.0,
             ray_length_mm=200.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         paths = trace_rays_polymorphic([mirror], [source], max_events=10)
@@ -321,13 +347,16 @@ class TestBackwardCompatibility:
         mirror = create_polymorphic_element(iface)
 
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=3, size_mm=10.0,
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=3,
+            size_mm=10.0,
             ray_length_mm=200.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         paths = trace_rays_polymorphic([mirror], [source], max_events=10)
@@ -358,13 +387,16 @@ class TestPolymorphicDispatch:
         bs = create_polymorphic_element(iface)
 
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=1, size_mm=0.0,
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=1,
+            size_mm=0.0,
             ray_length_mm=100.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         paths = trace_rays_polymorphic([bs], [source], max_events=10)
@@ -381,7 +413,8 @@ class TestRaySeparationRotation:
     def test_ray_separation_perpendicular_at_0_degrees(self):
         """At 0°, rays should be separated vertically."""
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
+            x_mm=0.0,
+            y_mm=0.0,
             angle_deg=0.0,  # Pointing right
             spread_deg=0.0,
             n_rays=3,
@@ -389,7 +422,7 @@ class TestRaySeparationRotation:
             ray_length_mm=100.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         paths = trace_rays_polymorphic([], [source], max_events=1)
@@ -414,7 +447,8 @@ class TestRaySeparationRotation:
     def test_ray_separation_perpendicular_at_90_degrees(self):
         """At 90°, rays should be separated horizontally."""
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
+            x_mm=0.0,
+            y_mm=0.0,
             angle_deg=90.0,  # Pointing up
             spread_deg=0.0,
             n_rays=3,
@@ -422,7 +456,7 @@ class TestRaySeparationRotation:
             ray_length_mm=100.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         paths = trace_rays_polymorphic([], [source], max_events=1)
@@ -447,7 +481,8 @@ class TestRaySeparationRotation:
     def test_ray_separation_perpendicular_at_45_degrees(self):
         """At 45°, rays should be separated perpendicular to 45° direction."""
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
+            x_mm=0.0,
+            y_mm=0.0,
             angle_deg=45.0,  # Pointing at 45°
             spread_deg=0.0,
             n_rays=3,
@@ -455,7 +490,7 @@ class TestRaySeparationRotation:
             ray_length_mm=100.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         paths = trace_rays_polymorphic([], [source], max_events=1)
@@ -479,16 +514,21 @@ class TestRaySeparationRotation:
 
         # Dot product should be ~0 (perpendicular)
         dot_product = np.dot(separation_vector, ray_dir)
-        assert abs(dot_product) < 0.01, f"Separation should be perpendicular to ray direction, dot={dot_product}"
+        assert abs(dot_product) < 0.01, (
+            f"Separation should be perpendicular to ray direction, dot={dot_product}"
+        )
 
         # Separation magnitude should be ~10mm (size_mm)
         separation_magnitude = np.linalg.norm(separation_vector)
-        assert abs(separation_magnitude - 10.0) < 0.01, f"Expected 10mm separation, got {separation_magnitude}"
+        assert abs(separation_magnitude - 10.0) < 0.01, (
+            f"Expected 10mm separation, got {separation_magnitude}"
+        )
 
     def test_ray_separation_perpendicular_at_180_degrees(self):
         """At 180°, rays should be separated vertically."""
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
+            x_mm=0.0,
+            y_mm=0.0,
             angle_deg=180.0,  # Pointing left
             spread_deg=0.0,
             n_rays=3,
@@ -496,7 +536,7 @@ class TestRaySeparationRotation:
             ray_length_mm=100.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         paths = trace_rays_polymorphic([], [source], max_events=1)
@@ -524,7 +564,8 @@ class TestRaySeparationRotation:
 
         for angle in angles:
             source = SourceParams(
-                x_mm=0.0, y_mm=0.0,
+                x_mm=0.0,
+                y_mm=0.0,
                 angle_deg=angle,
                 spread_deg=0.0,
                 n_rays=5,
@@ -532,7 +573,7 @@ class TestRaySeparationRotation:
                 ray_length_mm=100.0,
                 wavelength_nm=633.0,
                 color_hex="#FF0000",
-                polarization_type="horizontal"
+                polarization_type="horizontal",
             )
 
             paths = trace_rays_polymorphic([], [source], max_events=1)
@@ -548,13 +589,13 @@ class TestRaySeparationRotation:
             separation_magnitude = np.linalg.norm(separation_vector)
 
             # Should be 20mm (aperture size)
-            assert abs(separation_magnitude - 20.0) < 0.01, \
+            assert abs(separation_magnitude - 20.0) < 0.01, (
                 f"At {angle}°: Expected 20mm separation, got {separation_magnitude}"
+            )
 
             # Verify perpendicular to ray direction
             ray_dir = np.array([np.cos(np.radians(angle)), np.sin(np.radians(angle))])
             dot_product = np.dot(separation_vector, ray_dir)
-            assert abs(dot_product) < 0.01, \
+            assert abs(dot_product) < 0.01, (
                 f"At {angle}°: Separation should be perpendicular, dot={dot_product}"
-
-
+            )

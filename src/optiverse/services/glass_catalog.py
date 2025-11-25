@@ -7,7 +7,7 @@ for common optical glasses (Schott, Ohara, etc.).
 
 import logging
 import math
-from typing import Dict, Optional
+from typing import Optional
 
 _logger = logging.getLogger(__name__)
 
@@ -28,13 +28,11 @@ class GlassCatalog:
     """
 
     def __init__(self):
-        self._catalog: Dict[str, Dict] = {}
+        self._catalog: dict[str, dict] = {}
         self._load_builtin_catalog()
 
     def get_refractive_index(
-        self,
-        glass_name: str,
-        wavelength_um: float = 0.5876
+        self, glass_name: str, wavelength_um: float = 0.5876
     ) -> Optional[float]:
         """
         Get refractive index for glass at specified wavelength.
@@ -80,12 +78,10 @@ class GlassCatalog:
             Refractive index
         """
         B1, B2, B3, C1, C2, C3 = coefficients
-        lam_sq = wavelength_um ** 2
+        lam_sq = wavelength_um**2
 
         n_squared = 1.0 + (
-            B1 * lam_sq / (lam_sq - C1) +
-            B2 * lam_sq / (lam_sq - C2) +
-            B3 * lam_sq / (lam_sq - C3)
+            B1 * lam_sq / (lam_sq - C1) + B2 * lam_sq / (lam_sq - C2) + B3 * lam_sq / (lam_sq - C3)
         )
 
         return math.sqrt(n_squared)
@@ -101,12 +97,12 @@ class GlassCatalog:
                 "formula": "Sellmeier",
                 "manufacturer": "Schott",
                 "coefficients": [
-                    1.03961212,     # B1
-                    0.231792344,    # B2
-                    1.01046945,     # B3
+                    1.03961212,  # B1
+                    0.231792344,  # B2
+                    1.01046945,  # B3
                     0.00600069867,  # C1
-                    0.0200179144,   # C2
-                    103.560653      # C3
+                    0.0200179144,  # C2
+                    103.560653,  # C3
                 ],
             },
             "N-LAK22": {
@@ -118,7 +114,7 @@ class GlassCatalog:
                     1.04088385,
                     0.00585778594,
                     0.0198546147,
-                    100.834017
+                    100.834017,
                 ],
             },
             "N-SF6HT": {
@@ -130,7 +126,7 @@ class GlassCatalog:
                     2.08734474,
                     0.0133714182,
                     0.0617533621,
-                    174.01759
+                    174.01759,
                 ],
             },
             "N-SF11": {
@@ -142,7 +138,7 @@ class GlassCatalog:
                     1.89878101,
                     0.013188707,
                     0.0623068142,
-                    155.23629
+                    155.23629,
                 ],
             },
             "N-F2": {
@@ -154,7 +150,7 @@ class GlassCatalog:
                     1.2686543,
                     0.00995906143,
                     0.0546931752,
-                    119.248346
+                    119.248346,
                 ],
             },
             "SF11": {
@@ -166,7 +162,7 @@ class GlassCatalog:
                     1.89878101,
                     0.013188707,
                     0.0623068142,
-                    155.23629
+                    155.23629,
                 ],
             },
             # Fused Silica
@@ -179,7 +175,7 @@ class GlassCatalog:
                     0.8974794,
                     0.00467914826,
                     0.0135120631,
-                    97.9340025
+                    97.9340025,
                 ],
             },
             "SILICA": {
@@ -191,25 +187,19 @@ class GlassCatalog:
                     0.8974794,
                     0.00467914826,
                     0.0135120631,
-                    97.9340025
+                    97.9340025,
                 ],
             },
             # Common constants (for quick lookup)
-            "WATER": {
-                "formula": "Constant",
-                "index": 1.333
-            },
-            "SAPPHIRE": {
-                "formula": "Constant",
-                "index": 1.77
-            },
+            "WATER": {"formula": "Constant", "index": 1.333},
+            "SAPPHIRE": {"formula": "Constant", "index": 1.77},
         }
 
     def list_glasses(self) -> list:
         """Return list of available glass names."""
         return sorted(self._catalog.keys())
 
-    def get_glass_info(self, glass_name: str) -> Optional[Dict]:
+    def get_glass_info(self, glass_name: str) -> Optional[dict]:
         """Get full information about a glass."""
         glass_name = glass_name.upper().strip()
         return self._catalog.get(glass_name)
@@ -235,6 +225,3 @@ if __name__ == "__main__":
             n = catalog.get_refractive_index(glass, wl)
             if n:
                 _logger.info(f"  {desc:15s} {wl:.4f}µm: n = {n:.5f}")
-
-
-

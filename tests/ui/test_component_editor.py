@@ -1,9 +1,11 @@
 """Tests for ComponentEditor (upgraded from ComponentEditorDialog)."""
+
 import pytest
 
 # Note: These tests require PyQt6 to be properly installed
 try:
-    from PyQt6 import QtGui, QtCore
+    from PyQt6 import QtCore, QtGui
+
     HAVE_PYQT6 = True
 except ImportError:
     HAVE_PYQT6 = False
@@ -20,8 +22,8 @@ def test_component_editor_saves_to_library(qtbot, tmp_path, monkeypatch):
         raising=True,
     )
 
-    from optiverse.ui.views.component_editor_dialog import ComponentEditor
     from optiverse.services.storage_service import StorageService
+    from optiverse.ui.views.component_editor_dialog import ComponentEditor
 
     editor = ComponentEditor(storage=StorageService())
     qtbot.addWidget(editor)
@@ -65,14 +67,14 @@ def test_component_editor_saves_to_library(qtbot, tmp_path, monkeypatch):
 @pytest.mark.skipif(not HAVE_PYQT6, reason="PyQt6 not available")
 def test_component_editor_has_toolbar_actions(qtbot):
     """Test that component editor has toolbar with expected actions."""
-    from optiverse.ui.views.component_editor_dialog import ComponentEditor
     from optiverse.services.storage_service import StorageService
+    from optiverse.ui.views.component_editor_dialog import ComponentEditor
 
     editor = ComponentEditor(storage=StorageService())
     qtbot.addWidget(editor)
 
     # Check toolbar exists - ComponentEditor is a QMainWindow so should have toolbars
-    toolbars = editor.findChildren(QtCore.QObject)  # Simplified check
+    editor.findChildren(QtCore.QObject)  # Simplified check
     # Check that editor has actions
     actions = editor.actions()
     assert len(actions) > 0, "Component editor should have toolbar actions"
@@ -81,15 +83,16 @@ def test_component_editor_has_toolbar_actions(qtbot):
     action_texts = [a.text().lower() for a in actions if a.text()]
 
     # Component editor should have save/new/open actions
-    assert any("save" in t or "new" in t or "open" in t for t in action_texts), \
+    assert any("save" in t or "new" in t or "open" in t for t in action_texts), (
         f"Expected save/new/open actions, found: {action_texts}"
+    )
 
 
 @pytest.mark.skipif(not HAVE_PYQT6, reason="PyQt6 not available")
 def test_component_editor_has_library_dock(qtbot):
     """Test that component editor has library dock."""
-    from optiverse.ui.views.component_editor_dialog import ComponentEditor
     from optiverse.services.storage_service import StorageService
+    from optiverse.ui.views.component_editor_dialog import ComponentEditor
 
     editor = ComponentEditor(storage=StorageService())
     qtbot.addWidget(editor)
@@ -104,8 +107,8 @@ def test_component_editor_has_library_dock(qtbot):
 @pytest.mark.skipif(not HAVE_PYQT6, reason="PyQt6 not available")
 def test_component_editor_has_notes_field(qtbot):
     """Test that component editor has notes field."""
-    from optiverse.ui.views.component_editor_dialog import ComponentEditor
     from optiverse.services.storage_service import StorageService
+    from optiverse.ui.views.component_editor_dialog import ComponentEditor
 
     editor = ComponentEditor(storage=StorageService())
     qtbot.addWidget(editor)
@@ -128,8 +131,8 @@ def test_component_editor_emits_saved_signal(qtbot, tmp_path, monkeypatch):
         raising=True,
     )
 
-    from optiverse.ui.views.component_editor_dialog import ComponentEditor
     from optiverse.services.storage_service import StorageService
+    from optiverse.ui.views.component_editor_dialog import ComponentEditor
 
     editor = ComponentEditor(storage=StorageService())
     qtbot.addWidget(editor)
@@ -164,8 +167,8 @@ def test_open_editor_from_mainmenu(qtbot):
 @pytest.mark.skipif(not HAVE_PYQT6, reason="PyQt6 not available")
 def test_component_editor_backward_compat_name(qtbot):
     """Test that ComponentEditorDialog name still works for backward compatibility."""
-    from optiverse.ui.views.component_editor_dialog import ComponentEditorDialog
     from optiverse.services.storage_service import StorageService
+    from optiverse.ui.views.component_editor_dialog import ComponentEditorDialog
 
     # Should be able to import and instantiate with old name
     editor = ComponentEditorDialog(storage=StorageService())
@@ -173,5 +176,3 @@ def test_component_editor_backward_compat_name(qtbot):
 
     assert editor is not None
     assert hasattr(editor, "saved")  # New feature should be present
-
-

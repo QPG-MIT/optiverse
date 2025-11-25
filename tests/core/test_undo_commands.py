@@ -2,19 +2,20 @@
 Unit tests for undo/redo commands.
 Test-driven development: write tests first, then implement.
 """
+
 from __future__ import annotations
 
 import pytest
 from PyQt6 import QtWidgets
 
+from optiverse.core.models import SourceParams
 from optiverse.core.undo_commands import (
-    Command,
     AddItemCommand,
-    RemoveItemCommand,
+    Command,
     MoveItemCommand,
+    RemoveItemCommand,
 )
 from optiverse.objects import SourceItem
-from optiverse.core.models import SourceParams
 
 
 class TestCommand:
@@ -71,6 +72,7 @@ class TestAddItemCommand:
     def test_add_lens_item(self, scene):
         """Should work with different item types."""
         from tests.fixtures.factories import create_lens_item
+
         lens = create_lens_item()
         cmd = AddItemCommand(scene, lens)
 
@@ -156,6 +158,7 @@ class TestMoveItemCommand:
     def test_undo_moves_item_to_old_position(self, source_item):
         """Undo should move item back to old position."""
         from PyQt6.QtCore import QPointF
+
         old_pos = QPointF(10, 20)
         new_pos = QPointF(50, 60)
 
@@ -171,6 +174,7 @@ class TestMoveItemCommand:
     def test_multiple_moves(self, source_item):
         """Test multiple sequential moves."""
         from PyQt6.QtCore import QPointF
+
         pos1 = QPointF(0, 0)
         pos2 = QPointF(10, 10)
         pos3 = QPointF(20, 20)
@@ -284,8 +288,9 @@ class TestRotateItemsCommand:
 
     def test_execute_rotates_all_items(self, source_items):
         """Execute should rotate all items to new positions and angles."""
-        from optiverse.core.undo_commands import RotateItemsCommand
         from PyQt6.QtCore import QPointF
+
+        from optiverse.core.undo_commands import RotateItemsCommand
 
         old_positions = {item: QPointF(item.pos()) for item in source_items}
         old_rotations = {item: item.rotation() for item in source_items}
@@ -298,7 +303,9 @@ class TestRotateItemsCommand:
         }
         new_rotations = {item: 45.0 for item in source_items}
 
-        cmd = RotateItemsCommand(source_items, old_positions, new_positions, old_rotations, new_rotations)
+        cmd = RotateItemsCommand(
+            source_items, old_positions, new_positions, old_rotations, new_rotations
+        )
         cmd.execute()
 
         for item in source_items:
@@ -307,8 +314,9 @@ class TestRotateItemsCommand:
 
     def test_undo_restores_all_items(self, source_items):
         """Undo should restore all items to old positions and angles."""
-        from optiverse.core.undo_commands import RotateItemsCommand
         from PyQt6.QtCore import QPointF
+
+        from optiverse.core.undo_commands import RotateItemsCommand
 
         old_positions = {item: QPointF(item.pos()) for item in source_items}
         old_rotations = {item: item.rotation() for item in source_items}
@@ -320,7 +328,9 @@ class TestRotateItemsCommand:
         }
         new_rotations = {item: 45.0 for item in source_items}
 
-        cmd = RotateItemsCommand(source_items, old_positions, new_positions, old_rotations, new_rotations)
+        cmd = RotateItemsCommand(
+            source_items, old_positions, new_positions, old_rotations, new_rotations
+        )
 
         cmd.execute()
         for item in source_items:
@@ -331,6 +341,3 @@ class TestRotateItemsCommand:
         for item in source_items:
             assert item.pos() == old_positions[item]
             assert item.rotation() == old_rotations[item]
-
-
-

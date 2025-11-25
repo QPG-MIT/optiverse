@@ -1,53 +1,50 @@
 from __future__ import annotations
 
-import json
 import os
 from functools import partial
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.constants import (
-    SCENE_SIZE_MM,
-    SCENE_MIN_COORD,
-    DEFAULT_WINDOW_WIDTH,
     DEFAULT_WINDOW_HEIGHT,
+    DEFAULT_WINDOW_WIDTH,
+    SCENE_MIN_COORD,
+    SCENE_SIZE_MM,
 )
-from ...core.ui_constants import (
-    ZOOM_FACTOR,
-    MAGNETIC_SNAP_TOLERANCE_PX,
-)
-from ...core.component_types import ComponentType
-from ...core.editor_state import EditorMode, EditorState
+from ...core.editor_state import EditorState
 from ...core.protocols import Editable
-from ...core.models import SourceParams
 from ...core.snap_helper import SnapHelper
+from ...core.ui_constants import (
+    MAGNETIC_SNAP_TOLERANCE_PX,
+    ZOOM_FACTOR,
+)
 from ...core.undo_stack import UndoStack
-from ...services.settings_service import SettingsService
-from ...services.storage_service import StorageService
+from ...objects import (
+    GraphicsView,
+)
 from ...services.collaboration_manager import CollaborationManager
 from ...services.log_service import get_log_service
-from ...services.error_handler import get_error_handler, ErrorContext
-from ..controllers import RaytracingController, FileController, CollaborationController, ToolModeController
-from ..controllers.library_manager import LibraryManager
-from ..controllers.item_drag_handler import ItemDragHandler
+from ...services.settings_service import SettingsService
+from ...services.storage_service import StorageService
+from ..builders import ActionBuilder
+from ..controllers import (
+    CollaborationController,
+    FileController,
+    RaytracingController,
+    ToolModeController,
+)
 from ..controllers.component_operations import ComponentOperationsHandler
+from ..controllers.item_drag_handler import ItemDragHandler
+from ..controllers.library_manager import LibraryManager
 from ..controllers.ray_renderer import RayRenderer
 from ..widgets.library_tree import LibraryTree
-from .collaboration_dialog import CollaborationDialog
 from .log_window import LogWindow
-from .tool_handlers import InspectToolHandler, PathMeasureToolHandler, AngleMeasureToolHandler
 from .placement_handler import PlacementHandler
 from .ruler_placement_handler import RulerPlacementHandler
 from .scene_event_handler import SceneEventHandler
-from ..builders import ActionBuilder
-from ...objects import (
-    GraphicsView,
-    SourceItem,
-    TextNoteItem,
-)
+from .tool_handlers import AngleMeasureToolHandler, InspectToolHandler, PathMeasureToolHandler
 
 
 def _get_icon_path(icon_name: str) -> str:
@@ -76,9 +73,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.scene = QtWidgets.QGraphicsScene(self)
         # Effectively "infinite" scene (see constants.py for details)
         # Centered at origin for optical bench convention
-        self.scene.setSceneRect(
-            SCENE_MIN_COORD, SCENE_MIN_COORD, SCENE_SIZE_MM, SCENE_SIZE_MM
-        )
+        self.scene.setSceneRect(SCENE_MIN_COORD, SCENE_MIN_COORD, SCENE_SIZE_MM, SCENE_SIZE_MM)
         self.view = GraphicsView(self.scene)
         # Connect drop signal instead of circular reference
         self.view.componentDropped.connect(self.on_drop_component)
@@ -115,10 +110,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.magnetic_snap = self.settings_service.get_value("magnetic_snap", True, bool)
 
         # Load dark mode preference and apply theme to match
-        dark_mode_saved = self.settings_service.get_value("dark_mode", self.view.is_dark_mode(), bool)
+        dark_mode_saved = self.settings_service.get_value(
+            "dark_mode", self.view.is_dark_mode(), bool
+        )
         self.view.set_dark_mode(dark_mode_saved)
         # Apply theme to ensure app-wide styling matches the saved preference
         from ..theme_manager import apply_theme
+
         apply_theme(dark_mode_saved)
 
         # Initialize extracted handlers
@@ -469,6 +467,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings_service.set_value("dark_mode", on)
         # Apply the theme to the entire application
         from ..theme_manager import apply_theme
+
         apply_theme(on)
         # Refresh library to update category colors
         self.populate_library()
@@ -486,8 +485,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _fit_scene(self):
         """Fit scene contents in view."""
         self.view.fitInView(
-            self.scene.itemsBoundingRect(),
-            QtCore.Qt.AspectRatioMode.KeepAspectRatio
+            self.scene.itemsBoundingRect(), QtCore.Qt.AspectRatioMode.KeepAspectRatio
         )
         self.view.zoomChanged.emit()
 
@@ -561,9 +559,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def open_user_library_folder(self):
         """Open the user library folder in the system file explorer."""
-        from ...platform.paths import get_user_library_root
         import subprocess
         import sys
+
+        from ...platform.paths import get_user_library_root
 
         library_path = get_user_library_root()
 
@@ -579,9 +578,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 self,
                 "User Library Location",
                 f"User library location:\n{library_path}\n\n"
-                f"(Could not open folder automatically: {str(e)})"
+                f"(Could not open folder automatically: {str(e)})",
             )
-
 
     def open_preferences(self):
         """Open preferences/settings dialog."""
@@ -661,5 +659,3 @@ class MainWindow(QtWidgets.QMainWindow):
             # Ignore cleanup errors during shutdown
             pass
         super().closeEvent(e)
-
-

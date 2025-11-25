@@ -2,15 +2,16 @@
 Unit tests for UndoStack.
 Test-driven development: write tests first, then implement.
 """
+
 from __future__ import annotations
 
 import pytest
-from PyQt6 import QtWidgets, QtCore
+from PyQt6 import QtWidgets
 
-from optiverse.core.undo_stack import UndoStack
-from optiverse.core.undo_commands import AddItemCommand, RemoveItemCommand, MoveItemCommand
-from optiverse.objects import SourceItem
 from optiverse.core.models import SourceParams
+from optiverse.core.undo_commands import AddItemCommand, MoveItemCommand
+from optiverse.core.undo_stack import UndoStack
+from optiverse.objects import SourceItem
 
 
 class TestUndoStack:
@@ -198,6 +199,3 @@ class TestUndoStack:
 
         stack.redo()
         assert item.pos() == new_pos
-
-
-

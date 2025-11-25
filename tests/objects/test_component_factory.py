@@ -5,9 +5,9 @@ The ComponentFactory is the single source of truth for creating optical
 components from library data. It's used by both ghost preview and actual
 component creation to ensure consistency.
 """
-import pytest
-from optiverse.objects.component_factory import ComponentFactory
+
 from optiverse.objects import ComponentItem
+from optiverse.objects.component_factory import ComponentFactory
 
 
 class TestComponentFactoryLens:
@@ -20,19 +20,21 @@ class TestComponentFactoryLens:
             "image_path": "",
             "object_height_mm": 50.0,
             "angle_deg": 90.0,
-            "interfaces": [{
-                "element_type": "lens",
-                "name": "Front Surface",
-                "x1_mm": -25.0,
-                "y1_mm": 0.0,
-                "x2_mm": 25.0,
-                "y2_mm": 0.0,
-                "n1": 1.0,
-                "n2": 1.5,
-                "efl_mm": 100.0,
-                "is_curved": False,
-                "radius_of_curvature_mm": 0.0,
-            }]
+            "interfaces": [
+                {
+                    "element_type": "lens",
+                    "name": "Front Surface",
+                    "x1_mm": -25.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 25.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.0,
+                    "n2": 1.5,
+                    "efl_mm": 100.0,
+                    "is_curved": False,
+                    "radius_of_curvature_mm": 0.0,
+                }
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 100.0, 50.0)
@@ -56,9 +58,12 @@ class TestComponentFactoryLens:
                 {
                     "element_type": "lens",
                     "name": "Surface 1",
-                    "x1_mm": -25.0, "y1_mm": 0.0,
-                    "x2_mm": 25.0, "y2_mm": 0.0,
-                    "n1": 1.0, "n2": 1.5,
+                    "x1_mm": -25.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 25.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.0,
+                    "n2": 1.5,
                     "efl_mm": 100.0,
                     "is_curved": True,
                     "radius_of_curvature_mm": 50.0,
@@ -66,14 +71,17 @@ class TestComponentFactoryLens:
                 {
                     "element_type": "lens",
                     "name": "Surface 2",
-                    "x1_mm": -25.0, "y1_mm": 5.0,
-                    "x2_mm": 25.0, "y2_mm": 5.0,
-                    "n1": 1.5, "n2": 1.0,
+                    "x1_mm": -25.0,
+                    "y1_mm": 5.0,
+                    "x2_mm": 25.0,
+                    "y2_mm": 5.0,
+                    "n1": 1.5,
+                    "n2": 1.0,
                     "efl_mm": 100.0,
                     "is_curved": True,
                     "radius_of_curvature_mm": -50.0,
                 },
-            ]
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -91,16 +99,21 @@ class TestComponentFactoryLens:
             "name": "Test Lens",
             "object_height_mm": 50.0,
             # No angle_deg specified
-            "interfaces": [{
-                "element_type": "lens",
-                "name": "Surface",
-                "x1_mm": -25.0, "y1_mm": 0.0,
-                "x2_mm": 25.0, "y2_mm": 0.0,
-                "n1": 1.0, "n2": 1.5,
-                "efl_mm": 100.0,
-                "is_curved": False,
-                "radius_of_curvature_mm": 0.0,
-            }]
+            "interfaces": [
+                {
+                    "element_type": "lens",
+                    "name": "Surface",
+                    "x1_mm": -25.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 25.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.0,
+                    "n2": 1.5,
+                    "efl_mm": 100.0,
+                    "is_curved": False,
+                    "radius_of_curvature_mm": 0.0,
+                }
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -119,15 +132,20 @@ class TestComponentFactoryMirror:
             "name": "Test Mirror",
             "object_height_mm": 80.0,
             "angle_deg": 45.0,
-            "interfaces": [{
-                "element_type": "mirror",
-                "name": "Reflective Surface",
-                "x1_mm": -40.0, "y1_mm": 0.0,
-                "x2_mm": 40.0, "y2_mm": 0.0,
-                "n1": 1.0, "n2": 1.0,
-                "is_curved": False,
-                "radius_of_curvature_mm": 0.0,
-            }]
+            "interfaces": [
+                {
+                    "element_type": "mirror",
+                    "name": "Reflective Surface",
+                    "x1_mm": -40.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 40.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.0,
+                    "n2": 1.0,
+                    "is_curved": False,
+                    "radius_of_curvature_mm": 0.0,
+                }
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 200.0, 100.0)
@@ -149,19 +167,24 @@ class TestComponentFactoryBeamsplitter:
             "name": "50:50 BS",
             "object_height_mm": 60.0,
             "angle_deg": 45.0,
-            "interfaces": [{
-                "element_type": "beam_splitter",
-                "name": "BS Surface",
-                "x1_mm": -30.0, "y1_mm": 0.0,
-                "x2_mm": 30.0, "y2_mm": 0.0,
-                "n1": 1.0, "n2": 1.0,
-                "split_T": 50.0,
-                "split_R": 50.0,
-                "is_curved": False,
-                "radius_of_curvature_mm": 0.0,
-                "is_polarizing": False,
-                "pbs_transmission_axis_deg": 0.0,
-            }]
+            "interfaces": [
+                {
+                    "element_type": "beam_splitter",
+                    "name": "BS Surface",
+                    "x1_mm": -30.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 30.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.0,
+                    "n2": 1.0,
+                    "split_T": 50.0,
+                    "split_R": 50.0,
+                    "is_curved": False,
+                    "radius_of_curvature_mm": 0.0,
+                    "is_polarizing": False,
+                    "pbs_transmission_axis_deg": 0.0,
+                }
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -177,19 +200,24 @@ class TestComponentFactoryBeamsplitter:
             "name": "PBS",
             "object_height_mm": 60.0,
             "angle_deg": 45.0,
-            "interfaces": [{
-                "element_type": "beam_splitter",
-                "name": "PBS Surface",
-                "x1_mm": -30.0, "y1_mm": 0.0,
-                "x2_mm": 30.0, "y2_mm": 0.0,
-                "n1": 1.0, "n2": 1.0,
-                "split_T": 100.0,
-                "split_R": 0.0,
-                "is_curved": False,
-                "radius_of_curvature_mm": 0.0,
-                "is_polarizing": True,
-                "pbs_transmission_axis_deg": 0.0,
-            }]
+            "interfaces": [
+                {
+                    "element_type": "beam_splitter",
+                    "name": "PBS Surface",
+                    "x1_mm": -30.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 30.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.0,
+                    "n2": 1.0,
+                    "split_T": 100.0,
+                    "split_R": 0.0,
+                    "is_curved": False,
+                    "radius_of_curvature_mm": 0.0,
+                    "is_polarizing": True,
+                    "pbs_transmission_axis_deg": 0.0,
+                }
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -208,15 +236,19 @@ class TestComponentFactoryWaveplate:
             "name": "QWP",
             "object_height_mm": 50.0,
             "angle_deg": 90.0,
-            "interfaces": [{
-                "element_type": "polarizing_interface",
-                "polarizer_subtype": "waveplate",
-                "name": "QWP Surface",
-                "x1_mm": -25.0, "y1_mm": 0.0,
-                "x2_mm": 25.0, "y2_mm": 0.0,
-                "phase_shift_deg": 90.0,
-                "fast_axis_deg": 0.0,
-            }]
+            "interfaces": [
+                {
+                    "element_type": "polarizing_interface",
+                    "polarizer_subtype": "waveplate",
+                    "name": "QWP Surface",
+                    "x1_mm": -25.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 25.0,
+                    "y2_mm": 0.0,
+                    "phase_shift_deg": 90.0,
+                    "fast_axis_deg": 0.0,
+                }
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -235,18 +267,23 @@ class TestComponentFactoryDichroic:
             "name": "Dichroic 550nm",
             "object_height_mm": 60.0,
             "angle_deg": 45.0,
-            "interfaces": [{
-                "element_type": "dichroic",
-                "name": "Dichroic Surface",
-                "x1_mm": -30.0, "y1_mm": 0.0,
-                "x2_mm": 30.0, "y2_mm": 0.0,
-                "n1": 1.0, "n2": 1.0,
-                "cutoff_wavelength_nm": 550.0,
-                "transition_width_nm": 50.0,
-                "pass_type": "longpass",
-                "is_curved": False,
-                "radius_of_curvature_mm": 0.0,
-            }]
+            "interfaces": [
+                {
+                    "element_type": "dichroic",
+                    "name": "Dichroic Surface",
+                    "x1_mm": -30.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 30.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.0,
+                    "n2": 1.0,
+                    "cutoff_wavelength_nm": 550.0,
+                    "transition_width_nm": 50.0,
+                    "pass_type": "longpass",
+                    "is_curved": False,
+                    "radius_of_curvature_mm": 0.0,
+                }
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -266,15 +303,20 @@ class TestComponentFactorySLM:
             "name": "SLM",
             "object_height_mm": 100.0,
             "angle_deg": 90.0,
-            "interfaces": [{
-                "element_type": "mirror",
-                "name": "SLM Surface",
-                "x1_mm": -50.0, "y1_mm": 0.0,
-                "x2_mm": 50.0, "y2_mm": 0.0,
-                "n1": 1.0, "n2": 1.0,
-                "is_curved": False,
-                "radius_of_curvature_mm": 0.0,
-            }]
+            "interfaces": [
+                {
+                    "element_type": "mirror",
+                    "name": "SLM Surface",
+                    "x1_mm": -50.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 50.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.0,
+                    "n2": 1.0,
+                    "is_curved": False,
+                    "radius_of_curvature_mm": 0.0,
+                }
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -296,18 +338,24 @@ class TestComponentFactoryRefractiveObject:
                 {
                     "element_type": "refractive_interface",
                     "name": "Entrance",
-                    "x1_mm": -30.0, "y1_mm": -30.0,
-                    "x2_mm": -30.0, "y2_mm": 30.0,
-                    "n1": 1.0, "n2": 1.5,
+                    "x1_mm": -30.0,
+                    "y1_mm": -30.0,
+                    "x2_mm": -30.0,
+                    "y2_mm": 30.0,
+                    "n1": 1.0,
+                    "n2": 1.5,
                     "is_curved": False,
                     "radius_of_curvature_mm": 0.0,
                 },
                 {
                     "element_type": "beam_splitter",
                     "name": "BS Surface",
-                    "x1_mm": -30.0, "y1_mm": -30.0,
-                    "x2_mm": 30.0, "y2_mm": 30.0,
-                    "n1": 1.5, "n2": 1.5,
+                    "x1_mm": -30.0,
+                    "y1_mm": -30.0,
+                    "x2_mm": 30.0,
+                    "y2_mm": 30.0,
+                    "n1": 1.5,
+                    "n2": 1.5,
                     "split_T": 50.0,
                     "split_R": 50.0,
                     "is_curved": False,
@@ -318,13 +366,16 @@ class TestComponentFactoryRefractiveObject:
                 {
                     "element_type": "refractive_interface",
                     "name": "Exit",
-                    "x1_mm": 30.0, "y1_mm": -30.0,
-                    "x2_mm": 30.0, "y2_mm": 30.0,
-                    "n1": 1.5, "n2": 1.0,
+                    "x1_mm": 30.0,
+                    "y1_mm": -30.0,
+                    "x2_mm": 30.0,
+                    "y2_mm": 30.0,
+                    "n1": 1.5,
+                    "n2": 1.0,
                     "is_curved": False,
                     "radius_of_curvature_mm": 0.0,
                 },
-            ]
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -346,22 +397,28 @@ class TestComponentFactoryRefractiveObject:
                 {
                     "element_type": "refractive_interface",
                     "name": "Surface 1",
-                    "x1_mm": -40.0, "y1_mm": 0.0,
-                    "x2_mm": 0.0, "y2_mm": 40.0,
-                    "n1": 1.0, "n2": 1.5,
+                    "x1_mm": -40.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 0.0,
+                    "y2_mm": 40.0,
+                    "n1": 1.0,
+                    "n2": 1.5,
                     "is_curved": False,
                     "radius_of_curvature_mm": 0.0,
                 },
                 {
                     "element_type": "refractive_interface",
                     "name": "Surface 2",
-                    "x1_mm": 0.0, "y1_mm": 40.0,
-                    "x2_mm": 40.0, "y2_mm": 0.0,
-                    "n1": 1.5, "n2": 1.0,
+                    "x1_mm": 0.0,
+                    "y1_mm": 40.0,
+                    "x2_mm": 40.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.5,
+                    "n2": 1.0,
                     "is_curved": False,
                     "radius_of_curvature_mm": 0.0,
                 },
-            ]
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -380,16 +437,21 @@ class TestComponentFactoryAngleDefaults:
         data = {
             "name": "Lens",
             "object_height_mm": 50.0,
-            "interfaces": [{
-                "element_type": "lens",
-                "name": "Surface",
-                "x1_mm": -25.0, "y1_mm": 0.0,
-                "x2_mm": 25.0, "y2_mm": 0.0,
-                "n1": 1.0, "n2": 1.5,
-                "efl_mm": 100.0,
-                "is_curved": False,
-                "radius_of_curvature_mm": 0.0,
-            }]
+            "interfaces": [
+                {
+                    "element_type": "lens",
+                    "name": "Surface",
+                    "x1_mm": -25.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 25.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.0,
+                    "n2": 1.5,
+                    "efl_mm": 100.0,
+                    "is_curved": False,
+                    "radius_of_curvature_mm": 0.0,
+                }
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -400,19 +462,24 @@ class TestComponentFactoryAngleDefaults:
         data = {
             "name": "BS",
             "object_height_mm": 60.0,
-            "interfaces": [{
-                "element_type": "beam_splitter",
-                "name": "Surface",
-                "x1_mm": -30.0, "y1_mm": 0.0,
-                "x2_mm": 30.0, "y2_mm": 0.0,
-                "n1": 1.0, "n2": 1.0,
-                "split_T": 50.0,
-                "split_R": 50.0,
-                "is_curved": False,
-                "radius_of_curvature_mm": 0.0,
-                "is_polarizing": False,
-                "pbs_transmission_axis_deg": 0.0,
-            }]
+            "interfaces": [
+                {
+                    "element_type": "beam_splitter",
+                    "name": "Surface",
+                    "x1_mm": -30.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 30.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.0,
+                    "n2": 1.0,
+                    "split_T": 50.0,
+                    "split_R": 50.0,
+                    "is_curved": False,
+                    "radius_of_curvature_mm": 0.0,
+                    "is_polarizing": False,
+                    "pbs_transmission_axis_deg": 0.0,
+                }
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -423,18 +490,23 @@ class TestComponentFactoryAngleDefaults:
         data = {
             "name": "Dichroic",
             "object_height_mm": 60.0,
-            "interfaces": [{
-                "element_type": "dichroic",
-                "name": "Surface",
-                "x1_mm": -30.0, "y1_mm": 0.0,
-                "x2_mm": 30.0, "y2_mm": 0.0,
-                "n1": 1.0, "n2": 1.0,
-                "cutoff_wavelength_nm": 550.0,
-                "transition_width_nm": 50.0,
-                "pass_type": "longpass",
-                "is_curved": False,
-                "radius_of_curvature_mm": 0.0,
-            }]
+            "interfaces": [
+                {
+                    "element_type": "dichroic",
+                    "name": "Surface",
+                    "x1_mm": -30.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 30.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.0,
+                    "n2": 1.0,
+                    "cutoff_wavelength_nm": 550.0,
+                    "transition_width_nm": 50.0,
+                    "pass_type": "longpass",
+                    "is_curved": False,
+                    "radius_of_curvature_mm": 0.0,
+                }
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -445,15 +517,20 @@ class TestComponentFactoryAngleDefaults:
         data = {
             "name": "Mirror",
             "object_height_mm": 80.0,
-            "interfaces": [{
-                "element_type": "mirror",
-                "name": "Surface",
-                "x1_mm": -40.0, "y1_mm": 0.0,
-                "x2_mm": 40.0, "y2_mm": 0.0,
-                "n1": 1.0, "n2": 1.0,
-                "is_curved": False,
-                "radius_of_curvature_mm": 0.0,
-            }]
+            "interfaces": [
+                {
+                    "element_type": "mirror",
+                    "name": "Surface",
+                    "x1_mm": -40.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 40.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.0,
+                    "n2": 1.0,
+                    "is_curved": False,
+                    "radius_of_curvature_mm": 0.0,
+                }
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -465,16 +542,21 @@ class TestComponentFactoryAngleDefaults:
             "name": "Lens",
             "object_height_mm": 50.0,
             "angle_deg": 45.0,  # Override default (0°)
-            "interfaces": [{
-                "element_type": "lens",
-                "name": "Surface",
-                "x1_mm": -25.0, "y1_mm": 0.0,
-                "x2_mm": 25.0, "y2_mm": 0.0,
-                "n1": 1.0, "n2": 1.5,
-                "efl_mm": 100.0,
-                "is_curved": False,
-                "radius_of_curvature_mm": 0.0,
-            }]
+            "interfaces": [
+                {
+                    "element_type": "lens",
+                    "name": "Surface",
+                    "x1_mm": -25.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 25.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.0,
+                    "n2": 1.5,
+                    "efl_mm": 100.0,
+                    "is_curved": False,
+                    "radius_of_curvature_mm": 0.0,
+                }
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -499,11 +581,7 @@ class TestComponentFactoryEdgeCases:
 
     def test_empty_interfaces_list(self):
         """Factory creates ComponentItem with empty interfaces for empty interfaces list."""
-        data = {
-            "name": "Invalid Component",
-            "object_height_mm": 50.0,
-            "interfaces": []
-        }
+        data = {"name": "Invalid Component", "object_height_mm": 50.0, "interfaces": []}
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
         assert item is not None
@@ -515,16 +593,21 @@ class TestComponentFactoryEdgeCases:
         data = {
             "name": "Test Lens",
             # No object_height_mm
-            "interfaces": [{
-                "element_type": "lens",
-                "name": "Surface",
-                "x1_mm": -25.0, "y1_mm": 0.0,
-                "x2_mm": 25.0, "y2_mm": 0.0,
-                "n1": 1.0, "n2": 1.5,
-                "efl_mm": 100.0,
-                "is_curved": False,
-                "radius_of_curvature_mm": 0.0,
-            }]
+            "interfaces": [
+                {
+                    "element_type": "lens",
+                    "name": "Surface",
+                    "x1_mm": -25.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 25.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.0,
+                    "n2": 1.5,
+                    "efl_mm": 100.0,
+                    "is_curved": False,
+                    "radius_of_curvature_mm": 0.0,
+                }
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -543,16 +626,21 @@ class TestComponentFactoryImagePath:
             "image_path": "/path/to/lens.png",
             "object_height_mm": 50.0,
             "angle_deg": 90.0,
-            "interfaces": [{
-                "element_type": "lens",
-                "name": "Surface",
-                "x1_mm": -25.0, "y1_mm": 0.0,
-                "x2_mm": 25.0, "y2_mm": 0.0,
-                "n1": 1.0, "n2": 1.5,
-                "efl_mm": 100.0,
-                "is_curved": False,
-                "radius_of_curvature_mm": 0.0,
-            }]
+            "interfaces": [
+                {
+                    "element_type": "lens",
+                    "name": "Surface",
+                    "x1_mm": -25.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 25.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.0,
+                    "n2": 1.5,
+                    "efl_mm": 100.0,
+                    "is_curved": False,
+                    "radius_of_curvature_mm": 0.0,
+                }
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -564,16 +652,21 @@ class TestComponentFactoryImagePath:
             "name": "Lens No Image",
             "object_height_mm": 50.0,
             "angle_deg": 90.0,
-            "interfaces": [{
-                "element_type": "lens",
-                "name": "Surface",
-                "x1_mm": -25.0, "y1_mm": 0.0,
-                "x2_mm": 25.0, "y2_mm": 0.0,
-                "n1": 1.0, "n2": 1.5,
-                "efl_mm": 100.0,
-                "is_curved": False,
-                "radius_of_curvature_mm": 0.0,
-            }]
+            "interfaces": [
+                {
+                    "element_type": "lens",
+                    "name": "Surface",
+                    "x1_mm": -25.0,
+                    "y1_mm": 0.0,
+                    "x2_mm": 25.0,
+                    "y2_mm": 0.0,
+                    "n1": 1.0,
+                    "n2": 1.5,
+                    "efl_mm": 100.0,
+                    "is_curved": False,
+                    "radius_of_curvature_mm": 0.0,
+                }
+            ],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -591,7 +684,7 @@ class TestComponentFactoryBackground:
             "image_path": "images/lasertable.png",
             "object_height_mm": 1500.0,
             "angle_deg": 0.0,
-            "interfaces": []
+            "interfaces": [],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -610,7 +703,7 @@ class TestComponentFactoryBackground:
             "category": "background",
             "image_path": "images/breadboard.png",
             "object_height_mm": 609.6,
-            "interfaces": []
+            "interfaces": [],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 100, 200)
@@ -631,7 +724,7 @@ class TestComponentFactoryBackground:
             "name": "Decorative",
             "image_path": "images/decoration.png",
             "object_height_mm": 100.0,
-            "interfaces": []
+            "interfaces": [],
         }
 
         item = ComponentFactory.create_item_from_dict(data, 0, 0)
@@ -640,6 +733,3 @@ class TestComponentFactoryBackground:
         assert item is not None
         assert isinstance(item, ComponentItem)
         assert len(item.params.interfaces) == 0
-
-
-

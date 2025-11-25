@@ -1,10 +1,9 @@
 """
 Test collaboration connection lifecycle to identify disconnect issue.
 """
-import pytest
-import time
-from PyQt6.QtCore import QEventLoop, QTimer
+
 from PyQt6.QtTest import QTest
+
 from src.optiverse.services.collaboration_service import CollaborationService
 
 
@@ -23,7 +22,6 @@ class TestCollaborationConnection:
         service.disconnected.connect(lambda: disconnected_fired.append(True))
 
         # Store reference to ensure service doesn't get garbage collected
-        service_ref = service
 
         # Connect
         service.set_server_url("ws://localhost:8765")
@@ -111,6 +109,3 @@ class TestCollaborationConnection:
         # Clean up
         service.disconnect_from_session()
         parent.deleteLater()
-
-
-

@@ -3,8 +3,8 @@ Lens element implementation.
 
 Implements thin lens approximation using paraxial optics.
 """
+
 import math
-from typing import List, Tuple
 
 import numpy as np
 
@@ -34,17 +34,13 @@ class LensElement(IOpticalElement):
         self.p2 = np.array(p2, dtype=float)
         self.efl_mm = efl_mm
 
-    def get_geometry(self) -> Tuple[np.ndarray, np.ndarray]:
+    def get_geometry(self) -> tuple[np.ndarray, np.ndarray]:
         """Get lens line segment"""
         return self.p1, self.p2
 
     def interact(
-        self,
-        ray: RayState,
-        hit_point: np.ndarray,
-        normal: np.ndarray,
-        tangent: np.ndarray
-    ) -> List[RayState]:
+        self, ray: RayState, hit_point: np.ndarray, normal: np.ndarray, tangent: np.ndarray
+    ) -> list[RayState]:
         """
         Deflect ray using thin lens equation.
 
@@ -77,9 +73,7 @@ class LensElement(IOpticalElement):
             theta_out = theta_in  # Infinite focal length = no deflection
 
         # Reconstruct direction from angle
-        direction_out = normalize(
-            math.cos(theta_out) * normal + math.sin(theta_out) * tangent
-        )
+        direction_out = normalize(math.cos(theta_out) * normal + math.sin(theta_out) * tangent)
 
         # Polarization unchanged through ideal lens
         EPS_ADV = 1e-3
@@ -90,16 +84,13 @@ class LensElement(IOpticalElement):
             polarization=ray.polarization,  # Unchanged
             wavelength_nm=ray.wavelength_nm,
             path=ray.path + [hit_point],
-            events=ray.events + 1
+            events=ray.events + 1,
         )
 
         return [refracted_ray]
 
-    def get_bounding_box(self) -> Tuple[np.ndarray, np.ndarray]:
+    def get_bounding_box(self) -> tuple[np.ndarray, np.ndarray]:
         """Get axis-aligned bounding box"""
         min_corner = np.minimum(self.p1, self.p2)
         max_corner = np.maximum(self.p1, self.p2)
         return min_corner, max_corner
-
-
-

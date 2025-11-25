@@ -3,10 +3,11 @@ Tests for magnetic snap helper functionality.
 
 Tests snap calculations for center-to-center and edge-to-edge alignment.
 """
-import pytest
+
 from PyQt6 import QtCore, QtWidgets
-from optiverse.core.snap_helper import SnapHelper, SnapResult
+
 from optiverse.core.models import LensParams, MirrorParams
+from optiverse.core.snap_helper import SnapHelper, SnapResult
 from optiverse.objects import LensItem, MirrorItem
 
 
@@ -50,11 +51,7 @@ def test_snap_to_center_horizontal(qtbot):
     helper = SnapHelper(tolerance_px=10.0)
 
     # Try to snap at position (300, 204)
-    result = helper.calculate_snap(
-        QtCore.QPointF(300, 204),
-        moving,
-        scene
-    )
+    result = helper.calculate_snap(QtCore.QPointF(300, 204), moving, scene)
 
     # Should snap Y to 200 (center of fixed item)
     assert result.snapped
@@ -78,11 +75,7 @@ def test_snap_to_center_vertical(qtbot):
     helper = SnapHelper(tolerance_px=10.0)
 
     # Try to snap at position (103, 400)
-    result = helper.calculate_snap(
-        QtCore.QPointF(103, 400),
-        moving,
-        scene
-    )
+    result = helper.calculate_snap(QtCore.QPointF(103, 400), moving, scene)
 
     # Should snap X to 100 (center of fixed item)
     assert result.snapped
@@ -106,11 +99,7 @@ def test_snap_both_axes(qtbot):
     helper = SnapHelper(tolerance_px=10.0)
 
     # Try to snap at position (105, 205)
-    result = helper.calculate_snap(
-        QtCore.QPointF(105, 205),
-        moving,
-        scene
-    )
+    result = helper.calculate_snap(QtCore.QPointF(105, 205), moving, scene)
 
     # Should snap both X and Y
     assert result.snapped
@@ -135,11 +124,7 @@ def test_no_snap_beyond_tolerance(qtbot):
     helper = SnapHelper(tolerance_px=10.0)
 
     # Try to snap at position too far away (50px difference)
-    result = helper.calculate_snap(
-        QtCore.QPointF(300, 250),
-        moving,
-        scene
-    )
+    result = helper.calculate_snap(QtCore.QPointF(300, 250), moving, scene)
 
     # Should NOT snap
     assert not result.snapped
@@ -159,11 +144,7 @@ def test_snap_ignores_moving_item(qtbot):
     helper = SnapHelper(tolerance_px=10.0)
 
     # Try to snap with only itself in the scene
-    result = helper.calculate_snap(
-        QtCore.QPointF(105, 205),
-        moving,
-        scene
-    )
+    result = helper.calculate_snap(QtCore.QPointF(105, 205), moving, scene)
 
     # Should NOT snap (no other items)
     assert not result.snapped
@@ -188,11 +169,7 @@ def test_snap_multiple_candidates_closest(qtbot):
     helper = SnapHelper(tolerance_px=10.0)
 
     # Try to snap
-    result = helper.calculate_snap(
-        QtCore.QPointF(300, 203),
-        moving,
-        scene
-    )
+    result = helper.calculate_snap(QtCore.QPointF(300, 203), moving, scene)
 
     # Should snap to 200 (closer) not 210
     assert result.snapped
@@ -218,16 +195,8 @@ def test_snap_with_view_transform(qtbot):
     helper = SnapHelper(tolerance_px=10.0)
 
     # Try to snap - should work in scene coordinates
-    result = helper.calculate_snap(
-        QtCore.QPointF(300, 205),
-        moving,
-        scene,
-        view
-    )
+    result = helper.calculate_snap(QtCore.QPointF(300, 205), moving, scene, view)
 
     # Should still snap (tolerance is in view pixels, converted to scene)
     assert result.snapped
     assert result.position.y() == 200
-
-
-

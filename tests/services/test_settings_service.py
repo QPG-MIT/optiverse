@@ -8,7 +8,3 @@ def test_settings_roundtrip(qtbot, monkeypatch, tmp_path):
     s = SettingsService(organization="PhotonicSandbox", application="PhotonicSandboxTest")
     s.set_value("ui/ray_width_px", 2.5)
     assert s.get_value("ui/ray_width_px", 0.0) == 2.5
-
-
-
-

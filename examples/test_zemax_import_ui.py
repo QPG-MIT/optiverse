@@ -8,15 +8,16 @@ Usage:
     python examples/test_zemax_import_ui.py
 """
 
-import sys
 import os
+import sys
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from PyQt6 import QtWidgets
-from optiverse.ui.views.component_editor_dialog import ComponentEditor
+
 from optiverse.services.storage_service import StorageService
+from optiverse.ui.views.component_editor_dialog import ComponentEditor
 
 
 def main():
@@ -55,6 +56,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-

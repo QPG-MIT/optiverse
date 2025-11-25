@@ -3,7 +3,7 @@ Mirror element implementation.
 
 Implements perfect reflection according to the law of reflection.
 """
-from typing import List, Tuple
+
 
 import numpy as np
 
@@ -13,9 +13,12 @@ from ..ray import RayState
 from .base import IOpticalElement
 
 
-def transform_polarization_mirror(pol: Polarization, v_in: np.ndarray, n_hat: np.ndarray) -> Polarization:
+def transform_polarization_mirror(
+    pol: Polarization, v_in: np.ndarray, n_hat: np.ndarray
+) -> Polarization:
     """Transform polarization upon mirror reflection (reuse from core)"""
     from ...core.raytracing_math import transform_polarization_mirror as core_transform
+
     return core_transform(pol, v_in, n_hat)
 
 
@@ -39,17 +42,13 @@ class MirrorElement(IOpticalElement):
         self.p2 = np.array(p2, dtype=float)
         self.reflectivity = reflectivity
 
-    def get_geometry(self) -> Tuple[np.ndarray, np.ndarray]:
+    def get_geometry(self) -> tuple[np.ndarray, np.ndarray]:
         """Get mirror line segment"""
         return self.p1, self.p2
 
     def interact(
-        self,
-        ray: RayState,
-        hit_point: np.ndarray,
-        normal: np.ndarray,
-        tangent: np.ndarray
-    ) -> List[RayState]:
+        self, ray: RayState, hit_point: np.ndarray, normal: np.ndarray, tangent: np.ndarray
+    ) -> list[RayState]:
         """
         Reflect ray according to law of reflection.
 
@@ -63,9 +62,7 @@ class MirrorElement(IOpticalElement):
 
         # Transform polarization
         polarization_reflected = transform_polarization_mirror(
-            ray.polarization,
-            ray.direction,
-            normal
+            ray.polarization, ray.direction, normal
         )
 
         # Create reflected ray
@@ -77,16 +74,13 @@ class MirrorElement(IOpticalElement):
             polarization=polarization_reflected,
             wavelength_nm=ray.wavelength_nm,
             path=ray.path + [hit_point],
-            events=ray.events + 1
+            events=ray.events + 1,
         )
 
         return [reflected_ray]
 
-    def get_bounding_box(self) -> Tuple[np.ndarray, np.ndarray]:
+    def get_bounding_box(self) -> tuple[np.ndarray, np.ndarray]:
         """Get axis-aligned bounding box"""
         min_corner = np.minimum(self.p1, self.p2)
         max_corner = np.maximum(self.p1, self.p2)
         return min_corner, max_corner
-
-
-

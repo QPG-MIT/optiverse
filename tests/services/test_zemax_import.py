@@ -2,14 +2,12 @@
 Tests for Zemax file import functionality.
 """
 
-import os
-
 import pytest
 
 from src.optiverse.core.interface_definition import InterfaceDefinition
 from src.optiverse.services.glass_catalog import GlassCatalog
 from src.optiverse.services.zemax_converter import ZemaxToInterfaceConverter
-from src.optiverse.services.zemax_parser import ZemaxFile, ZemaxParser, ZemaxSurface
+from src.optiverse.services.zemax_parser import ZemaxFile, ZemaxSurface
 
 
 class TestZemaxParser:
@@ -17,13 +15,7 @@ class TestZemaxParser:
 
     def test_zemax_surface_creation(self):
         """Test creating a Zemax surface."""
-        surf = ZemaxSurface(
-            number=1,
-            curvature=0.015,
-            thickness=4.0,
-            glass="N-BK7",
-            diameter=12.7
-        )
+        surf = ZemaxSurface(number=1, curvature=0.015, thickness=4.0, glass="N-BK7", diameter=12.7)
 
         assert surf.number == 1
         assert surf.curvature == 0.015
@@ -37,14 +29,12 @@ class TestZemaxParser:
         """Test flat surface detection."""
         surf = ZemaxSurface(number=1, curvature=0.0)
         assert surf.is_flat
-        assert surf.radius_mm == float('inf')
+        assert surf.radius_mm == float("inf")
 
     def test_zemax_file_creation(self):
         """Test creating a Zemax file object."""
         zmx = ZemaxFile(
-            name="Test Lens",
-            wavelengths_um=[0.486, 0.5876, 0.656],
-            primary_wavelength_idx=2
+            name="Test Lens", wavelengths_um=[0.486, 0.5876, 0.656], primary_wavelength_idx=2
         )
 
         assert zmx.name == "Test Lens"
@@ -90,9 +80,7 @@ class TestInterfaceDefinition:
     def test_flat_interface(self):
         """Test flat interface."""
         iface = InterfaceDefinition(
-            x1_mm=0, y1_mm=-5, x2_mm=0, y2_mm=5,
-            n1=1.0, n2=1.5,
-            is_curved=False
+            x1_mm=0, y1_mm=-5, x2_mm=0, y2_mm=5, n1=1.0, n2=1.5, is_curved=False
         )
 
         assert iface.is_flat()
@@ -101,10 +89,14 @@ class TestInterfaceDefinition:
     def test_curved_interface(self):
         """Test curved interface."""
         iface = InterfaceDefinition(
-            x1_mm=0, y1_mm=-5, x2_mm=0, y2_mm=5,
-            n1=1.0, n2=1.5,
+            x1_mm=0,
+            y1_mm=-5,
+            x2_mm=0,
+            y2_mm=5,
+            n1=1.0,
+            n2=1.5,
             is_curved=True,
-            radius_of_curvature_mm=100.0
+            radius_of_curvature_mm=100.0,
         )
 
         assert not iface.is_flat()
@@ -118,10 +110,14 @@ class TestInterfaceDefinition:
     def test_surface_sag(self):
         """Test surface sag calculation."""
         iface = InterfaceDefinition(
-            x1_mm=0, y1_mm=-5, x2_mm=0, y2_mm=5,
-            n1=1.0, n2=1.5,
+            x1_mm=0,
+            y1_mm=-5,
+            x2_mm=0,
+            y2_mm=5,
+            n1=1.0,
+            n2=1.5,
             is_curved=True,
-            radius_of_curvature_mm=100.0
+            radius_of_curvature_mm=100.0,
         )
 
         # At edge (y=5mm)
@@ -136,20 +132,24 @@ class TestInterfaceDefinition:
     def test_serialization(self):
         """Test interface serialization with curvature."""
         iface = InterfaceDefinition(
-            x1_mm=0, y1_mm=-5, x2_mm=0, y2_mm=5,
-            n1=1.0, n2=1.5,
+            x1_mm=0,
+            y1_mm=-5,
+            x2_mm=0,
+            y2_mm=5,
+            n1=1.0,
+            n2=1.5,
             is_curved=True,
-            radius_of_curvature_mm=66.68
+            radius_of_curvature_mm=66.68,
         )
 
         # Serialize
         data = iface.to_dict()
-        assert data['is_curved'] == True
-        assert data['radius_of_curvature_mm'] == 66.68
+        assert data["is_curved"]
+        assert data["radius_of_curvature_mm"] == 66.68
 
         # Deserialize
         iface2 = InterfaceDefinition.from_dict(data)
-        assert iface2.is_curved == True
+        assert iface2.is_curved
         assert iface2.radius_of_curvature_mm == 66.68
 
 
@@ -175,36 +175,14 @@ class TestZemaxConverter:
 def test_integration_example():
     """Test complete integration with example data."""
     # Create a simple Zemax file programmatically
-    zmx = ZemaxFile(
-        name="Test Doublet",
-        wavelengths_um=[0.5876],
-        primary_wavelength_idx=1
-    )
+    zmx = ZemaxFile(name="Test Doublet", wavelengths_um=[0.5876], primary_wavelength_idx=1)
 
     # Add surfaces
     zmx.surfaces = [
         ZemaxSurface(number=0),  # Object
-        ZemaxSurface(
-            number=1,
-            curvature=0.015,
-            thickness=4.0,
-            glass="N-BK7",
-            diameter=12.7
-        ),
-        ZemaxSurface(
-            number=2,
-            curvature=-0.02,
-            thickness=1.5,
-            glass="N-SF11",
-            diameter=12.7
-        ),
-        ZemaxSurface(
-            number=3,
-            curvature=-0.004,
-            thickness=100.0,
-            glass="",
-            diameter=12.7
-        ),
+        ZemaxSurface(number=1, curvature=0.015, thickness=4.0, glass="N-BK7", diameter=12.7),
+        ZemaxSurface(number=2, curvature=-0.02, thickness=1.5, glass="N-SF11", diameter=12.7),
+        ZemaxSurface(number=3, curvature=-0.004, thickness=100.0, glass="", diameter=12.7),
         ZemaxSurface(number=4),  # Image
     ]
 
@@ -230,6 +208,3 @@ def test_integration_example():
 if __name__ == "__main__":
     # Run tests
     pytest.main([__file__, "-v"])
-
-
-

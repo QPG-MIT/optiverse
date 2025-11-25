@@ -143,6 +143,3 @@ LASER_WAVELENGTHS = {
     "IR (808nm diode)": 808.0,
     "IR (1064nm Nd:YAG)": 1064.0,
 }
-
-
-

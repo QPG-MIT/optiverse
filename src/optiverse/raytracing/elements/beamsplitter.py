@@ -3,7 +3,7 @@ Beamsplitter element implementation.
 
 Implements partial reflection and transmission, with optional polarization dependence (PBS).
 """
-from typing import List, Tuple
+
 
 import numpy as np
 
@@ -30,7 +30,7 @@ class BeamsplitterElement(IOpticalElement):
         transmission: float,
         reflection: float,
         is_polarizing: bool = False,
-        polarization_axis_deg: float = 0.0
+        polarization_axis_deg: float = 0.0,
     ):
         """
         Initialize beamsplitter element.
@@ -50,17 +50,13 @@ class BeamsplitterElement(IOpticalElement):
         self.is_polarizing = is_polarizing
         self.polarization_axis_deg = polarization_axis_deg
 
-    def get_geometry(self) -> Tuple[np.ndarray, np.ndarray]:
+    def get_geometry(self) -> tuple[np.ndarray, np.ndarray]:
         """Get beamsplitter line segment"""
         return self.p1, self.p2
 
     def interact(
-        self,
-        ray: RayState,
-        hit_point: np.ndarray,
-        normal: np.ndarray,
-        tangent: np.ndarray
-    ) -> List[RayState]:
+        self, ray: RayState, hit_point: np.ndarray, normal: np.ndarray, tangent: np.ndarray
+    ) -> list[RayState]:
         """
         Split ray into transmitted and reflected components.
 
@@ -71,14 +67,16 @@ class BeamsplitterElement(IOpticalElement):
             * p-polarization (parallel) transmits
         """
         # Transform polarization for both paths
-        polarization_transmitted, intensity_factor_transmitted = transform_polarization_beamsplitter(
-            ray.polarization,
-            ray.direction,
-            normal,
-            tangent,
-            self.is_polarizing,
-            self.polarization_axis_deg,
-            is_transmitted=True
+        polarization_transmitted, intensity_factor_transmitted = (
+            transform_polarization_beamsplitter(
+                ray.polarization,
+                ray.direction,
+                normal,
+                tangent,
+                self.is_polarizing,
+                self.polarization_axis_deg,
+                is_transmitted=True,
+            )
         )
 
         polarization_reflected, intensity_factor_reflected = transform_polarization_beamsplitter(
@@ -88,7 +86,7 @@ class BeamsplitterElement(IOpticalElement):
             tangent,
             self.is_polarizing,
             self.polarization_axis_deg,
-            is_transmitted=False
+            is_transmitted=False,
         )
 
         # Determine split ratios
@@ -116,7 +114,7 @@ class BeamsplitterElement(IOpticalElement):
                 polarization=polarization_transmitted,
                 wavelength_nm=ray.wavelength_nm,
                 path=ray.path + [hit_point],
-                events=ray.events + 1
+                events=ray.events + 1,
             )
             output_rays.append(transmitted_ray)
 
@@ -131,17 +129,14 @@ class BeamsplitterElement(IOpticalElement):
                 polarization=polarization_reflected,
                 wavelength_nm=ray.wavelength_nm,
                 path=ray.path + [hit_point],
-                events=ray.events + 1
+                events=ray.events + 1,
             )
             output_rays.append(reflected_ray)
 
         return output_rays
 
-    def get_bounding_box(self) -> Tuple[np.ndarray, np.ndarray]:
+    def get_bounding_box(self) -> tuple[np.ndarray, np.ndarray]:
         """Get axis-aligned bounding box"""
         min_corner = np.minimum(self.p1, self.p2)
         max_corner = np.maximum(self.p1, self.p2)
         return min_corner, max_corner
-
-
-

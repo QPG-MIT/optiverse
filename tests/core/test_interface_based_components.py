@@ -7,18 +7,23 @@ multiple optical interfaces for raytracing.
 
 from __future__ import annotations
 
-import pytest
 import numpy as np
-from PyQt6 import QtCore
+import pytest
 
-from optiverse.core.models import (
-    LensParams, MirrorParams, BeamsplitterParams, DichroicParams, WaveplateParams,
-    RefractiveObjectParams, RefractiveInterface
-)
 from optiverse.core.interface_definition import InterfaceDefinition
+from optiverse.core.models import (
+    BeamsplitterParams,
+    DichroicParams,
+    LensParams,
+    MirrorParams,
+    WaveplateParams,
+)
 from optiverse.objects import (
-    LensItem, MirrorItem, BeamsplitterItem, DichroicItem, WaveplateItem,
-    RefractiveObjectItem
+    BeamsplitterItem,
+    DichroicItem,
+    LensItem,
+    MirrorItem,
+    WaveplateItem,
 )
 
 
@@ -28,45 +33,42 @@ class TestInterfaceStorage:
     def test_lens_params_has_interfaces_field(self):
         """LensParams should have an interfaces field."""
         params = LensParams()
-        assert hasattr(params, 'interfaces')
+        assert hasattr(params, "interfaces")
         assert params.interfaces is not None
         assert isinstance(params.interfaces, list)
 
     def test_mirror_params_has_interfaces_field(self):
         """MirrorParams should have an interfaces field."""
         params = MirrorParams()
-        assert hasattr(params, 'interfaces')
+        assert hasattr(params, "interfaces")
         assert params.interfaces is not None
         assert isinstance(params.interfaces, list)
 
     def test_beamsplitter_params_has_interfaces_field(self):
         """BeamsplitterParams should have an interfaces field."""
         params = BeamsplitterParams()
-        assert hasattr(params, 'interfaces')
+        assert hasattr(params, "interfaces")
         assert params.interfaces is not None
         assert isinstance(params.interfaces, list)
 
     def test_dichroic_params_has_interfaces_field(self):
         """DichroicParams should have an interfaces field."""
         params = DichroicParams()
-        assert hasattr(params, 'interfaces')
+        assert hasattr(params, "interfaces")
         assert params.interfaces is not None
         assert isinstance(params.interfaces, list)
 
     def test_waveplate_params_has_interfaces_field(self):
         """WaveplateParams should have an interfaces field."""
         params = WaveplateParams()
-        assert hasattr(params, 'interfaces')
+        assert hasattr(params, "interfaces")
         assert params.interfaces is not None
         assert isinstance(params.interfaces, list)
 
     def test_lens_params_accepts_interfaces(self):
         """LensParams should accept interfaces in constructor."""
         interface = InterfaceDefinition(
-            x1_mm=0.0, y1_mm=-10.0,
-            x2_mm=0.0, y2_mm=10.0,
-            element_type="lens",
-            efl_mm=100.0
+            x1_mm=0.0, y1_mm=-10.0, x2_mm=0.0, y2_mm=10.0, element_type="lens", efl_mm=100.0
         )
         params = LensParams(interfaces=[interface])
         assert len(params.interfaces) == 1
@@ -75,10 +77,12 @@ class TestInterfaceStorage:
     def test_mirror_params_accepts_interfaces(self):
         """MirrorParams should accept interfaces in constructor."""
         interface = InterfaceDefinition(
-            x1_mm=-10.0, y1_mm=-10.0,
-            x2_mm=10.0, y2_mm=10.0,
+            x1_mm=-10.0,
+            y1_mm=-10.0,
+            x2_mm=10.0,
+            y2_mm=10.0,
             element_type="mirror",
-            reflectivity=99.0
+            reflectivity=99.0,
         )
         params = MirrorParams(interfaces=[interface])
         assert len(params.interfaces) == 1
@@ -92,35 +96,35 @@ class TestGetInterfacesScene:
         """LensItem should have get_interfaces_scene() method."""
         params = LensParams()
         item = LensItem(params)
-        assert hasattr(item, 'get_interfaces_scene')
+        assert hasattr(item, "get_interfaces_scene")
         assert callable(item.get_interfaces_scene)
 
     def test_mirror_item_has_get_interfaces_scene(self):
         """MirrorItem should have get_interfaces_scene() method."""
         params = MirrorParams()
         item = MirrorItem(params)
-        assert hasattr(item, 'get_interfaces_scene')
+        assert hasattr(item, "get_interfaces_scene")
         assert callable(item.get_interfaces_scene)
 
     def test_beamsplitter_item_has_get_interfaces_scene(self):
         """BeamsplitterItem should have get_interfaces_scene() method."""
         params = BeamsplitterParams()
         item = BeamsplitterItem(params)
-        assert hasattr(item, 'get_interfaces_scene')
+        assert hasattr(item, "get_interfaces_scene")
         assert callable(item.get_interfaces_scene)
 
     def test_dichroic_item_has_get_interfaces_scene(self):
         """DichroicItem should have get_interfaces_scene() method."""
         params = DichroicParams()
         item = DichroicItem(params)
-        assert hasattr(item, 'get_interfaces_scene')
+        assert hasattr(item, "get_interfaces_scene")
         assert callable(item.get_interfaces_scene)
 
     def test_waveplate_item_has_get_interfaces_scene(self):
         """WaveplateItem should have get_interfaces_scene() method."""
         params = WaveplateParams()
         item = WaveplateItem(params)
-        assert hasattr(item, 'get_interfaces_scene')
+        assert hasattr(item, "get_interfaces_scene")
         assert callable(item.get_interfaces_scene)
 
     def test_lens_item_returns_interface_tuples(self):
@@ -149,22 +153,31 @@ class TestMultipleInterfaces:
         # Create a doublet with 3 interfaces
         interfaces = [
             InterfaceDefinition(
-                x1_mm=-2.0, y1_mm=-10.0,
-                x2_mm=-2.0, y2_mm=10.0,
+                x1_mm=-2.0,
+                y1_mm=-10.0,
+                x2_mm=-2.0,
+                y2_mm=10.0,
                 element_type="refractive_interface",
-                n1=1.0, n2=1.517
+                n1=1.0,
+                n2=1.517,
             ),
             InterfaceDefinition(
-                x1_mm=0.0, y1_mm=-10.0,
-                x2_mm=0.0, y2_mm=10.0,
+                x1_mm=0.0,
+                y1_mm=-10.0,
+                x2_mm=0.0,
+                y2_mm=10.0,
                 element_type="refractive_interface",
-                n1=1.517, n2=1.620
+                n1=1.517,
+                n2=1.620,
             ),
             InterfaceDefinition(
-                x1_mm=2.0, y1_mm=-10.0,
-                x2_mm=2.0, y2_mm=10.0,
+                x1_mm=2.0,
+                y1_mm=-10.0,
+                x2_mm=2.0,
+                y2_mm=10.0,
                 element_type="refractive_interface",
-                n1=1.620, n2=1.0
+                n1=1.620,
+                n2=1.0,
             ),
         ]
 
@@ -175,7 +188,7 @@ class TestMultipleInterfaces:
         assert len(interfaces_scene) == 3
 
         # Verify all interfaces are present
-        for i, (p1, p2, iface) in enumerate(interfaces_scene):
+        for _i, (_p1, _p2, iface) in enumerate(interfaces_scene):
             assert isinstance(iface, InterfaceDefinition)
             assert iface.element_type == "refractive_interface"
 
@@ -184,16 +197,21 @@ class TestMultipleInterfaces:
         # AR coating + reflective surface
         interfaces = [
             InterfaceDefinition(
-                x1_mm=-10.0, y1_mm=-10.0,
-                x2_mm=10.0, y2_mm=10.0,
+                x1_mm=-10.0,
+                y1_mm=-10.0,
+                x2_mm=10.0,
+                y2_mm=10.0,
                 element_type="refractive_interface",
-                n1=1.0, n2=1.38  # AR coating
+                n1=1.0,
+                n2=1.38,  # AR coating
             ),
             InterfaceDefinition(
-                x1_mm=-10.0, y1_mm=-10.0,
-                x2_mm=10.0, y2_mm=10.0,
+                x1_mm=-10.0,
+                y1_mm=-10.0,
+                x2_mm=10.0,
+                y2_mm=10.0,
                 element_type="mirror",
-                reflectivity=99.9
+                reflectivity=99.9,
             ),
         ]
 
@@ -264,19 +282,16 @@ class TestSerialization:
     def test_lens_serialization_preserves_interfaces(self):
         """LensItem serialization should preserve interfaces."""
         interface = InterfaceDefinition(
-            x1_mm=0.0, y1_mm=-10.0,
-            x2_mm=0.0, y2_mm=10.0,
-            element_type="lens",
-            efl_mm=100.0
+            x1_mm=0.0, y1_mm=-10.0, x2_mm=0.0, y2_mm=10.0, element_type="lens", efl_mm=100.0
         )
         params = LensParams(interfaces=[interface])
         item = LensItem(params)
 
         # Serialize
         data = item.to_dict()
-        assert 'interfaces' in data
-        assert len(data['interfaces']) == 1
-        assert data['interfaces'][0]['efl_mm'] == pytest.approx(100.0)
+        assert "interfaces" in data
+        assert len(data["interfaces"]) == 1
+        assert data["interfaces"][0]["efl_mm"] == pytest.approx(100.0)
 
         # Deserialize
         item2 = LensItem.from_dict(data)
@@ -287,16 +302,21 @@ class TestSerialization:
         """MirrorItem serialization should preserve interfaces."""
         interfaces = [
             InterfaceDefinition(
-                x1_mm=-10.0, y1_mm=-10.0,
-                x2_mm=10.0, y2_mm=10.0,
+                x1_mm=-10.0,
+                y1_mm=-10.0,
+                x2_mm=10.0,
+                y2_mm=10.0,
                 element_type="refractive_interface",
-                n1=1.0, n2=1.38
+                n1=1.0,
+                n2=1.38,
             ),
             InterfaceDefinition(
-                x1_mm=-10.0, y1_mm=-10.0,
-                x2_mm=10.0, y2_mm=10.0,
+                x1_mm=-10.0,
+                y1_mm=-10.0,
+                x2_mm=10.0,
+                y2_mm=10.0,
                 element_type="mirror",
-                reflectivity=99.9
+                reflectivity=99.9,
             ),
         ]
         params = MirrorParams(interfaces=interfaces)
@@ -304,8 +324,8 @@ class TestSerialization:
 
         # Serialize
         data = item.to_dict()
-        assert 'interfaces' in data
-        assert len(data['interfaces']) == 2
+        assert "interfaces" in data
+        assert len(data["interfaces"]) == 2
 
         # Deserialize
         item2 = MirrorItem.from_dict(data)
@@ -318,10 +338,7 @@ class TestSceneCoordinates:
     def test_lens_interface_scene_coords_with_rotation(self):
         """Interface coordinates should account for item rotation."""
         interface = InterfaceDefinition(
-            x1_mm=0.0, y1_mm=-10.0,
-            x2_mm=0.0, y2_mm=10.0,
-            element_type="lens",
-            efl_mm=100.0
+            x1_mm=0.0, y1_mm=-10.0, x2_mm=0.0, y2_mm=10.0, element_type="lens", efl_mm=100.0
         )
         params = LensParams(x_mm=100.0, y_mm=200.0, angle_deg=45.0, interfaces=[interface])
         item = LensItem(params)
@@ -337,9 +354,7 @@ class TestSceneCoordinates:
     def test_mirror_interface_scene_coords_with_position(self):
         """Interface coordinates should account for item position."""
         interface = InterfaceDefinition(
-            x1_mm=-10.0, y1_mm=0.0,
-            x2_mm=10.0, y2_mm=0.0,
-            element_type="mirror"
+            x1_mm=-10.0, y1_mm=0.0, x2_mm=10.0, y2_mm=0.0, element_type="mirror"
         )
         params = MirrorParams(x_mm=50.0, y_mm=100.0, interfaces=[interface])
         item = MirrorItem(params)
@@ -355,8 +370,5 @@ class TestSceneCoordinates:
         assert mid_y == pytest.approx(100.0, abs=1.0)
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
-
-
-
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

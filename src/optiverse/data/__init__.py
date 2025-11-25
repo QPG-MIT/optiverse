@@ -5,17 +5,17 @@ This module contains data structures with no UI or framework dependencies.
 All models are serializable and can be used independently of PyQt.
 """
 
-from .geometry import LineSegment, CurvedSegment, GeometrySegment
+from .geometry import CurvedSegment, GeometrySegment, LineSegment
+from .optical_interface import OpticalInterface
 from .optical_properties import (
-    RefractiveProperties,
+    BeamsplitterProperties,
+    DichroicProperties,
     LensProperties,
     MirrorProperties,
-    BeamsplitterProperties,
-    WaveplateProperties,
-    DichroicProperties,
     OpticalProperties,
+    RefractiveProperties,
+    WaveplateProperties,
 )
-from .optical_interface import OpticalInterface
 
 __all__ = [
     "LineSegment",
@@ -30,6 +30,3 @@ __all__ = [
     "OpticalProperties",
     "OpticalInterface",
 ]
-
-
-

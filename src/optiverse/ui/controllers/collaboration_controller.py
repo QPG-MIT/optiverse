@@ -3,10 +3,11 @@ Collaboration controller for handling collaboration sessions.
 
 Extracts collaboration management UI logic from MainWindow.
 """
+
 from __future__ import annotations
 
 import subprocess
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from PyQt6 import QtCore, QtWidgets
 
@@ -31,8 +32,8 @@ class CollaborationController(QtCore.QObject):
 
     def __init__(
         self,
-        collaboration_manager: "CollaborationManager",
-        log_service: "LogService",
+        collaboration_manager: CollaborationManager,
+        log_service: LogService,
         parent_widget: QtWidgets.QWidget,
     ):
         super().__init__(parent_widget)
@@ -40,7 +41,7 @@ class CollaborationController(QtCore.QObject):
         self._parent = parent_widget
         self._collab_manager = collaboration_manager
         self._log_service = log_service
-        self._server_process: Optional[subprocess.Popen] = None
+        self._server_process: subprocess.Popen | None = None
 
         # Connect manager signals
         collaboration_manager.status_changed.connect(self._on_status_changed)
@@ -66,7 +67,7 @@ class CollaborationController(QtCore.QObject):
 
             self.connectionChanged.emit(True)
 
-    def _host_session(self, info: dict, server_process: Optional[subprocess.Popen]):
+    def _host_session(self, info: dict, server_process: subprocess.Popen | None):
         """Host a new collaboration session."""
         session_id = info.get("session_id", "default")
         user_id = info.get("user_id", "host")
@@ -79,9 +80,7 @@ class CollaborationController(QtCore.QObject):
 
         # Create session as host
         self._collab_manager.create_session(
-            session_id=session_id,
-            user_id=user_id,
-            use_current_canvas=use_current_canvas
+            session_id=session_id, user_id=user_id, use_current_canvas=use_current_canvas
         )
 
         # Connect to local server
@@ -90,7 +89,7 @@ class CollaborationController(QtCore.QObject):
 
         self._log_service.info(
             f"Created session '{session_id}' as host (current_canvas={use_current_canvas})",
-            LogCategory.COLLABORATION
+            LogCategory.COLLABORATION,
         )
 
     def _join_session(self, info: dict):
@@ -103,8 +102,7 @@ class CollaborationController(QtCore.QObject):
         self._collab_manager.join_session(server_url, session_id, user_id)
 
         self._log_service.info(
-            f"Joining session '{session_id}' as client",
-            LogCategory.COLLABORATION
+            f"Joining session '{session_id}' as client", LogCategory.COLLABORATION
         )
 
     def disconnect(self):
@@ -136,6 +134,3 @@ class CollaborationController(QtCore.QObject):
     def cleanup(self):
         """Clean up resources on shutdown."""
         self.disconnect()
-
-
-

@@ -10,9 +10,8 @@ Extends ImageCanvas to support multiple optical interfaces with:
 
 from __future__ import annotations
 
-import math
-from typing import Optional, Tuple, List, Dict, Any
 from dataclasses import dataclass
+from typing import Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -22,6 +21,7 @@ from .interface_renderer import InterfaceRenderer
 # Optional QtSvg for SVG clipboard/loads
 try:
     from PyQt6 import QtSvg
+
     HAVE_QTSVG = True
 except ImportError:
     HAVE_QTSVG = False
@@ -40,13 +40,14 @@ class InterfaceLine:
 
     Note: Y-up storage coordinates. MultiLineCanvas converts to Y-down for Qt display.
     """
+
     x1: float  # Start point X in mm (centered, Y-up)
     y1: float  # Start point Y in mm (centered, Y-up)
     x2: float  # End point X in mm (centered, Y-up)
     y2: float  # End point Y in mm (centered, Y-up)
     color: QtGui.QColor = None  # Line color
     label: str = ""  # Optional label
-    properties: Dict[str, Any] = None  # Additional properties (n1, n2, is_BS, etc.)
+    properties: dict[str, Any] = None  # Additional properties (n1, n2, is_BS, etc.)
 
     def __post_init__(self):
         if self.color is None:
@@ -75,27 +76,30 @@ class MultiLineCanvas(QtWidgets.QLabel):
         linesChanged: Emitted when any line changes
         lineSelected: Emitted when a line is selected (index)
     """
+
     imageDropped = QtCore.pyqtSignal(QtGui.QPixmap, str)
     linesChanged = QtCore.pyqtSignal()  # Any line changed
     lineSelected = QtCore.pyqtSignal(int)  # Line index selected (single)
     linesSelected = QtCore.pyqtSignal(list)  # Multiple line indices selected
-    linesMoved = QtCore.pyqtSignal(list, list, list)  # (indices, old_positions, new_positions) for undo
+    linesMoved = QtCore.pyqtSignal(
+        list, list, list
+    )  # (indices, old_positions, new_positions) for undo
 
     def __init__(self):
         super().__init__()
         self.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
-        self._pix: Optional[QtGui.QPixmap] = None
-        self._svg_renderer: Optional[QtSvg.QSvgRenderer] = None  # Native SVG renderer
-        self._svg_cache_pixmap: Optional[QtGui.QPixmap] = None  # Cached pre-rendered SVG
+        self._pix: QtGui.QPixmap | None = None
+        self._svg_renderer: QtSvg.QSvgRenderer | None = None  # Native SVG renderer
+        self._svg_cache_pixmap: QtGui.QPixmap | None = None  # Cached pre-rendered SVG
         self._svg_cache_size: QtCore.QSize = QtCore.QSize()  # Size of cached render
         self._scale_fit = 1.0
-        self._src_path: Optional[str] = None
+        self._src_path: str | None = None
         self.setAcceptDrops(True)
         self.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
 
         # Multiple lines support (all coordinates in millimeters)
-        self._lines: List[InterfaceLine] = []
+        self._lines: list[InterfaceLine] = []
         self._selected_lines: set = set()  # Set of selected line indices (multi-selection)
 
         # Coordinate conversion factor
@@ -105,19 +109,23 @@ class MultiLineCanvas(QtWidgets.QLabel):
         self._dragging_line: int = -1  # Index of line being dragged (endpoint mode)
         self._dragging_point: int = 0  # 1 for start point, 2 for end point
         self._dragging_entire_lines: bool = False  # True when dragging whole line(s)
-        self._drag_start_pos: Optional[QtCore.QPointF] = None  # Initial drag position
-        self._drag_initial_lines: List[Tuple[float, float, float, float]] = []  # Initial line positions
-        self._drag_moved_indices: List[int] = []  # Indices of lines that were moved (for undo)
+        self._drag_start_pos: QtCore.QPointF | None = None  # Initial drag position
+        self._drag_initial_lines: list[
+            tuple[float, float, float, float]
+        ] = []  # Initial line positions
+        self._drag_moved_indices: list[int] = []  # Indices of lines that were moved (for undo)
         self._hover_line: int = -1  # Line being hovered
         self._hover_point: int = 0  # Point being hovered (1 or 2)
 
         # Rectangle selection
         self._rect_selecting: bool = False  # True when drawing selection rectangle
-        self._rect_start: Optional[QtCore.QPoint] = None  # Rectangle start position
-        self._rect_end: Optional[QtCore.QPoint] = None  # Rectangle end position
+        self._rect_start: QtCore.QPoint | None = None  # Rectangle start position
+        self._rect_end: QtCore.QPoint | None = None  # Rectangle end position
 
         # Drag lock (restrict dragging to specific line)
-        self._drag_locked_line: int = -1  # -1 means no lock, otherwise only this line can be dragged
+        self._drag_locked_line: int = (
+            -1
+        )  # -1 means no lock, otherwise only this line can be dragged
 
         # Coordinate system for transformations
         self._coord_system = CanvasCoordinateSystem()
@@ -145,7 +153,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
         self._svg_cache_pixmap = None
         self._svg_cache_size = QtCore.QSize()
 
-        if source_path and source_path.lower().endswith('.svg') and HAVE_QTSVG:
+        if source_path and source_path.lower().endswith(".svg") and HAVE_QTSVG:
             try:
                 renderer = QtSvg.QSvgRenderer(source_path)
                 if renderer.isValid():
@@ -157,16 +165,16 @@ class MultiLineCanvas(QtWidgets.QLabel):
 
         self.update()
 
-    def source_path(self) -> Optional[str]:
+    def source_path(self) -> str | None:
         return self._src_path
 
-    def current_pixmap(self) -> Optional[QtGui.QPixmap]:
+    def current_pixmap(self) -> QtGui.QPixmap | None:
         return self._pix
 
     def has_image(self) -> bool:
         return self._pix is not None and not self._pix.isNull()
 
-    def image_pixel_size(self) -> Tuple[int, int]:
+    def image_pixel_size(self) -> tuple[int, int]:
         """Get image size in pixels."""
         if not self._pix:
             return (0, 0)
@@ -206,7 +214,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
             self.update()
             self.linesChanged.emit()
 
-    def get_line(self, index: int) -> Optional[InterfaceLine]:
+    def get_line(self, index: int) -> InterfaceLine | None:
         """Get line at index."""
         if 0 <= index < len(self._lines):
             return self._lines[index]
@@ -219,7 +227,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
             self.update()
             self.linesChanged.emit()
 
-    def get_all_lines(self) -> List[InterfaceLine]:
+    def get_all_lines(self) -> list[InterfaceLine]:
         """Get all lines."""
         return list(self._lines)
 
@@ -230,7 +238,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
         self.update()
         self.linesChanged.emit()
 
-    def set_lines(self, lines: List[InterfaceLine]):
+    def set_lines(self, lines: list[InterfaceLine]):
         """Set all lines at once."""
         self._lines = list(lines)
         self._selected_lines.clear()
@@ -243,7 +251,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
             return min(self._selected_lines)
         return -1
 
-    def get_selected_line_indices(self) -> List[int]:
+    def get_selected_line_indices(self) -> list[int]:
         """Get all selected line indices."""
         return sorted(list(self._selected_lines))
 
@@ -266,7 +274,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
         self.update()
         self.linesSelected.emit(sorted(list(self._selected_lines)))
 
-    def select_lines(self, indices: List[int]):
+    def select_lines(self, indices: list[int]):
         """Select multiple lines by indices."""
         self._selected_lines.clear()
         for idx in indices:
@@ -288,22 +296,20 @@ class MultiLineCanvas(QtWidgets.QLabel):
 
     # ========== Backward Compatibility (for simple components) ==========
 
-    def get_points(self) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
+    def get_points(self) -> tuple[tuple[float, float] | None, tuple[float, float] | None]:
         """Get first line as point pair (backward compatibility)."""
         if len(self._lines) > 0:
             line = self._lines[0]
             return (line.x1, line.y1), (line.x2, line.y2)
         return None, None
 
-    def set_points(self, p1: Optional[Tuple[float, float]], p2: Optional[Tuple[float, float]]):
+    def set_points(self, p1: tuple[float, float] | None, p2: tuple[float, float] | None):
         """Set first line from point pair (backward compatibility)."""
         if p1 and p2:
             if len(self._lines) == 0:
                 # Create new line
                 line = InterfaceLine(
-                    x1=p1[0], y1=p1[1],
-                    x2=p2[0], y2=p2[1],
-                    color=QtGui.QColor(100, 100, 255)
+                    x1=p1[0], y1=p1[1], x2=p2[0], y2=p2[1], color=QtGui.QColor(100, 100, 255)
                 )
                 self._lines.append(line)
             else:
@@ -369,8 +375,10 @@ class MultiLineCanvas(QtWidgets.QLabel):
         # Use cached SVG pixmap if available for better performance
         if self._svg_renderer is not None and self._svg_cache_pixmap is not None:
             # Check if we need to update cache due to significant resize
-            if target.width() > self._svg_cache_size.width() * 1.2 or \
-               target.height() > self._svg_cache_size.height() * 1.2:
+            if (
+                target.width() > self._svg_cache_size.width() * 1.2
+                or target.height() > self._svg_cache_size.height() * 1.2
+            ):
                 self._update_svg_cache()
 
             # Draw cached pixmap with smooth transformation
@@ -382,11 +390,14 @@ class MultiLineCanvas(QtWidgets.QLabel):
         # Draw all lines using the renderer
         for i, line in enumerate(self._lines):
             self._renderer.draw_line(
-                p, target, line, i,
+                p,
+                target,
+                line,
+                i,
                 self._selected_lines,
                 self._hover_line,
                 self._hover_point,
-                self._drag_locked_line
+                self._drag_locked_line,
             )
 
         # Draw selection rectangle
@@ -404,7 +415,9 @@ class MultiLineCanvas(QtWidgets.QLabel):
 
     # ========== Mouse Interaction ==========
 
-    def _get_line_and_point_at(self, screen_pos: QtCore.QPoint, threshold: float = 10.0) -> Tuple[int, int]:
+    def _get_line_and_point_at(
+        self, screen_pos: QtCore.QPoint, threshold: float = 10.0
+    ) -> tuple[int, int]:
         """
         Find line and point at screen position.
 
@@ -438,13 +451,13 @@ class MultiLineCanvas(QtWidgets.QLabel):
             # Check point 2 first (so it takes priority if overlapping)
             dx = screen_pos.x() - x2_screen
             dy = screen_pos.y() - y2_screen
-            if (dx*dx + dy*dy) <= threshold*threshold:
+            if (dx * dx + dy * dy) <= threshold * threshold:
                 return (i, 2)
 
             # Check point 1
             dx = screen_pos.x() - x1_screen
             dy = screen_pos.y() - y1_screen
-            if (dx*dx + dy*dy) <= threshold*threshold:
+            if (dx * dx + dy * dy) <= threshold * threshold:
                 return (i, 1)
 
         return (-1, 0)
@@ -479,7 +492,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
             dy = y2_screen - y1_screen
 
             # Squared length of line
-            len_sq = dx*dx + dy*dy
+            len_sq = dx * dx + dy * dy
 
             if len_sq < 0.01:  # Degenerate line (too short)
                 continue
@@ -492,15 +505,16 @@ class MultiLineCanvas(QtWidgets.QLabel):
             closest_y = y1_screen + t * dy
 
             # Distance to closest point
-            dist_sq = (px - closest_x)**2 + (py - closest_y)**2
+            dist_sq = (px - closest_x) ** 2 + (py - closest_y) ** 2
 
             if dist_sq <= threshold * threshold:
                 return i
 
         return -1
 
-    def _segments_intersect(self, x1: float, y1: float, x2: float, y2: float,
-                           x3: float, y3: float, x4: float, y4: float) -> bool:
+    def _segments_intersect(
+        self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float, x4: float, y4: float
+    ) -> bool:
         """
         Check if two line segments intersect.
 
@@ -530,8 +544,9 @@ class MultiLineCanvas(QtWidgets.QLabel):
         # Check if intersection is within both segments
         return 0 <= t1 <= 1 and 0 <= t2 <= 1
 
-    def _line_intersects_rect(self, x1: float, y1: float, x2: float, y2: float,
-                              rect: QtCore.QRect) -> bool:
+    def _line_intersects_rect(
+        self, x1: float, y1: float, x2: float, y2: float, rect: QtCore.QRect
+    ) -> bool:
         """
         Check if line segment intersects with rectangle.
 
@@ -570,7 +585,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
 
         return False
 
-    def _get_lines_in_rect(self, rect: QtCore.QRect) -> List[int]:
+    def _get_lines_in_rect(self, rect: QtCore.QRect) -> list[int]:
         """
         Find all lines that intersect with the given rectangle.
 
@@ -698,7 +713,9 @@ class MultiLineCanvas(QtWidgets.QLabel):
                     delta_x_screen = 0
 
             # Convert delta to millimeters using coordinate system
-            delta_x_mm, delta_y_mm = self._coord_system.screen_delta_to_mm(delta_x_screen, delta_y_screen)
+            delta_x_mm, delta_y_mm = self._coord_system.screen_delta_to_mm(
+                delta_x_screen, delta_y_screen
+            )
 
             # Update all selected lines
             selected_indices = sorted(list(self._selected_lines))
@@ -752,7 +769,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
             can_interact = True
             if self._drag_locked_line >= 0:
                 # Drag lock active - only allow interaction with locked line
-                can_interact = (line_idx == self._drag_locked_line)
+                can_interact = line_idx == self._drag_locked_line
 
             if line_idx >= 0 and can_interact:
                 self._hover_line = line_idx
@@ -804,9 +821,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
                 # Only emit if positions actually changed
                 if new_positions != self._drag_initial_lines:
                     self.linesMoved.emit(
-                        self._drag_moved_indices,
-                        self._drag_initial_lines,
-                        new_positions
+                        self._drag_moved_indices, self._drag_initial_lines, new_positions
                     )
 
             self._dragging_line = -1
@@ -839,8 +854,8 @@ class MultiLineCanvas(QtWidgets.QLabel):
             urls = md.urls()
             if urls:
                 path = urls[0].toLocalFile()
-                if path.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.svg')):
-                    if path.lower().endswith('.svg') and HAVE_QTSVG:
+                if path.lower().endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif", ".svg")):
+                    if path.lower().endswith(".svg") and HAVE_QTSVG:
                         pix = self._render_svg_to_pixmap(path)
                     else:
                         pix = QtGui.QPixmap(path)
@@ -883,7 +898,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
         self._svg_cache_size = cache_size
 
     @staticmethod
-    def _render_svg_to_pixmap(svg_path: str, size: int = 1000) -> Optional[QtGui.QPixmap]:
+    def _render_svg_to_pixmap(svg_path: str, size: int = 1000) -> QtGui.QPixmap | None:
         """Render SVG to pixmap at normalized height."""
         if not HAVE_QTSVG:
             return None
@@ -907,7 +922,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
 
     # ========== Ruler Support ==========
 
-    def _screen_to_mm_coords(self, screen_pos: QtCore.QPoint) -> Tuple[float, float]:
+    def _screen_to_mm_coords(self, screen_pos: QtCore.QPoint) -> tuple[float, float]:
         """
         Convert screen coordinates to mm coordinates.
 
@@ -934,6 +949,3 @@ class MultiLineCanvas(QtWidgets.QLabel):
         self._target_rect()  # Ensure coordinate system is updated
         w, h = self.image_pixel_size()
         return self._coord_system.get_ruler_params(w, h)
-
-
-

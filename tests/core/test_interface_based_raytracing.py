@@ -7,14 +7,17 @@ with multiple optical interfaces.
 
 from __future__ import annotations
 
-import pytest
 import numpy as np
-import math
+import pytest
 
-from optiverse.core.models import (
-    LensParams, MirrorParams, SourceParams, OpticalElement, RefractiveInterface
-)
 from optiverse.core.interface_definition import InterfaceDefinition
+from optiverse.core.models import (
+    LensParams,
+    MirrorParams,
+    OpticalElement,
+    RefractiveInterface,
+    SourceParams,
+)
 from optiverse.core.use_cases import trace_rays
 from optiverse.objects import LensItem, MirrorItem
 
@@ -27,31 +30,35 @@ class TestMultiInterfaceRaytracing:
         # Create achromatic doublet with 3 refractive interfaces
         interfaces = [
             InterfaceDefinition(
-                x1_mm=-2.0, y1_mm=-10.0,
-                x2_mm=-2.0, y2_mm=10.0,
+                x1_mm=-2.0,
+                y1_mm=-10.0,
+                x2_mm=-2.0,
+                y2_mm=10.0,
                 element_type="refractive_interface",
-                n1=1.0, n2=1.517  # Air to BK7
+                n1=1.0,
+                n2=1.517,  # Air to BK7
             ),
             InterfaceDefinition(
-                x1_mm=0.0, y1_mm=-10.0,
-                x2_mm=0.0, y2_mm=10.0,
+                x1_mm=0.0,
+                y1_mm=-10.0,
+                x2_mm=0.0,
+                y2_mm=10.0,
                 element_type="refractive_interface",
-                n1=1.517, n2=1.620  # BK7 to SF2 (cement)
+                n1=1.517,
+                n2=1.620,  # BK7 to SF2 (cement)
             ),
             InterfaceDefinition(
-                x1_mm=2.0, y1_mm=-10.0,
-                x2_mm=2.0, y2_mm=10.0,
+                x1_mm=2.0,
+                y1_mm=-10.0,
+                x2_mm=2.0,
+                y2_mm=10.0,
                 element_type="refractive_interface",
-                n1=1.620, n2=1.0  # SF2 to air
+                n1=1.620,
+                n2=1.0,  # SF2 to air
             ),
         ]
 
-        params = LensParams(
-            x_mm=0.0,
-            y_mm=0.0,
-            angle_deg=90.0,
-            interfaces=interfaces
-        )
+        params = LensParams(x_mm=0.0, y_mm=0.0, angle_deg=90.0, interfaces=interfaces)
         lens = LensItem(params)
 
         # Get interfaces for raytracing
@@ -68,13 +75,7 @@ class TestMultiInterfaceRaytracing:
             elements.append(elem)
 
         # Create a source
-        source = SourceParams(
-            x_mm=-50.0,
-            y_mm=0.0,
-            angle_deg=0.0,
-            n_rays=1,
-            ray_length_mm=200.0
-        )
+        source = SourceParams(x_mm=-50.0, y_mm=0.0, angle_deg=0.0, n_rays=1, ray_length_mm=200.0)
 
         # Trace rays
         paths = trace_rays(elements, [source], max_events=10)
@@ -90,25 +91,25 @@ class TestMultiInterfaceRaytracing:
         # AR coating + reflective surface
         interfaces = [
             InterfaceDefinition(
-                x1_mm=-10.0, y1_mm=-10.0,
-                x2_mm=10.0, y2_mm=10.0,
+                x1_mm=-10.0,
+                y1_mm=-10.0,
+                x2_mm=10.0,
+                y2_mm=10.0,
                 element_type="refractive_interface",
-                n1=1.0, n2=1.38  # AR coating (MgF2)
+                n1=1.0,
+                n2=1.38,  # AR coating (MgF2)
             ),
             InterfaceDefinition(
-                x1_mm=-10.0, y1_mm=-10.0,
-                x2_mm=10.0, y2_mm=10.0,
+                x1_mm=-10.0,
+                y1_mm=-10.0,
+                x2_mm=10.0,
+                y2_mm=10.0,
                 element_type="mirror",
-                reflectivity=99.9
+                reflectivity=99.9,
             ),
         ]
 
-        params = MirrorParams(
-            x_mm=0.0,
-            y_mm=0.0,
-            angle_deg=45.0,
-            interfaces=interfaces
-        )
+        params = MirrorParams(x_mm=0.0, y_mm=0.0, angle_deg=45.0, interfaces=interfaces)
         mirror = MirrorItem(params)
 
         # Get interfaces
@@ -128,12 +129,7 @@ class TestMultiInterfaceRaytracing:
     def test_backward_compatibility_single_interface(self):
         """Test that legacy single-interface components still work."""
         # Create lens without explicit interfaces (legacy mode)
-        params = LensParams(
-            x_mm=0.0,
-            y_mm=0.0,
-            angle_deg=90.0,
-            efl_mm=100.0
-        )
+        params = LensParams(x_mm=0.0, y_mm=0.0, angle_deg=90.0, efl_mm=100.0)
         # Clear interfaces to simulate legacy component
         params.interfaces = []
 
@@ -150,13 +146,7 @@ class TestMultiInterfaceRaytracing:
         # Create OpticalElement and test raytracing
         elem = OpticalElement(kind="lens", p1=p1, p2=p2, efl_mm=iface.efl_mm)
 
-        source = SourceParams(
-            x_mm=-50.0,
-            y_mm=0.0,
-            angle_deg=0.0,
-            n_rays=1,
-            ray_length_mm=200.0
-        )
+        source = SourceParams(x_mm=-50.0, y_mm=0.0, angle_deg=0.0, n_rays=1, ray_length_mm=200.0)
 
         paths = trace_rays([elem], [source], max_events=10)
         assert len(paths) > 0
@@ -175,19 +165,36 @@ class TestRaytracingIntegration:
         # Doublet lens (3 interfaces)
         doublet_interfaces = [
             InterfaceDefinition(
-                x1_mm=-2.0, y1_mm=-10.0, x2_mm=-2.0, y2_mm=10.0,
-                element_type="refractive_interface", n1=1.0, n2=1.517
+                x1_mm=-2.0,
+                y1_mm=-10.0,
+                x2_mm=-2.0,
+                y2_mm=10.0,
+                element_type="refractive_interface",
+                n1=1.0,
+                n2=1.517,
             ),
             InterfaceDefinition(
-                x1_mm=0.0, y1_mm=-10.0, x2_mm=0.0, y2_mm=10.0,
-                element_type="refractive_interface", n1=1.517, n2=1.620
+                x1_mm=0.0,
+                y1_mm=-10.0,
+                x2_mm=0.0,
+                y2_mm=10.0,
+                element_type="refractive_interface",
+                n1=1.517,
+                n2=1.620,
             ),
             InterfaceDefinition(
-                x1_mm=2.0, y1_mm=-10.0, x2_mm=2.0, y2_mm=10.0,
-                element_type="refractive_interface", n1=1.620, n2=1.0
+                x1_mm=2.0,
+                y1_mm=-10.0,
+                x2_mm=2.0,
+                y2_mm=10.0,
+                element_type="refractive_interface",
+                n1=1.620,
+                n2=1.0,
             ),
         ]
-        lens2_params = LensParams(x_mm=50.0, y_mm=0.0, angle_deg=90.0, interfaces=doublet_interfaces)
+        lens2_params = LensParams(
+            x_mm=50.0, y_mm=0.0, angle_deg=90.0, interfaces=doublet_interfaces
+        )
         lens2 = LensItem(lens2_params)
 
         # Collect all interfaces from all components
@@ -228,11 +235,13 @@ class TestRaytracingIntegration:
         """
         # Create vertical interface (top to bottom)
         iface = RefractiveInterface(
-            x1_mm=-12.725, y1_mm=12.7,
-            x2_mm=-12.725, y2_mm=-12.7,
+            x1_mm=-12.725,
+            y1_mm=12.7,
+            x2_mm=-12.725,
+            y2_mm=-12.7,
             n1=1.0,  # Air (on right side where ray comes from)
             n2=1.5,  # Glass (on left side where ray goes to)
-            is_beam_splitter=False
+            is_beam_splitter=False,
         )
 
         # Create OpticalElement for raytracing
@@ -249,7 +258,7 @@ class TestRaytracingIntegration:
             y_mm=0.0,
             angle_deg=0.0,  # Right
             n_rays=1,
-            ray_length_mm=50.0
+            ray_length_mm=50.0,
         )
 
         # Trace rays
@@ -275,7 +284,9 @@ class TestRaytracingIntegration:
             # Ray should still be going generally right (positive X), but bent slightly left
             # For air→glass at near-normal incidence, bending is subtle
             # Original direction was (1, 0), after bending toward LEFT normal should be ~(0.9+, <0)
-            assert direction_after[0] > 0.5, f"Ray should still go right, got direction {direction_after}"
+            assert direction_after[0] > 0.5, (
+                f"Ray should still go right, got direction {direction_after}"
+            )
 
             # The key test: with n1=1.0 (air, right) and n2=1.5 (glass, left),
             # ray going right should bend LEFT (negative Y component slightly)
@@ -284,8 +295,5 @@ class TestRaytracingIntegration:
             # At normal incidence, there's minimal bending, so we just verify it processed correctly
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
-
-
-
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

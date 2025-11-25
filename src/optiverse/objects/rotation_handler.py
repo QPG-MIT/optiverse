@@ -7,7 +7,7 @@ Encapsulates rotation logic to keep BaseObj focused on core functionality.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Optional, Callable
+from typing import TYPE_CHECKING, Callable
 
 from PyQt6 import QtCore, QtWidgets
 
@@ -242,7 +242,7 @@ class WheelRotationTracker:
     Batches multiple wheel events into a single undo command.
     """
 
-    def __init__(self, get_undo_stack: Callable[[], Optional[QtWidgets.QUndoStack]]):
+    def __init__(self, get_undo_stack: Callable[[], QtWidgets.QUndoStack | None]):
         """
         Initialize tracker.
 
@@ -250,10 +250,10 @@ class WheelRotationTracker:
             get_undo_stack: Callable that returns the undo stack (or None if unavailable)
         """
         self._get_undo_stack = get_undo_stack
-        self._timer: Optional[QtCore.QTimer] = None
-        self._start_rotations: Optional[dict[BaseObj, float]] = None
-        self._start_positions: Optional[dict[BaseObj, QtCore.QPointF]] = None
-        self._items: Optional[list[BaseObj]] = None
+        self._timer: QtCore.QTimer | None = None
+        self._start_rotations: dict[BaseObj, float] | None = None
+        self._start_positions: dict[BaseObj, QtCore.QPointF] | None = None
+        self._items: list[BaseObj] | None = None
 
     def track(self, items: list[BaseObj]) -> None:
         """
@@ -287,6 +287,7 @@ class WheelRotationTracker:
 
         # Import here to avoid circular imports
         from .core_imports import get_rotate_commands
+
         RotateItemCommand, RotateItemsCommand = get_rotate_commands()
 
         items = self._items
@@ -297,12 +298,12 @@ class WheelRotationTracker:
 
         # Check if anything actually changed
         rotation_changed = any(
-            abs(old_rotations.get(item, 0) - new_rotations.get(item, 0)) > 0.01
-            for item in items
+            abs(old_rotations.get(item, 0) - new_rotations.get(item, 0)) > 0.01 for item in items
         )
         position_changed = any(
             old_positions.get(item) != new_positions.get(item)
-            for item in items if old_positions and item in old_positions
+            for item in items
+            if old_positions and item in old_positions
         )
 
         if rotation_changed or position_changed:
@@ -312,7 +313,9 @@ class WheelRotationTracker:
                 undo_stack.push(cmd)
             elif len(items) > 1 or position_changed:
                 # Group rotation or single item with position change
-                cmd = RotateItemsCommand(items, old_positions, new_positions, old_rotations, new_rotations)
+                cmd = RotateItemsCommand(
+                    items, old_positions, new_positions, old_rotations, new_rotations
+                )
                 undo_stack.push(cmd)
 
         self._clear()
@@ -362,6 +365,3 @@ def rotate_group_instant(items: list[BaseObj], rotation_delta: float) -> None:
         # Also rotate the item itself
         item.setRotation(item.rotation() + rotation_delta)
         item.edited.emit()
-
-
-

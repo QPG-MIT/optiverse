@@ -1,11 +1,11 @@
 """Tests for RulerItem and TextNoteItem."""
+
 from PyQt6 import QtCore, QtWidgets
 
 
 def test_ruler_item_smoke(qtbot):
     """Basic smoke test for RulerItem."""
-    from optiverse.objects import RulerItem
-    from optiverse.objects import GraphicsView
+    from optiverse.objects import GraphicsView, RulerItem
 
     scene = QtWidgets.QGraphicsScene()
     view = GraphicsView(scene)
@@ -241,8 +241,8 @@ def test_ruler_clone(qtbot):
     assert cloned.zValue() == original.zValue()
 
     # Check points are offset
-    original_points = original.get_points()
-    cloned_points = cloned.get_points()
+    original.get_points()
+    cloned.get_points()
     # Note: clone maps to scene coords, so offset is applied to scene positions
 
 
@@ -267,7 +267,7 @@ def test_ruler_command_created_signal(qtbot):
 
     # This should emit a command (delete bend point creates undo command)
     # We need to access internal method for testing
-    before_state = r.capture_state()
+    r.capture_state()
     r._delete_bend_point(1)  # Delete middle point
 
     # Verify command was emitted
@@ -277,7 +277,7 @@ def test_ruler_command_created_signal(qtbot):
 
 def test_text_note_item_smoke(qtbot):
     """Basic smoke test for TextNoteItem."""
-    from optiverse.objects import TextNoteItem, GraphicsView
+    from optiverse.objects import GraphicsView, TextNoteItem
 
     scene = QtWidgets.QGraphicsScene()
     view = GraphicsView(scene)
@@ -290,5 +290,3 @@ def test_text_note_item_smoke(qtbot):
     scene.addItem(t)
     t.setPos(10, 10)
     assert t.toPlainText() == "Hello"
-
-

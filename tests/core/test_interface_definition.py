@@ -1,6 +1,7 @@
 """Tests for InterfaceDefinition."""
 
 import pytest
+
 from optiverse.core.interface_definition import InterfaceDefinition
 
 
@@ -16,10 +17,7 @@ def test_interface_definition_default():
 def test_interface_definition_lens():
     """Test lens interface creation."""
     iface = InterfaceDefinition(
-        element_type="lens",
-        x1_mm=-12.7, y1_mm=0.0,
-        x2_mm=12.7, y2_mm=0.0,
-        efl_mm=100.0
+        element_type="lens", x1_mm=-12.7, y1_mm=0.0, x2_mm=12.7, y2_mm=0.0, efl_mm=100.0
     )
     assert iface.element_type == "lens"
     assert iface.efl_mm == 100.0
@@ -29,11 +27,13 @@ def test_interface_definition_lens():
 def test_interface_definition_serialization():
     """Test serialization round-trip."""
     iface = InterfaceDefinition(
-        x1_mm=-10.0, y1_mm=5.0,
-        x2_mm=10.0, y2_mm=5.0,
+        x1_mm=-10.0,
+        y1_mm=5.0,
+        x2_mm=10.0,
+        y2_mm=5.0,
         element_type="lens",
         efl_mm=50.0,
-        name="Test Lens"
+        name="Test Lens",
     )
 
     data = iface.to_dict()
@@ -68,53 +68,34 @@ def test_interface_colors():
 
 def test_interface_color_same_index():
     """Test that same refractive index gives gray color."""
-    iface = InterfaceDefinition(
-        element_type="refractive_interface",
-        n1=1.5,
-        n2=1.5
-    )
+    iface = InterfaceDefinition(element_type="refractive_interface", n1=1.5, n2=1.5)
     assert iface.get_color() == (150, 150, 150)  # Gray
 
 
 def test_interface_length():
     """Test length calculation."""
-    iface = InterfaceDefinition(
-        x1_mm=0.0, y1_mm=0.0,
-        x2_mm=3.0, y2_mm=4.0
-    )
+    iface = InterfaceDefinition(x1_mm=0.0, y1_mm=0.0, x2_mm=3.0, y2_mm=4.0)
     assert iface.length_mm() == pytest.approx(5.0)
 
 
 def test_interface_angle():
     """Test angle calculation."""
     # Horizontal line
-    h_iface = InterfaceDefinition(
-        x1_mm=0.0, y1_mm=0.0,
-        x2_mm=10.0, y2_mm=0.0
-    )
+    h_iface = InterfaceDefinition(x1_mm=0.0, y1_mm=0.0, x2_mm=10.0, y2_mm=0.0)
     assert h_iface.angle_deg() == pytest.approx(0.0)
 
     # Vertical line
-    v_iface = InterfaceDefinition(
-        x1_mm=0.0, y1_mm=0.0,
-        x2_mm=0.0, y2_mm=10.0
-    )
+    v_iface = InterfaceDefinition(x1_mm=0.0, y1_mm=0.0, x2_mm=0.0, y2_mm=10.0)
     assert v_iface.angle_deg() == pytest.approx(90.0)
 
     # 45 degree line
-    d_iface = InterfaceDefinition(
-        x1_mm=0.0, y1_mm=0.0,
-        x2_mm=10.0, y2_mm=10.0
-    )
+    d_iface = InterfaceDefinition(x1_mm=0.0, y1_mm=0.0, x2_mm=10.0, y2_mm=10.0)
     assert d_iface.angle_deg() == pytest.approx(45.0)
 
 
 def test_interface_midpoint():
     """Test midpoint calculation."""
-    iface = InterfaceDefinition(
-        x1_mm=0.0, y1_mm=0.0,
-        x2_mm=10.0, y2_mm=20.0
-    )
+    iface = InterfaceDefinition(x1_mm=0.0, y1_mm=0.0, x2_mm=10.0, y2_mm=20.0)
     mid_x, mid_y = iface.midpoint_mm()
     assert mid_x == pytest.approx(5.0)
     assert mid_y == pytest.approx(10.0)
@@ -146,10 +127,7 @@ def test_interface_labels():
 
 def test_interface_custom_name():
     """Test that custom name overrides auto-generated label."""
-    iface = InterfaceDefinition(
-        element_type="lens",
-        name="My Custom Lens"
-    )
+    iface = InterfaceDefinition(element_type="lens", name="My Custom Lens")
     assert iface.get_label() == "My Custom Lens"
 
 
@@ -157,10 +135,12 @@ def test_interface_copy():
     """Test interface copying."""
     original = InterfaceDefinition(
         element_type="lens",
-        x1_mm=1.0, y1_mm=2.0,
-        x2_mm=3.0, y2_mm=4.0,
+        x1_mm=1.0,
+        y1_mm=2.0,
+        x2_mm=3.0,
+        y2_mm=4.0,
         efl_mm=75.0,
-        name="Original"
+        name="Original",
     )
 
     copy = original.copy()
@@ -178,13 +158,10 @@ def test_interface_copy():
 
 def test_interface_all_element_types():
     """Test creating interfaces of all supported types."""
-    types = ['lens', 'mirror', 'beam_splitter', 'dichroic', 'refractive_interface']
+    types = ["lens", "mirror", "beam_splitter", "dichroic", "refractive_interface"]
 
     for elem_type in types:
         iface = InterfaceDefinition(element_type=elem_type)
         assert iface.element_type == elem_type
         assert len(iface.get_color()) == 3  # Valid RGB tuple
         assert len(iface.get_label()) > 0  # Has a label
-
-
-

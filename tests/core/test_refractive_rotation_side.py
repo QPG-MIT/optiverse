@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-from typing import List, Tuple
 
 import numpy as np
 
@@ -14,16 +13,18 @@ def _unit(vec: np.ndarray) -> np.ndarray:
     return vec / n if n > 0 else vec
 
 
-def _path_last_direction(points: List[np.ndarray]) -> np.ndarray:
+def _path_last_direction(points: list[np.ndarray]) -> np.ndarray:
     if len(points) < 2:
         return np.array([0.0, 0.0], dtype=float)
     return _unit(points[-1] - points[-2])
 
 
-def _directions_after_first_event(elements: List[OpticalElement], source: SourceParams) -> List[np.ndarray]:
+def _directions_after_first_event(
+    elements: list[OpticalElement], source: SourceParams
+) -> list[np.ndarray]:
     # Limit to one interaction so the last segment reflects/transmits immediately after the interface
     paths = trace_rays(elements, [source], max_events=1)
-    dirs: List[np.ndarray] = []
+    dirs: list[np.ndarray] = []
     for p in paths:
         if len(p.points) >= 2:
             # Points are stored as tuples; convert to ndarray
@@ -32,7 +33,7 @@ def _directions_after_first_event(elements: List[OpticalElement], source: Source
     return dirs
 
 
-def _angles_sorted(dirs: List[np.ndarray]) -> List[float]:
+def _angles_sorted(dirs: list[np.ndarray]) -> list[float]:
     # Convert to angles for order-independent comparison
     angs = [math.atan2(float(v[1]), float(v[0])) for v in dirs]
     # Normalize to [-pi, pi]
@@ -77,7 +78,3 @@ def test_refractive_interface_rotation_side_consistency():
 
     for ang1, ang2 in zip(a1, a2):
         assert abs(ang1 - ang2) < 1e-6
-
-
-
-

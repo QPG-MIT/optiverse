@@ -4,6 +4,7 @@ Scene file management for save, load, and autosave operations.
 This module extracts file management logic from MainWindow to improve
 code organization and reduce the MainWindow's size.
 """
+
 from __future__ import annotations
 
 import datetime
@@ -11,8 +12,7 @@ import hashlib
 import json
 import os
 import tempfile
-from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Callable
 
 from PyQt6 import QtWidgets
 
@@ -34,11 +34,11 @@ class SceneFileManager:
     def __init__(
         self,
         scene: QtWidgets.QGraphicsScene,
-        log_service: "LogService",
+        log_service: LogService,
         get_ray_data: Callable,
         on_modified: Callable[[bool], None],
         parent_widget: QtWidgets.QWidget,
-        connect_item_signals: Optional[Callable] = None,
+        connect_item_signals: Callable | None = None,
     ):
         """
         Initialize the scene file manager.
@@ -59,18 +59,18 @@ class SceneFileManager:
         self._connect_item_signals = connect_item_signals
 
         # File state
-        self._saved_file_path: Optional[str] = None
-        self._autosave_path: Optional[str] = None
-        self._unsaved_id: Optional[str] = None
+        self._saved_file_path: str | None = None
+        self._autosave_path: str | None = None
+        self._unsaved_id: str | None = None
         self._is_modified = False
 
     @property
-    def saved_file_path(self) -> Optional[str]:
+    def saved_file_path(self) -> str | None:
         """Get the current saved file path."""
         return self._saved_file_path
 
     @saved_file_path.setter
-    def saved_file_path(self, value: Optional[str]):
+    def saved_file_path(self, value: str | None):
         """Set the saved file path."""
         self._saved_file_path = value
 
@@ -114,9 +114,10 @@ class SceneFileManager:
 
     def serialize_scene(self) -> dict:
         """Serialize scene to dictionary format."""
-        from ..objects import RectangleItem, BaseObj
-        from ..objects.annotations import RulerItem, TextNoteItem
         from optiverse.objects.annotations.path_measure_item import PathMeasureItem
+
+        from ..objects import BaseObj, RectangleItem
+        from ..objects.annotations import RulerItem, TextNoteItem
 
         data = {
             "version": "2.0",
@@ -156,17 +157,13 @@ class SceneFileManager:
             data["_autosave_meta"] = {
                 "timestamp": datetime.datetime.now().isoformat(),
                 "original_path": self._saved_file_path,
-                "version": "2.0"
+                "version": "2.0",
             }
 
             # Atomic write: temp file + rename
             autosave_dir = os.path.dirname(autosave_path)
             with tempfile.NamedTemporaryFile(
-                mode='w',
-                encoding='utf-8',
-                dir=autosave_dir,
-                delete=False,
-                suffix='.tmp'
+                mode="w", encoding="utf-8", dir=autosave_dir, delete=False, suffix=".tmp"
             ) as tmp:
                 json.dump(data, tmp, indent=2)
                 tmp_path = tmp.name
@@ -193,10 +190,11 @@ class SceneFileManager:
 
     def load_from_data(self, data: dict):
         """Load scene from data dict."""
-        from ..objects import RectangleItem, BaseObj
+        from optiverse.objects.annotations.path_measure_item import PathMeasureItem
+
+        from ..objects import BaseObj, RectangleItem
         from ..objects.annotations import RulerItem, TextNoteItem
         from ..objects.type_registry import deserialize_item
-        from optiverse.objects.annotations.path_measure_item import PathMeasureItem
 
         # Clear scene
         for it in list(self.scene.items()):
@@ -261,9 +259,7 @@ class SceneFileManager:
             return False
 
         autosave_files = sorted(
-            autosave_dir.glob("*.autosave.json"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True
+            autosave_dir.glob("*.autosave.json"), key=lambda p: p.stat().st_mtime, reverse=True
         )
 
         if not autosave_files:
@@ -272,7 +268,7 @@ class SceneFileManager:
         most_recent = autosave_files[0]
 
         try:
-            with open(most_recent, encoding='utf-8') as f:
+            with open(most_recent, encoding="utf-8") as f:
                 data = json.load(f)
 
             if data.get("version") != "2.0":
@@ -299,9 +295,8 @@ class SceneFileManager:
                 self.parent_widget,
                 "Recover Autosave?",
                 f"{msg}\n\nWould you like to recover it?",
-                QtWidgets.QMessageBox.StandardButton.Yes |
-                QtWidgets.QMessageBox.StandardButton.No,
-                QtWidgets.QMessageBox.StandardButton.Yes
+                QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+                QtWidgets.QMessageBox.StandardButton.Yes,
             )
 
             if reply == QtWidgets.QMessageBox.StandardButton.Yes:
@@ -313,7 +308,7 @@ class SceneFileManager:
                 QtWidgets.QMessageBox.information(
                     self.parent_widget,
                     "Recovery Successful",
-                    "Autosave recovered. Please save your work."
+                    "Autosave recovered. Please save your work.",
                 )
                 return True
             else:
@@ -383,11 +378,8 @@ class SceneFileManager:
             self.parent_widget,
             "Unsaved Changes",
             "Do you want to save your changes before closing?",
-            QtWidgets.QMessageBox.StandardButton.Save |
-            QtWidgets.QMessageBox.StandardButton.Discard |
-            QtWidgets.QMessageBox.StandardButton.Cancel,
             QtWidgets.QMessageBox.StandardButton.Save
+            | QtWidgets.QMessageBox.StandardButton.Discard
+            | QtWidgets.QMessageBox.StandardButton.Cancel,
+            QtWidgets.QMessageBox.StandardButton.Save,
         )
-
-
-

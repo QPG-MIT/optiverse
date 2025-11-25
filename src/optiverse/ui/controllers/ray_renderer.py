@@ -6,13 +6,13 @@ using either OpenGL hardware acceleration or software fallback.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 if TYPE_CHECKING:
-    from ..raytracing import RayPath
     from ..objects import GraphicsView
+    from ..raytracing import RayPath
 
 
 class RayRenderer:
@@ -26,7 +26,7 @@ class RayRenderer:
     def __init__(
         self,
         scene: QtWidgets.QGraphicsScene,
-        view: "GraphicsView",
+        view: GraphicsView,
     ):
         """
         Initialize the ray renderer.
@@ -39,7 +39,7 @@ class RayRenderer:
         self.view = view
 
         # Track rendered ray items for software rendering
-        self.ray_items: List[QtWidgets.QGraphicsPathItem] = []
+        self.ray_items: list[QtWidgets.QGraphicsPathItem] = []
 
         # Ray width in pixels
         self._ray_width_px: float = 2.0
@@ -71,7 +71,7 @@ class RayRenderer:
                 pass
         self.ray_items.clear()
 
-    def render(self, paths: List["RayPath"]) -> None:
+    def render(self, paths: list[RayPath]) -> None:
         """
         Render ray paths to the scene.
 
@@ -93,7 +93,7 @@ class RayRenderer:
         self._render_software(paths)
         self._update_path_measures(paths)
 
-    def _render_software(self, paths: List["RayPath"]) -> None:
+    def _render_software(self, paths: list[RayPath]) -> None:
         """
         Software fallback rendering using QGraphicsPathItem.
 
@@ -140,7 +140,7 @@ class RayRenderer:
             self.scene.addItem(item)
             self.ray_items.append(item)
 
-    def _update_path_measures(self, paths: List["RayPath"]) -> None:
+    def _update_path_measures(self, paths: list[RayPath]) -> None:
         """
         Update any PathMeasureItem objects after retrace.
 
@@ -154,6 +154,3 @@ class RayRenderer:
                 ray_index = item.get_ray_index()
                 if 0 <= ray_index < len(paths):
                     item.update_path(paths[ray_index].points)
-
-
-

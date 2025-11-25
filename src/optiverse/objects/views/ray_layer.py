@@ -5,10 +5,12 @@ Uses direct vector rendering (NoCache) because Qt's caching mechanisms were
 causing constant invalidation overhead. Ray path building is fast (3ms for 5000+ segments),
 so uncached rendering provides better performance than fighting cache invalidation.
 """
+
 from __future__ import annotations
 
 import logging
 import time
+
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 _logger = logging.getLogger(__name__)
@@ -49,7 +51,10 @@ class DebugRayPathItem(QtWidgets.QGraphicsPathItem):
             max_time = max(DebugRayPathItem.paint_times)
             _logger.debug(
                 "Ray path item paints: %d total, avg=%.3fms, max=%.3fms, segments=%d",
-                DebugRayPathItem.paint_count, avg, max_time, self._segment_count
+                DebugRayPathItem.paint_count,
+                avg,
+                max_time,
+                self._segment_count,
             )
 
 
@@ -158,8 +163,9 @@ class CachedRayLayer(QtWidgets.QGraphicsItemGroup):
 
             _logger.debug(
                 "Simplified %d segments -> %d (%.1f%% reduction)",
-                original_segment_count, segment_count,
-                100 * (1 - segment_count/original_segment_count)
+                original_segment_count,
+                segment_count,
+                100 * (1 - segment_count / original_segment_count),
             )
 
             # Create graphics item for this style group (with debug tracking)
@@ -210,10 +216,10 @@ class CachedRayLayer(QtWidgets.QGraphicsItemGroup):
             dy = y2 - y1
 
             if dx == 0 and dy == 0:
-                return ((x0 - x1)**2 + (y0 - y1)**2)**0.5
+                return ((x0 - x1) ** 2 + (y0 - y1) ** 2) ** 0.5
 
             # Distance = |cross product| / |line segment|
-            return abs(dy * x0 - dx * y0 + x2 * y1 - y2 * x1) / (dx**2 + dy**2)**0.5
+            return abs(dy * x0 - dx * y0 + x2 * y1 - y2 * x1) / (dx**2 + dy**2) ** 0.5
 
         def rdp(points, start, end, tolerance):
             """Recursive Ramer-Douglas-Peucker."""
@@ -278,8 +284,10 @@ class CachedRayLayer(QtWidgets.QGraphicsItemGroup):
 
             _logger.debug(
                 "PAINT #%d: avg=%.2fms, min=%.2fms, max=%.2fms, 30 frames took %.0fms. Children: %d ray items",
-                self._paint_count, avg_time, min_time, max_time, time_since_last, len(self.childItems())
+                self._paint_count,
+                avg_time,
+                min_time,
+                max_time,
+                time_since_last,
+                len(self.childItems()),
             )
-
-
-

@@ -8,16 +8,13 @@ This module provides adapters and utilities for:
 """
 
 from .adapter import (
-    create_polymorphic_element,
     convert_legacy_interfaces,
     convert_scene_to_polymorphic,
+    create_polymorphic_element,
 )
 
 __all__ = [
-    'create_polymorphic_element',
-    'convert_legacy_interfaces',
-    'convert_scene_to_polymorphic',
+    "create_polymorphic_element",
+    "convert_legacy_interfaces",
+    "convert_scene_to_polymorphic",
 ]
-
-
-

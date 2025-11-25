@@ -8,10 +8,11 @@ of concerns. Handles all visual rendering of interface lines including:
 - Selection highlighting
 - Endpoint markers
 """
+
 from __future__ import annotations
 
 import math
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from PyQt6 import QtCore, QtGui
 
@@ -40,7 +41,7 @@ class InterfaceRenderer:
         self,
         p: QtGui.QPainter,
         img_rect: QtCore.QRect,
-        line: "InterfaceLine",
+        line: InterfaceLine,
         index: int,
         selected_lines: set,
         hover_line: int,
@@ -86,30 +87,31 @@ class InterfaceRenderer:
         p.setPen(pen)
 
         # Check if this is a curved surface
-        interface = line.properties.get('interface') if line.properties else None
-        is_curved = interface and hasattr(interface, 'is_curved') and interface.is_curved
+        interface = line.properties.get("interface") if line.properties else None
+        is_curved = interface and hasattr(interface, "is_curved") and interface.is_curved
 
         if is_curved and interface and abs(interface.radius_of_curvature_mm) > 0.1:
             # Draw curved surface as an arc
             self._draw_curved_line(
-                p, x1_screen, y1_screen, x2_screen, y2_screen,
-                interface.radius_of_curvature_mm, img_rect
+                p,
+                x1_screen,
+                y1_screen,
+                x2_screen,
+                y2_screen,
+                interface.radius_of_curvature_mm,
+                img_rect,
             )
         else:
             # Draw straight line
-            p.drawLine(
-                QtCore.QPointF(x1_screen, y1_screen),
-                QtCore.QPointF(x2_screen, y2_screen)
-            )
+            p.drawLine(QtCore.QPointF(x1_screen, y1_screen), QtCore.QPointF(x2_screen, y2_screen))
 
         # Draw refractive index indicator
         if not is_dimmed and line.properties:
-            interface = line.properties.get('interface')
-            if interface and interface.element_type == 'refractive_interface':
+            interface = line.properties.get("interface")
+            if interface and interface.element_type == "refractive_interface":
                 if abs(interface.n1 - interface.n2) > 0.01:
                     self._draw_refractive_index_indicator(
-                        p, x1_screen, y1_screen, x2_screen, y2_screen,
-                        interface, img_rect
+                        p, x1_screen, y1_screen, x2_screen, y2_screen, interface, img_rect
                     )
 
         # Draw endpoints
@@ -128,12 +130,18 @@ class InterfaceRenderer:
 
         # Draw refractive index labels
         if not is_dimmed and line.properties:
-            interface = line.properties.get('interface')
-            if interface and interface.element_type == 'refractive_interface':
+            interface = line.properties.get("interface")
+            if interface and interface.element_type == "refractive_interface":
                 if abs(interface.n1 - interface.n2) > 0.01:
                     self._draw_refractive_index_labels(
-                        p, x1_screen, y1_screen, x2_screen, y2_screen,
-                        interface.n1, interface.n2, color
+                        p,
+                        x1_screen,
+                        y1_screen,
+                        x2_screen,
+                        y2_screen,
+                        interface.n1,
+                        interface.n2,
+                        color,
                     )
 
         # Draw label if exists
@@ -146,10 +154,13 @@ class InterfaceRenderer:
     def _draw_refractive_index_labels(
         self,
         p: QtGui.QPainter,
-        x1: float, y1: float,
-        x2: float, y2: float,
-        n1: float, n2: float,
-        line_color: QtGui.QColor
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        n1: float,
+        n2: float,
+        line_color: QtGui.QColor,
     ) -> None:
         """
         Draw refractive index labels near the endpoints.
@@ -220,10 +231,12 @@ class InterfaceRenderer:
     def _draw_refractive_index_indicator(
         self,
         p: QtGui.QPainter,
-        x1: float, y1: float,
-        x2: float, y2: float,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
         interface,
-        img_rect: QtCore.QRect
+        img_rect: QtCore.QRect,
     ) -> None:
         """
         Draw half-circle indicator showing which side has higher refractive index.
@@ -270,12 +283,7 @@ class InterfaceRenderer:
 
         # Create the arc path
         path = QtGui.QPainterPath()
-        rect = QtCore.QRectF(
-            arc_center_x - radius,
-            arc_center_y - radius,
-            radius * 2,
-            radius * 2
-        )
+        rect = QtCore.QRectF(arc_center_x - radius, arc_center_y - radius, radius * 2, radius * 2)
 
         # Start and span angles for a half-circle on the correct side
         if higher_n_side == 1:
@@ -294,10 +302,12 @@ class InterfaceRenderer:
     def _draw_curved_line(
         self,
         p: QtGui.QPainter,
-        x1: float, y1: float,
-        x2: float, y2: float,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
         radius_mm: float,
-        img_rect: QtCore.QRect
+        img_rect: QtCore.QRect,
     ) -> None:
         """
         Draw a curved surface as an arc.
@@ -354,12 +364,7 @@ class InterfaceRenderer:
             span += 360
 
         # Create arc rectangle
-        rect = QtCore.QRectF(
-            cx - radius_px,
-            cy - radius_px,
-            radius_px * 2,
-            radius_px * 2
-        )
+        rect = QtCore.QRectF(cx - radius_px, cy - radius_px, radius_px * 2, radius_px * 2)
 
         # Draw the arc
         path = QtGui.QPainterPath()
@@ -373,7 +378,7 @@ class InterfaceRenderer:
         img_rect: QtCore.QRect,
         lines: list,
         selected_lines: set,
-        coord_system
+        coord_system,
     ) -> None:
         """
         Draw a bounding box around selected lines.
@@ -389,10 +394,10 @@ class InterfaceRenderer:
             return
 
         # Calculate bounding box of all selected lines
-        min_x = float('inf')
-        min_y = float('inf')
-        max_x = float('-inf')
-        max_y = float('-inf')
+        min_x = float("inf")
+        min_y = float("inf")
+        max_x = float("-inf")
+        max_y = float("-inf")
 
         for idx in selected_lines:
             if 0 <= idx < len(lines):
@@ -404,7 +409,7 @@ class InterfaceRenderer:
                 max_x = max(max_x, x1_s, x2_s)
                 max_y = max(max_y, y1_s, y2_s)
 
-        if min_x == float('inf'):
+        if min_x == float("inf"):
             return
 
         # Add padding
@@ -421,6 +426,3 @@ class InterfaceRenderer:
         p.setPen(pen)
         p.setBrush(QtCore.Qt.BrushStyle.NoBrush)
         p.drawRect(QtCore.QRectF(min_x, min_y, max_x - min_x, max_y - min_y))
-
-
-

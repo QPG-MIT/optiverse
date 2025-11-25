@@ -10,11 +10,12 @@ Physics background:
   - Reflected intensity = sin²(θ)
 - The transmission axis rotates with the PBS element
 """
-import pytest
+
 import numpy as np
-from optiverse.core.models import SourceParams, OpticalElement, Polarization
-from optiverse.core.use_cases import trace_rays
 from optiverse.core.geometry import transform_polarization_beamsplitter
+
+from optiverse.core.models import OpticalElement, Polarization, SourceParams
+from optiverse.core.use_cases import trace_rays
 
 
 class TestPBSArbitraryAngles:
@@ -24,9 +25,12 @@ class TestPBSArbitraryAngles:
         """PBS with horizontal transmission axis + horizontal input → 100% transmission."""
         # Create horizontal polarized source
         src = SourceParams(
-            x_mm=-100.0, y_mm=0.0, angle_deg=0.0,
-            n_rays=1, spread_deg=0.0,
-            polarization_type="horizontal"
+            x_mm=-100.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            n_rays=1,
+            spread_deg=0.0,
+            polarization_type="horizontal",
         )
 
         # PBS with horizontal transmission axis (0°)
@@ -36,7 +40,7 @@ class TestPBSArbitraryAngles:
             p1=np.array([0.0, -50.0]),
             p2=np.array([0.0, 50.0]),
             is_polarizing=True,
-            pbs_transmission_axis_deg=0.0  # Horizontal transmission axis
+            pbs_transmission_axis_deg=0.0,  # Horizontal transmission axis
         )
 
         paths = trace_rays([pbs], [src])
@@ -49,9 +53,12 @@ class TestPBSArbitraryAngles:
     def test_pbs_horizontal_axis_vertical_input(self):
         """PBS with horizontal transmission axis + vertical input → 100% reflection."""
         src = SourceParams(
-            x_mm=-100.0, y_mm=0.0, angle_deg=0.0,
-            n_rays=1, spread_deg=0.0,
-            polarization_type="vertical"
+            x_mm=-100.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            n_rays=1,
+            spread_deg=0.0,
+            polarization_type="vertical",
         )
 
         pbs = OpticalElement(
@@ -59,7 +66,7 @@ class TestPBSArbitraryAngles:
             p1=np.array([0.0, -50.0]),
             p2=np.array([0.0, 50.0]),
             is_polarizing=True,
-            pbs_transmission_axis_deg=0.0  # Horizontal transmission axis
+            pbs_transmission_axis_deg=0.0,  # Horizontal transmission axis
         )
 
         paths = trace_rays([pbs], [src])
@@ -70,9 +77,7 @@ class TestPBSArbitraryAngles:
     def test_pbs_horizontal_axis_45deg_input(self):
         """PBS with horizontal transmission axis + 45° input → 50/50 split."""
         src = SourceParams(
-            x_mm=-100.0, y_mm=0.0, angle_deg=0.0,
-            n_rays=1, spread_deg=0.0,
-            polarization_type="+45"
+            x_mm=-100.0, y_mm=0.0, angle_deg=0.0, n_rays=1, spread_deg=0.0, polarization_type="+45"
         )
 
         pbs = OpticalElement(
@@ -80,7 +85,7 @@ class TestPBSArbitraryAngles:
             p1=np.array([0.0, -50.0]),
             p2=np.array([0.0, 50.0]),
             is_polarizing=True,
-            pbs_transmission_axis_deg=0.0  # Horizontal transmission axis
+            pbs_transmission_axis_deg=0.0,  # Horizontal transmission axis
         )
 
         paths = trace_rays([pbs], [src])
@@ -91,10 +96,13 @@ class TestPBSArbitraryAngles:
     def test_pbs_30deg_axis_30deg_input(self):
         """PBS with 30° transmission axis + 30° input → 100% transmission."""
         src = SourceParams(
-            x_mm=-100.0, y_mm=0.0, angle_deg=0.0,
-            n_rays=1, spread_deg=0.0,
+            x_mm=-100.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            n_rays=1,
+            spread_deg=0.0,
             polarization_type="linear",
-            polarization_angle_deg=30.0
+            polarization_angle_deg=30.0,
         )
 
         pbs = OpticalElement(
@@ -102,7 +110,7 @@ class TestPBSArbitraryAngles:
             p1=np.array([0.0, -50.0]),
             p2=np.array([0.0, 50.0]),
             is_polarizing=True,
-            pbs_transmission_axis_deg=30.0  # 30° transmission axis
+            pbs_transmission_axis_deg=30.0,  # 30° transmission axis
         )
 
         paths = trace_rays([pbs], [src])
@@ -113,10 +121,13 @@ class TestPBSArbitraryAngles:
     def test_pbs_30deg_axis_120deg_input(self):
         """PBS with 30° transmission axis + 120° input (perpendicular) → 100% reflection."""
         src = SourceParams(
-            x_mm=-100.0, y_mm=0.0, angle_deg=0.0,
-            n_rays=1, spread_deg=0.0,
+            x_mm=-100.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            n_rays=1,
+            spread_deg=0.0,
             polarization_type="linear",
-            polarization_angle_deg=120.0  # 90° from 30° axis
+            polarization_angle_deg=120.0,  # 90° from 30° axis
         )
 
         pbs = OpticalElement(
@@ -124,7 +135,7 @@ class TestPBSArbitraryAngles:
             p1=np.array([0.0, -50.0]),
             p2=np.array([0.0, 50.0]),
             is_polarizing=True,
-            pbs_transmission_axis_deg=30.0  # 30° transmission axis
+            pbs_transmission_axis_deg=30.0,  # 30° transmission axis
         )
 
         paths = trace_rays([pbs], [src])
@@ -136,10 +147,13 @@ class TestPBSArbitraryAngles:
         """PBS at 60° with 30° input → verify cos²(θ) law for intensity."""
         # Angle difference = 30°, so cos²(30°) ≈ 0.75, sin²(30°) ≈ 0.25
         src = SourceParams(
-            x_mm=-100.0, y_mm=0.0, angle_deg=0.0,
-            n_rays=1, spread_deg=0.0,
+            x_mm=-100.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            n_rays=1,
+            spread_deg=0.0,
             polarization_type="linear",
-            polarization_angle_deg=30.0
+            polarization_angle_deg=30.0,
         )
 
         pbs = OpticalElement(
@@ -147,7 +161,7 @@ class TestPBSArbitraryAngles:
             p1=np.array([0.0, -50.0]),
             p2=np.array([0.0, 50.0]),
             is_polarizing=True,
-            pbs_transmission_axis_deg=60.0  # 60° transmission axis
+            pbs_transmission_axis_deg=60.0,  # 60° transmission axis
         )
 
         paths = trace_rays([pbs], [src])
@@ -163,10 +177,12 @@ class TestPBSArbitraryAngles:
         expected_high = np.cos(np.deg2rad(30)) ** 2
         expected_low = np.sin(np.deg2rad(30)) ** 2
 
-        assert abs(intensities[0] - expected_high) < 0.1, \
+        assert abs(intensities[0] - expected_high) < 0.1, (
             f"Expected high intensity {expected_high:.3f}, got {intensities[0]:.3f}"
-        assert abs(intensities[1] - expected_low) < 0.1, \
+        )
+        assert abs(intensities[1] - expected_low) < 0.1, (
             f"Expected low intensity {expected_low:.3f}, got {intensities[1]:.3f}"
+        )
 
 
 class TestPBSPolarizationTransform:
@@ -181,18 +197,18 @@ class TestPBSPolarizationTransform:
 
         # Transmitted beam
         pol_t, int_t = transform_polarization_beamsplitter(
-            pol_in, v_in, n_hat, t_hat,
+            pol_in,
+            v_in,
+            n_hat,
+            t_hat,
             is_polarizing=True,
             pbs_axis_deg=0.0,  # Horizontal axis
-            is_transmitted=True
+            is_transmitted=True,
         )
 
         # Reflected beam
         pol_r, int_r = transform_polarization_beamsplitter(
-            pol_in, v_in, n_hat, t_hat,
-            is_polarizing=True,
-            pbs_axis_deg=0.0,
-            is_transmitted=False
+            pol_in, v_in, n_hat, t_hat, is_polarizing=True, pbs_axis_deg=0.0, is_transmitted=False
         )
 
         # Horizontal input + horizontal axis → 100% transmission, 0% reflection
@@ -210,17 +226,17 @@ class TestPBSPolarizationTransform:
         t_hat = np.array([1.0, 0.0])
 
         pol_t, int_t = transform_polarization_beamsplitter(
-            pol_in, v_in, n_hat, t_hat,
+            pol_in,
+            v_in,
+            n_hat,
+            t_hat,
             is_polarizing=True,
             pbs_axis_deg=0.0,  # Horizontal axis
-            is_transmitted=True
+            is_transmitted=True,
         )
 
         pol_r, int_r = transform_polarization_beamsplitter(
-            pol_in, v_in, n_hat, t_hat,
-            is_polarizing=True,
-            pbs_axis_deg=0.0,
-            is_transmitted=False
+            pol_in, v_in, n_hat, t_hat, is_polarizing=True, pbs_axis_deg=0.0, is_transmitted=False
         )
 
         # Vertical input + horizontal axis → 0% transmission, 100% reflection
@@ -236,17 +252,17 @@ class TestPBSPolarizationTransform:
         t_hat = np.array([1.0, 0.0])
 
         pol_t, int_t = transform_polarization_beamsplitter(
-            pol_in, v_in, n_hat, t_hat,
+            pol_in,
+            v_in,
+            n_hat,
+            t_hat,
             is_polarizing=True,
             pbs_axis_deg=0.0,  # Horizontal axis
-            is_transmitted=True
+            is_transmitted=True,
         )
 
         pol_r, int_r = transform_polarization_beamsplitter(
-            pol_in, v_in, n_hat, t_hat,
-            is_polarizing=True,
-            pbs_axis_deg=0.0,
-            is_transmitted=False
+            pol_in, v_in, n_hat, t_hat, is_polarizing=True, pbs_axis_deg=0.0, is_transmitted=False
         )
 
         # 45° input → 50% transmission, 50% reflection
@@ -262,17 +278,11 @@ class TestPBSPolarizationTransform:
         t_hat = np.array([1.0, 0.0])
 
         pol_t, int_t = transform_polarization_beamsplitter(
-            pol_in, v_in, n_hat, t_hat,
-            is_polarizing=True,
-            pbs_axis_deg=60.0,
-            is_transmitted=True
+            pol_in, v_in, n_hat, t_hat, is_polarizing=True, pbs_axis_deg=60.0, is_transmitted=True
         )
 
         pol_r, int_r = transform_polarization_beamsplitter(
-            pol_in, v_in, n_hat, t_hat,
-            is_polarizing=True,
-            pbs_axis_deg=60.0,
-            is_transmitted=False
+            pol_in, v_in, n_hat, t_hat, is_polarizing=True, pbs_axis_deg=60.0, is_transmitted=False
         )
 
         # Angle difference = 30°
@@ -281,23 +291,25 @@ class TestPBSPolarizationTransform:
         expected_t = np.cos(np.deg2rad(30)) ** 2
         expected_r = np.sin(np.deg2rad(30)) ** 2
 
-        assert abs(int_t - expected_t) < 1e-6, \
+        assert abs(int_t - expected_t) < 1e-6, (
             f"Expected transmission {expected_t:.6f}, got {int_t:.6f}"
-        assert abs(int_r - expected_r) < 1e-6, \
+        )
+        assert abs(int_r - expected_r) < 1e-6, (
             f"Expected reflection {expected_r:.6f}, got {int_r:.6f}"
+        )
         assert abs((int_t + int_r) - 1.0) < 1e-6, "Intensity not conserved"
 
     def test_arbitrary_angles_intensity_conservation(self):
         """Test that intensity is conserved for arbitrary angles."""
         test_cases = [
-            (0, 0),    # Horizontal input, horizontal axis
-            (0, 45),   # Horizontal input, 45° axis
-            (0, 90),   # Horizontal input, vertical axis
+            (0, 0),  # Horizontal input, horizontal axis
+            (0, 45),  # Horizontal input, 45° axis
+            (0, 90),  # Horizontal input, vertical axis
             (30, 60),  # 30° input, 60° axis
             (45, 15),  # 45° input, 15° axis
-            (75, 120), # 75° input, 120° axis
-            (90, 0),   # Vertical input, horizontal axis
-            (135, 45), # 135° input, 45° axis
+            (75, 120),  # 75° input, 120° axis
+            (90, 0),  # Vertical input, horizontal axis
+            (135, 45),  # 135° input, 45° axis
         ]
 
         v_in = np.array([1.0, 0.0])
@@ -308,23 +320,30 @@ class TestPBSPolarizationTransform:
             pol_in = Polarization.linear(pol_angle)
 
             pol_t, int_t = transform_polarization_beamsplitter(
-                pol_in, v_in, n_hat, t_hat,
+                pol_in,
+                v_in,
+                n_hat,
+                t_hat,
                 is_polarizing=True,
                 pbs_axis_deg=axis_angle,
-                is_transmitted=True
+                is_transmitted=True,
             )
 
             pol_r, int_r = transform_polarization_beamsplitter(
-                pol_in, v_in, n_hat, t_hat,
+                pol_in,
+                v_in,
+                n_hat,
+                t_hat,
                 is_polarizing=True,
                 pbs_axis_deg=axis_angle,
-                is_transmitted=False
+                is_transmitted=False,
             )
 
             total_intensity = int_t + int_r
-            assert abs(total_intensity - 1.0) < 1e-6, \
-                f"Intensity not conserved for pol={pol_angle}°, axis={axis_angle}°: " \
+            assert abs(total_intensity - 1.0) < 1e-6, (
+                f"Intensity not conserved for pol={pol_angle}°, axis={axis_angle}°: "
                 f"T={int_t:.6f}, R={int_r:.6f}, total={total_intensity:.6f}"
+            )
 
     def test_malus_law_verification(self):
         """Verify Malus's Law: I = I₀ cos²(θ) for various angles."""
@@ -338,16 +357,16 @@ class TestPBSPolarizationTransform:
             axis_angle = float(angle_diff)
 
             pol_t, int_t = transform_polarization_beamsplitter(
-                pol_in, v_in, n_hat, t_hat,
+                pol_in,
+                v_in,
+                n_hat,
+                t_hat,
                 is_polarizing=True,
                 pbs_axis_deg=axis_angle,
-                is_transmitted=True
+                is_transmitted=True,
             )
 
             expected = np.cos(np.deg2rad(angle_diff)) ** 2
-            assert abs(int_t - expected) < 1e-6, \
-                f"Malus's Law violation at {angle_diff}°: " \
-                f"expected {expected:.6f}, got {int_t:.6f}"
-
-
-
+            assert abs(int_t - expected) < 1e-6, (
+                f"Malus's Law violation at {angle_diff}°: expected {expected:.6f}, got {int_t:.6f}"
+            )

@@ -17,7 +17,9 @@ Then in the application:
 """
 
 import sys
+
 from PyQt6 import QtWidgets
+
 from optiverse.ui.views.main_window import MainWindow
 
 
@@ -47,6 +49,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-

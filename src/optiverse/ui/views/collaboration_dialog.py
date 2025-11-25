@@ -5,14 +5,14 @@ Provides options to:
 - Connect to an existing server
 - Host a new server locally
 """
+
 from __future__ import annotations
 
 import logging
-import sys
-import subprocess
 import socket
+import subprocess
+import sys
 from pathlib import Path
-from typing import Optional
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -28,14 +28,14 @@ class CollaborationDialog(QtWidgets.QDialog):
     - Host a server on the local machine
     """
 
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Collaboration")
         self.setModal(True)
         self.setMinimumSize(500, 520)  # Adequate size to avoid geometry warnings
 
         self.mode = "connect"  # "connect" or "host"
-        self.server_process: Optional[subprocess.Popen] = None
+        self.server_process: subprocess.Popen | None = None
         self._accepted = False  # Track if dialog was accepted
 
         self._build_ui()
@@ -84,7 +84,9 @@ class CollaborationDialog(QtWidgets.QDialog):
         connect_layout.addRow("Your Name:", self.user_id_edit)
 
         # Info about joining
-        join_info = QtWidgets.QLabel("⚠️ Joining will replace your current canvas with the session's canvas.")
+        join_info = QtWidgets.QLabel(
+            "⚠️ Joining will replace your current canvas with the session's canvas."
+        )
         join_info.setWordWrap(True)
         join_info.setStyleSheet("color: #888; font-style: italic; padding: 5px;")
         connect_layout.addRow("", join_info)
@@ -115,7 +117,9 @@ class CollaborationDialog(QtWidgets.QDialog):
         canvas_label.setStyleSheet("font-weight: bold;")
         host_layout.addRow("", canvas_label)
 
-        self.radio_use_current = QtWidgets.QRadioButton("Use current canvas (share my current work)")
+        self.radio_use_current = QtWidgets.QRadioButton(
+            "Use current canvas (share my current work)"
+        )
         self.radio_empty_canvas = QtWidgets.QRadioButton("Start with empty canvas")
         self.radio_use_current.setChecked(True)
 
@@ -171,15 +175,21 @@ class CollaborationDialog(QtWidgets.QDialog):
         else:
             info_bg = "#f0f0f0"
             info_border = "#d0d0d0"
-        self.info_label.setStyleSheet(f"QLabel {{ background-color: {info_bg}; padding: 8px; border-radius: 4px; border: 1px solid {info_border}; }}")
+        self.info_label.setStyleSheet(
+            f"QLabel {{ background-color: {info_bg}; padding: 8px; border-radius: 4px; border: 1px solid {info_border}; }}"
+        )
         layout.addWidget(self.info_label)
 
         layout.addStretch()
 
         # Buttons
         button_box = QtWidgets.QDialogButtonBox()
-        self.connect_btn = button_box.addButton("Connect", QtWidgets.QDialogButtonBox.ButtonRole.AcceptRole)
-        self.cancel_btn = button_box.addButton("Cancel", QtWidgets.QDialogButtonBox.ButtonRole.RejectRole)
+        self.connect_btn = button_box.addButton(
+            "Connect", QtWidgets.QDialogButtonBox.ButtonRole.AcceptRole
+        )
+        self.cancel_btn = button_box.addButton(
+            "Cancel", QtWidgets.QDialogButtonBox.ButtonRole.RejectRole
+        )
         button_box.accepted.connect(self._on_accept)
         button_box.rejected.connect(self.reject)
 
@@ -195,7 +205,7 @@ class CollaborationDialog(QtWidgets.QDialog):
 
     def _update_mode(self) -> None:
         """Update UI based on selected mode."""
-        is_connect = (self.mode == "connect")
+        is_connect = self.mode == "connect"
         self.connect_group.setVisible(is_connect)
         self.host_group.setVisible(not is_connect)
 
@@ -252,9 +262,7 @@ class CollaborationDialog(QtWidgets.QDialog):
         # Check if websockets is available
         try:
             result = subprocess.run(
-                [sys.executable, "-c", "import websockets"],
-                capture_output=True,
-                timeout=5
+                [sys.executable, "-c", "import websockets"], capture_output=True, timeout=5
             )
             if result.returncode != 0:
                 QtWidgets.QMessageBox.critical(
@@ -264,21 +272,23 @@ class CollaborationDialog(QtWidgets.QDialog):
                     "Please install dependencies with:\n"
                     "pip install -e .\n\n"
                     "Or install websockets directly:\n"
-                    "pip install websockets"
+                    "pip install websockets",
                 )
                 return
         except (subprocess.SubprocessError, OSError) as e:
             _logger.debug("Error checking websockets: %s", e)
 
         # Find the server script
-        server_script = Path(__file__).parent.parent.parent.parent.parent / "tools" / "collaboration_server.py"
+        server_script = (
+            Path(__file__).parent.parent.parent.parent.parent / "tools" / "collaboration_server.py"
+        )
 
         if not server_script.exists():
             QtWidgets.QMessageBox.critical(
                 self,
                 "Server Not Found",
                 f"Could not find collaboration server at:\n{server_script}\n\n"
-                "Please ensure collaboration_server.py exists in the tools/ directory."
+                "Please ensure collaboration_server.py exists in the tools/ directory.",
             )
             return
 
@@ -303,6 +313,7 @@ class CollaborationDialog(QtWidgets.QDialog):
 
             # Give server a moment to start and verify it's actually listening
             import time
+
             time.sleep(1.5)
 
             # Check if process died
@@ -348,9 +359,7 @@ class CollaborationDialog(QtWidgets.QDialog):
 
         except (subprocess.SubprocessError, OSError) as e:
             QtWidgets.QMessageBox.critical(
-                self,
-                "Server Start Failed",
-                f"Failed to start server:\n{e}"
+                self, "Server Start Failed", f"Failed to start server:\n{e}"
             )
 
     def _on_stop_server(self) -> None:
@@ -392,20 +401,24 @@ class CollaborationDialog(QtWidgets.QDialog):
 
         if self.mode == "connect":
             # Client joining session
-            info.update({
-                "server_url": self.server_url_edit.text(),
-                "session_id": self.session_id_edit.text(),
-                "user_id": self.user_id_edit.text(),
-            })
+            info.update(
+                {
+                    "server_url": self.server_url_edit.text(),
+                    "session_id": self.session_id_edit.text(),
+                    "user_id": self.user_id_edit.text(),
+                }
+            )
         else:
             # Host creating session
-            info.update({
-                "session_id": self.host_session_id_edit.text(),
-                "user_id": self.host_user_id_edit.text(),
-                "use_current_canvas": self.radio_use_current.isChecked(),
-                "host": self.host_address_edit.text(),
-                "port": self.host_port_spin.value(),
-            })
+            info.update(
+                {
+                    "session_id": self.host_session_id_edit.text(),
+                    "user_id": self.host_user_id_edit.text(),
+                    "use_current_canvas": self.radio_use_current.isChecked(),
+                    "host": self.host_address_edit.text(),
+                    "port": self.host_port_spin.value(),
+                }
+            )
 
         return info
 
@@ -419,7 +432,7 @@ class CollaborationDialog(QtWidgets.QDialog):
                 "Stop Server?",
                 "The collaboration server is still running. Stop it?",
                 QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
-                QtWidgets.QMessageBox.StandardButton.No
+                QtWidgets.QMessageBox.StandardButton.No,
             )
             if reply == QtWidgets.QMessageBox.StandardButton.Yes:
                 self._on_stop_server()
@@ -427,6 +440,3 @@ class CollaborationDialog(QtWidgets.QDialog):
             # (This is an edge case - user started server but canceled connection)
 
         super().closeEvent(event)
-
-
-

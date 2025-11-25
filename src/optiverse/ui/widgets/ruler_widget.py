@@ -10,7 +10,6 @@ Provides horizontal and vertical rulers with:
 from __future__ import annotations
 
 import math
-from typing import Optional
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -22,10 +21,10 @@ class RulerWidget(QtWidgets.QWidget):
     HORIZONTAL = 0
     VERTICAL = 1
 
-    def __init__(self, orientation: int = HORIZONTAL, parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(self, orientation: int = HORIZONTAL, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
         self.orientation = orientation
-        self._cursor_pos: Optional[float] = None  # Position in mm
+        self._cursor_pos: float | None = None  # Position in mm
         self._scale: float = 1.0  # Screen pixels per mm
         self._offset: float = 0.0  # Offset in screen pixels
         self._range_mm: tuple[float, float] = (-50.0, 50.0)  # Visible range in mm
@@ -38,14 +37,12 @@ class RulerWidget(QtWidgets.QWidget):
         if orientation == self.HORIZONTAL:
             self.setFixedHeight(self.ruler_size)
             self.setSizePolicy(
-                QtWidgets.QSizePolicy.Policy.Expanding,
-                QtWidgets.QSizePolicy.Policy.Fixed
+                QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed
             )
         else:
             self.setFixedWidth(self.ruler_size)
             self.setSizePolicy(
-                QtWidgets.QSizePolicy.Policy.Fixed,
-                QtWidgets.QSizePolicy.Policy.Expanding
+                QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Expanding
             )
 
         # Styling
@@ -56,7 +53,7 @@ class RulerWidget(QtWidgets.QWidget):
             }
         """)
 
-    def set_cursor_position(self, pos_mm: Optional[float]):
+    def set_cursor_position(self, pos_mm: float | None):
         """Set cursor position in mm (or None to hide indicator)."""
         self._cursor_pos = pos_mm
         self.update()
@@ -143,7 +140,7 @@ class RulerWidget(QtWidgets.QWidget):
                     painter.drawText(
                         QtCore.QRectF(screen_x - 30, 2, 60, 12),
                         QtCore.Qt.AlignmentFlag.AlignCenter,
-                        label
+                        label,
                     )
                 else:
                     # Minor tick
@@ -197,9 +194,7 @@ class RulerWidget(QtWidgets.QWidget):
                     painter.translate(width - 2, screen_y)
                     painter.rotate(-90)
                     painter.drawText(
-                        QtCore.QRectF(-30, -10, 60, 12),
-                        QtCore.Qt.AlignmentFlag.AlignCenter,
-                        label
+                        QtCore.QRectF(-30, -10, 60, 12), QtCore.Qt.AlignmentFlag.AlignCenter, label
                     )
                     painter.restore()
                 else:
@@ -222,7 +217,7 @@ class RulerWidget(QtWidgets.QWidget):
             points = [
                 QtCore.QPointF(screen_x, 0),
                 QtCore.QPointF(screen_x - 5, 7),
-                QtCore.QPointF(screen_x + 5, 7)
+                QtCore.QPointF(screen_x + 5, 7),
             ]
 
             painter.setBrush(QtGui.QBrush(QtGui.QColor("#FF4444")))
@@ -240,7 +235,7 @@ class RulerWidget(QtWidgets.QWidget):
             points = [
                 QtCore.QPointF(0, screen_y),
                 QtCore.QPointF(7, screen_y - 5),
-                QtCore.QPointF(7, screen_y + 5)
+                QtCore.QPointF(7, screen_y + 5),
             ]
 
             painter.setBrush(QtGui.QBrush(QtGui.QColor("#FF4444")))
@@ -288,7 +283,9 @@ class RulerWidget(QtWidgets.QWidget):
 class CanvasWithRulers(QtWidgets.QWidget):
     """Container widget that wraps a canvas with rulers."""
 
-    def __init__(self, canvas_widget: QtWidgets.QWidget, parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(
+        self, canvas_widget: QtWidgets.QWidget, parent: QtWidgets.QWidget | None = None
+    ):
         super().__init__(parent)
 
         self.canvas = canvas_widget
@@ -343,7 +340,7 @@ class CanvasWithRulers(QtWidgets.QWidget):
     def _update_cursor_position(self, canvas_pos: QtCore.QPoint):
         """Update ruler cursor position based on canvas mouse position."""
         # Try to get coordinate information from canvas
-        if hasattr(self.canvas, '_screen_to_mm_coords'):
+        if hasattr(self.canvas, "_screen_to_mm_coords"):
             # Canvas has method to convert screen to mm coords
             x_mm, y_mm = self.canvas._screen_to_mm_coords(canvas_pos)
             self.h_ruler.set_cursor_position(x_mm)
@@ -356,29 +353,26 @@ class CanvasWithRulers(QtWidgets.QWidget):
     def _update_ruler_parameters(self):
         """Update ruler view parameters based on canvas state."""
         # Try to get view parameters from canvas
-        if hasattr(self.canvas, '_get_ruler_view_params'):
+        if hasattr(self.canvas, "_get_ruler_view_params"):
             try:
                 params = self.canvas._get_ruler_view_params()
 
                 # Horizontal ruler parameters
-                h_scale = params['h_scale']
-                h_offset = params['h_offset']
-                h_range = params['h_range']
+                h_scale = params["h_scale"]
+                h_offset = params["h_offset"]
+                h_range = params["h_range"]
 
                 # Vertical ruler parameters
-                v_scale = params['v_scale']
-                v_offset = params['v_offset']
-                v_range = params['v_range']
+                v_scale = params["v_scale"]
+                v_offset = params["v_offset"]
+                v_range = params["v_range"]
 
                 self.h_ruler.set_view_parameters(h_scale, h_offset, h_range)
                 self.v_ruler.set_view_parameters(v_scale, v_offset, v_range)
 
                 # Set unit display
-                show_mm = params.get('show_mm', True)
+                show_mm = params.get("show_mm", True)
                 self.h_ruler.set_show_mm(show_mm)
                 self.v_ruler.set_show_mm(show_mm)
             except AttributeError:
                 pass  # Rulers may not have set_show_mm method
-
-
-

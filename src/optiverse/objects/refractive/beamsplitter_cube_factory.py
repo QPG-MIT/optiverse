@@ -13,9 +13,10 @@ The cube handles:
 - Refraction at all air-glass boundaries (Snell's law)
 """
 
-from ...core.models import ComponentParams
-from ...core.interface_definition import InterfaceDefinition
 from typing import Optional
+
+from ...core.interface_definition import InterfaceDefinition
+from ...core.models import ComponentParams
 
 
 def create_beamsplitter_cube_50_50(
@@ -28,7 +29,7 @@ def create_beamsplitter_cube_50_50(
     is_polarizing: bool = False,
     pbs_axis_deg: float = 0.0,
     image_path: Optional[str] = None,
-    name: Optional[str] = None
+    name: Optional[str] = None,
 ) -> ComponentParams:
     """
     Create a realistic beam splitter cube with proper refraction.
@@ -62,62 +63,82 @@ def create_beamsplitter_cube_50_50(
 
     # Interface 1: Left edge (entrance surface for horizontal beam from left)
     # Air (n=1.0) -> Glass (n=n_glass)
-    interfaces.append(InterfaceDefinition(
-        element_type="refractive_interface",
-        x1_mm=-half_size, y1_mm=-half_size,
-        x2_mm=-half_size, y2_mm=+half_size,
-        n1=1.0,  # Air
-        n2=n_glass,  # Glass
-        name="Left Edge"
-    ))
+    interfaces.append(
+        InterfaceDefinition(
+            element_type="refractive_interface",
+            x1_mm=-half_size,
+            y1_mm=-half_size,
+            x2_mm=-half_size,
+            y2_mm=+half_size,
+            n1=1.0,  # Air
+            n2=n_glass,  # Glass
+            name="Left Edge",
+        )
+    )
 
     # Interface 2: Bottom edge (entrance surface for vertical beam from below)
     # Air (n=1.0) -> Glass (n=n_glass)
-    interfaces.append(InterfaceDefinition(
-        element_type="refractive_interface",
-        x1_mm=-half_size, y1_mm=-half_size,
-        x2_mm=+half_size, y2_mm=-half_size,
-        n1=1.0,  # Air
-        n2=n_glass,  # Glass
-        name="Bottom Edge"
-    ))
+    interfaces.append(
+        InterfaceDefinition(
+            element_type="refractive_interface",
+            x1_mm=-half_size,
+            y1_mm=-half_size,
+            x2_mm=+half_size,
+            y2_mm=-half_size,
+            n1=1.0,  # Air
+            n2=n_glass,  # Glass
+            name="Bottom Edge",
+        )
+    )
 
     # Interface 3: Diagonal beam splitter coating (runs from bottom-left to top-right)
     # Glass (n=n_glass) on both sides, but with beam splitting coating
-    interfaces.append(InterfaceDefinition(
-        element_type="beam_splitter",
-        x1_mm=-half_size, y1_mm=-half_size,
-        x2_mm=+half_size, y2_mm=+half_size,
-        n1=n_glass,  # Glass on both sides
-        n2=n_glass,
-        split_T=split_ratio,
-        split_R=100.0 - split_ratio,
-        is_polarizing=is_polarizing,
-        pbs_transmission_axis_deg=pbs_axis_deg,
-        name="BS Coating"
-    ))
+    interfaces.append(
+        InterfaceDefinition(
+            element_type="beam_splitter",
+            x1_mm=-half_size,
+            y1_mm=-half_size,
+            x2_mm=+half_size,
+            y2_mm=+half_size,
+            n1=n_glass,  # Glass on both sides
+            n2=n_glass,
+            split_T=split_ratio,
+            split_R=100.0 - split_ratio,
+            is_polarizing=is_polarizing,
+            pbs_transmission_axis_deg=pbs_axis_deg,
+            name="BS Coating",
+        )
+    )
 
     # Interface 4: Right edge (exit surface for transmitted beam)
     # Glass (n=n_glass) -> Air (n=1.0)
-    interfaces.append(InterfaceDefinition(
-        element_type="refractive_interface",
-        x1_mm=+half_size, y1_mm=-half_size,
-        x2_mm=+half_size, y2_mm=+half_size,
-        n1=n_glass,  # Glass
-        n2=1.0,  # Air
-        name="Right Edge"
-    ))
+    interfaces.append(
+        InterfaceDefinition(
+            element_type="refractive_interface",
+            x1_mm=+half_size,
+            y1_mm=-half_size,
+            x2_mm=+half_size,
+            y2_mm=+half_size,
+            n1=n_glass,  # Glass
+            n2=1.0,  # Air
+            name="Right Edge",
+        )
+    )
 
     # Interface 5: Top edge (exit surface for reflected beam)
     # Glass (n=n_glass) -> Air (n=1.0)
-    interfaces.append(InterfaceDefinition(
-        element_type="refractive_interface",
-        x1_mm=-half_size, y1_mm=+half_size,
-        x2_mm=+half_size, y2_mm=+half_size,
-        n1=n_glass,  # Glass
-        n2=1.0,  # Air
-        name="Top Edge"
-    ))
+    interfaces.append(
+        InterfaceDefinition(
+            element_type="refractive_interface",
+            x1_mm=-half_size,
+            y1_mm=+half_size,
+            x2_mm=+half_size,
+            y2_mm=+half_size,
+            n1=n_glass,  # Glass
+            n2=1.0,  # Air
+            name="Top Edge",
+        )
+    )
 
     return ComponentParams(
         x_mm=center_x,
@@ -126,7 +147,7 @@ def create_beamsplitter_cube_50_50(
         object_height_mm=size_mm * 1.414,  # Diagonal length for rendering bounds
         interfaces=interfaces,
         image_path=image_path or "",
-        name=name or f"BS Cube {int(split_ratio)}/{int(100-split_ratio)}"
+        name=name or f"BS Cube {int(split_ratio)}/{int(100 - split_ratio)}",
     )
 
 
@@ -138,7 +159,7 @@ def create_pbs_cube(
     pbs_axis_deg: float = 0.0,  # Horizontal transmission axis
     n_glass: float = 1.517,
     image_path: Optional[str] = None,
-    name: Optional[str] = None
+    name: Optional[str] = None,
 ) -> ComponentParams:
     """
     Create a Polarizing Beam Splitter (PBS) cube.
@@ -169,7 +190,7 @@ def create_pbs_cube(
         is_polarizing=True,
         pbs_axis_deg=pbs_axis_deg,
         image_path=image_path,
-        name=name or "PBS Cube"
+        name=name or "PBS Cube",
     )
 
 
@@ -181,7 +202,7 @@ def create_prism(
     rotation_deg: float = 0.0,
     n_glass: float = 1.517,
     image_path: Optional[str] = None,
-    name: Optional[str] = None
+    name: Optional[str] = None,
 ) -> ComponentParams:
     """
     Create a simple triangular prism (45-45-90 triangle).
@@ -208,31 +229,46 @@ def create_prism(
     half_height = height_mm / 2.0
 
     # Bottom edge
-    interfaces.append(InterfaceDefinition(
-        element_type="refractive_interface",
-        x1_mm=-half_base, y1_mm=-half_height,
-        x2_mm=+half_base, y2_mm=-half_height,
-        n1=1.0, n2=n_glass,
-        name="Bottom Edge"
-    ))
+    interfaces.append(
+        InterfaceDefinition(
+            element_type="refractive_interface",
+            x1_mm=-half_base,
+            y1_mm=-half_height,
+            x2_mm=+half_base,
+            y2_mm=-half_height,
+            n1=1.0,
+            n2=n_glass,
+            name="Bottom Edge",
+        )
+    )
 
     # Right edge (hypotenuse)
-    interfaces.append(InterfaceDefinition(
-        element_type="refractive_interface",
-        x1_mm=+half_base, y1_mm=-half_height,
-        x2_mm=0.0, y2_mm=+half_height,
-        n1=1.0, n2=n_glass,
-        name="Right Edge"
-    ))
+    interfaces.append(
+        InterfaceDefinition(
+            element_type="refractive_interface",
+            x1_mm=+half_base,
+            y1_mm=-half_height,
+            x2_mm=0.0,
+            y2_mm=+half_height,
+            n1=1.0,
+            n2=n_glass,
+            name="Right Edge",
+        )
+    )
 
     # Left edge (hypotenuse)
-    interfaces.append(InterfaceDefinition(
-        element_type="refractive_interface",
-        x1_mm=0.0, y1_mm=+half_height,
-        x2_mm=-half_base, y2_mm=-half_height,
-        n1=1.0, n2=n_glass,
-        name="Left Edge"
-    ))
+    interfaces.append(
+        InterfaceDefinition(
+            element_type="refractive_interface",
+            x1_mm=0.0,
+            y1_mm=+half_height,
+            x2_mm=-half_base,
+            y2_mm=-half_height,
+            n1=1.0,
+            n2=n_glass,
+            name="Left Edge",
+        )
+    )
 
     return ComponentParams(
         x_mm=center_x,
@@ -241,8 +277,5 @@ def create_prism(
         object_height_mm=max(base_mm, height_mm),
         interfaces=interfaces,
         image_path=image_path or "",
-        name=name or "Prism"
+        name=name or "Prism",
     )
-
-
-

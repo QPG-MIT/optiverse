@@ -3,9 +3,10 @@ Scene Event Handler - Routes scene events to appropriate handlers.
 
 Extracts eventFilter and keyPressEvent logic from MainWindow.
 """
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Callable
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -13,8 +14,8 @@ if TYPE_CHECKING:
     from ...core.editor_state import EditorState
     from ..controllers.item_drag_handler import ItemDragHandler
     from .placement_handler import PlacementHandler
-    from .tool_handlers import InspectToolHandler, PathMeasureToolHandler, AngleMeasureToolHandler
     from .ruler_placement_handler import RulerPlacementHandler
+    from .tool_handlers import AngleMeasureToolHandler, InspectToolHandler, PathMeasureToolHandler
 
 
 class SceneEventHandler(QtCore.QObject):
@@ -27,18 +28,18 @@ class SceneEventHandler(QtCore.QObject):
 
     def __init__(
         self,
-        editor_state: "EditorState",
-        placement_handler: "PlacementHandler",
-        inspect_handler: "InspectToolHandler",
-        path_measure_handler: "PathMeasureToolHandler",
-        angle_measure_handler: "AngleMeasureToolHandler",
-        ruler_handler: "RulerPlacementHandler",
-        drag_handler: "ItemDragHandler",
+        editor_state: EditorState,
+        placement_handler: PlacementHandler,
+        inspect_handler: InspectToolHandler,
+        path_measure_handler: PathMeasureToolHandler,
+        angle_measure_handler: AngleMeasureToolHandler,
+        ruler_handler: RulerPlacementHandler,
+        drag_handler: ItemDragHandler,
         cancel_placement_mode: Callable[[], None],
         get_inspect_action: Callable[[], QtWidgets.QAction],
         get_path_measure_action: Callable[[], QtWidgets.QAction],
         get_angle_measure_action: Callable[[], QtWidgets.QAction],
-        parent: Optional[QtCore.QObject] = None,
+        parent: QtCore.QObject | None = None,
     ):
         """
         Initialize the scene event handler.
@@ -71,7 +72,7 @@ class SceneEventHandler(QtCore.QObject):
         self._get_path_measure_action = get_path_measure_action
         self._get_angle_measure_action = get_angle_measure_action
 
-    def handle_event(self, obj: QtCore.QObject, ev: QtCore.QEvent) -> Optional[bool]:
+    def handle_event(self, obj: QtCore.QObject, ev: QtCore.QEvent) -> bool | None:
         """
         Handle scene events and route to appropriate handlers.
 
@@ -191,13 +192,12 @@ class SceneEventHandler(QtCore.QObject):
                 return True
 
         # Handle 'A' key for adding bend during ruler placement (only if no modifiers)
-        if (ev.key() == QtCore.Qt.Key.Key_A and
-            self._ruler_handler.is_active and
-            ev.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier):
+        if (
+            ev.key() == QtCore.Qt.Key.Key_A
+            and self._ruler_handler.is_active
+            and ev.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier
+        ):
             if self._ruler_handler.handle_add_bend():
                 return True
 
         return False
-
-
-

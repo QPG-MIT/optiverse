@@ -7,26 +7,24 @@ These tests verify that undo/redo works correctly for:
 - Deleting components
 - Keyboard shortcuts (Ctrl+Z, Ctrl+Y)
 """
+
 from __future__ import annotations
 
 import pytest
 from PyQt6 import QtCore, QtWidgets
 
-from optiverse.ui.views.main_window import MainWindow
 from optiverse.objects import (
     SourceItem,
-    ComponentItem,
-    RulerItem,
     TextNoteItem,
-    BaseObj,
 )
+from optiverse.ui.views.main_window import MainWindow
 from tests.helpers.ui_test_helpers import (
-    add_source_to_window,
     add_lens_to_window,
     add_mirror_to_window,
+    add_source_to_window,
+    is_beamsplitter_component,
     is_lens_component,
     is_mirror_component,
-    is_beamsplitter_component,
 )
 
 
@@ -44,8 +42,14 @@ class TestUndoRedoIntegration:
         """Test that undo/redo actions are created."""
         assert hasattr(main_window, "act_undo")
         assert hasattr(main_window, "act_redo")
-        assert main_window.act_undo.shortcut() == QtCore.Qt.Key.Key_Z | QtCore.Qt.KeyboardModifier.ControlModifier
-        assert main_window.act_redo.shortcut() == QtCore.Qt.Key.Key_Y | QtCore.Qt.KeyboardModifier.ControlModifier
+        assert (
+            main_window.act_undo.shortcut()
+            == QtCore.Qt.Key.Key_Z | QtCore.Qt.KeyboardModifier.ControlModifier
+        )
+        assert (
+            main_window.act_redo.shortcut()
+            == QtCore.Qt.Key.Key_Y | QtCore.Qt.KeyboardModifier.ControlModifier
+        )
 
     def test_undo_redo_initially_disabled(self, main_window):
         """Test that undo/redo are initially disabled."""
@@ -73,14 +77,14 @@ class TestUndoRedoIntegration:
     def test_undo_triggers_retrace(self, main_window):
         """Test that undo triggers ray tracing when autotrace is enabled."""
         main_window.autotrace = True
-        initial_ray_count = len(main_window.ray_items)
+        len(main_window.ray_items)
 
         # Add source and lens - this should create rays
         add_source_to_window(main_window)
         add_lens_to_window(main_window)
 
         # Verify rays were created
-        after_add_rays = len(main_window.ray_items)
+        len(main_window.ray_items)
         # May or may not have rays depending on geometry, but operation should complete
 
         # Undo the lens addition
@@ -147,11 +151,17 @@ class TestUndoRedoIntegration:
 
     def test_undo_add_beamsplitter(self, main_window):
         """Test undoing beamsplitter addition."""
-        from optiverse.core.component_types import ComponentType
         from PyQt6 import QtCore
-        initial_count = len([it for it in main_window.scene.items() if is_beamsplitter_component(it)])
 
-        main_window.placement_handler.place_component_at(ComponentType.BEAMSPLITTER, QtCore.QPointF(0, 0))
+        from optiverse.core.component_types import ComponentType
+
+        initial_count = len(
+            [it for it in main_window.scene.items() if is_beamsplitter_component(it)]
+        )
+
+        main_window.placement_handler.place_component_at(
+            ComponentType.BEAMSPLITTER, QtCore.QPointF(0, 0)
+        )
         after_add = len([it for it in main_window.scene.items() if is_beamsplitter_component(it)])
         assert after_add == initial_count + 1
 
@@ -162,7 +172,10 @@ class TestUndoRedoIntegration:
     def test_undo_add_text(self, main_window):
         """Test undoing text addition."""
         from PyQt6 import QtCore
-        initial_count = len([it for it in main_window.scene.items() if isinstance(it, TextNoteItem)])
+
+        initial_count = len(
+            [it for it in main_window.scene.items() if isinstance(it, TextNoteItem)]
+        )
 
         main_window.placement_handler.place_component_at("text", QtCore.QPointF(0, 0))
         after_add = len([it for it in main_window.scene.items() if isinstance(it, TextNoteItem)])
@@ -234,6 +247,7 @@ class TestUndoRedoIntegration:
 
         # Simulate mouse release (create move command)
         from optiverse.core.undo_commands import MoveItemCommand
+
         cmd = MoveItemCommand(item, old_pos, new_pos)
         main_window.undo_stack.push(cmd)
 
@@ -283,12 +297,21 @@ class TestUndoRedoIntegration:
 
         # Create a temporary assembly file
         import json
+
         assembly_file = tmp_path / "test_assembly.json"
-        data = {"sources": [], "lenses": [], "mirrors": [], "beamsplitters": [], "rulers": [], "texts": []}
+        data = {
+            "sources": [],
+            "lenses": [],
+            "mirrors": [],
+            "beamsplitters": [],
+            "rulers": [],
+            "texts": [],
+        }
         assembly_file.write_text(json.dumps(data))
 
         # Mock the file dialog to return our test file
         import unittest.mock as mock
+
         with mock.patch.object(
             QtWidgets.QFileDialog, "getOpenFileName", return_value=(str(assembly_file), "")
         ):
@@ -296,6 +319,3 @@ class TestUndoRedoIntegration:
 
         assert not main_window.undo_stack.can_undo()
         assert not main_window.undo_stack.can_redo()
-
-
-

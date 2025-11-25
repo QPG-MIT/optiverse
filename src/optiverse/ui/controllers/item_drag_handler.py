@@ -3,9 +3,10 @@ Handler for item drag, move, and rotation tracking.
 
 Extracts position/rotation tracking and undo command creation from MainWindow.
 """
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, List, Any
+from typing import TYPE_CHECKING, Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -25,7 +26,7 @@ class ItemDragHandler:
         self,
         scene: QtWidgets.QGraphicsScene,
         view: QtWidgets.QGraphicsView,
-        undo_stack: "UndoStack",
+        undo_stack: UndoStack,
         snap_to_grid_getter: callable,
         schedule_retrace: callable,
     ):
@@ -46,9 +47,9 @@ class ItemDragHandler:
         self._schedule_retrace = schedule_retrace
 
         # Position tracking state
-        self._item_positions: Dict[QtWidgets.QGraphicsItem, QtCore.QPointF] = {}
-        self._item_rotations: Dict[QtWidgets.QGraphicsItem, float] = {}
-        self._item_group_states: Dict[str, Any] = {}
+        self._item_positions: dict[QtWidgets.QGraphicsItem, QtCore.QPointF] = {}
+        self._item_rotations: dict[QtWidgets.QGraphicsItem, float] = {}
+        self._item_group_states: dict[str, Any] = {}
 
     def handle_mouse_press(self, event: QtGui.QMouseEvent):
         """
@@ -70,7 +71,8 @@ class ItemDragHandler:
 
         # Get already-selected items
         selected_items = [
-            it for it in self.scene.selectedItems()
+            it
+            for it in self.scene.selectedItems()
             if isinstance(it, (BaseObj, RulerItem, TextNoteItem, RectangleItem))
         ]
 
@@ -96,13 +98,13 @@ class ItemDragHandler:
         # For group rotation, track initial positions for orbit calculation
         if is_rotation_mode and len(selected_items) > 1:
             self._item_group_states = {
-                'items': selected_items,
-                'initial_positions': {it: QtCore.QPointF(it.pos()) for it in selected_items},
-                'initial_rotations': {
+                "items": selected_items,
+                "initial_positions": {it: QtCore.QPointF(it.pos()) for it in selected_items},
+                "initial_rotations": {
                     it: it.rotation()
                     for it in selected_items
                     if isinstance(it, (BaseObj, RectangleItem))
-                }
+                },
             }
 
     def handle_mouse_release(self) -> bool:
@@ -112,8 +114,8 @@ class ItemDragHandler:
         Returns:
             True if any commands were created
         """
-        from ...objects import BaseObj, RectangleItem
         from ...core.undo_commands import MoveItemCommand, RotateItemCommand, RotateItemsCommand
+        from ...objects import BaseObj, RectangleItem
 
         # Clear snap guides
         self.view.clear_snap_guides()
@@ -121,7 +123,7 @@ class ItemDragHandler:
         commands_created = False
 
         # Check if this was a group rotation
-        was_group_rotation = bool(self._item_group_states and 'items' in self._item_group_states)
+        was_group_rotation = bool(self._item_group_states and "items" in self._item_group_states)
 
         # Apply snap to grid and create move commands
         for it in list(self._item_positions.keys()):
@@ -150,38 +152,29 @@ class ItemDragHandler:
 
         elif was_group_rotation:
             # Group rotation
-            items = self._item_group_states['items']
-            old_positions = self._item_group_states['initial_positions']
-            old_rotations = self._item_group_states['initial_rotations']
+            items = self._item_group_states["items"]
+            old_positions = self._item_group_states["initial_positions"]
+            old_rotations = self._item_group_states["initial_rotations"]
             new_positions = {it: it.pos() for it in items}
             new_rotations = {
-                it: it.rotation()
-                for it in items
-                if isinstance(it, (BaseObj, RectangleItem))
+                it: it.rotation() for it in items if isinstance(it, (BaseObj, RectangleItem))
             }
 
             # Check if anything actually changed
             position_changed = any(
-                old_positions[it] != new_positions[it]
-                for it in items if it in old_positions
+                old_positions[it] != new_positions[it] for it in items if it in old_positions
             )
             rotation_changed = any(
                 abs(old_rotations.get(it, 0) - new_rotations.get(it, 0)) > 0.01
-                for it in items if isinstance(it, (BaseObj, RectangleItem))
+                for it in items
+                if isinstance(it, (BaseObj, RectangleItem))
             )
 
             if position_changed or rotation_changed:
-                rotatable_items = [
-                    it for it in items
-                    if isinstance(it, (BaseObj, RectangleItem))
-                ]
+                rotatable_items = [it for it in items if isinstance(it, (BaseObj, RectangleItem))]
                 if rotatable_items:
                     cmd = RotateItemsCommand(
-                        rotatable_items,
-                        old_positions,
-                        new_positions,
-                        old_rotations,
-                        new_rotations
+                        rotatable_items, old_positions, new_positions, old_rotations, new_rotations
                     )
                     self.undo_stack.push(cmd)
                     commands_created = True
@@ -195,6 +188,3 @@ class ItemDragHandler:
         self._schedule_retrace()
 
         return commands_created
-
-
-

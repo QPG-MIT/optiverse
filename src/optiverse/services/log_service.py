@@ -10,13 +10,14 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from enum import Enum
-from typing import Callable, List
+from typing import Callable
 
 _logger = logging.getLogger(__name__)
 
 
 class LogLevel(Enum):
     """Log message severity levels."""
+
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"
@@ -59,9 +60,9 @@ class LogService:
         Args:
             max_messages: Maximum number of messages to keep in memory
         """
-        self._messages: List[LogMessage] = []
+        self._messages: list[LogMessage] = []
         self._max_messages = max_messages
-        self._listeners: List[Callable[[LogMessage], None]] = []
+        self._listeners: list[Callable[[LogMessage], None]] = []
 
     def add_listener(self, callback: Callable[[LogMessage], None]):
         """
@@ -94,7 +95,7 @@ class LogService:
 
         # Trim old messages if over limit
         if len(self._messages) > self._max_messages:
-            self._messages = self._messages[-self._max_messages:]
+            self._messages = self._messages[-self._max_messages :]
 
         # Notify listeners
         for listener in self._listeners:
@@ -120,9 +121,9 @@ class LogService:
         """Log an error message."""
         self.log(LogLevel.ERROR, message, category)
 
-    def get_messages(self,
-                     level: LogLevel | None = None,
-                     category: str | None = None) -> List[LogMessage]:
+    def get_messages(
+        self, level: LogLevel | None = None, category: str | None = None
+    ) -> list[LogMessage]:
         """
         Get all log messages, optionally filtered.
 
@@ -147,7 +148,7 @@ class LogService:
         """Clear all log messages."""
         self._messages.clear()
 
-    def get_categories(self) -> List[str]:
+    def get_categories(self) -> list[str]:
         """Get list of all categories that have been logged."""
         categories = set(msg.category for msg in self._messages)
         return sorted(categories)
@@ -163,6 +164,3 @@ def get_log_service() -> LogService:
     if _log_service is None:
         _log_service = LogService()
     return _log_service
-
-
-

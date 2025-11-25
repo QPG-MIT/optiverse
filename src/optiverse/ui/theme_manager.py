@@ -7,11 +7,11 @@ This module handles:
 - Applying themes application-wide
 - Palette configuration for consistent colors
 """
+
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from PyQt6 import QtGui, QtWidgets
 
@@ -58,7 +58,8 @@ QDialog { background-color: white; color: black; }
 # Stylesheet Loading
 # ============================================================================
 
-def _load_stylesheet_from_file(filename: str) -> Optional[str]:
+
+def _load_stylesheet_from_file(filename: str) -> str | None:
     """
     Load a stylesheet from the styles directory.
 
@@ -115,6 +116,7 @@ def get_light_stylesheet() -> str:
 # System Theme Detection
 # ============================================================================
 
+
 def detect_system_dark_mode() -> bool:
     """
     Detect if the system is in dark mode.
@@ -136,6 +138,7 @@ def detect_system_dark_mode() -> bool:
 # ============================================================================
 # Theme Application
 # ============================================================================
+
 
 def _create_dark_palette() -> QtGui.QPalette:
     """Create a QPalette configured for dark mode."""
@@ -204,6 +207,3 @@ def apply_theme(dark_mode: bool) -> None:
         widget.style().unpolish(widget)
         widget.style().polish(widget)
         widget.update()
-
-
-

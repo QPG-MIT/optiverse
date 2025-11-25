@@ -1,9 +1,8 @@
 """
 UndoStack manages the history of commands and provides undo/redo functionality.
 """
-from __future__ import annotations
 
-from typing import List
+from __future__ import annotations
 
 from PyQt6 import QtCore
 
@@ -27,8 +26,8 @@ class UndoStack(QtCore.QObject):
     def __init__(self):
         """Initialize an empty undo stack."""
         super().__init__()
-        self._undo_stack: List[Command] = []
-        self._redo_stack: List[Command] = []
+        self._undo_stack: list[Command] = []
+        self._redo_stack: list[Command] = []
 
     def push(self, command: Command) -> None:
         """
@@ -115,6 +114,3 @@ class UndoStack(QtCore.QObject):
             self.canUndoChanged.emit(False)
         if old_can_redo:
             self.canRedoChanged.emit(False)
-
-
-

@@ -3,14 +3,13 @@ Tests for polarization functionality.
 """
 
 import numpy as np
-import pytest
-
-from optiverse.core.models import Polarization, SourceParams, OpticalElement, RayPath
 from optiverse.core.geometry import (
-    transform_polarization_mirror,
-    transform_polarization_lens,
     transform_polarization_beamsplitter,
+    transform_polarization_lens,
+    transform_polarization_mirror,
 )
+
+from optiverse.core.models import OpticalElement, Polarization, SourceParams
 from optiverse.core.use_cases import trace_rays
 
 
@@ -46,7 +45,7 @@ class TestPolarization:
     def test_linear_at_angle(self):
         """Test linear polarization at arbitrary angle."""
         pol = Polarization.linear(45.0)
-        expected = np.array([np.cos(np.pi/4), np.sin(np.pi/4)])
+        expected = np.array([np.cos(np.pi / 4), np.sin(np.pi / 4)])
         assert np.allclose(pol.jones_vector, expected)
 
     def test_normalization(self):
@@ -181,7 +180,7 @@ class TestRayTracingWithPolarization:
             angle_deg=0.0,
             n_rays=1,
             ray_length_mm=200.0,
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         # No optical elements
@@ -201,15 +200,11 @@ class TestRayTracingWithPolarization:
             angle_deg=0.0,
             n_rays=1,
             ray_length_mm=200.0,
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         # Add a mirror
-        mirror = OpticalElement(
-            kind="mirror",
-            p1=np.array([0.0, -50.0]),
-            p2=np.array([0.0, 50.0])
-        )
+        mirror = OpticalElement(kind="mirror", p1=np.array([0.0, -50.0]), p2=np.array([0.0, 50.0]))
 
         paths = trace_rays([mirror], [src])
 
@@ -228,7 +223,7 @@ class TestRayTracingWithPolarization:
             angle_deg=0.0,
             n_rays=1,
             ray_length_mm=200.0,
-            polarization_type="+45"
+            polarization_type="+45",
         )
 
         # PBS at 45 degrees
@@ -237,7 +232,7 @@ class TestRayTracingWithPolarization:
             p1=np.array([0.0, -50.0]),
             p2=np.array([0.0, 50.0]),
             is_polarizing=True,
-            pbs_transmission_axis_deg=0.0  # Horizontal transmission
+            pbs_transmission_axis_deg=0.0,  # Horizontal transmission
         )
 
         paths = trace_rays([pbs], [src])
@@ -245,6 +240,3 @@ class TestRayTracingWithPolarization:
         # Should have multiple ray paths (transmitted and reflected)
         # The 45-degree input should split into both outputs
         assert len(paths) >= 2
-
-
-

@@ -1,20 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Any
 
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
-from ...core.models import ComponentParams
-from ...core.raytracing_math import user_angle_to_qt, qt_angle_to_user
 from ...core.interface_definition import InterfaceDefinition
-from ...platform.paths import to_relative_path, to_absolute_path
-from ...ui.widgets.smart_spinbox import SmartDoubleSpinBox
+from ...core.models import ComponentParams
+from ...core.raytracing_math import qt_angle_to_user, user_angle_to_qt
 from ...ui.widgets.interface_properties_widget import InterfacePropertiesWidget
+from ...ui.widgets.smart_spinbox import SmartDoubleSpinBox
 from ..base_obj import BaseObj
 from ..component_sprite import create_component_sprite
-from ..type_registry import register_type, serialize_item, deserialize_item
+from ..type_registry import deserialize_item, register_type, serialize_item
 
 
 @register_type("component", ComponentParams)
@@ -45,8 +43,8 @@ class ComponentItem(BaseObj):
     def __init__(self, params: ComponentParams, item_uuid: str | None = None):
         super().__init__(item_uuid)
         self.params = params
-        self._sprite: Optional[ComponentSprite] = None
-        self._actual_length_mm: Optional[float] = None
+        self._sprite: ComponentSprite | None = None
+        self._actual_length_mm: float | None = None
         self._update_geom()
         self.setPos(self.params.x_mm, self.params.y_mm)
         self.setRotation(user_angle_to_qt(self.params.angle_deg))
@@ -64,7 +62,7 @@ class ComponentItem(BaseObj):
         self.prepareGeometryChange()
 
         # Get picked line offset for coordinate transformation
-        offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
+        offset_x, offset_y = getattr(self, "_picked_line_offset_mm", (0.0, 0.0))
 
         # Compute bounding box from all interfaces
         if self.params.interfaces:
@@ -87,11 +85,11 @@ class ComponentItem(BaseObj):
             else:
                 # Default bounds
                 L = self.params.object_height_mm
-                self._bounds = QtCore.QRectF(-L/2, -L/2, L, L)
+                self._bounds = QtCore.QRectF(-L / 2, -L / 2, L, L)
         else:
             # Default bounds if no interfaces
             L = self.params.object_height_mm
-            self._bounds = QtCore.QRectF(-L/2, -L/2, L, L)
+            self._bounds = QtCore.QRectF(-L / 2, -L / 2, L, L)
 
     def _maybe_attach_sprite(self):
         """Attach or update component sprite if image available."""
@@ -116,7 +114,7 @@ class ComponentItem(BaseObj):
 
             dx = first_interface.x2_mm - first_interface.x1_mm
             dy = first_interface.y2_mm - first_interface.y1_mm
-            interface_length = (dx**2 + dy**2)**0.5
+            (dx**2 + dy**2) ** 0.5
 
             # Use the interface itself as the reference line for most element types
             # For refractive objects, we might want perpendicular, but for lens/mirror/BS
@@ -142,7 +140,9 @@ class ComponentItem(BaseObj):
             self._update_geom()
             self.setZValue(0)
 
-        elif self.params.image_path and (not self.params.interfaces or len(self.params.interfaces) == 0):
+        elif self.params.image_path and (
+            not self.params.interfaces or len(self.params.interfaces) == 0
+        ):
             # Background objects (no interfaces) - use default horizontal reference line
             # This allows tables, breadboards, etc. to display their sprites
             reference_line_mm = (-50.0, 0.0, 50.0, 0.0)  # Horizontal line at center
@@ -171,7 +171,7 @@ class ComponentItem(BaseObj):
         path = QtGui.QPainterPath()
 
         # Get picked line offset for coordinate transformation
-        offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
+        offset_x, offset_y = getattr(self, "_picked_line_offset_mm", (0.0, 0.0))
 
         # Add all interfaces to shape
         for iface in self.params.interfaces:
@@ -191,10 +191,10 @@ class ComponentItem(BaseObj):
     def _get_interface_color(self, element_type: str) -> QtGui.QColor:
         """Get color for interface based on element type."""
         color_map = {
-            "lens": QtGui.QColor(50, 120, 220),      # Blue
-            "mirror": QtGui.QColor(150, 150, 150),   # Grey
+            "lens": QtGui.QColor(50, 120, 220),  # Blue
+            "mirror": QtGui.QColor(150, 150, 150),  # Grey
             "beam_splitter": QtGui.QColor(15, 160, 80),  # Green
-            "beamsplitter": QtGui.QColor(15, 160, 80),   # Green
+            "beamsplitter": QtGui.QColor(15, 160, 80),  # Green
             "dichroic": QtGui.QColor(200, 50, 200),  # Magenta
             "waveplate": QtGui.QColor(100, 200, 100),  # Light green
             "polarizing_interface": QtGui.QColor(100, 200, 100),  # Light green
@@ -220,11 +220,15 @@ class ComponentItem(BaseObj):
             font = p.font()
             font.setPointSize(10)
             p.setFont(font)
-            p.drawText(self.boundingRect(), QtCore.Qt.AlignmentFlag.AlignCenter, self.params.name or "Background")
+            p.drawText(
+                self.boundingRect(),
+                QtCore.Qt.AlignmentFlag.AlignCenter,
+                self.params.name or "Background",
+            )
             return
 
         # Get picked line offset for coordinate transformation
-        offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
+        offset_x, offset_y = getattr(self, "_picked_line_offset_mm", (0.0, 0.0))
 
         for iface in self.params.interfaces:
             # Get color based on element type
@@ -240,12 +244,18 @@ class ComponentItem(BaseObj):
             p2 = QtCore.QPointF(iface.x2_mm - offset_x, iface.y2_mm - offset_y)
 
             # Check if curved (for lenses with curvature)
-            if hasattr(iface, 'is_curved') and iface.is_curved and abs(getattr(iface, 'radius_of_curvature_mm', 0.0)) > 0.1:
+            if (
+                hasattr(iface, "is_curved")
+                and iface.is_curved
+                and abs(getattr(iface, "radius_of_curvature_mm", 0.0)) > 0.1
+            ):
                 self._draw_curved_surface(p, p1, p2, iface.radius_of_curvature_mm)
             else:
                 p.drawLine(p1, p2)
 
-    def _draw_curved_surface(self, p: QtGui.QPainter, p1: QtCore.QPointF, p2: QtCore.QPointF, radius_mm: float):
+    def _draw_curved_surface(
+        self, p: QtGui.QPainter, p1: QtCore.QPointF, p2: QtCore.QPointF, radius_mm: float
+    ):
         """Draw a curved surface as an arc."""
         import math
 
@@ -256,7 +266,7 @@ class ComponentItem(BaseObj):
         # Chord vector
         dx = p2.x() - p1.x()
         dy = p2.y() - p1.y()
-        chord_length = math.sqrt(dx*dx + dy*dy)
+        chord_length = math.sqrt(dx * dx + dy * dy)
 
         if chord_length < 0.01:
             p.drawLine(p1, p2)
@@ -275,7 +285,7 @@ class ComponentItem(BaseObj):
             p.drawLine(p1, p2)
             return
 
-        d = math.sqrt(r*r - half_chord*half_chord)
+        d = math.sqrt(r * r - half_chord * half_chord)
 
         # Center position (direction depends on sign of radius)
         if radius_mm > 0:
@@ -297,7 +307,7 @@ class ComponentItem(BaseObj):
             span += 360
 
         # Draw arc
-        rect = QtCore.QRectF(center_x - r, center_y - r, 2*r, 2*r)
+        rect = QtCore.QRectF(center_x - r, center_y - r, 2 * r, 2 * r)
         p.drawArc(rect, int(angle1 * 16), int(span * 16))  # Qt uses 1/16th degree units
 
     def get_interfaces_scene(self):
@@ -311,7 +321,7 @@ class ComponentItem(BaseObj):
             in scene coordinates, and interface is an InterfaceDefinition.
         """
         # Get picked line offset for coordinate transformation
-        offset_x, offset_y = getattr(self, '_picked_line_offset_mm', (0.0, 0.0))
+        offset_x, offset_y = getattr(self, "_picked_line_offset_mm", (0.0, 0.0))
 
         result = []
         for iface in self.params.interfaces:
@@ -334,12 +344,15 @@ class ComponentItem(BaseObj):
         # Convert interface dictionaries to InterfaceDefinition objects BEFORE calling super()
         # This is necessary because super().apply_state() calls _update_geom() which expects
         # InterfaceDefinition objects, not dicts
-        if 'params' in state and 'interfaces' in state['params']:
-            interfaces_data = state['params']['interfaces']
-            if interfaces_data and len(interfaces_data) > 0 and isinstance(interfaces_data[0], dict):
-                state['params']['interfaces'] = [
-                    InterfaceDefinition.from_dict(iface_dict)
-                    for iface_dict in interfaces_data
+        if "params" in state and "interfaces" in state["params"]:
+            interfaces_data = state["params"]["interfaces"]
+            if (
+                interfaces_data
+                and len(interfaces_data) > 0
+                and isinstance(interfaces_data[0], dict)
+            ):
+                state["params"]["interfaces"] = [
+                    InterfaceDefinition.from_dict(iface_dict) for iface_dict in interfaces_data
                 ]
 
         # Now call base class implementation (which will call _update_geom())
@@ -362,7 +375,9 @@ class ComponentItem(BaseObj):
         initial_length = self.params.object_height_mm
 
         # Save initial interface states (use .copy() method to preserve type)
-        initial_interfaces = [iface.copy() for iface in self.params.interfaces] if self.params.interfaces else []
+        (
+            [iface.copy() for iface in self.params.interfaces] if self.params.interfaces else []
+        )
 
         x = SmartDoubleSpinBox()
         x.setRange(-1e6, 1e6)
@@ -463,20 +478,18 @@ class ComponentItem(BaseObj):
             final_state = self.capture_state()
             if initial_state != final_state:
                 from ...core.undo_commands import PropertyChangeCommand
+
                 cmd = PropertyChangeCommand(self, initial_state, final_state)
                 self.commandCreated.emit(cmd)
         else:
             # User clicked Cancel - restore initial state
             self.apply_state(initial_state)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary."""
         return serialize_item(self)
 
     @staticmethod
-    def from_dict(d: Dict[str, Any]) -> 'ComponentItem':
+    def from_dict(d: dict[str, Any]) -> ComponentItem:
         """Static factory method: deserialize from dictionary and return new ComponentItem."""
         return deserialize_item(d)
-
-
-

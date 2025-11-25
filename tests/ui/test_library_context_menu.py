@@ -1,6 +1,7 @@
 """Test right-click context menu on library components."""
+
 import pytest
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtCore
 
 
 def test_library_context_menu_on_component(qtbot):
@@ -113,18 +114,15 @@ def test_open_component_editor_with_data(qtbot):
     w.open_component_editor_with_data(payload)
 
     # Verify editor opened
-    assert hasattr(w, '_comp_editor')
+    assert hasattr(w, "_comp_editor")
     assert w._comp_editor is not None
     assert w._comp_editor.isVisible()
 
     # Verify component data was loaded
     editor = w._comp_editor
-    component_name = payload.get('name', '')
+    component_name = payload.get("name", "")
     if component_name:
         assert editor.name_edit.text() == component_name
 
     # Clean up
     editor.close()
-
-
-

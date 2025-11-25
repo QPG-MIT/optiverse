@@ -16,6 +16,3 @@ class LogCategory:
     UI = "UI"
     COMPONENT = "Component"
     SESSION = "Session"
-
-
-

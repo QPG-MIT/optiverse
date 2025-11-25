@@ -3,9 +3,10 @@ Ruler Placement Handler - Manages ruler placement mode.
 
 Extracts ruler placement logic from MainWindow.
 """
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Callable
+from typing import TYPE_CHECKING, Callable
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -28,8 +29,8 @@ class RulerPlacementHandler:
         self,
         scene: QtWidgets.QGraphicsScene,
         view: QtWidgets.QGraphicsView,
-        editor_state: "EditorState",
-        undo_stack: "UndoStack",
+        editor_state: EditorState,
+        undo_stack: UndoStack,
         get_ruler_action: Callable[[], QtWidgets.QAction],
         finish_ruler_mode: Callable[[], None],
     ):
@@ -50,7 +51,7 @@ class RulerPlacementHandler:
         self._undo_stack = undo_stack
         self._get_ruler_action = get_ruler_action
         self._finish_ruler_mode = finish_ruler_mode
-        self._prev_cursor: Optional[QtGui.QCursor] = None
+        self._prev_cursor: QtGui.QCursor | None = None
 
     @property
     def is_active(self) -> bool:
@@ -231,6 +232,7 @@ class RulerPlacementHandler:
     def _handle_item_delete(self, item) -> None:
         """Handle delete request from item's context menu."""
         from ...core.undo_commands import RemoveItemCommand
+
         if item.scene():
             cmd = RemoveItemCommand(item.scene(), item)
             self._undo_stack.push(cmd)
@@ -258,5 +260,3 @@ class RulerPlacementHandler:
             return True
 
         return False
-
-

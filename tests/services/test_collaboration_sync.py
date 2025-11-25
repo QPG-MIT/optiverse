@@ -6,12 +6,13 @@ Test-driven development approach:
 2. Implement features to make tests pass
 3. Verify all tests pass
 """
-import unittest
-from unittest.mock import Mock, MagicMock, patch, call
-from PyQt6.QtCore import QPointF
-from PyQt6.QtWidgets import QApplication, QGraphicsScene
+
 import sys
+import unittest
 import uuid
+from unittest.mock import Mock
+
+from PyQt6.QtWidgets import QApplication, QGraphicsScene
 
 # Ensure QApplication exists for tests
 if not QApplication.instance():
@@ -39,13 +40,10 @@ class TestCollaborationBroadcast(unittest.TestCase):
         # Create a mock optical item with UUID
         item = Mock()
         item.item_uuid = str(uuid.uuid4())
-        item.to_dict = Mock(return_value={
-            'uuid': item.item_uuid,
-            'x_mm': 100.0,
-            'y_mm': 50.0,
-            'angle_deg': 0.0
-        })
-        item.__class__.__name__ = 'LensItem'
+        item.to_dict = Mock(
+            return_value={"uuid": item.item_uuid, "x_mm": 100.0, "y_mm": 50.0, "angle_deg": 0.0}
+        )
+        item.__class__.__name__ = "LensItem"
 
         # Simulate adding item
         collab.broadcast_add_item(item)
@@ -70,13 +68,10 @@ class TestCollaborationBroadcast(unittest.TestCase):
         # Create item
         item = Mock()
         item.item_uuid = str(uuid.uuid4())
-        item.to_dict = Mock(return_value={
-            'uuid': item.item_uuid,
-            'x_mm': 200.0,
-            'y_mm': 100.0,
-            'angle_deg': 45.0
-        })
-        item.__class__.__name__ = 'MirrorItem'
+        item.to_dict = Mock(
+            return_value={"uuid": item.item_uuid, "x_mm": 200.0, "y_mm": 100.0, "angle_deg": 45.0}
+        )
+        item.__class__.__name__ = "MirrorItem"
 
         # Simulate moving item
         collab.broadcast_move_item(item)
@@ -100,7 +95,7 @@ class TestCollaborationBroadcast(unittest.TestCase):
         # Create item
         item = Mock()
         item.item_uuid = str(uuid.uuid4())
-        item.__class__.__name__ = 'SourceItem'
+        item.__class__.__name__ = "SourceItem"
 
         # Simulate removing item
         collab.broadcast_remove_item(item)
@@ -122,12 +117,12 @@ class TestCollaborationBroadcast(unittest.TestCase):
         # Create item
         item = Mock()
         item.item_uuid = str(uuid.uuid4())
-        item.to_dict = Mock(return_value={'uuid': item.item_uuid})
-        item.__class__.__name__ = 'LensItem'
+        item.to_dict = Mock(return_value={"uuid": item.item_uuid})
+        item.__class__.__name__ = "LensItem"
 
         # Try to broadcast (should be suppressed)
         # Real implementation should check flag
-        result = collab.broadcast_add_item(item)
+        collab.broadcast_add_item(item)
 
         # Verify nothing was sent (implementation dependent)
         # This tests the pattern, actual implementation may vary
@@ -148,31 +143,28 @@ class TestCollaborationReceive(unittest.TestCase):
 
         # Create remote add message
         message = {
-            'type': 'command',
-            'command': {
-                'action': 'add_item',
-                'item_type': 'lens',
-                'item_id': str(uuid.uuid4()),
-                'data': {
-                    'x_mm': 150.0,
-                    'y_mm': 75.0,
-                    'angle_deg': 0.0,
-                    'focal_length_mm': 100.0
-                }
+            "type": "command",
+            "command": {
+                "action": "add_item",
+                "item_type": "lens",
+                "item_id": str(uuid.uuid4()),
+                "data": {"x_mm": 150.0, "y_mm": 75.0, "angle_deg": 0.0, "focal_length_mm": 100.0},
             },
-            'user_id': 'remote_user'
+            "user_id": "remote_user",
         }
 
         # Track if remote_item_added signal was emitted
         signal_emitted = []
-        collab.remote_item_added.connect(lambda item_type, data: signal_emitted.append((item_type, data)))
+        collab.remote_item_added.connect(
+            lambda item_type, data: signal_emitted.append((item_type, data))
+        )
 
         # Receive the message
         collab._on_command_received(message)
 
         # Verify signal was emitted
         assert len(signal_emitted) == 1
-        assert signal_emitted[0][0] == 'lens'
+        assert signal_emitted[0][0] == "lens"
 
     def test_remote_move_item_updates_position(self):
         """Test that receiving move_item updates item position."""
@@ -196,18 +188,14 @@ class TestCollaborationReceive(unittest.TestCase):
 
         # Create remote move message
         message = {
-            'type': 'command',
-            'command': {
-                'action': 'move_item',
-                'item_type': 'lens',
-                'item_id': item_uuid,
-                'data': {
-                    'x_mm': 300.0,
-                    'y_mm': 200.0,
-                    'angle_deg': 90.0
-                }
+            "type": "command",
+            "command": {
+                "action": "move_item",
+                "item_type": "lens",
+                "item_id": item_uuid,
+                "data": {"x_mm": 300.0, "y_mm": 200.0, "angle_deg": 90.0},
             },
-            'user_id': 'remote_user'
+            "user_id": "remote_user",
         }
 
         # Receive the message
@@ -237,14 +225,14 @@ class TestCollaborationReceive(unittest.TestCase):
 
         # Create remote remove message
         message = {
-            'type': 'command',
-            'command': {
-                'action': 'remove_item',
-                'item_type': 'lens',
-                'item_id': item_uuid,
-                'data': {}
+            "type": "command",
+            "command": {
+                "action": "remove_item",
+                "item_type": "lens",
+                "item_id": item_uuid,
+                "data": {},
             },
-            'user_id': 'remote_user'
+            "user_id": "remote_user",
         }
 
         # Receive the message
@@ -279,18 +267,18 @@ class TestCollaborationReceive(unittest.TestCase):
 
         # Receive remote move
         message = {
-            'type': 'command',
-            'command': {
-                'action': 'move_item',
-                'item_type': 'lens',
-                'item_id': item_uuid,
-                'data': {'x_mm': 100.0, 'y_mm': 50.0}
+            "type": "command",
+            "command": {
+                "action": "move_item",
+                "item_type": "lens",
+                "item_id": item_uuid,
+                "data": {"x_mm": 100.0, "y_mm": 50.0},
             },
-            'user_id': 'remote_user'
+            "user_id": "remote_user",
         }
 
         # Initial state should be False
-        assert collab._suppress_broadcast == False
+        assert not collab._suppress_broadcast
 
         # Receive the message
         collab._on_command_received(message)
@@ -299,7 +287,7 @@ class TestCollaborationReceive(unittest.TestCase):
         assert any(flag_states), "Suppression flag should have been True during remote apply"
 
         # After completion, flag should be False again
-        assert collab._suppress_broadcast == False
+        assert not collab._suppress_broadcast
 
 
 class TestCollaborationMessageFormat(unittest.TestCase):
@@ -322,7 +310,7 @@ class TestCollaborationMessageFormat(unittest.TestCase):
             action="add_item",
             item_type="lens",
             item_id="test-uuid-123",
-            data={'x_mm': 100.0, 'y_mm': 50.0}
+            data={"x_mm": 100.0, "y_mm": 50.0},
         )
 
         # Verify message was sent
@@ -330,14 +318,15 @@ class TestCollaborationMessageFormat(unittest.TestCase):
 
         # Check message format
         import json
+
         sent_data = service.ws.sendTextMessage.call_args[0][0]
         message = json.loads(sent_data)
 
-        assert message['type'] == 'command'
-        assert message['command']['action'] == 'add_item'
-        assert message['command']['item_type'] == 'lens'
-        assert message['command']['item_id'] == 'test-uuid-123'
-        assert 'timestamp' in message
+        assert message["type"] == "command"
+        assert message["command"]["action"] == "add_item"
+        assert message["command"]["item_type"] == "lens"
+        assert message["command"]["item_id"] == "test-uuid-123"
+        assert "timestamp" in message
 
     def test_move_item_message_includes_position_and_rotation(self):
         """Test that move_item includes both position and rotation."""
@@ -354,21 +343,18 @@ class TestCollaborationMessageFormat(unittest.TestCase):
             action="move_item",
             item_type="mirror",
             item_id="mirror-uuid",
-            data={
-                'x_mm': 200.0,
-                'y_mm': 150.0,
-                'angle_deg': 45.0
-            }
+            data={"x_mm": 200.0, "y_mm": 150.0, "angle_deg": 45.0},
         )
 
         # Verify message format
         import json
+
         sent_data = service.ws.sendTextMessage.call_args[0][0]
         message = json.loads(sent_data)
 
-        assert message['command']['data']['x_mm'] == 200.0
-        assert message['command']['data']['y_mm'] == 150.0
-        assert message['command']['data']['angle_deg'] == 45.0
+        assert message["command"]["data"]["x_mm"] == 200.0
+        assert message["command"]["data"]["y_mm"] == 150.0
+        assert message["command"]["data"]["angle_deg"] == 45.0
 
 
 class TestUUIDManagement(unittest.TestCase):
@@ -380,7 +366,7 @@ class TestUUIDManagement(unittest.TestCase):
         uuids = set()
 
         # Create multiple items (mock for now)
-        for i in range(10):
+        for _i in range(10):
             item_uuid = str(uuid.uuid4())
             assert item_uuid not in uuids
             uuids.add(item_uuid)
@@ -393,14 +379,11 @@ class TestUUIDManagement(unittest.TestCase):
         item = Mock()
         test_uuid = str(uuid.uuid4())
         item.item_uuid = test_uuid
-        item.to_dict = Mock(return_value={
-            'uuid': test_uuid,
-            'x_mm': 100.0
-        })
+        item.to_dict = Mock(return_value={"uuid": test_uuid, "x_mm": 100.0})
 
         data = item.to_dict()
-        assert 'uuid' in data
-        assert data['uuid'] == test_uuid
+        assert "uuid" in data
+        assert data["uuid"] == test_uuid
 
     def test_uuid_restored_from_dict(self):
         """Test that UUID is restored when loading from dict."""
@@ -409,21 +392,18 @@ class TestUUIDManagement(unittest.TestCase):
         test_uuid = str(uuid.uuid4())
 
         def from_dict_impl(data):
-            if 'uuid' in data:
-                item.item_uuid = data['uuid']
+            if "uuid" in data:
+                item.item_uuid = data["uuid"]
 
         item.from_dict = Mock(side_effect=from_dict_impl)
 
         # Load from dict
-        item.from_dict({'uuid': test_uuid, 'x_mm': 100.0})
+        item.from_dict({"uuid": test_uuid, "x_mm": 100.0})
 
         # Verify UUID was set
         assert item.item_uuid == test_uuid
 
 
 # Run tests if executed directly
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-
-
-

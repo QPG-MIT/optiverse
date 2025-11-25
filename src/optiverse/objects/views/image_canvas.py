@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import Optional, Tuple
-
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 # Optional QtSvg for SVG clipboard/loads
 try:
     from PyQt6 import QtSvg
+
     HAVE_QTSVG = True
 except ImportError:
     HAVE_QTSVG = False
@@ -21,19 +20,19 @@ class ImageCanvas(QtWidgets.QLabel):
         super().__init__()
         self.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
-        self._pix: Optional[QtGui.QPixmap] = None
-        self._svg_renderer: Optional[QtSvg.QSvgRenderer] = None  # Native SVG renderer
-        self._svg_cache_pixmap: Optional[QtGui.QPixmap] = None  # Cached pre-rendered SVG
+        self._pix: QtGui.QPixmap | None = None
+        self._svg_renderer: QtSvg.QSvgRenderer | None = None  # Native SVG renderer
+        self._svg_cache_pixmap: QtGui.QPixmap | None = None  # Cached pre-rendered SVG
         self._svg_cache_size: QtCore.QSize = QtCore.QSize()  # Size of cached render
         self._scale_fit = 1.0
-        self._pt1: Optional[Tuple[float, float]] = None
-        self._pt2: Optional[Tuple[float, float]] = None
-        self._src_path: Optional[str] = None
+        self._pt1: tuple[float, float] | None = None
+        self._pt2: tuple[float, float] | None = None
+        self._src_path: str | None = None
         self.setAcceptDrops(True)
         self.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         # Drag state
-        self._dragging_point: Optional[int] = None  # 1 or 2 when dragging
-        self._hover_point: Optional[int] = None  # 1 or 2 when hovering
+        self._dragging_point: int | None = None  # 1 or 2 when dragging
+        self._hover_point: int | None = None  # 1 or 2 when hovering
         self.setMouseTracking(True)
 
     def set_pixmap(self, pix: QtGui.QPixmap, source_path: str | None = None):
@@ -53,7 +52,7 @@ class ImageCanvas(QtWidgets.QLabel):
         self._svg_cache_pixmap = None
         self._svg_cache_size = QtCore.QSize()
 
-        if source_path and source_path.lower().endswith('.svg') and HAVE_QTSVG:
+        if source_path and source_path.lower().endswith(".svg") and HAVE_QTSVG:
             try:
                 renderer = QtSvg.QSvgRenderer(source_path)
                 if renderer.isValid():
@@ -65,10 +64,10 @@ class ImageCanvas(QtWidgets.QLabel):
 
         self.update()
 
-    def source_path(self) -> Optional[str]:
+    def source_path(self) -> str | None:
         return self._src_path
 
-    def current_pixmap(self) -> Optional[QtGui.QPixmap]:
+    def current_pixmap(self) -> QtGui.QPixmap | None:
         return self._pix
 
     def has_image(self) -> bool:
@@ -77,7 +76,7 @@ class ImageCanvas(QtWidgets.QLabel):
     def get_points(self):
         return self._pt1, self._pt2
 
-    def set_points(self, p1: Optional[Tuple[float, float]], p2: Optional[Tuple[float, float]]):
+    def set_points(self, p1: tuple[float, float] | None, p2: tuple[float, float] | None):
         self._pt1 = p1
         self._pt2 = p2
         self.update()
@@ -87,12 +86,14 @@ class ImageCanvas(QtWidgets.QLabel):
         self._pt2 = None
         self.update()
 
-    def image_pixel_size(self) -> Tuple[int, int]:
+    def image_pixel_size(self) -> tuple[int, int]:
         if not self._pix:
             return (0, 0)
         return (self._pix.width(), self._pix.height())
 
-    def _get_point_at_screen_pos(self, screen_pos: QtCore.QPoint, threshold: float = 8.0) -> Optional[int]:
+    def _get_point_at_screen_pos(
+        self, screen_pos: QtCore.QPoint, threshold: float = 8.0
+    ) -> int | None:
         """Check if screen position is near point 1 or 2. Returns 1, 2, or None."""
         if not self._pix:
             return None
@@ -107,7 +108,7 @@ class ImageCanvas(QtWidgets.QLabel):
             Y2 = pixrect.y() + y2 * self._scale_fit
             dx = screen_pos.x() - X2
             dy = screen_pos.y() - Y2
-            if (dx*dx + dy*dy) <= threshold*threshold:
+            if (dx * dx + dy * dy) <= threshold * threshold:
                 return 2
 
         # Check point 1
@@ -117,12 +118,12 @@ class ImageCanvas(QtWidgets.QLabel):
             Y1 = pixrect.y() + y1 * self._scale_fit
             dx = screen_pos.x() - X1
             dy = screen_pos.y() - Y1
-            if (dx*dx + dy*dy) <= threshold*threshold:
+            if (dx * dx + dy * dy) <= threshold * threshold:
                 return 1
 
         return None
 
-    def _screen_to_image_coords(self, screen_pos: QtCore.QPoint) -> Optional[Tuple[float, float]]:
+    def _screen_to_image_coords(self, screen_pos: QtCore.QPoint) -> tuple[float, float] | None:
         """Convert screen position to image pixel coordinates."""
         if not self._pix:
             return None
@@ -264,8 +265,10 @@ class ImageCanvas(QtWidgets.QLabel):
             # Use cached SVG pixmap if available for better performance
             if self._svg_renderer is not None and self._svg_cache_pixmap is not None:
                 # Check if we need to update cache due to significant resize
-                if tgt.width() > self._svg_cache_size.width() * 1.2 or \
-                   tgt.height() > self._svg_cache_size.height() * 1.2:
+                if (
+                    tgt.width() > self._svg_cache_size.width() * 1.2
+                    or tgt.height() > self._svg_cache_size.height() * 1.2
+                ):
                     self._update_svg_cache()
 
                 # Draw cached pixmap with smooth transformation
@@ -278,7 +281,7 @@ class ImageCanvas(QtWidgets.QLabel):
                 X1 = tgt.x() + x1 * self._scale_fit
                 Y1 = tgt.y() + y1 * self._scale_fit
                 # Highlight if hovering or dragging
-                is_active = (self._hover_point == 1 or self._dragging_point == 1)
+                is_active = self._hover_point == 1 or self._dragging_point == 1
                 radius = 6 if is_active else 5
                 pen_width = 3 if is_active else 2
                 pen = QtGui.QPen(QtGui.QColor(0, 180, 255), pen_width)
@@ -291,7 +294,7 @@ class ImageCanvas(QtWidgets.QLabel):
                 X2 = tgt.x() + x2 * self._scale_fit
                 Y2 = tgt.y() + y2 * self._scale_fit
                 # Highlight if hovering or dragging
-                is_active = (self._hover_point == 2 or self._dragging_point == 2)
+                is_active = self._hover_point == 2 or self._dragging_point == 2
                 radius = 6 if is_active else 5
                 pen_width = 3 if is_active else 2
                 pen = QtGui.QPen(QtGui.QColor(255, 80, 0), pen_width)
@@ -346,7 +349,7 @@ class ImageCanvas(QtWidgets.QLabel):
         self._svg_cache_size = cache_size
 
     @staticmethod
-    def _render_svg_to_pixmap(path_or_bytes) -> Optional[QtGui.QPixmap]:
+    def _render_svg_to_pixmap(path_or_bytes) -> QtGui.QPixmap | None:
         """Render SVG file or bytes to QPixmap."""
         if not HAVE_QTSVG:
             return None
@@ -368,7 +371,3 @@ class ImageCanvas(QtWidgets.QLabel):
             return QtGui.QPixmap.fromImage(img)
         except (OSError, RuntimeError):
             return None
-
-
-
-

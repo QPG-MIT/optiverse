@@ -10,7 +10,7 @@ This module contains:
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -43,9 +43,10 @@ class EditableLabel(QtWidgets.QWidget):
     A label that becomes editable when double-clicked.
     More compact than always-visible text fields.
     """
+
     valueChanged = QtCore.pyqtSignal(str)
 
-    def __init__(self, initial_value: str = "", parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(self, initial_value: str = "", parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
         self._value = initial_value
         self._editing = False
@@ -124,7 +125,7 @@ class EditableLabel(QtWidgets.QWidget):
 class ColoredCircleLabel(QtWidgets.QLabel):
     """A small colored circle indicator."""
 
-    def __init__(self, color: str, size: int = 12, parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(self, color: str, size: int = 12, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
         self.setFixedSize(size, size)
         self.setStyleSheet(f"""
@@ -140,11 +141,11 @@ class PropertyListWidget(QtWidgets.QWidget):
 
     propertyChanged = QtCore.pyqtSignal()
 
-    def __init__(self, interface: InterfaceDefinition, parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(self, interface: InterfaceDefinition, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
         self.interface = interface
         self._updating = False
-        self._property_widgets: Dict[str, QtWidgets.QWidget] = {}
+        self._property_widgets: dict[str, QtWidgets.QWidget] = {}
 
         self._setup_ui()
 
@@ -159,7 +160,9 @@ class PropertyListWidget(QtWidgets.QWidget):
         self._form.setContentsMargins(0, 0, 0, 0)
         self._form.setVerticalSpacing(3)
         self._form.setHorizontalSpacing(10)
-        self._form.setLabelAlignment(QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter)
+        self._form.setLabelAlignment(
+            QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter
+        )
         self._form.setFieldGrowthPolicy(QtWidgets.QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
         # Populate form
@@ -170,8 +173,7 @@ class PropertyListWidget(QtWidgets.QWidget):
 
         # Set proper size policy for smooth scrolling
         self.setSizePolicy(
-            QtWidgets.QSizePolicy.Policy.Preferred,
-            QtWidgets.QSizePolicy.Policy.MinimumExpanding
+            QtWidgets.QSizePolicy.Policy.Preferred, QtWidgets.QSizePolicy.Policy.MinimumExpanding
         )
 
     def _populate_form(self):
@@ -193,11 +195,17 @@ class PropertyListWidget(QtWidgets.QWidget):
         self._form.addRow("Type:", type_combo)
 
         # Coordinate fields with double-click-to-edit labels
-        for coord_name, value in [("X₁", self.interface.x1_mm), ("Y₁", self.interface.y1_mm),
-                                    ("X₂", self.interface.x2_mm), ("Y₂", self.interface.y2_mm)]:
+        for coord_name, value in [
+            ("X₁", self.interface.x1_mm),
+            ("Y₁", self.interface.y1_mm),
+            ("X₂", self.interface.x2_mm),
+            ("Y₂", self.interface.y2_mm),
+        ]:
             editable_label = EditableLabel(f"{value:.3f}")
             editable_label.setPlaceholderText("0.000")
-            editable_label.valueChanged.connect(lambda val, c=coord_name: self._on_coordinate_text_changed(c))
+            editable_label.valueChanged.connect(
+                lambda val, c=coord_name: self._on_coordinate_text_changed(c)
+            )
             self._property_widgets[coord_name] = editable_label
             self._form.addRow(f"{coord_name} (mm):", editable_label)
 
@@ -231,20 +239,22 @@ class PropertyListWidget(QtWidgets.QWidget):
             # Use double-click-to-edit label
             widget = EditableLabel(f"{value:.3f}")
             widget.setPlaceholderText("0.000")
-            widget.valueChanged.connect(lambda val, p=prop_name: self._on_numeric_property_changed(p))
+            widget.valueChanged.connect(
+                lambda val, p=prop_name: self._on_numeric_property_changed(p)
+            )
             self._property_widgets[prop_name] = widget
 
             # Add colored circle indicator for n1 and n2 (refractive index properties)
-            if prop_name in ('n1', 'n2'):
+            if prop_name in ("n1", "n2"):
                 h_layout = QtWidgets.QHBoxLayout()
                 h_layout.setContentsMargins(0, 0, 0, 0)
                 h_layout.setSpacing(5)
 
-                if prop_name == 'n1':
-                    circle = ColoredCircleLabel('#FFD700', size=10)
+                if prop_name == "n1":
+                    circle = ColoredCircleLabel("#FFD700", size=10)
                     circle.setToolTip("n₁ side (yellow)")
                 else:
-                    circle = ColoredCircleLabel('#9370DB', size=10)
+                    circle = ColoredCircleLabel("#9370DB", size=10)
                     circle.setToolTip("n₂ side (purple)")
 
                 h_layout.addWidget(circle)
@@ -258,17 +268,17 @@ class PropertyListWidget(QtWidgets.QWidget):
                 self._form.addRow(f"{label_text}:", widget)
 
         elif isinstance(value, str):
-            if prop_name == 'pass_type':
+            if prop_name == "pass_type":
                 widget = QtWidgets.QComboBox()
-                widget.addItems(['longpass', 'shortpass'])
+                widget.addItems(["longpass", "shortpass"])
                 idx = widget.findText(value)
                 if idx >= 0:
                     widget.setCurrentIndex(idx)
                 widget.currentTextChanged.connect(lambda v: self._on_property_changed(prop_name, v))
                 self._property_widgets[prop_name] = widget
-            elif prop_name == 'polarizer_subtype':
+            elif prop_name == "polarizer_subtype":
                 widget = QtWidgets.QComboBox()
-                widget.addItems(['waveplate', 'linear_polarizer', 'faraday_rotator'])
+                widget.addItems(["waveplate", "linear_polarizer", "faraday_rotator"])
                 idx = widget.findText(value)
                 if idx >= 0:
                     widget.setCurrentIndex(idx)
@@ -341,7 +351,7 @@ class PropertyListWidget(QtWidgets.QWidget):
         self._populate_form()
         self.updateGeometry()
 
-        if hasattr(self, 'geometryChanged'):
+        if hasattr(self, "geometryChanged"):
             QtCore.QTimer.singleShot(10, self.geometryChanged)
 
     def _on_numeric_property_changed(self, prop_name: str):
@@ -356,7 +366,9 @@ class PropertyListWidget(QtWidgets.QWidget):
         try:
             value = float(line_edit.text())
 
-            min_val, max_val = interface_types.get_property_range(self.interface.element_type, prop_name)
+            min_val, max_val = interface_types.get_property_range(
+                self.interface.element_type, prop_name
+            )
             if value < min_val or value > max_val:
                 current_value = getattr(self.interface, prop_name, 0.0)
                 line_edit.setText(f"{current_value:.3f}")
@@ -415,7 +427,11 @@ class PropertyListWidget(QtWidgets.QWidget):
                 if isinstance(widget, QtWidgets.QCheckBox):
                     widget.setChecked(value)
                 elif isinstance(widget, QtWidgets.QComboBox):
-                    idx = widget.findData(str(value)) if hasattr(widget, 'findData') else widget.findText(str(value))
+                    idx = (
+                        widget.findData(str(value))
+                        if hasattr(widget, "findData")
+                        else widget.findText(str(value))
+                    )
                     if idx >= 0:
                         widget.setCurrentIndex(idx)
                 elif isinstance(widget, (QtWidgets.QLineEdit, EditableLabel)):
@@ -426,6 +442,3 @@ class PropertyListWidget(QtWidgets.QWidget):
 
         finally:
             self._updating = False
-
-
-

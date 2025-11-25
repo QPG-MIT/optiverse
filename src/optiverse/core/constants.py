@@ -82,6 +82,3 @@ GLASS_REFRACTIVE_INDEX = 1.52
 
 # Maximum number of raytracing events (reflections/refractions) per ray
 MAX_RAYTRACING_EVENTS = 80
-
-
-

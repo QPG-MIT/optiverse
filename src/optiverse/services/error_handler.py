@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import sys
 import traceback
-from typing import Callable, Optional
+from typing import Callable
 
 from PyQt6 import QtCore, QtWidgets
 
@@ -33,7 +33,7 @@ class ErrorHandler:
     def __init__(self):
         """Initialize the error handler."""
         self.log_service = get_log_service()
-        self._error_callback: Optional[Callable[[Exception, str], None]] = None
+        self._error_callback: Callable[[Exception, str], None] | None = None
 
         # Install global exception hook
         self._original_excepthook = sys.excepthook
@@ -64,7 +64,7 @@ class ErrorHandler:
 
         # Format traceback
         tb_lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-        tb_str = ''.join(tb_lines)
+        tb_str = "".join(tb_lines)
 
         # Log the error
         error_msg = f"Unhandled exception: {exc_type.__name__}: {exc_value}"
@@ -73,9 +73,7 @@ class ErrorHandler:
 
         # Show error dialog
         self.show_error_dialog(
-            "Unexpected Error",
-            f"An unexpected error occurred:\n\n{exc_value}",
-            tb_str
+            "Unexpected Error", f"An unexpected error occurred:\n\n{exc_value}", tb_str
         )
 
         # Call custom callback if set
@@ -146,7 +144,7 @@ class ErrorHandler:
 
 
 # Global singleton instance
-_error_handler: Optional[ErrorHandler] = None
+_error_handler: ErrorHandler | None = None
 
 
 def get_error_handler() -> ErrorHandler:
@@ -181,6 +179,7 @@ def handle_errors(suppress: bool = False):
     Returns:
         Decorator function
     """
+
     def decorator(func: Callable) -> Callable:
         def wrapper(*args, **kwargs):
             try:
@@ -196,6 +195,7 @@ def handle_errors(suppress: bool = False):
         wrapper.__name__ = func.__name__
         wrapper.__doc__ = func.__doc__
         return wrapper
+
     return decorator
 
 
@@ -267,5 +267,3 @@ def qt_message_handler(mode, context, message):
 def install_qt_message_handler():
     """Install the Qt message handler."""
     QtCore.qInstallMessageHandler(qt_message_handler)
-
-

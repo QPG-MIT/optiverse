@@ -4,15 +4,16 @@ Test for undo/redo with multiple item deletions.
 This test verifies the fix for the bug where deleting multiple items
 together would require multiple undo operations instead of just one.
 """
+
 from __future__ import annotations
 
 import pytest
 from PyQt6 import QtWidgets
 
-from optiverse.core.undo_stack import UndoStack
+from optiverse.core.models import LensParams, MirrorParams, SourceParams
 from optiverse.core.undo_commands import RemoveMultipleItemsCommand
-from optiverse.objects import SourceItem, LensItem, MirrorItem
-from optiverse.core.models import SourceParams, LensParams, MirrorParams
+from optiverse.core.undo_stack import UndoStack
+from optiverse.objects import LensItem, MirrorItem, SourceItem
 
 
 class TestMultipleItemDeletionUndo:
@@ -149,6 +150,3 @@ class TestMultipleItemDeletionUndo:
 
         # Stack should be empty now (no more undos needed)
         assert not stack.can_undo()
-
-
-

@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..core.exceptions import ComponentLoadError, ComponentSaveError
 from ..core.models import (
@@ -16,10 +15,8 @@ from ..core.models import (
 from ..core.utils import slugify
 from ..platform.paths import (
     get_all_library_roots,
-    get_builtin_library_root,
     get_custom_library_path,
     get_user_library_root,
-    to_absolute_path,
 )
 
 _logger = logging.getLogger(__name__)
@@ -41,7 +38,7 @@ class StorageService:
     - Multiple libraries via settings
     """
 
-    def __init__(self, library_path: Optional[str] = None, settings_service=None):
+    def __init__(self, library_path: str | None = None, settings_service=None):
         """
         Initialize storage service.
 
@@ -58,7 +55,7 @@ class StorageService:
         else:
             self._library_root = get_user_library_root()
 
-    def _iter_component_folders(self) -> List[Path]:
+    def _iter_component_folders(self) -> list[Path]:
         """Find all component folders in the library."""
         if not self._library_root.exists():
             return []
@@ -70,19 +67,19 @@ class StorageService:
 
         return folders
 
-    def load_library(self) -> List[Dict[str, Any]]:
+    def load_library(self) -> list[dict[str, Any]]:
         """
         Load all components from the folder-based library.
 
         Returns:
             List of component dictionaries with absolute image paths for UI display
         """
-        components: List[Dict[str, Any]] = []
+        components: list[dict[str, Any]] = []
 
         for folder in self._iter_component_folders():
             try:
                 json_path = folder / "component.json"
-                with open(json_path, "r", encoding="utf-8") as f:
+                with open(json_path, encoding="utf-8") as f:
                     data = json.load(f)
 
                 # Resolve image path relative to component folder
@@ -212,7 +209,7 @@ class StorageService:
 
         return False
 
-    def get_component(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_component(self, name: str) -> dict[str, Any] | None:
         """
         Get a specific component by name.
 
@@ -230,7 +227,7 @@ class StorageService:
             return None
 
         try:
-            with open(json_path, "r", encoding="utf-8") as f:
+            with open(json_path, encoding="utf-8") as f:
                 data = json.load(f)
 
             # Resolve image path
@@ -297,7 +294,7 @@ class StorageService:
 
         try:
             # Load component to get its name
-            with open(json_path, "r", encoding="utf-8") as f:
+            with open(json_path, encoding="utf-8") as f:
                 data = json.load(f)
 
             component_name = data.get("name", "")
@@ -323,7 +320,7 @@ class StorageService:
             _logger.error("Import failed for %s: %s", source_folder, e)
             return False
 
-    def save_library(self, rows: List[Dict[str, Any]]) -> None:
+    def save_library(self, rows: list[dict[str, Any]]) -> None:
         """
         Legacy method for backwards compatibility.
 
@@ -355,7 +352,7 @@ class StorageService:
         """Get the library root directory."""
         return self._library_root
 
-    def get_all_library_roots(self) -> List[Path]:
+    def get_all_library_roots(self) -> list[Path]:
         """
         Get all configured library roots.
 
@@ -363,5 +360,3 @@ class StorageService:
             List of all library directories (user default + custom from settings)
         """
         return get_all_library_roots(self.settings_service)
-
-

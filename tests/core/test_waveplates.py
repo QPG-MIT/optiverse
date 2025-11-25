@@ -3,10 +3,11 @@ Tests for waveplate polarization physics.
 
 Verifies that quarter and half waveplates correctly transform polarization states.
 """
+
 import numpy as np
 import pytest
-
 from optiverse.core.geometry import transform_polarization_waveplate
+
 from optiverse.core.models import Polarization
 
 
@@ -77,24 +78,21 @@ def test_qwp_forward_horizontal_to_circular():
     """QWP forward at 45° converts horizontal to circular polarization."""
     pol_in = Polarization.horizontal()
     pol_out = transform_polarization_waveplate(
-        pol_in,
-        phase_shift_deg=90.0,
-        fast_axis_deg=45.0,
-        is_forward=True
+        pol_in, phase_shift_deg=90.0, fast_axis_deg=45.0, is_forward=True
     )
 
     jones = pol_out.jones_vector
 
     # Circular: equal magnitude components
     assert np.abs(np.linalg.norm(jones) - 1.0) < 1e-6
-    assert np.abs(np.abs(jones[0]) - 1/np.sqrt(2)) < 1e-6
-    assert np.abs(np.abs(jones[1]) - 1/np.sqrt(2)) < 1e-6
+    assert np.abs(np.abs(jones[0]) - 1 / np.sqrt(2)) < 1e-6
+    assert np.abs(np.abs(jones[1]) - 1 / np.sqrt(2)) < 1e-6
 
     # Check phase difference: should be ±90° (circular polarization)
     phase_diff = np.angle(jones[1]) - np.angle(jones[0])
     # Normalize to [-π, π]
     phase_diff = np.arctan2(np.sin(phase_diff), np.cos(phase_diff))
-    assert np.abs(np.abs(phase_diff) - np.pi/2) < 1e-6  # Either +90° or -90°
+    assert np.abs(np.abs(phase_diff) - np.pi / 2) < 1e-6  # Either +90° or -90°
 
 
 def test_qwp_backward_horizontal_to_circular():
@@ -104,21 +102,21 @@ def test_qwp_backward_horizontal_to_circular():
         pol_in,
         phase_shift_deg=90.0,
         fast_axis_deg=45.0,
-        is_forward=False  # Backward direction
+        is_forward=False,  # Backward direction
     )
 
     jones = pol_out.jones_vector
 
     # Circular: equal magnitude components
     assert np.abs(np.linalg.norm(jones) - 1.0) < 1e-6
-    assert np.abs(np.abs(jones[0]) - 1/np.sqrt(2)) < 1e-6
-    assert np.abs(np.abs(jones[1]) - 1/np.sqrt(2)) < 1e-6
+    assert np.abs(np.abs(jones[0]) - 1 / np.sqrt(2)) < 1e-6
+    assert np.abs(np.abs(jones[1]) - 1 / np.sqrt(2)) < 1e-6
 
     # Check phase difference: should be ±90° (opposite from forward)
     phase_diff = np.angle(jones[1]) - np.angle(jones[0])
     # Normalize to [-π, π]
     phase_diff = np.arctan2(np.sin(phase_diff), np.cos(phase_diff))
-    assert np.abs(np.abs(phase_diff) - np.pi/2) < 1e-6  # Either +90° or -90°
+    assert np.abs(np.abs(phase_diff) - np.pi / 2) < 1e-6  # Either +90° or -90°
 
 
 def test_qwp_directionality_opposite_handedness():
@@ -187,7 +185,9 @@ def test_hwp_directionality_symmetric():
     assert np.allclose(np.abs(jones_fwd), np.abs(jones_bwd), atol=1e-6)
 
     # More rigorous: check if one is a scalar multiple of the other
-    ratio = jones_fwd[0] / jones_bwd[0] if np.abs(jones_bwd[0]) > 1e-6 else jones_fwd[1] / jones_bwd[1]
+    ratio = (
+        jones_fwd[0] / jones_bwd[0] if np.abs(jones_bwd[0]) > 1e-6 else jones_fwd[1] / jones_bwd[1]
+    )
     assert np.allclose(jones_fwd, ratio * jones_bwd, atol=1e-6)
 
 
@@ -219,7 +219,10 @@ def test_qwp_vertical_polarization_directionality():
     phase_bwd = np.arctan2(np.sin(phase_bwd), np.cos(phase_bwd))
 
     # They should be opposite
-    assert np.abs(phase_fwd + phase_bwd) < 1e-5 or np.abs(np.abs(phase_fwd + phase_bwd) - 2*np.pi) < 1e-5
+    assert (
+        np.abs(phase_fwd + phase_bwd) < 1e-5
+        or np.abs(np.abs(phase_fwd + phase_bwd) - 2 * np.pi) < 1e-5
+    )
 
 
 def test_arbitrary_waveplate_directionality():
@@ -249,6 +252,3 @@ def test_arbitrary_waveplate_directionality():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-
-
-

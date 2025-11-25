@@ -7,18 +7,20 @@ Encapsulates all raytracing logic including:
 - Ray data management
 - Ray rendering coordination
 """
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING
 
 from PyQt6 import QtCore
 
-from ...services.error_handler import ErrorContext
-from ...core.log_categories import LogCategory
 from ...core.constants import MAX_RAYTRACING_EVENTS
+from ...core.log_categories import LogCategory
+from ...services.error_handler import ErrorContext
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QGraphicsScene
+
     from ...services.log_service import LogService
     from .ray_renderer import RayRenderer
 
@@ -41,10 +43,10 @@ class RaytracingController(QtCore.QObject):
 
     def __init__(
         self,
-        scene: "QGraphicsScene",
-        ray_renderer: "RayRenderer",
-        log_service: "LogService",
-        parent: Optional[QtCore.QObject] = None,
+        scene: QGraphicsScene,
+        ray_renderer: RayRenderer,
+        log_service: LogService,
+        parent: QtCore.QObject | None = None,
     ):
         """
         Initialize the raytracing controller.
@@ -136,8 +138,8 @@ class RaytracingController(QtCore.QObject):
             self.clear_rays()
 
             # Import here to avoid circular imports
-            from ...objects import SourceItem
             from ...core.models import SourceParams
+            from ...objects import SourceItem
 
             # Collect sources
             sources: list[SourceItem] = []
@@ -151,6 +153,7 @@ class RaytracingController(QtCore.QObject):
             # Convert scene to polymorphic elements using the integration adapter
             try:
                 from ...integration import convert_scene_to_polymorphic
+
                 elements = convert_scene_to_polymorphic(self._scene.items())
             except Exception as e:
                 self._log_service.error(f"Error converting scene: {e}", LogCategory.RAYTRACING)
@@ -164,6 +167,7 @@ class RaytracingController(QtCore.QObject):
             # Trace using polymorphic engine
             try:
                 from ...raytracing import trace_rays_polymorphic
+
                 paths = trace_rays_polymorphic(elements, srcs, max_events=MAX_RAYTRACING_EVENTS)
             except Exception as e:
                 self._log_service.error(f"Error in raytracing: {e}", LogCategory.RAYTRACING)
@@ -192,6 +196,3 @@ class RaytracingController(QtCore.QObject):
 
         # Notify that rays have changed
         self.rays_changed.emit()
-
-
-

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import uuid
-from typing import Dict, Any
+from typing import Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -16,7 +16,9 @@ class RectangleItem(QtWidgets.QGraphicsObject):
     Supports Ctrl+drag and Ctrl+wheel for rotation.
     """
 
-    def __init__(self, width_mm: float = 60.0, height_mm: float = 40.0, item_uuid: str | None = None):
+    def __init__(
+        self, width_mm: float = 60.0, height_mm: float = 40.0, item_uuid: str | None = None
+    ):
         super().__init__()
         self.item_uuid = item_uuid if item_uuid else str(uuid.uuid4())
         self._w = float(width_mm)
@@ -80,12 +82,16 @@ class RectangleItem(QtWidgets.QGraphicsObject):
             self.scene().removeItem(self)
         else:
             # Handle z-order actions via utility
-            handle_z_order_from_menu(self, a, {
-                act_bring_to_front: "bring_to_front",
-                act_bring_forward: "bring_forward",
-                act_send_backward: "send_backward",
-                act_send_to_back: "send_to_back",
-            })
+            handle_z_order_from_menu(
+                self,
+                a,
+                {
+                    act_bring_to_front: "bring_to_front",
+                    act_bring_forward: "bring_forward",
+                    act_send_backward: "send_backward",
+                    act_send_to_back: "send_to_back",
+                },
+            )
 
     def mousePressEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
         """Handle mouse press for rotation mode (Ctrl+drag) or normal drag."""
@@ -161,7 +167,7 @@ class RectangleItem(QtWidgets.QGraphicsObject):
         else:
             super().wheelEvent(ev)
 
-    def clone(self, offset_mm: tuple[float, float] = (20.0, 20.0)) -> 'RectangleItem':
+    def clone(self, offset_mm: tuple[float, float] = (20.0, 20.0)) -> RectangleItem:
         """Create a deep copy of this rectangle with optional position offset."""
         from PyQt6.QtCore import QPointF
 
@@ -181,7 +187,7 @@ class RectangleItem(QtWidgets.QGraphicsObject):
 
         return new_item
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         r = self.boundingRect()
         return {
             "type": "rectangle",
@@ -195,7 +201,7 @@ class RectangleItem(QtWidgets.QGraphicsObject):
         }
 
     @staticmethod
-    def from_dict(d: Dict[str, Any]) -> "RectangleItem":
+    def from_dict(d: dict[str, Any]) -> RectangleItem:
         item_uuid = d.get("item_uuid")
         width_mm = float(d.get("width_mm", 60.0))
         height_mm = float(d.get("height_mm", 40.0))
@@ -211,7 +217,9 @@ class RectangleItem(QtWidgets.QGraphicsObject):
         return item
 
     def open_editor(self):
-        d = QtWidgets.QDialog(self.scene().views()[0].window() if self.scene() and self.scene().views() else None)
+        d = QtWidgets.QDialog(
+            self.scene().views()[0].window() if self.scene() and self.scene().views() else None
+        )
         d.setWindowTitle("Edit Rectangle")
         f = QtWidgets.QFormLayout(d)
 
@@ -296,7 +304,3 @@ class RectangleItem(QtWidgets.QGraphicsObject):
             self._w = initial_w
             self._h = initial_h
             self.update()
-
-
-
-

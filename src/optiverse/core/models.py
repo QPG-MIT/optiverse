@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import List, Tuple, Optional, Dict, Any
+from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
-from .interface_definition import InterfaceDefinition
-
 # Import path utilities for relative/absolute path conversion
 from ..platform.paths import (
-    to_relative_path,
-    to_absolute_path,
+    get_all_library_roots,
     make_library_relative,
-    get_all_library_roots
+    to_absolute_path,
+    to_relative_path,
 )
+from .interface_definition import InterfaceDefinition
 
 
 @dataclass
@@ -30,6 +29,7 @@ class Polarization:
     - Right circular: (1, 1j)/√2
     - Left circular: (1, -1j)/√2
     """
+
     jones_vector: np.ndarray  # 2-element complex array [Ex, Ey]
 
     def __post_init__(self):
@@ -37,45 +37,47 @@ class Polarization:
         if not isinstance(self.jones_vector, np.ndarray):
             self.jones_vector = np.array(self.jones_vector, dtype=complex)
         if self.jones_vector.shape != (2,):
-            raise ValueError(f"Jones vector must be 2-element array, got shape {self.jones_vector.shape}")
+            raise ValueError(
+                f"Jones vector must be 2-element array, got shape {self.jones_vector.shape}"
+            )
 
     @classmethod
-    def horizontal(cls) -> 'Polarization':
+    def horizontal(cls) -> Polarization:
         """Create horizontal linear polarization."""
         return cls(np.array([1.0, 0.0], dtype=complex))
 
     @classmethod
-    def vertical(cls) -> 'Polarization':
+    def vertical(cls) -> Polarization:
         """Create vertical linear polarization."""
         return cls(np.array([0.0, 1.0], dtype=complex))
 
     @classmethod
-    def diagonal_plus_45(cls) -> 'Polarization':
+    def diagonal_plus_45(cls) -> Polarization:
         """Create +45° linear polarization."""
         return cls(np.array([1.0, 1.0], dtype=complex) / np.sqrt(2))
 
     @classmethod
-    def diagonal_minus_45(cls) -> 'Polarization':
+    def diagonal_minus_45(cls) -> Polarization:
         """Create -45° linear polarization."""
         return cls(np.array([1.0, -1.0], dtype=complex) / np.sqrt(2))
 
     @classmethod
-    def circular_right(cls) -> 'Polarization':
+    def circular_right(cls) -> Polarization:
         """Create right circular polarization."""
         return cls(np.array([1.0, 1j], dtype=complex) / np.sqrt(2))
 
     @classmethod
-    def circular_left(cls) -> 'Polarization':
+    def circular_left(cls) -> Polarization:
         """Create left circular polarization."""
         return cls(np.array([1.0, -1j], dtype=complex) / np.sqrt(2))
 
     @classmethod
-    def linear(cls, angle_deg: float) -> 'Polarization':
+    def linear(cls, angle_deg: float) -> Polarization:
         """Create linear polarization at specified angle (degrees from horizontal)."""
         angle_rad = np.deg2rad(angle_deg)
         return cls(np.array([np.cos(angle_rad), np.sin(angle_rad)], dtype=complex))
 
-    def normalize(self) -> 'Polarization':
+    def normalize(self) -> Polarization:
         """Return normalized polarization state."""
         norm = np.linalg.norm(self.jones_vector)
         if norm > 0:
@@ -86,7 +88,7 @@ class Polarization:
         """Calculate total intensity (squared magnitude)."""
         return float(np.abs(np.vdot(self.jones_vector, self.jones_vector)))
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary."""
         return {
             "Ex_real": float(self.jones_vector[0].real),
@@ -96,7 +98,7 @@ class Polarization:
         }
 
     @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> 'Polarization':
+    def from_dict(cls, d: dict[str, Any]) -> Polarization:
         """Deserialize from dictionary."""
         ex = complex(d.get("Ex_real", 1.0), d.get("Ex_imag", 0.0))
         ey = complex(d.get("Ey_real", 0.0), d.get("Ey_imag", 0.0))
@@ -120,12 +122,13 @@ class ComponentRecord:
     - interfaces[].xN_mm: Millimeters in local coordinate system
     - object_height_mm: Physical size for calibration (mm)
     """
+
     name: str
     image_path: str = ""
     object_height_mm: float = 25.4  # Physical size (mm) of the optical element
 
     # Interface-based format
-    interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
+    interfaces: list | None = None  # List[InterfaceDefinition] when available
 
     # Common properties
     angle_deg: float = 0.0  # optical axis angle (degrees)
@@ -133,7 +136,7 @@ class ComponentRecord:
     notes: str = ""
 
 
-def serialize_component(rec: ComponentRecord, settings_service=None) -> Dict[str, Any]:
+def serialize_component(rec: ComponentRecord, settings_service=None) -> dict[str, Any]:
     """
     Serialize ComponentRecord to dict for JSON storage.
 
@@ -185,7 +188,7 @@ def serialize_component(rec: ComponentRecord, settings_service=None) -> Dict[str
     return base
 
 
-def deserialize_component(data: Dict[str, Any], settings_service=None) -> Optional[ComponentRecord]:
+def deserialize_component(data: dict[str, Any], settings_service=None) -> ComponentRecord | None:
     """
     Deserialize dict to ComponentRecord.
 
@@ -229,10 +232,14 @@ def deserialize_component(data: Dict[str, Any], settings_service=None) -> Option
     notes = str(data.get("notes", ""))
 
     # Deserialize interfaces (single current schema, Y-up; no legacy fallback)
-    interfaces: List[InterfaceDefinition] = []
+    interfaces: list[InterfaceDefinition] = []
     interfaces_data = data.get("interfaces")
     if isinstance(interfaces_data, list):
-        interfaces = [InterfaceDefinition.from_dict(iface_data) for iface_data in interfaces_data if isinstance(iface_data, dict)]
+        interfaces = [
+            InterfaceDefinition.from_dict(iface_data)
+            for iface_data in interfaces_data
+            if isinstance(iface_data, dict)
+        ]
 
     return ComponentRecord(
         name=name,
@@ -241,7 +248,7 @@ def deserialize_component(data: Dict[str, Any], settings_service=None) -> Option
         interfaces=interfaces,
         angle_deg=angle_deg,
         category=category,
-        notes=notes
+        notes=notes,
     )
 
 
@@ -259,7 +266,9 @@ class SourceParams:
     # Display color is always taken from color_hex, independent of wavelength
     wavelength_nm: float = 633.0  # Default: 633nm (HeNe laser, red)
     # Polarization parameters
-    polarization_type: str = "horizontal"  # horizontal, vertical, +45, -45, circular_right, circular_left, linear
+    polarization_type: str = (
+        "horizontal"  # horizontal, vertical, +45, -45, circular_right, circular_left, linear
+    )
     polarization_angle_deg: float = 0.0  # Used when polarization_type is "linear"
     # Custom Jones vector (optional override)
     custom_jones_ex_real: float = 1.0
@@ -309,14 +318,15 @@ class BaseOpticalParams:
     Subclasses add component-specific fields (efl_mm for lenses, split_T/R for
     beamsplitters, etc.)
     """
+
     x_mm: float = 0.0
     y_mm: float = 0.0
     angle_deg: float = 0.0
     object_height_mm: float = 60.0
-    image_path: Optional[str] = None
+    image_path: str | None = None
     mm_per_pixel: float = 0.1
-    name: Optional[str] = None
-    interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
+    name: str | None = None
+    interfaces: list | None = None  # List[InterfaceDefinition] when available
 
     def __post_init__(self):
         """Ensure interfaces list exists."""
@@ -327,6 +337,7 @@ class BaseOpticalParams:
 @dataclass
 class LensParams(BaseOpticalParams):
     """Lens parameters with effective focal length."""
+
     x_mm: float = -150.0
     y_mm: float = 0.0
     angle_deg: float = 90.0
@@ -337,6 +348,7 @@ class LensParams(BaseOpticalParams):
 @dataclass
 class MirrorParams(BaseOpticalParams):
     """Mirror parameters."""
+
     x_mm: float = 150.0
     y_mm: float = 0.0
     angle_deg: float = 45.0
@@ -346,6 +358,7 @@ class MirrorParams(BaseOpticalParams):
 @dataclass
 class BlockParams(BaseOpticalParams):
     """Beam block parameters."""
+
     x_mm: float = 0.0
     y_mm: float = 0.0
     angle_deg: float = 0.0
@@ -355,6 +368,7 @@ class BlockParams(BaseOpticalParams):
 @dataclass
 class SLMParams(BaseOpticalParams):
     """Spatial Light Modulator parameters (acts as a mirror)."""
+
     x_mm: float = 150.0
     y_mm: float = 0.0
     angle_deg: float = 0.0
@@ -364,6 +378,7 @@ class SLMParams(BaseOpticalParams):
 @dataclass
 class BeamsplitterParams(BaseOpticalParams):
     """Beamsplitter parameters with transmission/reflection ratios."""
+
     x_mm: float = 0.0
     y_mm: float = 0.0
     angle_deg: float = 45.0
@@ -383,6 +398,7 @@ class WaveplateParams(BaseOpticalParams):
     - Quarter waveplate (QWP): 90° phase shift
     - Half waveplate (HWP): 180° phase shift
     """
+
     x_mm: float = 0.0
     y_mm: float = 0.0
     angle_deg: float = 90.0
@@ -400,6 +416,7 @@ class DichroicParams(BaseOpticalParams):
     - Long pass: reflects short wavelengths, transmits long
     - Short pass: reflects long wavelengths, transmits short
     """
+
     x_mm: float = 0.0
     y_mm: float = 0.0
     angle_deg: float = 45.0
@@ -426,6 +443,7 @@ class RefractiveInterface:
     Note: This matches the InterfaceDefinition coordinate system (Y-up, centered).
     Conversion to Qt's Y-down display happens in ComponentSprite.
     """
+
     # Interface geometry in local coordinates relative to image center (Y-up, mm)
     x1_mm: float = 0.0  # Start point x
     y1_mm: float = 0.0  # Start point y
@@ -456,6 +474,7 @@ class ComponentParams:
     The component is just a container/grouping mechanism - the
     optical behavior is determined by individual interfaces.
     """
+
     # Position and orientation
     x_mm: float = 0.0
     y_mm: float = 0.0
@@ -466,19 +485,19 @@ class ComponentParams:
     mm_per_pixel: float = 0.1
 
     # Display properties
-    name: Optional[str] = None
-    image_path: Optional[str] = None
+    name: str | None = None
+    image_path: str | None = None
 
     # Sprite positioning - reference line in mm coordinates (x1, y1, x2, y2)
     # Used to align the sprite to the optical axis. If None, computed from first interface.
-    reference_line_mm: Optional[Tuple[float, float, float, float]] = None
+    reference_line_mm: tuple[float, float, float, float] | None = None
 
     # Optical interfaces (InterfaceDefinition objects)
-    interfaces: Optional[List] = None  # List[InterfaceDefinition] when available
+    interfaces: list | None = None  # List[InterfaceDefinition] when available
 
     # Metadata
-    category: Optional[str] = None
-    notes: Optional[str] = None
+    category: str | None = None
+    notes: str | None = None
 
     def __post_init__(self):
         """Ensure interfaces list exists."""
@@ -497,14 +516,15 @@ class RefractiveObjectParams:
 
     The first interface is used as the reference line for sprite positioning.
     """
+
     x_mm: float = 0.0  # Component center position
     y_mm: float = 0.0
     angle_deg: float = 45.0  # Component rotation
     object_height_mm: float = 80.0  # Physical size for rendering
-    interfaces: List['RefractiveInterface'] = None  # List of refractive interfaces
-    image_path: Optional[str] = None
+    interfaces: list[RefractiveInterface] = None  # List of refractive interfaces
+    image_path: str | None = None
     mm_per_pixel: float = 0.1
-    name: Optional[str] = None
+    name: str | None = None
 
     def __post_init__(self):
         """Initialize default interfaces if none provided."""
@@ -535,11 +555,7 @@ class OpticalElement:
 
 @dataclass
 class RayPath:
-    points: List[np.ndarray]
-    rgba: Tuple[int, int, int, int]  # color with alpha
-    polarization: Optional[Polarization] = None  # Polarization state of this ray
+    points: list[np.ndarray]
+    rgba: tuple[int, int, int, int]  # color with alpha
+    polarization: Polarization | None = None  # Polarization state of this ray
     wavelength_nm: float = 0.0  # Wavelength in nanometers (0 = not specified)
-
-
-
-

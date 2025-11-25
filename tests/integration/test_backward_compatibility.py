@@ -4,16 +4,21 @@ Backward compatibility tests for polymorphic raytracing engine.
 These tests ensure that the new polymorphic engine produces
 equivalent results to the legacy engine.
 """
-import pytest
-import numpy as np
-from typing import List
 
-from optiverse.core.models import SourceParams, OpticalElement, RayPath
+import numpy as np
+import pytest
+
+from optiverse.core.models import OpticalElement, SourceParams
 from optiverse.core.use_cases import trace_rays as trace_rays_legacy
-from optiverse.raytracing import trace_rays_polymorphic
-from optiverse.integration import convert_legacy_interfaces
-from optiverse.data import OpticalInterface, LineSegment, LensProperties, MirrorProperties, BeamsplitterProperties
+from optiverse.data import (
+    BeamsplitterProperties,
+    LensProperties,
+    LineSegment,
+    MirrorProperties,
+    OpticalInterface,
+)
 from optiverse.integration import create_polymorphic_element
+from optiverse.raytracing import trace_rays_polymorphic
 
 
 class TestBackwardCompatibility:
@@ -27,13 +32,16 @@ class TestBackwardCompatibility:
     def test_empty_scene_compatibility(self):
         """Test that both engines handle empty scenes identically."""
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=3, size_mm=10.0,
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=3,
+            size_mm=10.0,
             ray_length_mm=100.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         # Legacy engine
@@ -54,20 +62,21 @@ class TestBackwardCompatibility:
         """Test that both engines handle a single mirror identically."""
         # Create mirror
         mirror_legacy = OpticalElement(
-            kind="mirror",
-            p1=np.array([50.0, -20.0]),
-            p2=np.array([50.0, 20.0])
+            kind="mirror", p1=np.array([50.0, -20.0]), p2=np.array([50.0, 20.0])
         )
 
         # Create source
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=1, size_mm=0.0,
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=1,
+            size_mm=0.0,
             ray_length_mm=200.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         # Trace with legacy
@@ -99,21 +108,21 @@ class TestBackwardCompatibility:
         """Test that both engines handle a single lens identically."""
         # Create lens
         lens_legacy = OpticalElement(
-            kind="lens",
-            p1=np.array([50.0, -20.0]),
-            p2=np.array([50.0, 20.0]),
-            efl_mm=100.0
+            kind="lens", p1=np.array([50.0, -20.0]), p2=np.array([50.0, 20.0]), efl_mm=100.0
         )
 
         # Create source (off-axis)
         source = SourceParams(
-            x_mm=0.0, y_mm=10.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=1, size_mm=0.0,
+            x_mm=0.0,
+            y_mm=10.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=1,
+            size_mm=0.0,
             ray_length_mm=200.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         # Trace with legacy
@@ -151,18 +160,21 @@ class TestBackwardCompatibility:
             split_T=70.0,
             split_R=30.0,
             is_polarizing=False,
-            pbs_transmission_axis_deg=0.0
+            pbs_transmission_axis_deg=0.0,
         )
 
         # Create source
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=1, size_mm=0.0,
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=1,
+            size_mm=0.0,
             ray_length_mm=200.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         # Trace with legacy
@@ -184,20 +196,21 @@ class TestBackwardCompatibility:
         """Test that both engines handle multiple rays identically."""
         # Create mirror
         mirror_legacy = OpticalElement(
-            kind="mirror",
-            p1=np.array([50.0, -30.0]),
-            p2=np.array([50.0, 30.0])
+            kind="mirror", p1=np.array([50.0, -30.0]), p2=np.array([50.0, 30.0])
         )
 
         # Create source with 5 rays
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=5, size_mm=20.0,
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=5,
+            size_mm=20.0,
             ray_length_mm=200.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         # Trace with legacy
@@ -219,34 +232,28 @@ class TestBackwardCompatibility:
         """Test that both engines handle a complex scene with multiple elements."""
         # Create elements (legacy format)
         lens_legacy = OpticalElement(
-            kind="lens",
-            p1=np.array([50.0, -20.0]),
-            p2=np.array([50.0, 20.0]),
-            efl_mm=100.0
+            kind="lens", p1=np.array([50.0, -20.0]), p2=np.array([50.0, 20.0]), efl_mm=100.0
         )
         mirror_legacy = OpticalElement(
-            kind="mirror",
-            p1=np.array([150.0, -20.0]),
-            p2=np.array([150.0, 20.0])
+            kind="mirror", p1=np.array([150.0, -20.0]), p2=np.array([150.0, 20.0])
         )
 
         # Create source
         source = SourceParams(
-            x_mm=0.0, y_mm=5.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=3, size_mm=10.0,
+            x_mm=0.0,
+            y_mm=5.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=3,
+            size_mm=10.0,
             ray_length_mm=300.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         # Trace with legacy
-        legacy_paths = trace_rays_legacy(
-            [lens_legacy, mirror_legacy],
-            [source],
-            max_events=20
-        )
+        legacy_paths = trace_rays_legacy([lens_legacy, mirror_legacy], [source], max_events=20)
 
         # Convert elements to polymorphic
         lens_geom = LineSegment(np.array([50.0, -20.0]), np.array([50.0, 20.0]))
@@ -260,11 +267,7 @@ class TestBackwardCompatibility:
         mirror_poly = create_polymorphic_element(mirror_iface)
 
         # Trace with polymorphic
-        poly_paths = trace_rays_polymorphic(
-            [lens_poly, mirror_poly],
-            [source],
-            max_events=20
-        )
+        poly_paths = trace_rays_polymorphic([lens_poly, mirror_poly], [source], max_events=20)
 
         # Both should produce 3 paths
         assert len(legacy_paths) == len(poly_paths) == 3
@@ -273,20 +276,21 @@ class TestBackwardCompatibility:
         """Test that both engines produce identical RayPath structures."""
         # Create mirror
         mirror_legacy = OpticalElement(
-            kind="mirror",
-            p1=np.array([50.0, -20.0]),
-            p2=np.array([50.0, 20.0])
+            kind="mirror", p1=np.array([50.0, -20.0]), p2=np.array([50.0, 20.0])
         )
 
         # Create source
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=1, size_mm=0.0,
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=1,
+            size_mm=0.0,
             ray_length_mm=200.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         # Trace with legacy
@@ -306,14 +310,14 @@ class TestBackwardCompatibility:
         poly_path = poly_paths[0]
 
         # Both should have same attributes
-        assert hasattr(legacy_path, 'points')
-        assert hasattr(poly_path, 'points')
-        assert hasattr(legacy_path, 'rgba')
-        assert hasattr(poly_path, 'rgba')
-        assert hasattr(legacy_path, 'polarization')
-        assert hasattr(poly_path, 'polarization')
-        assert hasattr(legacy_path, 'wavelength_nm')
-        assert hasattr(poly_path, 'wavelength_nm')
+        assert hasattr(legacy_path, "points")
+        assert hasattr(poly_path, "points")
+        assert hasattr(legacy_path, "rgba")
+        assert hasattr(poly_path, "rgba")
+        assert hasattr(legacy_path, "polarization")
+        assert hasattr(poly_path, "polarization")
+        assert hasattr(legacy_path, "wavelength_nm")
+        assert hasattr(poly_path, "wavelength_nm")
 
         # RGBA format should be identical
         assert len(legacy_path.rgba) == len(poly_path.rgba) == 4
@@ -330,13 +334,16 @@ class TestRegressionPrevention:
     def test_ray_escaping_behavior(self):
         """Test that rays escape properly when no elements are hit."""
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=1, size_mm=0.0,
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=1,
+            size_mm=0.0,
             ray_length_mm=100.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         # Polymorphic engine
@@ -362,13 +369,16 @@ class TestRegressionPrevention:
 
         # Create source
         source = SourceParams(
-            x_mm=0.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=1, size_mm=0.0,
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=1,
+            size_mm=0.0,
             ray_length_mm=200.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         # Trace
@@ -397,13 +407,16 @@ class TestRegressionPrevention:
 
         # Create source between mirrors
         source = SourceParams(
-            x_mm=75.0, y_mm=0.0,
-            angle_deg=0.0, spread_deg=0.0,
-            n_rays=1, size_mm=0.0,
+            x_mm=75.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=1,
+            size_mm=0.0,
             ray_length_mm=1000.0,
             wavelength_nm=633.0,
             color_hex="#FF0000",
-            polarization_type="horizontal"
+            polarization_type="horizontal",
         )
 
         # Trace with low max_events
@@ -416,6 +429,3 @@ class TestRegressionPrevention:
 if __name__ == "__main__":
     # Run tests
     pytest.main([__file__, "-v"])
-
-
-

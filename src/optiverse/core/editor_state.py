@@ -3,10 +3,11 @@ Editor state management.
 
 Provides a clean state machine for editor modes, replacing scattered boolean flags.
 """
+
 from __future__ import annotations
 
 from enum import Enum, auto
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..objects.annotations.ruler_item import RulerItem
@@ -19,11 +20,12 @@ class EditorMode(Enum):
     Only one mode can be active at a time. This replaces the scattered boolean
     flags like _inspect_mode, _placement_mode, _path_measure_mode, _placing_ruler.
     """
-    DEFAULT = auto()        # Normal selection/editing mode
-    INSPECT = auto()        # Inspect tool active
-    PATH_MEASURE = auto()   # Path measure tool active
+
+    DEFAULT = auto()  # Normal selection/editing mode
+    INSPECT = auto()  # Inspect tool active
+    PATH_MEASURE = auto()  # Path measure tool active
     ANGLE_MEASURE = auto()  # Angle measure tool active
-    PLACEMENT = auto()      # Component placement mode
+    PLACEMENT = auto()  # Component placement mode
     RULER_PLACEMENT = auto()  # Ruler two-click placement
 
 
@@ -39,10 +41,10 @@ class EditorState:
         self._mode = EditorMode.DEFAULT
 
         # Placement-specific state (only valid when mode == PLACEMENT)
-        self._placement_type: Optional[str] = None
+        self._placement_type: str | None = None
 
         # Ruler placement state (only valid when mode == RULER_PLACEMENT)
-        self._ruler_in_progress: Optional['RulerItem'] = None  # RulerItem being placed
+        self._ruler_in_progress: RulerItem | None = None  # RulerItem being placed
 
     @property
     def mode(self) -> EditorMode:
@@ -80,17 +82,17 @@ class EditorState:
         return self._mode == EditorMode.RULER_PLACEMENT
 
     @property
-    def placement_type(self) -> Optional[str]:
+    def placement_type(self) -> str | None:
         """Get the current placement type (only valid in PLACEMENT mode)."""
         return self._placement_type if self._mode == EditorMode.PLACEMENT else None
 
     @property
-    def ruler_in_progress(self) -> Optional['RulerItem']:
+    def ruler_in_progress(self) -> RulerItem | None:
         """Get the ruler currently being placed (only valid in RULER_PLACEMENT mode)."""
         return self._ruler_in_progress if self._mode == EditorMode.RULER_PLACEMENT else None
 
     @ruler_in_progress.setter
-    def ruler_in_progress(self, value: Optional['RulerItem']):
+    def ruler_in_progress(self, value: RulerItem | None):
         """Set the ruler currently being placed."""
         if self._mode == EditorMode.RULER_PLACEMENT:
             self._ruler_in_progress = value
@@ -184,6 +186,3 @@ class EditorState:
             Previous mode for cleanup purposes
         """
         return self.enter_default()
-
-
-

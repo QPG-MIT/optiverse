@@ -4,6 +4,7 @@ Test suite for polymorphic optical elements.
 Tests the IOpticalElement interface and all concrete implementations.
 This defines expected behavior before implementation (TDD).
 """
+
 import math
 
 import numpy as np
@@ -15,7 +16,7 @@ class TestRayState:
 
     def test_create_ray_state(self):
         """Test creating a ray state"""
-        from optiverse.raytracing.ray import RayState, Polarization
+        from optiverse.raytracing.ray import Polarization, RayState
 
         ray = RayState(
             position=np.array([0.0, 0.0]),
@@ -24,7 +25,7 @@ class TestRayState:
             polarization=Polarization.horizontal(),
             wavelength_nm=633.0,
             path=[np.array([0.0, 0.0])],
-            events=0
+            events=0,
         )
 
         assert np.array_equal(ray.position, np.array([0.0, 0.0]))
@@ -34,7 +35,7 @@ class TestRayState:
 
     def test_ray_state_advance(self):
         """Test advancing ray along direction"""
-        from optiverse.raytracing.ray import RayState, Polarization
+        from optiverse.raytracing.ray import Polarization, RayState
 
         ray = RayState(
             position=np.array([0.0, 0.0]),
@@ -43,7 +44,7 @@ class TestRayState:
             polarization=Polarization.horizontal(),
             wavelength_nm=633.0,
             path=[],
-            events=0
+            events=0,
         )
 
         new_ray = ray.advance(distance=10.0)
@@ -60,9 +61,9 @@ class TestIOpticalElement:
         from optiverse.raytracing.elements.base import IOpticalElement
 
         # Check it's an abstract base class
-        assert hasattr(IOpticalElement, 'interact')
-        assert hasattr(IOpticalElement, 'get_geometry')
-        assert hasattr(IOpticalElement, 'get_bounding_box')
+        assert hasattr(IOpticalElement, "interact")
+        assert hasattr(IOpticalElement, "get_geometry")
+        assert hasattr(IOpticalElement, "get_bounding_box")
 
     def test_cannot_instantiate_interface(self):
         """Test that IOpticalElement cannot be instantiated directly"""
@@ -80,9 +81,7 @@ class TestMirrorElement:
         from optiverse.raytracing.elements import MirrorElement
 
         mirror = MirrorElement(
-            p1=np.array([0.0, -10.0]),
-            p2=np.array([0.0, 10.0]),
-            reflectivity=0.99
+            p1=np.array([0.0, -10.0]), p2=np.array([0.0, 10.0]), reflectivity=0.99
         )
 
         p1, p2 = mirror.get_geometry()
@@ -92,13 +91,11 @@ class TestMirrorElement:
     def test_mirror_reflection(self):
         """Test mirror reflects ray according to law of reflection"""
         from optiverse.raytracing.elements import MirrorElement
-        from optiverse.raytracing.ray import RayState, Polarization
+        from optiverse.raytracing.ray import Polarization, RayState
 
         # Vertical mirror at x=0
         mirror = MirrorElement(
-            p1=np.array([0.0, -10.0]),
-            p2=np.array([0.0, 10.0]),
-            reflectivity=0.99
+            p1=np.array([0.0, -10.0]), p2=np.array([0.0, 10.0]), reflectivity=0.99
         )
 
         # Ray traveling right, hits mirror
@@ -109,7 +106,7 @@ class TestMirrorElement:
             polarization=Polarization.horizontal(),
             wavelength_nm=633.0,
             path=[],
-            events=0
+            events=0,
         )
 
         hit_point = np.array([0.0, 0.0])
@@ -133,13 +130,11 @@ class TestMirrorElement:
     def test_mirror_at_45_degrees(self):
         """Test mirror at 45° reflects ray 90°"""
         from optiverse.raytracing.elements import MirrorElement
-        from optiverse.raytracing.ray import RayState, Polarization
+        from optiverse.raytracing.ray import Polarization, RayState
 
         # 45° mirror
         mirror = MirrorElement(
-            p1=np.array([-10.0, -10.0]),
-            p2=np.array([10.0, 10.0]),
-            reflectivity=1.0
+            p1=np.array([-10.0, -10.0]), p2=np.array([10.0, 10.0]), reflectivity=1.0
         )
 
         # Ray traveling right
@@ -150,13 +145,13 @@ class TestMirrorElement:
             polarization=Polarization.horizontal(),
             wavelength_nm=633.0,
             path=[],
-            events=0
+            events=0,
         )
 
         hit_point = np.array([0.0, 0.0])
         # 45° mirror: normal at 135° (pointing upper-left)
-        normal = np.array([-1.0/np.sqrt(2), 1.0/np.sqrt(2)])
-        tangent = np.array([1.0/np.sqrt(2), 1.0/np.sqrt(2)])
+        normal = np.array([-1.0 / np.sqrt(2), 1.0 / np.sqrt(2)])
+        tangent = np.array([1.0 / np.sqrt(2), 1.0 / np.sqrt(2)])
 
         output_rays = mirror.interact(ray, hit_point, normal, tangent)
         reflected = output_rays[0]
@@ -172,11 +167,7 @@ class TestLensElement:
         """Test creating a lens element"""
         from optiverse.raytracing.elements import LensElement
 
-        lens = LensElement(
-            p1=np.array([0.0, -15.0]),
-            p2=np.array([0.0, 15.0]),
-            efl_mm=100.0
-        )
+        lens = LensElement(p1=np.array([0.0, -15.0]), p2=np.array([0.0, 15.0]), efl_mm=100.0)
 
         p1, p2 = lens.get_geometry()
         assert np.array_equal(p1, np.array([0.0, -15.0]))
@@ -184,14 +175,10 @@ class TestLensElement:
     def test_lens_on_axis_ray_unchanged(self):
         """Test lens doesn't deflect on-axis ray"""
         from optiverse.raytracing.elements import LensElement
-        from optiverse.raytracing.ray import RayState, Polarization
+        from optiverse.raytracing.ray import Polarization, RayState
 
         # Vertical lens at x=0
-        lens = LensElement(
-            p1=np.array([0.0, -15.0]),
-            p2=np.array([0.0, 15.0]),
-            efl_mm=100.0
-        )
+        lens = LensElement(p1=np.array([0.0, -15.0]), p2=np.array([0.0, 15.0]), efl_mm=100.0)
 
         # On-axis ray (y=0)
         ray = RayState(
@@ -201,7 +188,7 @@ class TestLensElement:
             polarization=Polarization.horizontal(),
             wavelength_nm=633.0,
             path=[],
-            events=0
+            events=0,
         )
 
         hit_point = np.array([0.0, 0.0])
@@ -219,14 +206,10 @@ class TestLensElement:
     def test_lens_off_axis_ray_deflected(self):
         """Test lens deflects off-axis ray toward focus"""
         from optiverse.raytracing.elements import LensElement
-        from optiverse.raytracing.ray import RayState, Polarization
+        from optiverse.raytracing.ray import Polarization, RayState
 
         # Vertical lens at x=0, f=100mm
-        lens = LensElement(
-            p1=np.array([0.0, -15.0]),
-            p2=np.array([0.0, 15.0]),
-            efl_mm=100.0
-        )
+        lens = LensElement(p1=np.array([0.0, -15.0]), p2=np.array([0.0, 15.0]), efl_mm=100.0)
 
         # Off-axis ray at y=10mm
         ray = RayState(
@@ -236,7 +219,7 @@ class TestLensElement:
             polarization=Polarization.horizontal(),
             wavelength_nm=633.0,
             path=[],
-            events=0
+            events=0,
         )
 
         hit_point = np.array([0.0, 10.0])
@@ -260,10 +243,7 @@ class TestRefractiveElement:
         from optiverse.raytracing.elements import RefractiveElement
 
         interface = RefractiveElement(
-            p1=np.array([0.0, -5.0]),
-            p2=np.array([0.0, 5.0]),
-            n1=1.0,
-            n2=1.5
+            p1=np.array([0.0, -5.0]), p2=np.array([0.0, 5.0]), n1=1.0, n2=1.5
         )
 
         p1, p2 = interface.get_geometry()
@@ -272,14 +252,14 @@ class TestRefractiveElement:
     def test_refractive_normal_incidence(self):
         """Test refraction at normal incidence (no bending)"""
         from optiverse.raytracing.elements import RefractiveElement
-        from optiverse.raytracing.ray import RayState, Polarization
+        from optiverse.raytracing.ray import Polarization, RayState
 
         # Air-glass interface
         interface = RefractiveElement(
             p1=np.array([0.0, -5.0]),
             p2=np.array([0.0, 5.0]),
             n1=1.0,  # Air
-            n2=1.5   # Glass
+            n2=1.5,  # Glass
         )
 
         # Ray perpendicular to interface
@@ -290,7 +270,7 @@ class TestRefractiveElement:
             polarization=Polarization.horizontal(),
             wavelength_nm=633.0,
             path=[],
-            events=0
+            events=0,
         )
 
         hit_point = np.array([0.0, 0.0])
@@ -311,14 +291,14 @@ class TestRefractiveElement:
     def test_total_internal_reflection(self):
         """Test total internal reflection when angle exceeds critical angle"""
         from optiverse.raytracing.elements import RefractiveElement
-        from optiverse.raytracing.ray import RayState, Polarization
+        from optiverse.raytracing.ray import Polarization, RayState
 
         # Glass-air interface (going from dense to less dense)
         interface = RefractiveElement(
             p1=np.array([0.0, -5.0]),
             p2=np.array([0.0, 5.0]),
             n1=1.5,  # Glass
-            n2=1.0   # Air
+            n2=1.0,  # Air
         )
 
         # Ray at steep angle (beyond critical angle)
@@ -332,7 +312,7 @@ class TestRefractiveElement:
             polarization=Polarization.horizontal(),
             wavelength_nm=633.0,
             path=[],
-            events=0
+            events=0,
         )
 
         hit_point = np.array([0.0, 0.0])
@@ -356,10 +336,7 @@ class TestBeamsplitterElement:
         from optiverse.raytracing.elements import BeamsplitterElement
 
         bs = BeamsplitterElement(
-            p1=np.array([-10.0, -10.0]),
-            p2=np.array([10.0, 10.0]),
-            transmission=0.5,
-            reflection=0.5
+            p1=np.array([-10.0, -10.0]), p2=np.array([10.0, 10.0]), transmission=0.5, reflection=0.5
         )
 
         p1, p2 = bs.get_geometry()
@@ -368,14 +345,11 @@ class TestBeamsplitterElement:
     def test_beamsplitter_splits_ray(self):
         """Test beamsplitter creates two rays"""
         from optiverse.raytracing.elements import BeamsplitterElement
-        from optiverse.raytracing.ray import RayState, Polarization
+        from optiverse.raytracing.ray import Polarization, RayState
 
         # 50/50 beamsplitter
         bs = BeamsplitterElement(
-            p1=np.array([-10.0, -10.0]),
-            p2=np.array([10.0, 10.0]),
-            transmission=0.5,
-            reflection=0.5
+            p1=np.array([-10.0, -10.0]), p2=np.array([10.0, 10.0]), transmission=0.5, reflection=0.5
         )
 
         ray = RayState(
@@ -385,12 +359,12 @@ class TestBeamsplitterElement:
             polarization=Polarization.horizontal(),
             wavelength_nm=633.0,
             path=[],
-            events=0
+            events=0,
         )
 
         hit_point = np.array([0.0, 0.0])
-        normal = np.array([1.0/np.sqrt(2), 1.0/np.sqrt(2)])  # 45°
-        tangent = np.array([-1.0/np.sqrt(2), 1.0/np.sqrt(2)])
+        normal = np.array([1.0 / np.sqrt(2), 1.0 / np.sqrt(2)])  # 45°
+        tangent = np.array([-1.0 / np.sqrt(2), 1.0 / np.sqrt(2)])
 
         output_rays = bs.interact(ray, hit_point, normal, tangent)
 
@@ -414,7 +388,7 @@ class TestWaveplateElement:
             p1=np.array([0.0, -15.0]),
             p2=np.array([0.0, 15.0]),
             phase_shift_deg=90.0,
-            fast_axis_deg=45.0
+            fast_axis_deg=45.0,
         )
 
         p1, p2 = qwp.get_geometry()
@@ -423,14 +397,14 @@ class TestWaveplateElement:
     def test_qwp_converts_linear_to_circular(self):
         """Test QWP at 45° converts horizontal linear to circular"""
         from optiverse.raytracing.elements import WaveplateElement
-        from optiverse.raytracing.ray import RayState, Polarization
+        from optiverse.raytracing.ray import Polarization, RayState
 
         # Quarter waveplate at 45°
         qwp = WaveplateElement(
             p1=np.array([0.0, -15.0]),
             p2=np.array([0.0, 15.0]),
             phase_shift_deg=90.0,
-            fast_axis_deg=45.0
+            fast_axis_deg=45.0,
         )
 
         # Horizontal linear polarization
@@ -441,7 +415,7 @@ class TestWaveplateElement:
             polarization=Polarization.horizontal(),
             wavelength_nm=633.0,
             path=[],
-            events=0
+            events=0,
         )
 
         hit_point = np.array([0.0, 0.0])
@@ -473,7 +447,7 @@ class TestDichroicElement:
             p2=np.array([10.0, 10.0]),
             cutoff_wavelength_nm=550.0,
             transition_width_nm=50.0,
-            pass_type="longpass"
+            pass_type="longpass",
         )
 
         p1, p2 = dichroic.get_geometry()
@@ -482,7 +456,7 @@ class TestDichroicElement:
     def test_dichroic_reflects_short_wavelength(self):
         """Test longpass dichroic reflects short wavelengths"""
         from optiverse.raytracing.elements import DichroicElement
-        from optiverse.raytracing.ray import RayState, Polarization
+        from optiverse.raytracing.ray import Polarization, RayState
 
         # 550nm longpass dichroic
         dichroic = DichroicElement(
@@ -490,7 +464,7 @@ class TestDichroicElement:
             p2=np.array([10.0, 10.0]),
             cutoff_wavelength_nm=550.0,
             transition_width_nm=50.0,
-            pass_type="longpass"
+            pass_type="longpass",
         )
 
         # 488nm ray (blue, < 550nm)
@@ -501,12 +475,12 @@ class TestDichroicElement:
             polarization=Polarization.horizontal(),
             wavelength_nm=488.0,  # Blue
             path=[],
-            events=0
+            events=0,
         )
 
         hit_point = np.array([0.0, 0.0])
-        normal = np.array([1.0/np.sqrt(2), 1.0/np.sqrt(2)])
-        tangent = np.array([-1.0/np.sqrt(2), 1.0/np.sqrt(2)])
+        normal = np.array([1.0 / np.sqrt(2), 1.0 / np.sqrt(2)])
+        tangent = np.array([-1.0 / np.sqrt(2), 1.0 / np.sqrt(2)])
 
         output_rays = dichroic.interact(ray, hit_point, normal, tangent)
 
@@ -522,6 +496,3 @@ class TestDichroicElement:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-
-
-

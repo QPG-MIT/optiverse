@@ -4,12 +4,10 @@ Smoke tests for controller classes.
 These tests verify that the controller classes can be instantiated
 and their basic methods work without errors.
 """
+
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
-import pytest
-from PyQt6 import QtWidgets, QtCore
+from unittest.mock import MagicMock
 
 
 class TestFileControllerImport:
@@ -26,13 +24,13 @@ class TestFileControllerImport:
         from optiverse.ui.controllers.file_controller import FileController
 
         # FileController is a QObject with signals
-        assert hasattr(FileController, 'traceRequested')
-        assert hasattr(FileController, 'windowTitleChanged')
+        assert hasattr(FileController, "traceRequested")
+        assert hasattr(FileController, "windowTitleChanged")
 
     def test_file_controller_instantiation(self, qapp, scene):
         """Test that FileController can be instantiated with mocks."""
-        from optiverse.ui.controllers.file_controller import FileController
         from optiverse.core.undo_stack import UndoStack
+        from optiverse.ui.controllers.file_controller import FileController
 
         mock_log = MagicMock()
         mock_get_ray_data = MagicMock(return_value=[])
@@ -47,9 +45,9 @@ class TestFileControllerImport:
         )
 
         assert controller is not None
-        assert hasattr(controller, 'save_assembly')
-        assert hasattr(controller, 'open_assembly')
-        assert hasattr(controller, 'is_modified')
+        assert hasattr(controller, "save_assembly")
+        assert hasattr(controller, "open_assembly")
+        assert hasattr(controller, "is_modified")
 
 
 class TestCollaborationControllerImport:
@@ -65,7 +63,7 @@ class TestCollaborationControllerImport:
         """Test that CollaborationController has expected signals."""
         from optiverse.ui.controllers.collaboration_controller import CollaborationController
 
-        assert hasattr(CollaborationController, 'statusChanged')
+        assert hasattr(CollaborationController, "statusChanged")
 
     def test_collaboration_controller_instantiation(self, qapp):
         """Test that CollaborationController can be instantiated with mocks."""
@@ -81,9 +79,9 @@ class TestCollaborationControllerImport:
         )
 
         assert controller is not None
-        assert hasattr(controller, 'open_dialog')
-        assert hasattr(controller, 'disconnect')
-        assert hasattr(controller, 'is_connected')
+        assert hasattr(controller, "open_dialog")
+        assert hasattr(controller, "disconnect")
+        assert hasattr(controller, "is_connected")
 
 
 class TestRaytracingControllerImport:
@@ -110,9 +108,9 @@ class TestRaytracingControllerImport:
         )
 
         assert controller is not None
-        assert hasattr(controller, 'schedule_retrace')
-        assert hasattr(controller, 'clear_rays')
-        assert hasattr(controller, 'autotrace')
+        assert hasattr(controller, "schedule_retrace")
+        assert hasattr(controller, "clear_rays")
+        assert hasattr(controller, "autotrace")
 
     def test_raytracing_controller_autotrace_property(self, qapp, scene):
         """Test autotrace property getter/setter."""
@@ -167,8 +165,8 @@ class TestToolModeControllerImport:
 
     def test_tool_mode_controller_instantiation(self, qapp):
         """Test that ToolModeController can be instantiated with mocks."""
-        from optiverse.ui.controllers.tool_mode_controller import ToolModeController
         from optiverse.core.editor_state import EditorState
+        from optiverse.ui.controllers.tool_mode_controller import ToolModeController
 
         editor_state = EditorState()
         mock_view = MagicMock()
@@ -184,9 +182,9 @@ class TestToolModeControllerImport:
         )
 
         assert controller is not None
-        assert hasattr(controller, 'toggle_inspect')
-        assert hasattr(controller, 'toggle_path_measure')
-        assert hasattr(controller, 'toggle_placement')
+        assert hasattr(controller, "toggle_inspect")
+        assert hasattr(controller, "toggle_path_measure")
+        assert hasattr(controller, "toggle_placement")
 
 
 class TestControllerSignals:
@@ -194,8 +192,8 @@ class TestControllerSignals:
 
     def test_file_controller_trace_requested_signal(self, qapp, scene):
         """Test that FileController emits traceRequested signal."""
-        from optiverse.ui.controllers.file_controller import FileController
         from optiverse.core.undo_stack import UndoStack
+        from optiverse.ui.controllers.file_controller import FileController
 
         mock_log = MagicMock()
         mock_get_ray_data = MagicMock(return_value=[])
@@ -238,6 +236,3 @@ class TestControllerSignals:
         controller.statusChanged.emit("Test status")
         assert len(signal_values) == 1
         assert signal_values[0] == "Test status"
-
-
-

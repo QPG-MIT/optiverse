@@ -14,9 +14,10 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from PyQt6 import QtWidgets, QtCore, QtGui
-from optiverse.platform.paths import is_macos, is_windows, is_linux
+from PyQt6 import QtCore, QtGui, QtWidgets
+
 from optiverse.objects.views.graphics_view import GraphicsView
+from optiverse.platform.paths import is_linux, is_macos, is_windows
 
 
 def test_platform_detection():
@@ -52,35 +53,39 @@ def test_graphics_view_configuration(app):
 
     if is_macos():
         expected_mode = QtWidgets.QGraphicsView.ViewportUpdateMode.MinimalViewportUpdate
-        assert update_mode == expected_mode, f"Expected MinimalViewportUpdate on Mac, got {update_mode.name}"
+        assert update_mode == expected_mode, (
+            f"Expected MinimalViewportUpdate on Mac, got {update_mode.name}"
+        )
         print("✓ Mac-optimized viewport update mode (MinimalViewportUpdate)")
         print("  (Updates only changed items, avoids grid artifacts)")
     else:
         expected_mode = QtWidgets.QGraphicsView.ViewportUpdateMode.FullViewportUpdate
-        assert update_mode == expected_mode, f"Expected FullViewportUpdate on non-Mac, got {update_mode.name}"
+        assert update_mode == expected_mode, (
+            f"Expected FullViewportUpdate on non-Mac, got {update_mode.name}"
+        )
         print("✓ Standard viewport update mode (FullViewportUpdate)")
 
     print()
 
     # Test gesture state variables
     print("Gesture state variables:")
-    assert hasattr(view, '_pinch_start_scale'), "Missing _pinch_start_scale"
+    assert hasattr(view, "_pinch_start_scale"), "Missing _pinch_start_scale"
     print("✓ _pinch_start_scale exists")
 
-    assert hasattr(view, '_is_panning_gesture'), "Missing _is_panning_gesture"
+    assert hasattr(view, "_is_panning_gesture"), "Missing _is_panning_gesture"
     print("✓ _is_panning_gesture exists")
 
     print()
 
     # Test gesture handlers
     print("Gesture handlers:")
-    assert hasattr(view, 'viewportEvent'), "Missing viewportEvent"
+    assert hasattr(view, "viewportEvent"), "Missing viewportEvent"
     print("✓ viewportEvent method exists")
 
-    assert hasattr(view, '_handle_gesture_event'), "Missing _handle_gesture_event"
+    assert hasattr(view, "_handle_gesture_event"), "Missing _handle_gesture_event"
     print("✓ _handle_gesture_event method exists")
 
-    assert hasattr(view, '_handle_pinch_gesture'), "Missing _handle_pinch_gesture"
+    assert hasattr(view, "_handle_pinch_gesture"), "Missing _handle_pinch_gesture"
     print("✓ _handle_pinch_gesture method exists")
 
     print()
@@ -111,7 +116,7 @@ def test_wheel_event_handling(app):
         QtCore.Qt.MouseButton.NoButton,
         QtCore.Qt.KeyboardModifier.NoModifier,
         QtCore.Qt.ScrollPhase.ScrollUpdate,
-        False
+        False,
     )
 
     try:
@@ -134,7 +139,7 @@ def test_wheel_event_handling(app):
         QtCore.Qt.MouseButton.NoButton,
         QtCore.Qt.KeyboardModifier.NoModifier,
         QtCore.Qt.ScrollPhase.NoScrollPhase,
-        False
+        False,
     )
 
     try:
@@ -213,6 +218,7 @@ def main():
         print("=" * 60)
         print(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
     finally:
@@ -222,6 +228,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-

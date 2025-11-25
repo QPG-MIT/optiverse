@@ -10,7 +10,6 @@ Handles conversion between:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
 
 from PyQt6 import QtCore
 
@@ -18,6 +17,7 @@ from PyQt6 import QtCore
 @dataclass
 class CoordinateParams:
     """Parameters for coordinate transformations."""
+
     img_rect: QtCore.QRect  # Image rectangle in screen coordinates
     scale_fit: float  # Scale factor from image to screen
     mm_per_px: float  # Millimeters per image pixel
@@ -55,7 +55,7 @@ class CanvasCoordinateSystem:
 
     def __init__(self):
         """Initialize coordinate system."""
-        self._params: Optional[CoordinateParams] = None
+        self._params: CoordinateParams | None = None
 
     def update_params(self, img_rect: QtCore.QRect, scale_fit: float, mm_per_px: float):
         """
@@ -66,11 +66,7 @@ class CanvasCoordinateSystem:
             scale_fit: Scale factor from image to screen
             mm_per_px: Millimeters per image pixel
         """
-        self._params = CoordinateParams(
-            img_rect=img_rect,
-            scale_fit=scale_fit,
-            mm_per_px=mm_per_px
-        )
+        self._params = CoordinateParams(img_rect=img_rect, scale_fit=scale_fit, mm_per_px=mm_per_px)
 
     @property
     def is_valid(self) -> bool:
@@ -83,13 +79,13 @@ class CanvasCoordinateSystem:
         )
 
     @property
-    def params(self) -> Optional[CoordinateParams]:
+    def params(self) -> CoordinateParams | None:
         """Get current coordinate parameters."""
         return self._params
 
     # ========== MM to Screen ==========
 
-    def mm_to_screen(self, x_mm: float, y_mm: float) -> Tuple[float, float]:
+    def mm_to_screen(self, x_mm: float, y_mm: float) -> tuple[float, float]:
         """
         Convert millimeter coordinates to screen coordinates.
 
@@ -122,7 +118,7 @@ class CanvasCoordinateSystem:
 
     # ========== Screen to MM ==========
 
-    def screen_to_mm(self, x_screen: float, y_screen: float) -> Tuple[float, float]:
+    def screen_to_mm(self, x_screen: float, y_screen: float) -> tuple[float, float]:
         """
         Convert screen coordinates to millimeter coordinates.
 
@@ -148,13 +144,13 @@ class CanvasCoordinateSystem:
 
         return (x_mm, y_mm)
 
-    def screen_to_mm_from_point(self, pos: QtCore.QPoint) -> Tuple[float, float]:
+    def screen_to_mm_from_point(self, pos: QtCore.QPoint) -> tuple[float, float]:
         """Convert QPoint screen position to mm coordinates."""
         return self.screen_to_mm(pos.x(), pos.y())
 
     # ========== Screen to Image Pixels ==========
 
-    def screen_to_img_px(self, x_screen: float, y_screen: float) -> Tuple[float, float]:
+    def screen_to_img_px(self, x_screen: float, y_screen: float) -> tuple[float, float]:
         """
         Convert screen coordinates to image pixel coordinates (centered, Y-up).
 
@@ -177,7 +173,7 @@ class CanvasCoordinateSystem:
 
     # ========== Screen Delta to MM Delta ==========
 
-    def screen_delta_to_mm(self, dx_screen: float, dy_screen: float) -> Tuple[float, float]:
+    def screen_delta_to_mm(self, dx_screen: float, dy_screen: float) -> tuple[float, float]:
         """
         Convert screen coordinate delta to mm delta.
 
@@ -220,8 +216,9 @@ class CanvasCoordinateSystem:
 
     # ========== Clamping ==========
 
-    def clamp_img_px(self, x_img_px: float, y_img_px: float,
-                     img_width: int, img_height: int) -> Tuple[float, float]:
+    def clamp_img_px(
+        self, x_img_px: float, y_img_px: float, img_width: int, img_height: int
+    ) -> tuple[float, float]:
         """
         Clamp image pixel coordinates to image bounds.
 
@@ -257,13 +254,13 @@ class CanvasCoordinateSystem:
         """
         if not self.is_valid:
             return {
-                'h_scale': 1.0,
-                'h_offset': 0.0,
-                'h_range': (-50.0, 50.0),
-                'v_scale': 1.0,
-                'v_offset': 0.0,
-                'v_range': (-50.0, 50.0),
-                'show_mm': True
+                "h_scale": 1.0,
+                "h_offset": 0.0,
+                "h_range": (-50.0, 50.0),
+                "v_scale": 1.0,
+                "v_offset": 0.0,
+                "v_range": (-50.0, 50.0),
+                "show_mm": True,
             }
 
         p = self._params
@@ -280,14 +277,11 @@ class CanvasCoordinateSystem:
         half_height_mm = (img_height / 2) * p.mm_per_px
 
         return {
-            'h_scale': scale,
-            'h_offset': h_offset,
-            'h_range': (-half_width_mm, half_width_mm),
-            'v_scale': scale,
-            'v_offset': v_offset,
-            'v_range': (-half_height_mm, half_height_mm),
-            'show_mm': True
+            "h_scale": scale,
+            "h_offset": h_offset,
+            "h_range": (-half_width_mm, half_width_mm),
+            "v_scale": scale,
+            "v_offset": v_offset,
+            "v_range": (-half_height_mm, half_height_mm),
+            "show_mm": True,
         }
-
-
-

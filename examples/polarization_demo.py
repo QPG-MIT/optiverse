@@ -8,8 +8,8 @@ This script shows how to:
 3. Trace rays and examine their polarization states
 """
 
-import sys
 import os
+import sys
 
 # Add src to path if running standalone
 root = os.path.dirname(os.path.dirname(__file__))
@@ -18,9 +18,10 @@ if os.path.isdir(src) and src not in sys.path:
     sys.path.insert(0, src)
 
 import numpy as np
+
 from optiverse.core.models import (
-    Polarization, SourceParams, OpticalElement,
-    BeamsplitterParams, MirrorParams
+    Polarization,
+    SourceParams,
 )
 
 
@@ -65,11 +66,10 @@ def demo_source_configuration():
         ("+45°", {"polarization_type": "+45"}),
         ("Circular right", {"polarization_type": "circular_right"}),
         ("30° linear", {"polarization_type": "linear", "polarization_angle_deg": 30.0}),
-        ("Custom Jones", {
-            "use_custom_jones": True,
-            "custom_jones_ex_real": 1.0,
-            "custom_jones_ey_imag": 1.0
-        }),
+        (
+            "Custom Jones",
+            {"use_custom_jones": True, "custom_jones_ex_real": 1.0, "custom_jones_ey_imag": 1.0},
+        ),
     ]
 
     for name, kwargs in configs:
@@ -111,24 +111,30 @@ def demo_pbs_simulation():
 
         # Transmitted beam
         pol_t, int_t = transform_polarization_beamsplitter(
-            pol_in, v_in, n_hat, t_hat,
+            pol_in,
+            v_in,
+            n_hat,
+            t_hat,
             is_polarizing=True,
             pbs_axis_deg=pbs_axis,
-            is_transmitted=True
+            is_transmitted=True,
         )
 
         # Reflected beam
         pol_r, int_r = transform_polarization_beamsplitter(
-            pol_in, v_in, n_hat, t_hat,
+            pol_in,
+            v_in,
+            n_hat,
+            t_hat,
             is_polarizing=True,
             pbs_axis_deg=pbs_axis,
-            is_transmitted=False
+            is_transmitted=False,
         )
 
-        print(f"  Transmitted:")
+        print("  Transmitted:")
         print(f"    Jones: {pol_t.jones_vector}")
         print(f"    Intensity factor: {int_t:.3f}")
-        print(f"  Reflected:")
+        print("  Reflected:")
         print(f"    Jones: {pol_r.jones_vector}")
         print(f"    Intensity factor: {int_r:.3f}")
         print(f"  Total intensity: {int_t + int_r:.3f} (should be ~1.0)")
@@ -169,18 +175,18 @@ def demo_serialization():
 
     # Create a complex polarization state
     pol = Polarization(np.array([1.0 + 0.5j, 0.8 - 0.3j], dtype=complex))
-    print(f"\nOriginal polarization:")
+    print("\nOriginal polarization:")
     print(f"  Jones vector: {pol.jones_vector}")
 
     # Serialize
     data = pol.to_dict()
-    print(f"\nSerialized data:")
+    print("\nSerialized data:")
     for key, val in data.items():
         print(f"  {key}: {val}")
 
     # Deserialize
     pol_restored = Polarization.from_dict(data)
-    print(f"\nRestored polarization:")
+    print("\nRestored polarization:")
     print(f"  Jones vector: {pol_restored.jones_vector}")
 
     # Verify
@@ -214,6 +220,7 @@ def main():
     except Exception as e:
         print(f"\n❌ Demo failed: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 
@@ -222,6 +229,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-

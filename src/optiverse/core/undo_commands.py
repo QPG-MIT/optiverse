@@ -2,14 +2,15 @@
 Command pattern implementation for undo/redo functionality.
 Each command encapsulates an action that can be executed and undone.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any
 
 from PyQt6 import QtCore
 
-from .protocols import Editable, Undoable, HasParams
+from .protocols import Editable, HasParams, Undoable
 
 if TYPE_CHECKING:
     from PyQt6 import QtWidgets
@@ -32,7 +33,7 @@ class Command(ABC):
         """Return command ID for merging. Return -1 to disable merging."""
         return -1
 
-    def merge_with(self, other: 'Command') -> bool:
+    def merge_with(self, other: Command) -> bool:
         """Attempt to merge with another command. Return True if successful."""
         return False
 
@@ -130,7 +131,7 @@ class MoveItemCommand(Command):
         """Return unique ID for this item to enable command merging."""
         return id(self.item)
 
-    def merge_with(self, other: 'Command') -> bool:
+    def merge_with(self, other: Command) -> bool:
         """Merge with another MoveItemCommand for the same item."""
         if not isinstance(other, MoveItemCommand):
             return False
@@ -237,8 +238,8 @@ class PropertyChangeCommand(Command):
     def __init__(
         self,
         item: Undoable,
-        before_state: Dict[str, Any],
-        after_state: Dict[str, Any],
+        before_state: dict[str, Any],
+        after_state: dict[str, Any],
     ):
         """
         Initialize PropertyChangeCommand.
@@ -260,7 +261,7 @@ class PropertyChangeCommand(Command):
         """Restore the before state to the item."""
         self._apply_state(self.before_state)
 
-    def _apply_state(self, state: Dict[str, Any]) -> None:
+    def _apply_state(self, state: dict[str, Any]) -> None:
         """Apply a state dictionary to the item."""
         # Try custom apply_state method first (Undoable protocol)
         if isinstance(self.item, Undoable):
@@ -269,9 +270,9 @@ class PropertyChangeCommand(Command):
 
         # Fallback: apply each key-value pair
         for key, value in state.items():
-            if key == 'pos':
-                self.item.setPos(QtCore.QPointF(value['x'], value['y']))
-            elif key == 'rotation':
+            if key == "pos":
+                self.item.setPos(QtCore.QPointF(value["x"], value["y"]))
+            elif key == "rotation":
                 self.item.setRotation(value)
             elif isinstance(self.item, HasParams):
                 # For items with params dataclass

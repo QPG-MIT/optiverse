@@ -3,9 +3,10 @@ Component operations handler for copy, paste, delete, and drop operations.
 
 Extracts component manipulation logic from MainWindow.
 """
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, List, Optional
+from typing import TYPE_CHECKING, Callable
 
 from PyQt6 import QtCore, QtWidgets
 
@@ -13,8 +14,8 @@ from ...core.log_categories import LogCategory
 
 if TYPE_CHECKING:
     from ...core.undo_stack import UndoStack
-    from ...services.log_service import LogService
     from ...services.collaboration_manager import CollaborationManager
+    from ...services.log_service import LogService
 
 
 class ComponentOperationsHandler:
@@ -27,9 +28,9 @@ class ComponentOperationsHandler:
     def __init__(
         self,
         scene: QtWidgets.QGraphicsScene,
-        undo_stack: "UndoStack",
-        collaboration_manager: "CollaborationManager",
-        log_service: "LogService",
+        undo_stack: UndoStack,
+        collaboration_manager: CollaborationManager,
+        log_service: LogService,
         snap_to_grid_getter: Callable[[], bool],
         connect_item_signals: Callable,
         schedule_retrace: Callable,
@@ -61,7 +62,7 @@ class ComponentOperationsHandler:
         self.parent_widget = parent_widget
 
         # Clipboard for copy/paste
-        self._clipboard: List = []
+        self._clipboard: list = []
 
     def on_drop_component(self, rec: dict, scene_pos: QtCore.QPointF):
         """
@@ -81,18 +82,14 @@ class ComponentOperationsHandler:
             scene_pos = QtCore.QPointF(round(scene_pos.x()), round(scene_pos.y()))
 
         # Use ComponentFactory to create the item
-        item = ComponentFactory.create_item_from_dict(
-            rec,
-            scene_pos.x(),
-            scene_pos.y()
-        )
+        item = ComponentFactory.create_item_from_dict(rec, scene_pos.x(), scene_pos.y())
 
         if not item:
             name = rec.get("name", "Unknown")
             QtWidgets.QMessageBox.warning(
                 self.parent_widget,
                 "Invalid Component",
-                f"Cannot create component '{name}': Unknown error during creation."
+                f"Cannot create component '{name}': Unknown error during creation.",
             )
             return
 
@@ -117,7 +114,7 @@ class ComponentOperationsHandler:
         """Delete selected items using undo stack."""
         from ...core.undo_commands import RemoveItemCommand, RemoveMultipleItemsCommand
         from ...objects import BaseObj, RectangleItem
-        from ...objects.annotations import RulerItem, TextNoteItem, AngleMeasureItem
+        from ...objects.annotations import AngleMeasureItem, RulerItem, TextNoteItem
         from ...objects.annotations.path_measure_item import PathMeasureItem
 
         selected = self.scene.selectedItems()
@@ -126,7 +123,17 @@ class ComponentOperationsHandler:
 
         for item in selected:
             # Only delete optical components and annotations (not grid lines or rays)
-            if isinstance(item, (BaseObj, RulerItem, TextNoteItem, RectangleItem, PathMeasureItem, AngleMeasureItem)):
+            if isinstance(
+                item,
+                (
+                    BaseObj,
+                    RulerItem,
+                    TextNoteItem,
+                    RectangleItem,
+                    PathMeasureItem,
+                    AngleMeasureItem,
+                ),
+            ):
                 # Check if item is locked
                 if isinstance(item, BaseObj) and item.is_locked():
                     locked_items.append(item)
@@ -141,7 +148,7 @@ class ComponentOperationsHandler:
             QtWidgets.QMessageBox.warning(
                 self.parent_widget,
                 "Locked Items",
-                f"Cannot delete {locked_count} locked item(s).\nUnlock them first in the edit dialog."
+                f"Cannot delete {locked_count} locked item(s).\nUnlock them first in the edit dialog.",
             )
 
         # Use a single command for all deletions
@@ -171,9 +178,11 @@ class ComponentOperationsHandler:
         self._set_paste_enabled(len(self._clipboard) > 0)
 
         if len(self._clipboard) > 0:
-            self.log_service.info(f"Copied {len(self._clipboard)} item(s) to clipboard", LogCategory.COPY_PASTE)
+            self.log_service.info(
+                f"Copied {len(self._clipboard)} item(s) to clipboard", LogCategory.COPY_PASTE
+            )
 
-    def paste_items(self, target_pos: Optional[QtCore.QPointF] = None):
+    def paste_items(self, target_pos: QtCore.QPointF | None = None):
         """Paste items from clipboard using clone() method.
 
         Args:
@@ -224,13 +233,16 @@ class ComponentOperationsHandler:
 
             except Exception as e:
                 import traceback
+
                 self.log_service.error(
                     f"Error pasting {type(item).__name__}: {e}\n{traceback.format_exc()}",
-                    LogCategory.COPY_PASTE
+                    LogCategory.COPY_PASTE,
                 )
 
         if pasted_items:
-            self.log_service.info(f"Successfully pasted {len(pasted_items)} item(s)", LogCategory.COPY_PASTE)
+            self.log_service.info(
+                f"Successfully pasted {len(pasted_items)} item(s)", LogCategory.COPY_PASTE
+            )
 
             # Use undo command to add all pasted items at once
             cmd = PasteItemsCommand(self.scene, pasted_items)
@@ -247,6 +259,3 @@ class ComponentOperationsHandler:
     def has_clipboard_items(self) -> bool:
         """Check if clipboard has items for pasting."""
         return len(self._clipboard) > 0
-
-
-

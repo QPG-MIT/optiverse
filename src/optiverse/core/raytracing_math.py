@@ -2,22 +2,27 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 # Try to import numba, but make it optional
 try:
     from numba import jit
+
     NUMBA_AVAILABLE = True
 except ImportError:
     # Fallback: no-op decorator if numba isn't available
     def jit(*args, **kwargs):
         def decorator(func):
             return func
+
         return decorator
+
     NUMBA_AVAILABLE = False
-    logging.warning("numba not available. Raytracing will be slower. Install with: pip install numba")
+    logging.warning(
+        "numba not available. Raytracing will be slower. Install with: pip install numba"
+    )
 
 if TYPE_CHECKING:
     from .models import Polarization
@@ -32,7 +37,7 @@ def deg2rad(a: float) -> float:
 @jit(nopython=True, cache=True)
 def normalize(v: np.ndarray) -> np.ndarray:
     """Normalize a vector. JIT-compiled for performance when numba is available."""
-    n = math.sqrt(v[0]**2 + v[1]**2)
+    n = math.sqrt(v[0] ** 2 + v[1] ** 2)
     if n == 0.0:
         return v.copy()
     else:
@@ -95,7 +100,9 @@ def jones_matrix_rotation(angle_deg: float) -> np.ndarray:
     return np.array([[c, s], [-s, c]], dtype=complex)
 
 
-def transform_polarization_mirror(pol: 'Polarization', v_in: np.ndarray, n_hat: np.ndarray) -> 'Polarization':
+def transform_polarization_mirror(
+    pol: Polarization, v_in: np.ndarray, n_hat: np.ndarray
+) -> Polarization:
     """
     Transform polarization upon reflection from a mirror.
 
@@ -139,7 +146,7 @@ def transform_polarization_mirror(pol: 'Polarization', v_in: np.ndarray, n_hat: 
     return Polarization(jones_out)
 
 
-def transform_polarization_lens(pol: 'Polarization') -> 'Polarization':
+def transform_polarization_lens(pol: Polarization) -> Polarization:
     """
     Transform polarization through a lens.
 
@@ -156,11 +163,8 @@ def transform_polarization_lens(pol: 'Polarization') -> 'Polarization':
 
 
 def transform_polarization_waveplate(
-    pol: 'Polarization',
-    phase_shift_deg: float,
-    fast_axis_deg: float,
-    is_forward: bool = True
-) -> 'Polarization':
+    pol: Polarization, phase_shift_deg: float, fast_axis_deg: float, is_forward: bool = True
+) -> Polarization:
     """
     Transform polarization through a waveplate.
 
@@ -263,14 +267,14 @@ def transform_polarization_waveplate(
 
 
 def transform_polarization_beamsplitter(
-    pol: 'Polarization',
+    pol: Polarization,
     v_in: np.ndarray,
     n_hat: np.ndarray,
     t_hat: np.ndarray,
     is_polarizing: bool,
     pbs_axis_deg: float,
-    is_transmitted: bool
-) -> Tuple['Polarization', float]:
+    is_transmitted: bool,
+) -> tuple[Polarization, float]:
     """
     Transform polarization through a beamsplitter.
 
@@ -348,8 +352,8 @@ def transform_polarization_beamsplitter(
     # Define transmission axis (p-axis) and perpendicular axis (s-axis) in lab frame
     # The p-axis is the direction that transmits, s-axis reflects
     axis_rad = deg2rad(pbs_axis_deg)
-    p_axis = np.array([np.cos(axis_rad), np.sin(axis_rad)])      # Transmission direction
-    s_axis = np.array([-np.sin(axis_rad), np.cos(axis_rad)])     # Reflection direction (perpendicular)
+    p_axis = np.array([np.cos(axis_rad), np.sin(axis_rad)])  # Transmission direction
+    s_axis = np.array([-np.sin(axis_rad), np.cos(axis_rad)])  # Reflection direction (perpendicular)
 
     # Decompose input Jones vector onto p and s axes
     # This is the key step that implements Malus's Law
@@ -384,8 +388,8 @@ def compute_dichroic_reflectance(
     wavelength_nm: float,
     cutoff_wavelength_nm: float,
     transition_width_nm: float,
-    pass_type: str = "longpass"
-) -> Tuple[float, float]:
+    pass_type: str = "longpass",
+) -> tuple[float, float]:
     """
     Compute reflection and transmission coefficients for a dichroic mirror.
 
@@ -434,11 +438,8 @@ def compute_dichroic_reflectance(
 
 
 def refract_vector_snell(
-    v_in: np.ndarray,
-    n_hat: np.ndarray,
-    n1: float,
-    n2: float
-) -> Tuple[Optional[np.ndarray], bool]:
+    v_in: np.ndarray, n_hat: np.ndarray, n1: float, n2: float
+) -> tuple[np.ndarray | None, bool]:
     """
     Apply Snell's law to refract a ray at an interface.
 
@@ -491,11 +492,7 @@ def refract_vector_snell(
     return v_refracted, False
 
 
-def fresnel_coefficients(
-    theta1_rad: float,
-    n1: float,
-    n2: float
-) -> Tuple[float, float]:
+def fresnel_coefficients(theta1_rad: float, n1: float, n2: float) -> tuple[float, float]:
     """
     Compute Fresnel reflection and transmission coefficients for unpolarized light.
 
@@ -570,7 +567,7 @@ def ray_hit_element(
     # Compute segment direction and length
     # NOTE: Direction is B->A (reversed) to flip normal 180° for correct n1/n2 sides
     diff = A - B
-    L = math.sqrt(diff[0]**2 + diff[1]**2)
+    L = math.sqrt(diff[0] ** 2 + diff[1] ** 2)
     if L < tol:
         return None
 
@@ -646,14 +643,14 @@ def ray_hit_curved_element(
     b = 2.0 * np.dot(V, PC)
     c = np.dot(PC, PC) - radius**2
 
-    discriminant = b**2 - 4*a*c
+    discriminant = b**2 - 4 * a * c
 
     if discriminant < 0:
         return None  # No intersection with circle
 
     sqrt_disc = math.sqrt(discriminant)
-    t1 = (-b - sqrt_disc) / (2*a)
-    t2 = (-b + sqrt_disc) / (2*a)
+    t1 = (-b - sqrt_disc) / (2 * a)
+    t2 = (-b + sqrt_disc) / (2 * a)
 
     # Try both intersection points (ray might hit circle twice)
     for t in [t1, t2]:
@@ -733,7 +730,7 @@ def _point_on_arc_bounds(
     # Handle wraparound case
     if angle2 >= angle1:
         span = angle2 - angle1
-        in_bounds = (angle1 - tol <= angle_point <= angle2 + tol)
+        in_bounds = angle1 - tol <= angle_point <= angle2 + tol
     else:
         # Arc wraps around 0
         span = (2 * math.pi - angle1) + angle2
@@ -776,8 +773,3 @@ def calculate_path_length(points: list[np.ndarray]) -> float:
         total_length += math.sqrt(dx * dx + dy * dy)
 
     return total_length
-
-
-
-
-

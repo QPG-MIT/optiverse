@@ -4,9 +4,9 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Union
+from typing import Any
 
-from ..core.models import ComponentRecord, deserialize_component, serialize_component
+from ..core.models import ComponentRecord, deserialize_component
 
 _logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ def _library_root() -> Path:
     return Path(__file__).parent / "library"
 
 
-def _iter_component_json_files(library_path: Optional[Path] = None) -> List[Path]:
+def _iter_component_json_files(library_path: Path | None = None) -> list[Path]:
     """
     Find all component.json files one level under the library root.
 
@@ -33,7 +33,9 @@ def _iter_component_json_files(library_path: Optional[Path] = None) -> List[Path
     return [p for p in root.iterdir() if p.is_dir() and (p / "component.json").exists()]
 
 
-def load_component_records(library_path: Optional[Path] = None, settings_service=None) -> List[ComponentRecord]:
+def load_component_records(
+    library_path: Path | None = None, settings_service=None
+) -> list[ComponentRecord]:
     """
     Load components from per-object folders into typed ComponentRecord objects.
     Skips invalid or unreadable component definitions.
@@ -45,14 +47,14 @@ def load_component_records(library_path: Optional[Path] = None, settings_service
     Returns:
         List of ComponentRecord objects
     """
-    records: List[ComponentRecord] = []
+    records: list[ComponentRecord] = []
     is_builtin = library_path is None
 
     for folder in _iter_component_json_files(library_path):
         json_path = folder / "component.json"
         try:
-            with open(json_path, "r", encoding="utf-8") as f:
-                data: Dict[str, Any] = json.load(f)
+            with open(json_path, encoding="utf-8") as f:
+                data: dict[str, Any] = json.load(f)
 
             # Resolve image_path
             image_path = data.get("image_path")
@@ -76,7 +78,9 @@ def load_component_records(library_path: Optional[Path] = None, settings_service
     return records
 
 
-def load_component_records_from_multiple(library_paths: List[Union[str, Path]], settings_service=None) -> List[ComponentRecord]:
+def load_component_records_from_multiple(
+    library_paths: list[str | Path], settings_service=None
+) -> list[ComponentRecord]:
     """
     Load components from multiple library paths.
 
@@ -86,7 +90,7 @@ def load_component_records_from_multiple(library_paths: List[Union[str, Path]], 
     Returns:
         Combined list of ComponentRecord objects from all libraries
     """
-    all_records: List[ComponentRecord] = []
+    all_records: list[ComponentRecord] = []
 
     for lib_path in library_paths:
         try:
@@ -101,7 +105,7 @@ def load_component_records_from_multiple(library_paths: List[Union[str, Path]], 
     return all_records
 
 
-def load_component_dicts(library_path: Optional[Path] = None) -> List[Dict[str, Any]]:
+def load_component_dicts(library_path: Path | None = None) -> list[dict[str, Any]]:
     """
     Load components and return them as JSON-serializable dicts.
 
@@ -114,7 +118,7 @@ def load_component_dicts(library_path: Optional[Path] = None) -> List[Dict[str, 
     Returns:
         List of component dictionaries
     """
-    result: List[Dict[str, Any]] = []
+    result: list[dict[str, Any]] = []
     for rec in load_component_records(library_path):
         try:
             # Create dict manually to preserve absolute image_path
@@ -142,7 +146,9 @@ def load_component_dicts(library_path: Optional[Path] = None) -> List[Dict[str, 
     return result
 
 
-def load_component_dicts_from_multiple(library_paths: List[Union[str, Path]]) -> List[Dict[str, Any]]:
+def load_component_dicts_from_multiple(
+    library_paths: list[str | Path],
+) -> list[dict[str, Any]]:
     """
     Load components from multiple library paths as dictionaries.
 
@@ -152,7 +158,7 @@ def load_component_dicts_from_multiple(library_paths: List[Union[str, Path]]) ->
     Returns:
         Combined list of component dictionaries from all libraries
     """
-    all_dicts: List[Dict[str, Any]] = []
+    all_dicts: list[dict[str, Any]] = []
 
     for lib_path in library_paths:
         try:
@@ -165,7 +171,3 @@ def load_component_dicts_from_multiple(library_paths: List[Union[str, Path]]) ->
             continue
 
     return all_dicts
-
-
-
-

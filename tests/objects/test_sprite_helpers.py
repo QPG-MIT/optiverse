@@ -4,11 +4,11 @@ Tests for sprite helper methods in BaseObj.
 These methods make component sprites part of the clickable/selectable area,
 not just the thin geometry lines.
 """
-import pytest
-from PyQt6 import QtCore, QtGui, QtWidgets
 
-from optiverse.objects import LensItem, MirrorItem, BeamsplitterItem
-from optiverse.core.models import LensParams, MirrorParams, BeamsplitterParams
+from PyQt6 import QtCore, QtGui
+
+from optiverse.core.models import BeamsplitterParams, LensParams, MirrorParams
+from optiverse.objects import BeamsplitterItem, LensItem, MirrorItem
 
 
 class TestSpriteHelperMethods:
@@ -16,10 +16,7 @@ class TestSpriteHelperMethods:
 
     def test_sprite_rect_in_item_no_sprite(self):
         """When no sprite exists, _sprite_rect_in_item should return None."""
-        params = LensParams(
-            x_mm=0, y_mm=0, angle_deg=90.0,
-            efl_mm=100.0, length_mm=60.0
-        )
+        params = LensParams(x_mm=0, y_mm=0, angle_deg=90.0, efl_mm=100.0, length_mm=60.0)
         item = LensItem(params)
 
         result = item._sprite_rect_in_item()
@@ -29,11 +26,14 @@ class TestSpriteHelperMethods:
         """When sprite exists but is invisible, should return None."""
         # Create item with sprite path but make it invisible
         params = LensParams(
-            x_mm=0, y_mm=0, angle_deg=90.0,
-            efl_mm=100.0, length_mm=60.0,
+            x_mm=0,
+            y_mm=0,
+            angle_deg=90.0,
+            efl_mm=100.0,
+            length_mm=60.0,
             image_path="nonexistent.png",  # Will be invisible
             mm_per_pixel=0.1,
-            line_px=(0, 0, 100, 0)
+            line_px=(0, 0, 100, 0),
         )
         item = LensItem(params)
 
@@ -45,10 +45,7 @@ class TestSpriteHelperMethods:
 
     def test_bounds_union_sprite_without_sprite(self):
         """boundingRect should work without sprite."""
-        params = LensParams(
-            x_mm=0, y_mm=0, angle_deg=90.0,
-            efl_mm=100.0, length_mm=60.0
-        )
+        params = LensParams(x_mm=0, y_mm=0, angle_deg=90.0, efl_mm=100.0, length_mm=60.0)
         item = LensItem(params)
 
         # Should not crash
@@ -59,10 +56,7 @@ class TestSpriteHelperMethods:
 
     def test_shape_union_sprite_without_sprite(self):
         """shape() should work without sprite."""
-        params = LensParams(
-            x_mm=0, y_mm=0, angle_deg=90.0,
-            efl_mm=100.0, length_mm=60.0
-        )
+        params = LensParams(x_mm=0, y_mm=0, angle_deg=90.0, efl_mm=100.0, length_mm=60.0)
         item = LensItem(params)
 
         # Should not crash
@@ -76,10 +70,7 @@ class TestSpriteClickability:
 
     def test_lens_shape_includes_geometry(self):
         """Lens shape should include the line geometry."""
-        params = LensParams(
-            x_mm=0, y_mm=0, angle_deg=90.0,
-            efl_mm=100.0, length_mm=60.0
-        )
+        params = LensParams(x_mm=0, y_mm=0, angle_deg=90.0, efl_mm=100.0, length_mm=60.0)
         item = LensItem(params)
 
         shape = item.shape()
@@ -92,10 +83,7 @@ class TestSpriteClickability:
 
     def test_mirror_shape_includes_geometry(self):
         """Mirror shape should include the line geometry."""
-        params = MirrorParams(
-            x_mm=0, y_mm=0, angle_deg=0.0,
-            length_mm=80.0
-        )
+        params = MirrorParams(x_mm=0, y_mm=0, angle_deg=0.0, length_mm=80.0)
         item = MirrorItem(params)
 
         shape = item.shape()
@@ -108,9 +96,7 @@ class TestSpriteClickability:
     def test_beamsplitter_shape_includes_geometry(self):
         """Beamsplitter shape should include the line geometry."""
         params = BeamsplitterParams(
-            x_mm=0, y_mm=0, angle_deg=45.0,
-            length_mm=80.0,
-            split_T=50.0, split_R=50.0
+            x_mm=0, y_mm=0, angle_deg=45.0, length_mm=80.0, split_T=50.0, split_R=50.0
         )
         item = BeamsplitterItem(params)
 
@@ -127,10 +113,7 @@ class TestBoundsCalculation:
 
     def test_lens_bounds_reasonable(self):
         """Lens bounding rect should be reasonable."""
-        params = LensParams(
-            x_mm=0, y_mm=0, angle_deg=90.0,
-            efl_mm=100.0, length_mm=60.0
-        )
+        params = LensParams(x_mm=0, y_mm=0, angle_deg=90.0, efl_mm=100.0, length_mm=60.0)
         item = LensItem(params)
 
         bounds = item.boundingRect()
@@ -142,10 +125,7 @@ class TestBoundsCalculation:
 
     def test_mirror_bounds_reasonable(self):
         """Mirror bounding rect should be reasonable."""
-        params = MirrorParams(
-            x_mm=0, y_mm=0, angle_deg=0.0,
-            length_mm=80.0
-        )
+        params = MirrorParams(x_mm=0, y_mm=0, angle_deg=0.0, length_mm=80.0)
         item = MirrorItem(params)
 
         bounds = item.boundingRect()
@@ -157,9 +137,7 @@ class TestBoundsCalculation:
     def test_beamsplitter_bounds_reasonable(self):
         """Beamsplitter bounding rect should be reasonable."""
         params = BeamsplitterParams(
-            x_mm=0, y_mm=0, angle_deg=45.0,
-            length_mm=80.0,
-            split_T=50.0, split_R=50.0
+            x_mm=0, y_mm=0, angle_deg=45.0, length_mm=80.0, split_T=50.0, split_R=50.0
         )
         item = BeamsplitterItem(params)
 
@@ -177,13 +155,11 @@ class TestSpriteHelperIntegration:
         """All element items should have sprite helper methods."""
         params_lens = LensParams(x_mm=0, y_mm=0, angle_deg=90.0, efl_mm=100.0, length_mm=60.0)
         params_mirror = MirrorParams(x_mm=0, y_mm=0, angle_deg=0.0, length_mm=80.0)
-        params_bs = BeamsplitterParams(x_mm=0, y_mm=0, angle_deg=45.0, length_mm=80.0, split_T=50.0, split_R=50.0)
+        params_bs = BeamsplitterParams(
+            x_mm=0, y_mm=0, angle_deg=45.0, length_mm=80.0, split_T=50.0, split_R=50.0
+        )
 
-        items = [
-            LensItem(params_lens),
-            MirrorItem(params_mirror),
-            BeamsplitterItem(params_bs)
-        ]
+        items = [LensItem(params_lens), MirrorItem(params_mirror), BeamsplitterItem(params_bs)]
 
         for item in items:
             # All should have these helper methods
@@ -198,13 +174,11 @@ class TestSpriteHelperIntegration:
         """Calling boundingRect() and shape() should never crash."""
         params_lens = LensParams(x_mm=0, y_mm=0, angle_deg=90.0, efl_mm=100.0, length_mm=60.0)
         params_mirror = MirrorParams(x_mm=0, y_mm=0, angle_deg=0.0, length_mm=80.0)
-        params_bs = BeamsplitterParams(x_mm=0, y_mm=0, angle_deg=45.0, length_mm=80.0, split_T=50.0, split_R=50.0)
+        params_bs = BeamsplitterParams(
+            x_mm=0, y_mm=0, angle_deg=45.0, length_mm=80.0, split_T=50.0, split_R=50.0
+        )
 
-        items = [
-            LensItem(params_lens),
-            MirrorItem(params_mirror),
-            BeamsplitterItem(params_bs)
-        ]
+        items = [LensItem(params_lens), MirrorItem(params_mirror), BeamsplitterItem(params_bs)]
 
         for item in items:
             # Should not crash
@@ -215,6 +189,3 @@ class TestSpriteHelperIntegration:
             assert isinstance(shape, QtGui.QPainterPath)
             assert bounds.isValid()
             assert not shape.isEmpty()
-
-
-

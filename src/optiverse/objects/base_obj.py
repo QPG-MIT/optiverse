@@ -1,23 +1,22 @@
 from __future__ import annotations
 
-import math
 import uuid
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ..core.constants import WHEEL_ROTATION_DEGREES_PER_STEP
+from ..core.protocols import HasCollaboration, HasParams, HasShape, HasSnapping, HasUndoStack
 from ..core.ui_constants import (
-    QT_WHEEL_ANGLE_DELTA_PER_STEP,
-    SPRITE_SHAPE_PADDING_PX,
-    SPRITE_BOUNDS_PADDING_PX,
     CLONE_OFFSET_X_MM,
     CLONE_OFFSET_Y_MM,
+    QT_WHEEL_ANGLE_DELTA_PER_STEP,
+    SPRITE_BOUNDS_PADDING_PX,
+    SPRITE_SHAPE_PADDING_PX,
 )
-from ..core.protocols import HasParams, HasShape, HasUndoStack, HasCollaboration, HasSnapping
 from .rotation_handler import (
-    SingleItemRotationHandler,
     GroupRotationHandler,
+    SingleItemRotationHandler,
     WheelRotationTracker,
     rotate_group_instant,
 )
@@ -42,9 +41,9 @@ class BaseObj(QtWidgets.QGraphicsObject):
     # Metadata registry for serialization (extensible by subclasses)
     # Maps metadata key to getter function
     _metadata_registry = {
-        'item_uuid': lambda self: self.item_uuid,
-        'locked': lambda self: self._locked,
-        'z_value': lambda self: float(self.zValue()),
+        "item_uuid": lambda self: self.item_uuid,
+        "locked": lambda self: self._locked,
+        "z_value": lambda self: float(self.zValue()),
     }
 
     def __init__(self, item_uuid: str | None = None):
@@ -66,8 +65,8 @@ class BaseObj(QtWidgets.QGraphicsObject):
         self._ready = False  # Set to True after full initialization
 
         # Rotation handlers (extracted for cleaner code)
-        self._single_rotation: Optional[SingleItemRotationHandler] = None
-        self._group_rotation: Optional[GroupRotationHandler] = None
+        self._single_rotation: SingleItemRotationHandler | None = None
+        self._group_rotation: GroupRotationHandler | None = None
         self._wheel_tracker = WheelRotationTracker(self._get_undo_stack)
 
     def itemChange(self, change, value):
@@ -89,25 +88,22 @@ class BaseObj(QtWidgets.QGraphicsObject):
                         main_window = views[0].window()
                         # Check if magnetic snap is enabled and this is an interactive move
                         if isinstance(main_window, HasSnapping) and main_window.magnetic_snap:
-                                # value is the new position being proposed
-                                new_pos = value
+                            # value is the new position being proposed
+                            new_pos = value
 
-                                # Calculate snap
-                                snap_result = main_window._snap_helper.calculate_snap(
-                                    new_pos,
-                                    self,
-                                    scene,
-                                    views[0]
-                                )
+                            # Calculate snap
+                            snap_result = main_window._snap_helper.calculate_snap(
+                                new_pos, self, scene, views[0]
+                            )
 
-                                if snap_result.snapped:
-                                    # Update guide lines
-                                    views[0].set_snap_guides(snap_result.guide_lines)
-                                    # Return snapped position instead of proposed position
-                                    return snap_result.position
-                                else:
-                                    # Clear guides if not snapping
-                                    views[0].clear_snap_guides()
+                            if snap_result.snapped:
+                                # Update guide lines
+                                views[0].set_snap_guides(snap_result.guide_lines)
+                                # Return snapped position instead of proposed position
+                                return snap_result.position
+                            else:
+                                # Clear guides if not snapping
+                                views[0].clear_snap_guides()
 
         if change in (
             QtWidgets.QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged,
@@ -228,7 +224,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
                 return views[0].window()
         return QtWidgets.QApplication.activeWindow()
 
-    def _get_undo_stack(self) -> Optional[QtWidgets.QUndoStack]:
+    def _get_undo_stack(self) -> QtWidgets.QUndoStack | None:
         """Get the undo stack from main window (for WheelRotationTracker)."""
         if not self.scene():
             return None
@@ -253,8 +249,9 @@ class BaseObj(QtWidgets.QGraphicsObject):
 
             # Check if this is a group rotation
             if self.scene():
-                selected_items = [item for item in self.scene().selectedItems()
-                                if isinstance(item, BaseObj)]
+                selected_items = [
+                    item for item in self.scene().selectedItems() if isinstance(item, BaseObj)
+                ]
 
                 if len(selected_items) > 1:
                     # Group rotation
@@ -328,8 +325,9 @@ class BaseObj(QtWidgets.QGraphicsObject):
 
             # Check if multiple items are selected for group rotation
             if self.scene():
-                selected_items = [item for item in self.scene().selectedItems()
-                                if isinstance(item, BaseObj)]
+                selected_items = [
+                    item for item in self.scene().selectedItems() if isinstance(item, BaseObj)
+                ]
 
                 # Track for undo
                 self._wheel_tracker.track(selected_items)
@@ -384,11 +382,18 @@ class BaseObj(QtWidgets.QGraphicsObject):
             self.scene().removeItem(self)
         elif a in (act_bring_to_front, act_bring_forward, act_send_backward, act_send_to_back):
             # Handle z-order changes
-            self._handle_z_order_action(a, act_bring_to_front, act_bring_forward,
-                                       act_send_backward, act_send_to_back)
+            self._handle_z_order_action(
+                a, act_bring_to_front, act_bring_forward, act_send_backward, act_send_to_back
+            )
 
-    def _handle_z_order_action(self, selected_action, act_bring_to_front, act_bring_forward,
-                               act_send_backward, act_send_to_back):
+    def _handle_z_order_action(
+        self,
+        selected_action,
+        act_bring_to_front,
+        act_bring_forward,
+        act_send_backward,
+        act_send_to_back,
+    ):
         """Handle z-order menu actions."""
         from ..core.zorder_utils import apply_z_order_change
 
@@ -398,8 +403,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
         # Get items to operate on: if this item is selected, use all selected items
         # Otherwise, just use this item
         if self.isSelected():
-            items = [item for item in self.scene().selectedItems()
-                    if hasattr(item, 'setZValue')]
+            items = [item for item in self.scene().selectedItems() if hasattr(item, "setZValue")]
         else:
             items = [self]
 
@@ -436,34 +440,35 @@ class BaseObj(QtWidgets.QGraphicsObject):
     def capture_state(self) -> dict[str, Any]:
         """Capture current state for undo/redo. Subclasses should extend."""
         import dataclasses
+
         state = {
-            'pos': {'x': self.pos().x(), 'y': self.pos().y()},
-            'rotation': self.rotation(),
-            'locked': self._locked,
-            'z_value': float(self.zValue()),
+            "pos": {"x": self.pos().x(), "y": self.pos().y()},
+            "rotation": self.rotation(),
+            "locked": self._locked,
+            "z_value": float(self.zValue()),
         }
         # Capture params if available (using protocol for type safety)
         if isinstance(self, HasParams) and dataclasses.is_dataclass(self.params):
-            state['params'] = dataclasses.asdict(self.params)
+            state["params"] = dataclasses.asdict(self.params)
         return state
 
     def apply_state(self, state: dict[str, Any]) -> None:
         """Apply state from undo/redo. Subclasses should extend if needed."""
         import dataclasses
 
-        if 'pos' in state:
-            self.setPos(QtCore.QPointF(state['pos']['x'], state['pos']['y']))
-        if 'rotation' in state:
-            self.setRotation(state['rotation'])
-        if 'locked' in state:
-            self.set_locked(state['locked'])
-        if 'z_value' in state:
-            self.setZValue(state['z_value'])
+        if "pos" in state:
+            self.setPos(QtCore.QPointF(state["pos"]["x"], state["pos"]["y"]))
+        if "rotation" in state:
+            self.setRotation(state["rotation"])
+        if "locked" in state:
+            self.set_locked(state["locked"])
+        if "z_value" in state:
+            self.setZValue(state["z_value"])
 
         # Apply params if available (using protocol for type safety)
-        if 'params' in state and isinstance(self, HasParams):
+        if "params" in state and isinstance(self, HasParams):
             if dataclasses.is_dataclass(self.params):
-                for key, value in state['params'].items():
+                for key, value in state["params"].items():
                     if hasattr(self.params, key):
                         setattr(self.params, key, value)
 
@@ -476,7 +481,9 @@ class BaseObj(QtWidgets.QGraphicsObject):
         self.edited.emit()
         self.update()
 
-    def clone(self, offset_mm: tuple[float, float] = (CLONE_OFFSET_X_MM, CLONE_OFFSET_Y_MM)) -> 'BaseObj':
+    def clone(
+        self, offset_mm: tuple[float, float] = (CLONE_OFFSET_X_MM, CLONE_OFFSET_Y_MM)
+    ) -> BaseObj:
         """
         Create a deep copy of this item with optional position offset.
 
@@ -526,6 +533,3 @@ class BaseObj(QtWidgets.QGraphicsObject):
         # Restore z-value if present
         if "z_value" in d:
             self.setZValue(float(d["z_value"]))
-
-
-

@@ -4,10 +4,11 @@ Mock services for testing.
 These mocks provide test doubles for services that have external dependencies
 or side effects (file I/O, network, etc.).
 """
+
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
 from pathlib import Path
+from typing import Any
 
 
 class MockStorageService:
@@ -19,22 +20,22 @@ class MockStorageService:
 
     def __init__(self):
         self.settings_service = MockSettingsService()
-        self._components: Dict[str, Dict[str, Any]] = {}
-        self._library_paths: List[Path] = []
+        self._components: dict[str, dict[str, Any]] = {}
+        self._library_paths: list[Path] = []
 
-    def list_components(self) -> List[Dict[str, Any]]:
+    def list_components(self) -> list[dict[str, Any]]:
         """Return list of stored component data."""
         return list(self._components.values())
 
     def save_component(
         self,
         name: str,
-        image_data: Optional[bytes] = None,
+        image_data: bytes | None = None,
         object_height_mm: float = 25.4,
         angle_deg: float = 0.0,
-        category: Optional[str] = None,
-        notes: Optional[str] = None,
-        interfaces: Optional[List] = None,
+        category: str | None = None,
+        notes: str | None = None,
+        interfaces: list | None = None,
     ) -> bool:
         """Store component in memory."""
         self._components[name] = {
@@ -55,7 +56,7 @@ class MockStorageService:
             return True
         return False
 
-    def get_all_library_roots(self) -> List[Path]:
+    def get_all_library_roots(self) -> list[Path]:
         """Return mock library roots."""
         return self._library_paths
 
@@ -68,7 +69,7 @@ class MockSettingsService:
     """
 
     def __init__(self):
-        self._settings: Dict[str, Any] = {
+        self._settings: dict[str, Any] = {
             "dark_mode": True,
             "autotrace": True,
             "magnetic_snap": True,
@@ -85,7 +86,7 @@ class MockSettingsService:
         """Set a setting value."""
         self._settings[key] = value
 
-    def get_library_path(self) -> Optional[str]:
+    def get_library_path(self) -> str | None:
         """Return mock library path."""
         return self._settings.get("library_path")
 
@@ -103,10 +104,10 @@ class MockCollaborationManager:
 
     def __init__(self):
         self.is_connected = False
-        self.role: Optional[str] = None
-        self.session_id: Optional[str] = None
-        self._broadcasts: List[Dict[str, Any]] = []
-        self.item_uuid_map: Dict[str, Any] = {}
+        self.role: str | None = None
+        self.session_id: str | None = None
+        self._broadcasts: list[dict[str, Any]] = []
+        self.item_uuid_map: dict[str, Any] = {}
 
     def connect_to_session(self, server_url: str, session_id: str, user_id: str) -> None:
         """Simulate connecting to a session."""
@@ -121,26 +122,32 @@ class MockCollaborationManager:
 
     def broadcast_add_item(self, item: Any) -> None:
         """Record broadcast without actually sending."""
-        self._broadcasts.append({
-            "action": "add",
-            "item_uuid": getattr(item, "item_uuid", None),
-        })
+        self._broadcasts.append(
+            {
+                "action": "add",
+                "item_uuid": getattr(item, "item_uuid", None),
+            }
+        )
 
     def broadcast_update_item(self, item: Any) -> None:
         """Record broadcast without actually sending."""
-        self._broadcasts.append({
-            "action": "update",
-            "item_uuid": getattr(item, "item_uuid", None),
-        })
+        self._broadcasts.append(
+            {
+                "action": "update",
+                "item_uuid": getattr(item, "item_uuid", None),
+            }
+        )
 
     def broadcast_remove_item(self, item: Any) -> None:
         """Record broadcast without actually sending."""
-        self._broadcasts.append({
-            "action": "remove",
-            "item_uuid": getattr(item, "item_uuid", None),
-        })
+        self._broadcasts.append(
+            {
+                "action": "remove",
+                "item_uuid": getattr(item, "item_uuid", None),
+            }
+        )
 
-    def get_broadcasts(self) -> List[Dict[str, Any]]:
+    def get_broadcasts(self) -> list[dict[str, Any]]:
         """Return all recorded broadcasts (for test assertions)."""
         return self._broadcasts
 
@@ -157,7 +164,7 @@ class MockLogService:
     """
 
     def __init__(self):
-        self._messages: List[Dict[str, Any]] = []
+        self._messages: list[dict[str, Any]] = []
 
     def info(self, message: str, category: str = "") -> None:
         """Record info message."""
@@ -175,7 +182,7 @@ class MockLogService:
         """Record error message."""
         self._messages.append({"level": "error", "message": message, "category": category})
 
-    def get_messages(self, level: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_messages(self, level: str | None = None) -> list[dict[str, Any]]:
         """
         Return captured messages, optionally filtered by level.
 
@@ -193,7 +200,7 @@ class MockLogService:
         """Clear captured messages."""
         self._messages.clear()
 
-    def assert_message_logged(self, substring: str, level: Optional[str] = None) -> bool:
+    def assert_message_logged(self, substring: str, level: str | None = None) -> bool:
         """
         Check if a message containing substring was logged.
 
@@ -206,6 +213,3 @@ class MockLogService:
         """
         messages = self.get_messages(level)
         return any(substring in m["message"] for m in messages)
-
-
-

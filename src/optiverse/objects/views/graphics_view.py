@@ -1,25 +1,28 @@
 from __future__ import annotations
 
 import logging
+
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 _logger = logging.getLogger(__name__)
 
 try:
     from PyQt6.QtOpenGLWidgets import QOpenGLWidget
+
     OPENGL_AVAILABLE = True
 except ImportError:
     OPENGL_AVAILABLE = False
 
 try:
     from .ray_opengl_widget import RayOpenGLWidget
+
     RAY_OPENGL_AVAILABLE = True
 except ImportError:
     RAY_OPENGL_AVAILABLE = False
 
+from ...core.constants import MIME_OPTICS_COMPONENT
 from ...platform.paths import is_macos
 from ...services.error_handler import ErrorContext
-from ...core.constants import MIME_OPTICS_COMPONENT
 
 
 class GraphicsView(QtWidgets.QGraphicsView):
@@ -39,7 +42,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 self.setViewport(gl_widget)
                 _logger.info("OpenGL viewport enabled - GPU-accelerated canvas rendering")
             except Exception as e:
-                _logger.warning("Failed to enable OpenGL viewport: %s. Falling back to software rendering", e)
+                _logger.warning(
+                    "Failed to enable OpenGL viewport: %s. Falling back to software rendering", e
+                )
         else:
             _logger.debug("PyOpenGL not available - using software rendering")
 
@@ -56,11 +61,15 @@ class GraphicsView(QtWidgets.QGraphicsView):
             # This significantly reduces lag while avoiding grid artifacts
             # MinimalViewportUpdate: only updates bounding rect of changed items
             # but still properly redraws background (grid) during pan/zoom
-            self.setViewportUpdateMode(QtWidgets.QGraphicsView.ViewportUpdateMode.MinimalViewportUpdate)
+            self.setViewportUpdateMode(
+                QtWidgets.QGraphicsView.ViewportUpdateMode.MinimalViewportUpdate
+            )
         else:
             # Use FullViewportUpdate to properly render drawForeground (scale bar)
             # BoundingRectViewportUpdate causes scale bar artifacts during panning
-            self.setViewportUpdateMode(QtWidgets.QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
+            self.setViewportUpdateMode(
+                QtWidgets.QGraphicsView.ViewportUpdateMode.FullViewportUpdate
+            )
 
         self.setTransformationAnchor(QtWidgets.QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setResizeAnchor(QtWidgets.QGraphicsView.ViewportAnchor.AnchorUnderMouse)
@@ -147,7 +156,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
             QtCore.QPointF(cursor_pos),
             QtCore.Qt.MouseButton.NoButton,
             QtCore.Qt.MouseButton.NoButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         QtWidgets.QApplication.sendEvent(self.viewport(), move_event)
 
@@ -409,11 +418,11 @@ class GraphicsView(QtWidgets.QGraphicsView):
         if self._dark_mode:
             minor_pen = QtGui.QPen(QtGui.QColor(40, 42, 47))  # Subtle dark grid
             major_pen = QtGui.QPen(QtGui.QColor(60, 62, 67))  # More visible dark grid
-            axis_pen = QtGui.QPen(QtGui.QColor(80, 82, 87))   # Axis lines
+            axis_pen = QtGui.QPen(QtGui.QColor(80, 82, 87))  # Axis lines
         else:
             minor_pen = QtGui.QPen(QtGui.QColor(242, 242, 242))  # Light gray grid
             major_pen = QtGui.QPen(QtGui.QColor(215, 215, 215))  # Darker gray grid
-            axis_pen = QtGui.QPen(QtGui.QColor(170, 170, 170))   # Axis lines
+            axis_pen = QtGui.QPen(QtGui.QColor(170, 170, 170))  # Axis lines
 
         axis_pen.setStyle(QtCore.Qt.PenStyle.DashLine)
 
@@ -474,13 +483,13 @@ class GraphicsView(QtWidgets.QGraphicsView):
                     # Draw horizontal line at Y coordinate
                     painter.drawLine(
                         QtCore.QPointF(visible_rect.left(), coord),
-                        QtCore.QPointF(visible_rect.right(), coord)
+                        QtCore.QPointF(visible_rect.right(), coord),
                     )
                 elif guide_type == "vertical":
                     # Draw vertical line at X coordinate
                     painter.drawLine(
                         QtCore.QPointF(coord, visible_rect.top()),
-                        QtCore.QPointF(coord, visible_rect.bottom())
+                        QtCore.QPointF(coord, visible_rect.bottom()),
                     )
 
             painter.restore()
@@ -574,11 +583,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
         from ..component_factory import ComponentFactory
 
         # Use factory to create the item (same logic as actual drop)
-        item = ComponentFactory.create_item_from_dict(
-            rec,
-            scene_pos.x(),
-            scene_pos.y()
-        )
+        item = ComponentFactory.create_item_from_dict(rec, scene_pos.x(), scene_pos.y())
 
         if not item:
             # No valid component (missing interfaces, etc.)
@@ -611,6 +616,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
             # Build ghost right away so the moment you cross into the canvas you see it
             try:
                 import json
+
                 rec = json.loads(bytes(md.data(MIME_OPTICS_COMPONENT)).decode("utf-8"))
                 self._clear_ghost()
                 self._make_ghost(rec, self.mapToScene(e.position().toPoint()))
@@ -631,6 +637,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
             try:
                 if self._ghost_item is None:
                     import json
+
                     rec = json.loads(bytes(md.data(MIME_OPTICS_COMPONENT)).decode("utf-8"))
                     self._make_ghost(rec, self.mapToScene(e.position().toPoint()))
                 else:
@@ -661,6 +668,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
             # Component from library
             if md.hasFormat(MIME_OPTICS_COMPONENT):
                 import json
+
                 data = md.data(MIME_OPTICS_COMPONENT)
                 try:
                     rec = json.loads(bytes(data).decode("utf-8"))
@@ -703,7 +711,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
                         pix = QtGui.QPixmap(path)
                         if not pix.isNull():
                             item = QtWidgets.QGraphicsPixmapItem(pix)
-                            item.setPos(scene_pos - QtCore.QPointF(pix.width() / 2, pix.height() / 2))
+                            item.setPos(
+                                scene_pos - QtCore.QPointF(pix.width() / 2, pix.height() / 2)
+                            )
                             scene.addItem(item)
                             self._restore_drag_state()
                             e.acceptProposedAction()
@@ -721,8 +731,10 @@ class GraphicsView(QtWidgets.QGraphicsView):
         intercepting keyboard shortcuts like Ctrl+C, Ctrl+V, etc.
         """
         # Don't handle key events with modifiers - let them propagate for shortcuts
-        if e.modifiers() not in (QtCore.Qt.KeyboardModifier.NoModifier,
-                                  QtCore.Qt.KeyboardModifier.KeypadModifier):
+        if e.modifiers() not in (
+            QtCore.Qt.KeyboardModifier.NoModifier,
+            QtCore.Qt.KeyboardModifier.KeypadModifier,
+        ):
             super().keyPressEvent(e)
             return
 
@@ -765,7 +777,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 e.position(),
                 QtCore.Qt.MouseButton.LeftButton,
                 QtCore.Qt.MouseButton.LeftButton,
-                e.modifiers()
+                e.modifiers(),
             )
             super().mousePressEvent(fake)
         else:
@@ -780,7 +792,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 e.position(),
                 QtCore.Qt.MouseButton.LeftButton,
                 QtCore.Qt.MouseButton.NoButton,
-                e.modifiers()
+                e.modifiers(),
             )
             super().mouseReleaseEvent(fake)
             # Back to select mode
@@ -826,7 +838,3 @@ class GraphicsView(QtWidgets.QGraphicsView):
     def has_ray_overlay(self) -> bool:
         """Check if OpenGL ray overlay is available."""
         return self._ray_gl_widget is not None
-
-
-
-

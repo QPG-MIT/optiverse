@@ -3,8 +3,8 @@ Refractive interface element implementation.
 
 Implements Snell's law and Fresnel equations for refraction and partial reflection.
 """
+
 import math
-from typing import List, Tuple
 
 import numpy as np
 
@@ -44,17 +44,13 @@ class RefractiveElement(IOpticalElement):
         self.n1 = n1
         self.n2 = n2
 
-    def get_geometry(self) -> Tuple[np.ndarray, np.ndarray]:
+    def get_geometry(self) -> tuple[np.ndarray, np.ndarray]:
         """Get interface line segment"""
         return self.p1, self.p2
 
     def interact(
-        self,
-        ray: RayState,
-        hit_point: np.ndarray,
-        normal: np.ndarray,
-        tangent: np.ndarray
-    ) -> List[RayState]:
+        self, ray: RayState, hit_point: np.ndarray, normal: np.ndarray, tangent: np.ndarray
+    ) -> list[RayState]:
         """
         Apply Snell's law and Fresnel equations.
 
@@ -79,10 +75,7 @@ class RefractiveElement(IOpticalElement):
 
         # Apply Snell's law
         direction_refracted, is_total_reflection = refract_vector_snell(
-            ray.direction,
-            surface_normal,
-            n_incident,
-            n_transmitted
+            ray.direction, surface_normal, n_incident, n_transmitted
         )
 
         output_rays = []
@@ -93,9 +86,7 @@ class RefractiveElement(IOpticalElement):
             # Total internal reflection - all light reflects
             direction_reflected = normalize(direction_refracted)
             polarization_reflected = transform_polarization_mirror(
-                ray.polarization,
-                ray.direction,
-                surface_normal
+                ray.polarization, ray.direction, surface_normal
             )
 
             reflected_ray = RayState(
@@ -105,15 +96,15 @@ class RefractiveElement(IOpticalElement):
                 polarization=polarization_reflected,
                 wavelength_nm=ray.wavelength_nm,
                 path=ray.path + [hit_point],
-                events=ray.events + 1
+                events=ray.events + 1,
             )
             output_rays.append(reflected_ray)
         else:
             # Partial reflection and transmission
             # Compute Fresnel coefficients
-            theta_incident = abs(math.acos(
-                max(-1.0, min(1.0, -np.dot(ray.direction, surface_normal)))
-            ))
+            theta_incident = abs(
+                math.acos(max(-1.0, min(1.0, -np.dot(ray.direction, surface_normal))))
+            )
             R, T = fresnel_coefficients(theta_incident, n_incident, n_transmitted)
 
             # Transmitted (refracted) ray
@@ -127,7 +118,7 @@ class RefractiveElement(IOpticalElement):
                     polarization=ray.polarization,  # Simplified: polarization preserved
                     wavelength_nm=ray.wavelength_nm,
                     path=ray.path + [hit_point],
-                    events=ray.events + 1
+                    events=ray.events + 1,
                 )
                 output_rays.append(transmitted_ray)
 
@@ -135,9 +126,7 @@ class RefractiveElement(IOpticalElement):
             if R > MIN_INTENSITY / ray.intensity:
                 direction_reflected = normalize(reflect_vec(ray.direction, surface_normal))
                 polarization_reflected = transform_polarization_mirror(
-                    ray.polarization,
-                    ray.direction,
-                    surface_normal
+                    ray.polarization, ray.direction, surface_normal
                 )
 
                 reflected_ray = RayState(
@@ -147,17 +136,14 @@ class RefractiveElement(IOpticalElement):
                     polarization=polarization_reflected,
                     wavelength_nm=ray.wavelength_nm,
                     path=ray.path + [hit_point],
-                    events=ray.events + 1
+                    events=ray.events + 1,
                 )
                 output_rays.append(reflected_ray)
 
         return output_rays
 
-    def get_bounding_box(self) -> Tuple[np.ndarray, np.ndarray]:
+    def get_bounding_box(self) -> tuple[np.ndarray, np.ndarray]:
         """Get axis-aligned bounding box"""
         min_corner = np.minimum(self.p1, self.p2)
         max_corner = np.maximum(self.p1, self.p2)
         return min_corner, max_corner
-
-
-

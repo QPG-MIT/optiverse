@@ -3,6 +3,7 @@ Tests for copy/paste functionality in the main window.
 """
 
 import pytest
+
 from tests.helpers.ui_test_helpers import (
     is_lens_component,
     is_mirror_component,
@@ -13,6 +14,7 @@ from tests.helpers.ui_test_helpers import (
 def main_window(qtbot):
     """Create a main window for testing."""
     from optiverse.ui.views.main_window import MainWindow
+
     window = MainWindow()
     qtbot.addWidget(window)
     return window
@@ -36,26 +38,25 @@ def test_copy_paste_single_source(main_window, qtbot):
     assert main_window.act_paste.isEnabled()
 
     # Get initial item count
-    initial_count = len([item for item in main_window.scene.items()
-                        if isinstance(item, SourceItem)])
+    initial_count = len(
+        [item for item in main_window.scene.items() if isinstance(item, SourceItem)]
+    )
 
     # Paste
     main_window.paste_items()
 
     # Check that a new item was added
-    new_count = len([item for item in main_window.scene.items()
-                    if isinstance(item, SourceItem)])
+    new_count = len([item for item in main_window.scene.items() if isinstance(item, SourceItem)])
     assert new_count == initial_count + 1
 
     # Check that the new item has an offset
-    sources = [item for item in main_window.scene.items()
-               if isinstance(item, SourceItem)]
+    sources = [item for item in main_window.scene.items() if isinstance(item, SourceItem)]
     assert len(sources) == 2
 
 
 def test_copy_paste_multiple_items(main_window, qtbot):
     """Test copying and pasting multiple items at once."""
-    from optiverse.core.models import SourceParams, LensParams, MirrorParams
+    from optiverse.core.models import LensParams, MirrorParams, SourceParams
     from optiverse.objects import SourceItem
     from tests.fixtures.factories import create_component_from_params
 
@@ -78,23 +79,19 @@ def test_copy_paste_multiple_items(main_window, qtbot):
     assert len(main_window._clipboard) == 3
 
     # Get initial counts
-    initial_sources = len([item for item in main_window.scene.items()
-                          if isinstance(item, SourceItem)])
-    initial_lenses = len([item for item in main_window.scene.items()
-                         if is_lens_component(item)])
-    initial_mirrors = len([item for item in main_window.scene.items()
-                          if is_mirror_component(item)])
+    initial_sources = len(
+        [item for item in main_window.scene.items() if isinstance(item, SourceItem)]
+    )
+    initial_lenses = len([item for item in main_window.scene.items() if is_lens_component(item)])
+    initial_mirrors = len([item for item in main_window.scene.items() if is_mirror_component(item)])
 
     # Paste
     main_window.paste_items()
 
     # Check that new items were added
-    new_sources = len([item for item in main_window.scene.items()
-                      if isinstance(item, SourceItem)])
-    new_lenses = len([item for item in main_window.scene.items()
-                     if is_lens_component(item)])
-    new_mirrors = len([item for item in main_window.scene.items()
-                      if is_mirror_component(item)])
+    new_sources = len([item for item in main_window.scene.items() if isinstance(item, SourceItem)])
+    new_lenses = len([item for item in main_window.scene.items() if is_lens_component(item)])
+    new_mirrors = len([item for item in main_window.scene.items() if is_mirror_component(item)])
 
     assert new_sources == initial_sources + 1
     assert new_lenses == initial_lenses + 1
@@ -115,31 +112,29 @@ def test_paste_undo_redo(main_window, qtbot):
     main_window.copy_selected()
 
     # Get initial count
-    initial_count = len([item for item in main_window.scene.items()
-                        if isinstance(item, SourceItem)])
+    initial_count = len(
+        [item for item in main_window.scene.items() if isinstance(item, SourceItem)]
+    )
 
     # Paste
     main_window.paste_items()
 
     # Verify paste worked
-    after_paste = len([item for item in main_window.scene.items()
-                      if isinstance(item, SourceItem)])
+    after_paste = len([item for item in main_window.scene.items() if isinstance(item, SourceItem)])
     assert after_paste == initial_count + 1
 
     # Undo
     main_window.undo_stack.undo()
 
     # Verify undo worked
-    after_undo = len([item for item in main_window.scene.items()
-                     if isinstance(item, SourceItem)])
+    after_undo = len([item for item in main_window.scene.items() if isinstance(item, SourceItem)])
     assert after_undo == initial_count
 
     # Redo
     main_window.undo_stack.redo()
 
     # Verify redo worked
-    after_redo = len([item for item in main_window.scene.items()
-                     if isinstance(item, SourceItem)])
+    after_redo = len([item for item in main_window.scene.items() if isinstance(item, SourceItem)])
     assert after_redo == initial_count + 1
 
 
@@ -169,7 +164,7 @@ def test_paste_preserves_properties(main_window, qtbot):
         n_rays=15,
         size_mm=25.0,
         spread_deg=10.0,
-        color_hex="#FF0000"
+        color_hex="#FF0000",
     )
     source = SourceItem(params)
     main_window.scene.addItem(source)
@@ -180,8 +175,9 @@ def test_paste_preserves_properties(main_window, qtbot):
     main_window.paste_items()
 
     # Get the pasted item (should be selected after paste)
-    pasted_items = [item for item in main_window.scene.selectedItems()
-                   if isinstance(item, SourceItem)]
+    pasted_items = [
+        item for item in main_window.scene.selectedItems() if isinstance(item, SourceItem)
+    ]
     assert len(pasted_items) == 1
 
     pasted = pasted_items[0]
@@ -201,6 +197,7 @@ def test_paste_preserves_properties(main_window, qtbot):
 def test_keyboard_shortcuts(main_window, qtbot):
     """Test that Ctrl+C and Ctrl+V keyboard shortcuts work."""
     from PyQt6 import QtCore
+
     from optiverse.core.models import SourceParams
     from optiverse.objects import SourceItem
 
@@ -214,16 +211,13 @@ def test_keyboard_shortcuts(main_window, qtbot):
     assert len(main_window._clipboard) == 1
 
     # Get initial count
-    initial_count = len([item for item in main_window.scene.items()
-                        if isinstance(item, SourceItem)])
+    initial_count = len(
+        [item for item in main_window.scene.items() if isinstance(item, SourceItem)]
+    )
 
     # Simulate Ctrl+V
     qtbot.keyClick(main_window, QtCore.Qt.Key.Key_V, QtCore.Qt.KeyboardModifier.ControlModifier)
 
     # Verify paste worked
-    new_count = len([item for item in main_window.scene.items()
-                    if isinstance(item, SourceItem)])
+    new_count = len([item for item in main_window.scene.items() if isinstance(item, SourceItem)])
     assert new_count == initial_count + 1
-
-
-

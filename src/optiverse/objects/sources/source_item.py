@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -112,7 +112,9 @@ class SourceItem(BaseObj):
         ang.setDecimals(2)
         ang.setSuffix(" °")
         ang.setValue(initial_ang)
-        ang.setToolTip("Optical axis angle - direction rays emit (0° = right →, 90° = down ↓, 180° = left ←)")
+        ang.setToolTip(
+            "Optical axis angle - direction rays emit (0° = right →, 90° = down ↓, 180° = left ←)"
+        )
 
         # Live update connections
         def update_position():
@@ -179,8 +181,9 @@ class SourceItem(BaseObj):
         wl_mode = QtWidgets.QComboBox()
         wl_mode.addItems(["Custom Color", "Wavelength"])
         # Detect mode: if color matches wavelength-derived color, we're in wavelength mode
-        is_wl_mode = (self.params.wavelength_nm > 0 and
-                      self.params.color_hex == wavelength_to_hex(self.params.wavelength_nm))
+        is_wl_mode = self.params.wavelength_nm > 0 and self.params.color_hex == wavelength_to_hex(
+            self.params.wavelength_nm
+        )
         wl_mode.setCurrentIndex(1 if is_wl_mode else 0)
 
         # Wavelength preset dropdown
@@ -244,7 +247,7 @@ class SourceItem(BaseObj):
 
         def on_mode_changed(mode: str):
             """Handle wavelength mode change."""
-            use_wl = (mode == "Wavelength")
+            use_wl = mode == "Wavelength"
             # Wavelength controls are always enabled
             color_btn.setEnabled(not use_wl)
             color_disp.setEnabled(not use_wl)
@@ -275,15 +278,17 @@ class SourceItem(BaseObj):
 
         # Polarization controls
         pol_type = QtWidgets.QComboBox()
-        pol_type.addItems([
-            "horizontal",
-            "vertical",
-            "+45",
-            "-45",
-            "circular_right",
-            "circular_left",
-            "linear",
-        ])
+        pol_type.addItems(
+            [
+                "horizontal",
+                "vertical",
+                "+45",
+                "-45",
+                "circular_right",
+                "circular_left",
+                "linear",
+            ]
+        )
         # Set current value
         try:
             idx = pol_type.findText(self.params.polarization_type)
@@ -302,6 +307,7 @@ class SourceItem(BaseObj):
         # Enable angle control only when "linear" is selected
         def on_pol_type_changed(text):
             pol_angle.setEnabled(text == "linear")
+
         pol_type.currentTextChanged.connect(on_pol_type_changed)
 
         # Add all fields to form
@@ -364,13 +370,14 @@ class SourceItem(BaseObj):
             final_state = self.capture_state()
             if initial_state != final_state:
                 from ...core.undo_commands import PropertyChangeCommand
+
                 cmd = PropertyChangeCommand(self, initial_state, final_state)
                 self.commandCreated.emit(cmd)
         else:
             # User clicked Cancel - restore initial state
             self.apply_state(initial_state)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary."""
         d = serialize_item(self)
         # Force live color (SourceItem-specific)
@@ -378,8 +385,6 @@ class SourceItem(BaseObj):
         return d
 
     @staticmethod
-    def from_dict(d: Dict[str, Any]) -> 'SourceItem':
+    def from_dict(d: dict[str, Any]) -> SourceItem:
         """Static factory method: deserialize from dictionary and return new SourceItem."""
         return deserialize_item(d)
-
-

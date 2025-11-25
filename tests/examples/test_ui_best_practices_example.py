@@ -4,56 +4,67 @@ Example UI test demonstrating best practices.
 This file shows how to write comprehensive UI tests that test the right things.
 Use this as a reference when writing new UI tests.
 """
-from __future__ import annotations
 
-import pytest
-from pathlib import Path
-from PyQt6 import QtCore, QtWidgets
+from __future__ import annotations
 
 # Import test helpers
 # Note: These helpers should be imported from tests.helpers once the module is set up
 # For now, we'll define minimal versions inline for the example
 import unittest.mock as mock
-from typing import List, Type, TypeVar
+from typing import TypeVar
 
-T = TypeVar('T')
+import pytest
+from PyQt6 import QtCore, QtWidgets
+
+T = TypeVar("T")
 
 # Import helper functions
 from tests.helpers.ui_test_helpers import (
-    create_main_window,
     add_source_to_window,
-    add_lens_to_window,
-    add_mirror_to_window,
+    create_main_window,
 )
 
+
 def mock_file_dialog_save(file_path):
-    from PyQt6 import QtWidgets
-    return mock.patch.object(QtWidgets.QFileDialog, "getSaveFileName", return_value=(str(file_path), ""))
+    return mock.patch.object(
+        QtWidgets.QFileDialog, "getSaveFileName", return_value=(str(file_path), "")
+    )
+
 
 def mock_file_dialog_open(file_path):
-    from PyQt6 import QtWidgets
-    return mock.patch.object(QtWidgets.QFileDialog, "getOpenFileName", return_value=(str(file_path), ""))
+    return mock.patch.object(
+        QtWidgets.QFileDialog, "getOpenFileName", return_value=(str(file_path), "")
+    )
 
-def get_scene_items_by_type(scene, item_type: Type[T]) -> List[T]:
+
+def get_scene_items_by_type(scene, item_type: type[T]) -> list[T]:
     return [item for item in scene.items() if isinstance(item, item_type)]
 
-def assert_item_count(scene, item_type: Type[T], expected_count: int):
+
+def assert_item_count(scene, item_type: type[T], expected_count: int):
     items = get_scene_items_by_type(scene, item_type)
-    assert len(items) == expected_count, f"Expected {expected_count} {item_type.__name__}, got {len(items)}"
+    assert len(items) == expected_count, (
+        f"Expected {expected_count} {item_type.__name__}, got {len(items)}"
+    )
+
 
 def assert_params_match(item, expected_params: dict, tolerance: float = 0.01):
     params = item.params
     for param_name, expected_value in expected_params.items():
         actual_value = getattr(params, param_name)
         if isinstance(expected_value, (int, float)):
-            assert abs(actual_value - expected_value) <= tolerance, \
+            assert abs(actual_value - expected_value) <= tolerance, (
                 f"{param_name}: expected {expected_value}±{tolerance}, got {actual_value}"
+            )
         else:
-            assert actual_value == expected_value, \
+            assert actual_value == expected_value, (
                 f"{param_name}: expected {expected_value}, got {actual_value}"
+            )
+
 
 def simulate_keyboard_shortcut(qtbot, widget, key, modifier):
     qtbot.keyClick(widget, key, modifier)
+
 
 class UIStateChecker:
     def __init__(self, main_window):
@@ -90,6 +101,7 @@ class TestUIBestPractices:
 
         # Initial state: empty scene
         from optiverse.objects import SourceItem
+
         assert_item_count(window.scene, SourceItem, 0)
 
         # User adds source via menu/button
@@ -157,15 +169,18 @@ class TestUIBestPractices:
         assert len(sources) == 1
 
         loaded_source = sources[0]
-        assert_params_match(loaded_source, {
-            'x_mm': 123.45,
-            'y_mm': 678.90,
-            'angle_deg': 45.0,
-            'n_rays': 11,
-            'size_mm': 15.0,
-            'wavelength_nm': 532.0,
-            'color_hex': '#FF0000',
-        })
+        assert_params_match(
+            loaded_source,
+            {
+                "x_mm": 123.45,
+                "y_mm": 678.90,
+                "angle_deg": 45.0,
+                "n_rays": 11,
+                "size_mm": 15.0,
+                "wavelength_nm": 532.0,
+                "color_hex": "#FF0000",
+            },
+        )
 
     def test_keyboard_shortcuts_work(self, qtbot):
         """
@@ -183,14 +198,18 @@ class TestUIBestPractices:
         sources[0].setSelected(True)
 
         # Test Ctrl+C (copy)
-        simulate_keyboard_shortcut(qtbot, window, QtCore.Qt.Key.Key_C, QtCore.Qt.KeyboardModifier.ControlModifier)
+        simulate_keyboard_shortcut(
+            qtbot, window, QtCore.Qt.Key.Key_C, QtCore.Qt.KeyboardModifier.ControlModifier
+        )
 
         # Verify clipboard has item
         assert len(window._clipboard) == 1
 
         # Test Ctrl+V (paste)
         initial_count = len(get_scene_items_by_type(window.scene, SourceItem))
-        simulate_keyboard_shortcut(qtbot, window, QtCore.Qt.Key.Key_V, QtCore.Qt.KeyboardModifier.ControlModifier)
+        simulate_keyboard_shortcut(
+            qtbot, window, QtCore.Qt.Key.Key_V, QtCore.Qt.KeyboardModifier.ControlModifier
+        )
 
         # Verify new item added
         assert_item_count(window.scene, SourceItem, initial_count + 1)
@@ -266,6 +285,7 @@ class TestUIBestPractices:
 
         # Initially in default mode
         from optiverse.core.editor_state import EditorMode
+
         checker.assert_mode(EditorMode.DEFAULT)
 
         # Enter inspect mode
@@ -314,6 +334,3 @@ class TestUIBestPractices:
 
 # Import needed for type hints
 from optiverse.objects import SourceItem
-
-
-

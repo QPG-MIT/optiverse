@@ -3,9 +3,11 @@ Unit tests for segment-based path measurement system.
 
 Tests PathSegment, PathMeasurement data models and split detection algorithms.
 """
-import pytest
+
 import numpy as np
-from optiverse.core.models import PathSegment, PathMeasurement
+import pytest
+
+from optiverse.core.models import PathMeasurement, PathSegment
 
 
 class TestPathSegment:
@@ -24,27 +26,21 @@ class TestPathSegment:
     def test_segment_distance_horizontal(self):
         """Test distance calculation for horizontal segment."""
         segment = PathSegment(
-            ray_index=0,
-            start_point=np.array([0.0, 0.0]),
-            end_point=np.array([10.0, 0.0])
+            ray_index=0, start_point=np.array([0.0, 0.0]), end_point=np.array([10.0, 0.0])
         )
         assert abs(segment.distance() - 10.0) < 1e-6
 
     def test_segment_distance_vertical(self):
         """Test distance calculation for vertical segment."""
         segment = PathSegment(
-            ray_index=0,
-            start_point=np.array([0.0, 0.0]),
-            end_point=np.array([0.0, 20.0])
+            ray_index=0, start_point=np.array([0.0, 0.0]), end_point=np.array([0.0, 20.0])
         )
         assert abs(segment.distance() - 20.0) < 1e-6
 
     def test_segment_distance_diagonal(self):
         """Test distance calculation for diagonal segment."""
         segment = PathSegment(
-            ray_index=0,
-            start_point=np.array([0.0, 0.0]),
-            end_point=np.array([3.0, 4.0])
+            ray_index=0, start_point=np.array([0.0, 0.0]), end_point=np.array([3.0, 4.0])
         )
         # 3-4-5 right triangle
         assert abs(segment.distance() - 5.0) < 1e-6
@@ -56,9 +52,7 @@ class TestPathMeasurement:
     def test_measurement_creation(self):
         """Test creating a PathMeasurement."""
         seg1 = PathSegment(
-            ray_index=0,
-            start_point=np.array([0.0, 0.0]),
-            end_point=np.array([10.0, 0.0])
+            ray_index=0, start_point=np.array([0.0, 0.0]), end_point=np.array([10.0, 0.0])
         )
         measurement = PathMeasurement(segments=[seg1], label="Test: ", group_id="test-123")
 
@@ -69,9 +63,7 @@ class TestPathMeasurement:
     def test_measurement_total_distance_single_segment(self):
         """Test total distance with single segment."""
         seg1 = PathSegment(
-            ray_index=0,
-            start_point=np.array([0.0, 0.0]),
-            end_point=np.array([10.0, 0.0])
+            ray_index=0, start_point=np.array([0.0, 0.0]), end_point=np.array([10.0, 0.0])
         )
         measurement = PathMeasurement(segments=[seg1])
 
@@ -80,14 +72,10 @@ class TestPathMeasurement:
     def test_measurement_total_distance_multiple_segments(self):
         """Test total distance with multiple segments."""
         seg1 = PathSegment(
-            ray_index=0,
-            start_point=np.array([0.0, 0.0]),
-            end_point=np.array([10.0, 0.0])
+            ray_index=0, start_point=np.array([0.0, 0.0]), end_point=np.array([10.0, 0.0])
         )
         seg2 = PathSegment(
-            ray_index=0,
-            start_point=np.array([10.0, 0.0]),
-            end_point=np.array([20.0, 0.0])
+            ray_index=0, start_point=np.array([10.0, 0.0]), end_point=np.array([20.0, 0.0])
         )
         measurement = PathMeasurement(segments=[seg1, seg2])
 
@@ -96,14 +84,10 @@ class TestPathMeasurement:
     def test_measurement_all_ray_indices(self):
         """Test getting all ray indices from a measurement."""
         seg1 = PathSegment(
-            ray_index=0,
-            start_point=np.array([0.0, 0.0]),
-            end_point=np.array([10.0, 0.0])
+            ray_index=0, start_point=np.array([0.0, 0.0]), end_point=np.array([10.0, 0.0])
         )
         seg2 = PathSegment(
-            ray_index=1,
-            start_point=np.array([10.0, 0.0]),
-            end_point=np.array([20.0, 5.0])
+            ray_index=1, start_point=np.array([10.0, 0.0]), end_point=np.array([20.0, 5.0])
         )
         measurement = PathMeasurement(segments=[seg1, seg2])
 
@@ -113,9 +97,7 @@ class TestPathMeasurement:
     def test_measurement_empty_label(self):
         """Test measurement with empty label."""
         seg1 = PathSegment(
-            ray_index=0,
-            start_point=np.array([0.0, 0.0]),
-            end_point=np.array([10.0, 0.0])
+            ray_index=0, start_point=np.array([0.0, 0.0]), end_point=np.array([10.0, 0.0])
         )
         measurement = PathMeasurement(segments=[seg1])
 
@@ -130,36 +112,26 @@ class TestBeamSplitterScenarios:
         """Test measurement through simple beam splitter."""
         # Before split (common segment)
         common_seg = PathSegment(
-            ray_index=0,
-            start_point=np.array([0.0, 0.0]),
-            end_point=np.array([20.0, 20.0])
+            ray_index=0, start_point=np.array([0.0, 0.0]), end_point=np.array([20.0, 20.0])
         )
 
         # After split - transmitted
         transmitted_seg = PathSegment(
-            ray_index=0,
-            start_point=np.array([20.0, 20.0]),
-            end_point=np.array([40.0, 20.0])
+            ray_index=0, start_point=np.array([20.0, 20.0]), end_point=np.array([40.0, 20.0])
         )
 
         # After split - reflected
         reflected_seg = PathSegment(
-            ray_index=1,
-            start_point=np.array([20.0, 20.0]),
-            end_point=np.array([20.0, 40.0])
+            ray_index=1, start_point=np.array([20.0, 20.0]), end_point=np.array([20.0, 40.0])
         )
 
         # Create measurements
         transmitted_measurement = PathMeasurement(
-            segments=[common_seg, transmitted_seg],
-            label="T: ",
-            group_id="group-1"
+            segments=[common_seg, transmitted_seg], label="T: ", group_id="group-1"
         )
 
         reflected_measurement = PathMeasurement(
-            segments=[common_seg, reflected_seg],
-            label="R: ",
-            group_id="group-1"
+            segments=[common_seg, reflected_seg], label="R: ", group_id="group-1"
         )
 
         # Check distances
@@ -186,18 +158,10 @@ class TestSplitDetectionScenarios:
     def test_rays_with_common_start(self):
         """Test detecting rays that share starting points."""
         # Ray 1: [0,0] -> [10,10] -> [20,10]
-        ray1_points = [
-            np.array([0.0, 0.0]),
-            np.array([10.0, 10.0]),
-            np.array([20.0, 10.0])
-        ]
+        ray1_points = [np.array([0.0, 0.0]), np.array([10.0, 10.0]), np.array([20.0, 10.0])]
 
         # Ray 2: [0,0] -> [10,10] -> [10,20] (splits at [10,10])
-        ray2_points = [
-            np.array([0.0, 0.0]),
-            np.array([10.0, 10.0]),
-            np.array([10.0, 20.0])
-        ]
+        ray2_points = [np.array([0.0, 0.0]), np.array([10.0, 10.0]), np.array([10.0, 20.0])]
 
         # In real implementation, this would be tested through MainWindow._find_split_point
         # Here we just verify the data structure is correct
@@ -208,16 +172,10 @@ class TestSplitDetectionScenarios:
     def test_rays_with_no_common_points(self):
         """Test rays that don't share any points."""
         # Ray 1: starts at [0,0]
-        ray1_points = [
-            np.array([0.0, 0.0]),
-            np.array([10.0, 0.0])
-        ]
+        ray1_points = [np.array([0.0, 0.0]), np.array([10.0, 0.0])]
 
         # Ray 2: starts at [100,0]
-        ray2_points = [
-            np.array([100.0, 0.0]),
-            np.array([110.0, 0.0])
-        ]
+        ray2_points = [np.array([100.0, 0.0]), np.array([110.0, 0.0])]
 
         # No common points - these shouldn't be grouped
         assert not np.allclose(ray1_points[0], ray2_points[0])
@@ -225,9 +183,3 @@ class TestSplitDetectionScenarios:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-
-
-
-
-
-

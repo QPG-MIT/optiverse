@@ -14,7 +14,3 @@ def test_beamsplitter_item_insert(qtbot):
     w._insert_beamsplitter()
     items = w.scene.items()
     assert any(isinstance(it, QtWidgets.QGraphicsObject) for it in items)
-
-
-
-

@@ -4,25 +4,26 @@ Path Measure Item - Measures optical path length along traced rays.
 Highlights a selected ray path and displays cumulative distance traveled,
 including reflections, refractions, and beam splitter paths.
 """
+
 from __future__ import annotations
 
 import math
 import uuid
-from typing import Optional, Dict, Any, List
-import numpy as np
+from typing import Any
 
+import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
-from ...core.zorder_utils import handle_z_order_from_menu
 from ...core.ui_constants import (
-    PATH_MEASURE_LINE_WIDTH,
+    PATH_MEASURE_ENDPOINT_COLOR,
     PATH_MEASURE_ENDPOINT_RADIUS,
     PATH_MEASURE_HIGHLIGHT_COLOR,
     PATH_MEASURE_LABEL_BG_COLOR,
     PATH_MEASURE_LABEL_TEXT_COLOR,
-    PATH_MEASURE_ENDPOINT_COLOR,
+    PATH_MEASURE_LINE_WIDTH,
     SELECTION_INDICATOR_COLOR,
 )
+from ...core.zorder_utils import handle_z_order_from_menu
 
 
 class PathMeasureItem(QtWidgets.QGraphicsObject):
@@ -45,12 +46,12 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
 
     def __init__(
         self,
-        ray_path_points: List[np.ndarray],
+        ray_path_points: list[np.ndarray],
         start_param: float = 0.0,
         end_param: float = 1.0,
         ray_index: int = -1,
         item_uuid: str | None = None,
-        label_prefix: str = ""
+        label_prefix: str = "",
     ):
         """
         Initialize path measure for a segment of a ray path.
@@ -104,7 +105,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
 
         # Dragging state
         self._dragging_endpoint = None  # 'start' or 'end' when dragging
-        self._initial_params: Optional[Dict[str, float]] = None  # For undo tracking
+        self._initial_params: dict[str, float] | None = None  # For undo tracking
 
         # Appearance (from constants)
         self._highlight_color = QtGui.QColor(*PATH_MEASURE_HIGHLIGHT_COLOR)
@@ -114,13 +115,13 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         self._label_text_color = QtGui.QColor(*PATH_MEASURE_LABEL_TEXT_COLOR)
 
     @staticmethod
-    def _calculate_path_length(points: List[np.ndarray]) -> float:
+    def _calculate_path_length(points: list[np.ndarray]) -> float:
         """Calculate cumulative distance along path segments."""
         total = 0.0
         for i in range(len(points) - 1):
-            dx = points[i+1][0] - points[i][0]
-            dy = points[i+1][1] - points[i][1]
-            total += math.sqrt(dx*dx + dy*dy)
+            dx = points[i + 1][0] - points[i][0]
+            dy = points[i + 1][1] - points[i][1]
+            total += math.sqrt(dx * dx + dy * dy)
         return total
 
     def _calculate_segment_length(self) -> float:
@@ -131,7 +132,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         segment_points = self._get_segment_points()
         return self._calculate_path_length(segment_points)
 
-    def _get_segment_points(self) -> List[np.ndarray]:
+    def _get_segment_points(self) -> list[np.ndarray]:
         """Get the list of points between start_param and end_param."""
         if len(self._full_path_points) < 2:
             return []
@@ -163,7 +164,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         segment_points.append(end_pos)
         return segment_points
 
-    def _position_at_parameter(self, param: float) -> Optional[np.ndarray]:
+    def _position_at_parameter(self, param: float) -> np.ndarray | None:
         """
         Find position along path at given parameter [0,1].
 
@@ -195,7 +196,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
 
         return self._full_path_points[-1].copy()
 
-    def update_path(self, new_points: List[np.ndarray]):
+    def update_path(self, new_points: list[np.ndarray]):
         """
         Update the path points (e.g., after retrace).
 
@@ -224,7 +225,9 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         if target_total_dist > self._total_path_length:
             target_total_dist = self._total_path_length
 
-        self.end_param = target_total_dist / self._total_path_length if self._total_path_length > 0 else 1.0
+        self.end_param = (
+            target_total_dist / self._total_path_length if self._total_path_length > 0 else 1.0
+        )
         self.end_param = max(0.0, min(1.0, self.end_param))
 
         if self.end_param < self.start_param:
@@ -249,9 +252,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         pad = max(100.0, self._line_width * 2, self._endpoint_radius * 2)
 
         return QtCore.QRectF(
-            min_x - pad, min_y - pad,
-            (max_x - min_x) + 2 * pad,
-            (max_y - min_y) + 2 * pad
+            min_x - pad, min_y - pad, (max_x - min_x) + 2 * pad, (max_y - min_y) + 2 * pad
         )
 
     def shape(self) -> QtGui.QPainterPath:
@@ -292,10 +293,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         for i in range(len(segment_points) - 1):
             p1 = segment_points[i]
             p2 = segment_points[i + 1]
-            painter.drawLine(
-                QtCore.QPointF(p1[0], p1[1]),
-                QtCore.QPointF(p2[0], p2[1])
-            )
+            painter.drawLine(QtCore.QPointF(p1[0], p1[1]), QtCore.QPointF(p2[0], p2[1]))
 
         # Draw yellow endpoint markers
         painter.setPen(QtCore.Qt.PenStyle.NoPen)
@@ -305,14 +303,10 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         end_pos = segment_points[-1]
 
         painter.drawEllipse(
-            QtCore.QPointF(start_pos[0], start_pos[1]),
-            self._endpoint_radius,
-            self._endpoint_radius
+            QtCore.QPointF(start_pos[0], start_pos[1]), self._endpoint_radius, self._endpoint_radius
         )
         painter.drawEllipse(
-            QtCore.QPointF(end_pos[0], end_pos[1]),
-            self._endpoint_radius,
-            self._endpoint_radius
+            QtCore.QPointF(end_pos[0], end_pos[1]), self._endpoint_radius, self._endpoint_radius
         )
 
         # Draw distance label at midpoint
@@ -322,7 +316,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         if self.isSelected():
             self._draw_selection_indicator(painter, segment_points)
 
-    def _draw_distance_label(self, painter: QtGui.QPainter, segment_points: List[np.ndarray]):
+    def _draw_distance_label(self, painter: QtGui.QPainter, segment_points: list[np.ndarray]):
         """Draw the distance label."""
         if len(segment_points) < 2:
             return
@@ -358,8 +352,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         painter.setPen(QtCore.Qt.PenStyle.NoPen)
         painter.setBrush(QtGui.QBrush(self._label_bg_color))
         painter.drawRoundedRect(
-            QtCore.QRectF(-text_width / 2, -text_height / 2, text_width, text_height),
-            5.0, 5.0
+            QtCore.QRectF(-text_width / 2, -text_height / 2, text_width, text_height), 5.0, 5.0
         )
 
         # Draw text
@@ -367,12 +360,12 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         painter.drawText(
             QtCore.QRectF(-text_width / 2, -text_height / 2, text_width, text_height),
             QtCore.Qt.AlignmentFlag.AlignCenter,
-            txt
+            txt,
         )
 
         painter.restore()
 
-    def _endpoint_at_pos(self, scene_pos: QtCore.QPointF) -> Optional[str]:
+    def _endpoint_at_pos(self, scene_pos: QtCore.QPointF) -> str | None:
         """
         Check if position is near an endpoint.
 
@@ -391,9 +384,9 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
 
         # Check proximity (10 mm tolerance)
         if (scene_pos - start_pos).manhattanLength() < 10:
-            return 'start'
+            return "start"
         if (scene_pos - end_pos).manhattanLength() < 10:
-            return 'end'
+            return "end"
 
         return None
 
@@ -410,7 +403,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         if len(self._full_path_points) < 2:
             return 0.0
 
-        min_dist = float('inf')
+        min_dist = float("inf")
         best_param = 0.0
 
         pos = np.array([scene_pos.x(), scene_pos.y()])
@@ -434,7 +427,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
 
             # Find closest point on this segment
             to_pos = pos - p1
-            t = np.clip(np.dot(to_pos, segment_vec) / (segment_len ** 2), 0.0, 1.0)
+            t = np.clip(np.dot(to_pos, segment_vec) / (segment_len**2), 0.0, 1.0)
             closest_on_segment = p1 + t * segment_vec
 
             dist = np.linalg.norm(pos - closest_on_segment)
@@ -448,7 +441,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
 
         return np.clip(best_param, 0.0, 1.0)
 
-    def _draw_selection_indicator(self, painter: QtGui.QPainter, segment_points: List[np.ndarray]):
+    def _draw_selection_indicator(self, painter: QtGui.QPainter, segment_points: list[np.ndarray]):
         """Draw dashed outline when selected."""
         pen = QtGui.QPen(QtGui.QColor(*SELECTION_INDICATOR_COLOR), 2.0)
         pen.setCosmetic(True)
@@ -460,10 +453,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         for i in range(len(segment_points) - 1):
             p1 = segment_points[i]
             p2 = segment_points[i + 1]
-            painter.drawLine(
-                QtCore.QPointF(p1[0], p1[1]),
-                QtCore.QPointF(p2[0], p2[1])
-            )
+            painter.drawLine(QtCore.QPointF(p1[0], p1[1]), QtCore.QPointF(p2[0], p2[1]))
 
     def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent):
         """Handle mouse press for dragging endpoints or context menu."""
@@ -489,12 +479,16 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
                 self.requestDelete.emit(self)
             else:
                 # Handle z-order actions via utility
-                handle_z_order_from_menu(self, action, {
-                    act_bring_to_front: "bring_to_front",
-                    act_bring_forward: "bring_forward",
-                    act_send_backward: "send_backward",
-                    act_send_to_back: "send_to_back",
-                })
+                handle_z_order_from_menu(
+                    self,
+                    action,
+                    {
+                        act_bring_to_front: "bring_to_front",
+                        act_bring_forward: "bring_forward",
+                        act_send_backward: "send_backward",
+                        act_send_to_back: "send_to_back",
+                    },
+                )
 
             event.accept()
             return
@@ -505,8 +499,8 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
             if self._dragging_endpoint:
                 # Store initial params for undo
                 self._initial_params = {
-                    'start_param': self.start_param,
-                    'end_param': self.end_param,
+                    "start_param": self.start_param,
+                    "end_param": self.end_param,
                 }
                 event.accept()
                 self.setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
@@ -520,7 +514,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
             # Find parameter for current position
             new_param = self._find_closest_parameter(event.scenePos())
 
-            if self._dragging_endpoint == 'start':
+            if self._dragging_endpoint == "start":
                 # Ensure start < end
                 self.start_param = min(new_param, self.end_param - 0.01)
             else:  # 'end'
@@ -543,16 +537,17 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         if self._dragging_endpoint and self._initial_params:
             # Check if params actually changed
             params_changed = (
-                abs(self.start_param - self._initial_params['start_param']) > 0.001 or
-                abs(self.end_param - self._initial_params['end_param']) > 0.001
+                abs(self.start_param - self._initial_params["start_param"]) > 0.001
+                or abs(self.end_param - self._initial_params["end_param"]) > 0.001
             )
 
             if params_changed:
                 # Create undo command
                 from ...core.undo_commands import PropertyChangeCommand
+
                 before_state = {
-                    'start_param': self._initial_params['start_param'],
-                    'end_param': self._initial_params['end_param'],
+                    "start_param": self._initial_params["start_param"],
+                    "end_param": self._initial_params["end_param"],
                 }
                 after_state = self.capture_state()
                 cmd = PropertyChangeCommand(self, before_state, after_state)
@@ -594,7 +589,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
             "Target length (mm):",
             value=current_length,
             min=0.1,
-            decimals=2
+            decimals=2,
         )
 
         if ok and abs(value - current_length) > 0.01:
@@ -620,19 +615,19 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         self._label_prefix = prefix
         self.update()
 
-    def capture_state(self) -> Dict[str, Any]:
+    def capture_state(self) -> dict[str, Any]:
         """Capture current state for undo/redo."""
         return {
-            'start_param': float(self.start_param),
-            'end_param': float(self.end_param),
+            "start_param": float(self.start_param),
+            "end_param": float(self.end_param),
         }
 
-    def apply_state(self, state: Dict[str, Any]) -> None:
+    def apply_state(self, state: dict[str, Any]) -> None:
         """Apply a previously captured state."""
-        if 'start_param' in state:
-            self.start_param = float(state['start_param'])
-        if 'end_param' in state:
-            self.end_param = float(state['end_param'])
+        if "start_param" in state:
+            self.start_param = float(state["start_param"])
+        if "end_param" in state:
+            self.end_param = float(state["end_param"])
 
         # Recalculate segment length
         segment_points = self._get_segment_points()
@@ -641,7 +636,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         self.prepareGeometryChange()
         self.update()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary for save/load."""
         return {
             "type": "path_measure",
@@ -656,7 +651,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         }
 
     @staticmethod
-    def from_dict(d: Dict[str, Any], ray_data: List = None) -> Optional["PathMeasureItem"]:
+    def from_dict(d: dict[str, Any], ray_data: list = None) -> PathMeasureItem | None:
         """
         Deserialize from dictionary.
 
@@ -683,7 +678,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
             end_param=d.get("end_param", 1.0),
             ray_index=ray_index,
             item_uuid=d.get("item_uuid"),
-            label_prefix=d.get("label_prefix", "")
+            label_prefix=d.get("label_prefix", ""),
         )
 
         # Restore z-value
@@ -691,5 +686,3 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
             item.setZValue(float(d["z_value"]))
 
         return item
-
-

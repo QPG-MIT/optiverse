@@ -3,9 +3,10 @@ Tool mode controller for managing editor tool modes.
 
 Extracts tool mode toggle logic from MainWindow.
 """
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Dict
+from typing import TYPE_CHECKING
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -13,8 +14,8 @@ from ...core.component_types import ComponentType
 from ...core.editor_state import EditorState
 
 if TYPE_CHECKING:
-    from ..views.tool_handlers import PathMeasureToolHandler, AngleMeasureToolHandler
     from ..views.placement_handler import PlacementHandler
+    from ..views.tool_handlers import AngleMeasureToolHandler, PathMeasureToolHandler
 
 
 class ToolModeController(QtCore.QObject):
@@ -35,10 +36,10 @@ class ToolModeController(QtCore.QObject):
         self,
         editor_state: EditorState,
         view: QtWidgets.QGraphicsView,
-        path_measure_handler: "PathMeasureToolHandler",
-        angle_measure_handler: "AngleMeasureToolHandler",
-        placement_handler: "PlacementHandler",
-        parent: Optional[QtCore.QObject] = None,
+        path_measure_handler: PathMeasureToolHandler,
+        angle_measure_handler: AngleMeasureToolHandler,
+        placement_handler: PlacementHandler,
+        parent: QtCore.QObject | None = None,
     ):
         super().__init__(parent)
 
@@ -49,10 +50,10 @@ class ToolModeController(QtCore.QObject):
         self._placement_handler = placement_handler
 
         # Action references (set by MainWindow after initialization)
-        self._action_inspect: Optional[QtWidgets.QAction] = None
-        self._action_measure_path: Optional[QtWidgets.QAction] = None
-        self._action_measure_angle: Optional[QtWidgets.QAction] = None
-        self._placement_actions: Dict[ComponentType, QtWidgets.QAction] = {}
+        self._action_inspect: QtWidgets.QAction | None = None
+        self._action_measure_path: QtWidgets.QAction | None = None
+        self._action_measure_angle: QtWidgets.QAction | None = None
+        self._placement_actions: dict[ComponentType, QtWidgets.QAction] = {}
 
     def set_action_inspect(self, action: QtWidgets.QAction):
         """Set the inspect action for unchecking."""
@@ -74,8 +75,7 @@ class ToolModeController(QtCore.QObject):
             self._angle_measure_handler.activate()
             self._view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
             QtWidgets.QToolTip.showText(
-                QtGui.QCursor.pos(),
-                "Click first point, then vertex (corner), then second point."
+                QtGui.QCursor.pos(), "Click first point, then vertex (corner), then second point."
             )
         else:
             self._editor_state.enter_default()
@@ -84,7 +84,7 @@ class ToolModeController(QtCore.QObject):
 
         self.angleMeasureModeChanged.emit(on)
 
-    def set_placement_actions(self, actions: Dict[ComponentType, QtWidgets.QAction]):
+    def set_placement_actions(self, actions: dict[ComponentType, QtWidgets.QAction]):
         """Set placement actions for unchecking."""
         self._placement_actions = actions
 
@@ -95,8 +95,7 @@ class ToolModeController(QtCore.QObject):
             self._editor_state.enter_inspect()
             self._view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
             QtWidgets.QToolTip.showText(
-                QtGui.QCursor.pos(),
-                "Click on a ray to view its properties"
+                QtGui.QCursor.pos(), "Click on a ray to view its properties"
             )
         else:
             self._editor_state.enter_default()
@@ -115,7 +114,7 @@ class ToolModeController(QtCore.QObject):
                 QtGui.QCursor.pos(),
                 "Click on a ray to set start point.\n\n"
                 "Tip: At beam splitters, transmitted and reflected are separate rays.\n"
-                "Create one measurement for each path."
+                "Create one measurement for each path.",
             )
         else:
             self._editor_state.enter_default()
@@ -135,7 +134,7 @@ class ToolModeController(QtCore.QObject):
 
         self.placementModeChanged.emit(component_type, on)
 
-    def cancel_placement(self, except_type: Optional[str] = None):
+    def cancel_placement(self, except_type: str | None = None):
         """Cancel placement mode and clean up."""
         prev_type = (
             self._placement_handler.component_type
@@ -162,11 +161,7 @@ class ToolModeController(QtCore.QObject):
         self._view.unsetCursor()
         self.rulerPlacementChanged.emit(False)
 
-    def _cancel_other_modes(
-        self,
-        active_mode: str,
-        except_placement_type: Optional[str] = None
-    ):
+    def _cancel_other_modes(self, active_mode: str, except_placement_type: str | None = None):
         """Cancel all modes except the specified one."""
         if active_mode != "inspect" and self._editor_state.is_inspect:
             if self._action_inspect:
@@ -185,6 +180,3 @@ class ToolModeController(QtCore.QObject):
 
         if self._editor_state.is_ruler_placement:
             self.finish_ruler_placement()
-
-
-

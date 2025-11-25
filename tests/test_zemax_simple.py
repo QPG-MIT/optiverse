@@ -2,26 +2,21 @@
 Simple direct test of Zemax import functionality (no pytest/numpy issues).
 """
 
-import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+import sys
 
-from optiverse.services.zemax_parser import ZemaxParser, ZemaxSurface, ZemaxFile
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
+from optiverse.core.interface_definition import InterfaceDefinition
 from optiverse.services.glass_catalog import GlassCatalog
 from optiverse.services.zemax_converter import ZemaxToInterfaceConverter
-from optiverse.core.interface_definition import InterfaceDefinition
+from optiverse.services.zemax_parser import ZemaxFile, ZemaxSurface
 
 
 def test_zemax_surface():
     """Test Zemax surface creation."""
     print("Testing ZemaxSurface...")
-    surf = ZemaxSurface(
-        number=1,
-        curvature=0.015,
-        thickness=4.0,
-        glass="N-BK7",
-        diameter=12.7
-    )
+    surf = ZemaxSurface(number=1, curvature=0.015, thickness=4.0, glass="N-BK7", diameter=12.7)
 
     assert surf.number == 1
     assert surf.curvature == 0.015
@@ -53,10 +48,14 @@ def test_curved_interface():
     """Test curved interface definition."""
     print("Testing curved InterfaceDefinition...")
     iface = InterfaceDefinition(
-        x1_mm=0, y1_mm=-5, x2_mm=0, y2_mm=5,
-        n1=1.0, n2=1.5,
+        x1_mm=0,
+        y1_mm=-5,
+        x2_mm=0,
+        y2_mm=5,
+        n1=1.0,
+        n2=1.5,
         is_curved=True,
-        radius_of_curvature_mm=100.0
+        radius_of_curvature_mm=100.0,
     )
 
     assert not iface.is_flat()
@@ -74,8 +73,8 @@ def test_curved_interface():
 
     # Test serialization
     data = iface.to_dict()
-    assert data['is_curved'] == True
-    assert data['radius_of_curvature_mm'] == 100.0
+    assert data["is_curved"]
+    assert data["radius_of_curvature_mm"] == 100.0
 
     iface2 = InterfaceDefinition.from_dict(data)
     assert iface2.is_curved
@@ -90,36 +89,14 @@ def test_zemax_converter():
     print("Testing ZemaxToInterfaceConverter...")
 
     # Create a simple Zemax file
-    zmx = ZemaxFile(
-        name="Test Doublet",
-        wavelengths_um=[0.5876],
-        primary_wavelength_idx=1
-    )
+    zmx = ZemaxFile(name="Test Doublet", wavelengths_um=[0.5876], primary_wavelength_idx=1)
 
     # Add surfaces
     zmx.surfaces = [
         ZemaxSurface(number=0),  # Object
-        ZemaxSurface(
-            number=1,
-            curvature=0.015,
-            thickness=4.0,
-            glass="N-BK7",
-            diameter=12.7
-        ),
-        ZemaxSurface(
-            number=2,
-            curvature=-0.02,
-            thickness=1.5,
-            glass="N-SF11",
-            diameter=12.7
-        ),
-        ZemaxSurface(
-            number=3,
-            curvature=-0.004,
-            thickness=100.0,
-            glass="",
-            diameter=12.7
-        ),
+        ZemaxSurface(number=1, curvature=0.015, thickness=4.0, glass="N-BK7", diameter=12.7),
+        ZemaxSurface(number=2, curvature=-0.02, thickness=1.5, glass="N-SF11", diameter=12.7),
+        ZemaxSurface(number=3, curvature=-0.004, thickness=100.0, glass="", diameter=12.7),
         ZemaxSurface(number=4),  # Image
     ]
 
@@ -141,7 +118,9 @@ def test_zemax_converter():
     assert 1.51 < iface1.n2 < 1.52  # BK7
     assert iface1.is_curved
     assert iface1.radius_of_curvature_mm > 0  # Convex
-    print(f"  ✓ Interface 1: n={iface1.n1:.3f}→{iface1.n2:.3f}, R={iface1.radius_of_curvature_mm:.1f}mm")
+    print(
+        f"  ✓ Interface 1: n={iface1.n1:.3f}→{iface1.n2:.3f}, R={iface1.radius_of_curvature_mm:.1f}mm"
+    )
 
     print("  ✓ ZemaxToInterfaceConverter works")
 
@@ -172,12 +151,10 @@ def main():
         print(f"TEST FAILED: {e}")
         print("=" * 70)
         import traceback
+
         traceback.print_exc()
         return 1
 
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-

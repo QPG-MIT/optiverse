@@ -3,9 +3,10 @@ Zemax file import functionality for the Component Editor.
 
 Extracts Zemax import logic from component_editor_dialog.py for better modularity.
 """
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from PyQt6 import QtWidgets
 
@@ -30,23 +31,20 @@ class ZemaxImporter:
         """
         self.parent = parent_widget
 
-    def import_file(self) -> Optional["ComponentRecord"]:
+    def import_file(self) -> ComponentRecord | None:
         """
         Show file dialog and import a Zemax ZMX file.
 
         Returns:
             ComponentRecord if successful, None otherwise
         """
-        from ...services.zemax_parser import ZemaxParser
-        from ...services.zemax_converter import ZemaxToInterfaceConverter
         from ...services.glass_catalog import GlassCatalog
+        from ...services.zemax_converter import ZemaxToInterfaceConverter
+        from ...services.zemax_parser import ZemaxParser
 
         # Open file dialog
         filepath, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self.parent,
-            "Import Zemax File",
-            "",
-            "Zemax Files (*.zmx *.ZMX);;All Files (*.*)"
+            self.parent, "Import Zemax File", "", "Zemax Files (*.zmx *.ZMX);;All Files (*.*)"
         )
 
         if not filepath:
@@ -61,7 +59,7 @@ class ZemaxImporter:
                 QtWidgets.QMessageBox.critical(
                     self.parent,
                     "Import Error",
-                    "Failed to parse Zemax file. The file may be corrupted or in an unsupported format."
+                    "Failed to parse Zemax file. The file may be corrupted or in an unsupported format.",
                 )
                 return None
 
@@ -77,15 +75,16 @@ class ZemaxImporter:
 
         except Exception as e:
             import traceback
+
             error_details = traceback.format_exc()
             QtWidgets.QMessageBox.critical(
                 self.parent,
                 "Import Error",
-                f"Error importing Zemax file:\n\n{str(e)}\n\nDetails:\n{error_details}"
+                f"Error importing Zemax file:\n\n{str(e)}\n\nDetails:\n{error_details}",
             )
             return None
 
-    def _show_success_message(self, component: "ComponentRecord") -> None:
+    def _show_success_message(self, component: ComponentRecord) -> None:
         """Show success message with import summary."""
         num_interfaces = len(component.interfaces) if component.interfaces else 0
 
@@ -107,7 +106,7 @@ class ZemaxImporter:
             msg += "Interfaces:\n"
             for i, iface in enumerate(component.interfaces[:5]):  # Show first 5
                 curv_str = f" [R={iface.radius_of_curvature_mm:.1f}mm]" if iface.is_curved else ""
-                msg += f"  {i+1}. {iface.name}{curv_str}\n"
+                msg += f"  {i + 1}. {iface.name}{curv_str}\n"
             if num_interfaces > 5:
                 msg += f"  ... and {num_interfaces - 5} more\n"
 
@@ -121,11 +120,4 @@ class ZemaxImporter:
             msg += "   • Curvature (is_curved, radius_of_curvature_mm)\n"
             msg += "   • Position and geometry\n"
 
-        QtWidgets.QMessageBox.information(
-            self.parent,
-            "Import Successful",
-            msg
-        )
-
-
-
+        QtWidgets.QMessageBox.information(self.parent, "Import Successful", msg)

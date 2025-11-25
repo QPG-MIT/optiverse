@@ -4,10 +4,11 @@ Base class for measurement items (ruler, angle, path).
 Provides common functionality for context menus, z-order handling,
 and undo/redo support via commandCreated signal.
 """
+
 from __future__ import annotations
 
 import uuid
-from typing import Dict, Any, Optional
+from typing import Any
 
 from PyQt6 import QtCore, QtWidgets
 
@@ -37,16 +38,15 @@ class BaseMeasureItem(QtWidgets.QGraphicsObject):
         self.item_uuid = item_uuid if item_uuid else str(uuid.uuid4())
 
     def _emit_property_change_command(
-        self,
-        before_state: Dict[str, Any],
-        after_state: Dict[str, Any]
+        self, before_state: dict[str, Any], after_state: dict[str, Any]
     ) -> None:
         """Create and emit a property change command for undo/redo."""
         from ...core.undo_commands import PropertyChangeCommand
+
         cmd = PropertyChangeCommand(self, before_state, after_state)
         self.commandCreated.emit(cmd)
 
-    def _build_context_menu(self) -> tuple[QtWidgets.QMenu, Dict[str, QtWidgets.QAction]]:
+    def _build_context_menu(self) -> tuple[QtWidgets.QMenu, dict[str, QtWidgets.QAction]]:
         """
         Build a standard context menu with delete and z-order options.
 
@@ -57,20 +57,18 @@ class BaseMeasureItem(QtWidgets.QGraphicsObject):
         menu = QtWidgets.QMenu()
         actions = {}
 
-        actions['delete'] = menu.addAction("Delete")
+        actions["delete"] = menu.addAction("Delete")
 
         menu.addSeparator()
-        actions['bring_to_front'] = menu.addAction("Bring to Front")
-        actions['bring_forward'] = menu.addAction("Bring Forward")
-        actions['send_backward'] = menu.addAction("Send Backward")
-        actions['send_to_back'] = menu.addAction("Send to Back")
+        actions["bring_to_front"] = menu.addAction("Bring to Front")
+        actions["bring_forward"] = menu.addAction("Bring Forward")
+        actions["send_backward"] = menu.addAction("Send Backward")
+        actions["send_to_back"] = menu.addAction("Send to Back")
 
         return menu, actions
 
     def _handle_context_menu_action(
-        self,
-        selected_action: Optional[QtWidgets.QAction],
-        actions: Dict[str, QtWidgets.QAction]
+        self, selected_action: QtWidgets.QAction | None, actions: dict[str, QtWidgets.QAction]
     ) -> bool:
         """
         Handle a context menu action.
@@ -85,17 +83,17 @@ class BaseMeasureItem(QtWidgets.QGraphicsObject):
         if selected_action is None:
             return False
 
-        if selected_action == actions.get('delete'):
+        if selected_action == actions.get("delete"):
             # Emit requestDelete signal for undoable deletion
             self.requestDelete.emit(self)
             return True
 
         # Handle z-order actions
         z_order_map = {
-            actions.get('bring_to_front'): "bring_to_front",
-            actions.get('bring_forward'): "bring_forward",
-            actions.get('send_backward'): "send_backward",
-            actions.get('send_to_back'): "send_to_back",
+            actions.get("bring_to_front"): "bring_to_front",
+            actions.get("bring_forward"): "bring_forward",
+            actions.get("send_backward"): "send_backward",
+            actions.get("send_to_back"): "send_to_back",
         }
 
         if selected_action in z_order_map:
@@ -104,7 +102,7 @@ class BaseMeasureItem(QtWidgets.QGraphicsObject):
 
         return False
 
-    def capture_state(self) -> Dict[str, Any]:
+    def capture_state(self) -> dict[str, Any]:
         """
         Capture current state for undo/redo.
 
@@ -112,7 +110,7 @@ class BaseMeasureItem(QtWidgets.QGraphicsObject):
         """
         raise NotImplementedError("Subclasses must implement capture_state()")
 
-    def apply_state(self, state: Dict[str, Any]) -> None:
+    def apply_state(self, state: dict[str, Any]) -> None:
         """
         Apply a previously captured state.
 
@@ -120,13 +118,10 @@ class BaseMeasureItem(QtWidgets.QGraphicsObject):
         """
         raise NotImplementedError("Subclasses must implement apply_state()")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize to dictionary for save/load.
 
         Subclasses must implement this method.
         """
         raise NotImplementedError("Subclasses must implement to_dict()")
-
-
-

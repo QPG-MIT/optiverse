@@ -3,13 +3,13 @@ Integration tests for collaboration synchronization.
 
 Tests the full flow from broadcast to reception with real components.
 """
-import unittest
+
 import json
-import time
-from unittest.mock import Mock, patch, MagicMock
-from PyQt6.QtCore import QPointF
-from PyQt6.QtWidgets import QApplication
 import sys
+import unittest
+from unittest.mock import Mock
+
+from PyQt6.QtWidgets import QApplication
 
 # Ensure QApplication exists
 if not QApplication.instance():
@@ -22,7 +22,6 @@ class TestCollaborationFullFlow(unittest.TestCase):
     def setUp(self):
         """Set up two collaboration managers simulating two users."""
         from optiverse.services.collaboration_manager import CollaborationManager
-        from optiverse.services.collaboration_service import CollaborationService
 
         # Create mock main windows for two users
         self.main_window_a = Mock()
@@ -54,14 +53,16 @@ class TestCollaborationFullFlow(unittest.TestCase):
         # Create a mock item
         item = Mock()
         item.item_uuid = str(uuid.uuid4())
-        item.__class__.__name__ = 'LensItem'
-        item.to_dict = Mock(return_value={
-            'uuid': item.item_uuid,
-            'x_mm': 100.0,
-            'y_mm': 50.0,
-            'angle_deg': 0.0,
-            'efl_mm': 100.0
-        })
+        item.__class__.__name__ = "LensItem"
+        item.to_dict = Mock(
+            return_value={
+                "uuid": item.item_uuid,
+                "x_mm": 100.0,
+                "y_mm": 50.0,
+                "angle_deg": 0.0,
+                "efl_mm": 100.0,
+            }
+        )
 
         # Broadcast add from user A
         self.collab_a.broadcast_add_item(item)
@@ -73,11 +74,11 @@ class TestCollaborationFullFlow(unittest.TestCase):
         sent_message = self.collab_a.collaboration_service.send_message.call_args[0][0]
 
         # Verify message structure
-        self.assertEqual(sent_message['type'], 'command')
-        self.assertEqual(sent_message['command']['action'], 'add_item')
-        self.assertEqual(sent_message['command']['item_type'], 'lens')
-        self.assertEqual(sent_message['command']['item_id'], item.item_uuid)
-        self.assertIn('data', sent_message['command'])
+        self.assertEqual(sent_message["type"], "command")
+        self.assertEqual(sent_message["command"]["action"], "add_item")
+        self.assertEqual(sent_message["command"]["item_type"], "lens")
+        self.assertEqual(sent_message["command"]["item_id"], item.item_uuid)
+        self.assertIn("data", sent_message["command"])
 
     def test_broadcast_move_sends_message(self):
         """Test that broadcasting move sends a proper message."""
@@ -85,13 +86,10 @@ class TestCollaborationFullFlow(unittest.TestCase):
 
         item = Mock()
         item.item_uuid = str(uuid.uuid4())
-        item.__class__.__name__ = 'MirrorItem'
-        item.to_dict = Mock(return_value={
-            'uuid': item.item_uuid,
-            'x_mm': 200.0,
-            'y_mm': 100.0,
-            'angle_deg': 45.0
-        })
+        item.__class__.__name__ = "MirrorItem"
+        item.to_dict = Mock(
+            return_value={"uuid": item.item_uuid, "x_mm": 200.0, "y_mm": 100.0, "angle_deg": 45.0}
+        )
 
         # Broadcast move from user A
         self.collab_a.broadcast_move_item(item)
@@ -101,11 +99,11 @@ class TestCollaborationFullFlow(unittest.TestCase):
 
         sent_message = self.collab_a.collaboration_service.send_message.call_args[0][0]
 
-        self.assertEqual(sent_message['type'], 'command')
-        self.assertEqual(sent_message['command']['action'], 'move_item')
-        self.assertEqual(sent_message['command']['item_id'], item.item_uuid)
-        self.assertEqual(sent_message['command']['data']['x_mm'], 200.0)
-        self.assertEqual(sent_message['command']['data']['y_mm'], 100.0)
+        self.assertEqual(sent_message["type"], "command")
+        self.assertEqual(sent_message["command"]["action"], "move_item")
+        self.assertEqual(sent_message["command"]["item_id"], item.item_uuid)
+        self.assertEqual(sent_message["command"]["data"]["x_mm"], 200.0)
+        self.assertEqual(sent_message["command"]["data"]["y_mm"], 100.0)
 
     def test_simulate_add_from_a_to_b(self):
         """Simulate user A adding item and user B receiving it."""
@@ -116,24 +114,24 @@ class TestCollaborationFullFlow(unittest.TestCase):
 
         # Create the message that would be sent
         message = {
-            'type': 'command',
-            'command': {
-                'action': 'add_item',
-                'item_type': 'lens',
-                'item_id': item_uuid,
-                'data': {
-                    'uuid': item_uuid,
-                    'x_mm': 150.0,
-                    'y_mm': 75.0,
-                    'angle_deg': 90.0,
-                    'efl_mm': 100.0,
-                    'object_height_mm': 25.4,
-                    'image_path': None,
-                    'line_px': (0, 0, 1, 0),
-                    'name': 'Remote Lens'
-                }
+            "type": "command",
+            "command": {
+                "action": "add_item",
+                "item_type": "lens",
+                "item_id": item_uuid,
+                "data": {
+                    "uuid": item_uuid,
+                    "x_mm": 150.0,
+                    "y_mm": 75.0,
+                    "angle_deg": 90.0,
+                    "efl_mm": 100.0,
+                    "object_height_mm": 25.4,
+                    "image_path": None,
+                    "line_px": (0, 0, 1, 0),
+                    "name": "Remote Lens",
+                },
             },
-            'user_id': 'user_a'
+            "user_id": "user_a",
         }
 
         # User B receives the message
@@ -166,18 +164,14 @@ class TestCollaborationFullFlow(unittest.TestCase):
 
         # Message from user A (item moved)
         message = {
-            'type': 'command',
-            'command': {
-                'action': 'move_item',
-                'item_type': 'lens',
-                'item_id': item_uuid,
-                'data': {
-                    'x_mm': 300.0,
-                    'y_mm': 200.0,
-                    'angle_deg': 45.0
-                }
+            "type": "command",
+            "command": {
+                "action": "move_item",
+                "item_type": "lens",
+                "item_id": item_uuid,
+                "data": {"x_mm": 300.0, "y_mm": 200.0, "angle_deg": 45.0},
             },
-            'user_id': 'user_a'
+            "user_id": "user_a",
         }
 
         # User B receives the message
@@ -203,14 +197,14 @@ class TestCollaborationFullFlow(unittest.TestCase):
 
         # Message from user A (item deleted)
         message = {
-            'type': 'command',
-            'command': {
-                'action': 'remove_item',
-                'item_type': 'lens',
-                'item_id': item_uuid,
-                'data': {}
+            "type": "command",
+            "command": {
+                "action": "remove_item",
+                "item_type": "lens",
+                "item_id": item_uuid,
+                "data": {},
             },
-            'user_id': 'user_a'
+            "user_id": "user_a",
         }
 
         # User B receives the message
@@ -241,14 +235,14 @@ class TestCollaborationFullFlow(unittest.TestCase):
 
         # Message from user A
         message = {
-            'type': 'command',
-            'command': {
-                'action': 'move_item',
-                'item_type': 'lens',
-                'item_id': item_uuid,
-                'data': {'x_mm': 100.0, 'y_mm': 50.0}
+            "type": "command",
+            "command": {
+                "action": "move_item",
+                "item_type": "lens",
+                "item_id": item_uuid,
+                "data": {"x_mm": 100.0, "y_mm": 50.0},
             },
-            'user_id': 'user_a'
+            "user_id": "user_a",
         }
 
         # User B receives and applies the message
@@ -281,54 +275,54 @@ class TestComponentFactory(unittest.TestCase):
     def test_create_lens_from_remote(self):
         """Test creating a lens from remote data."""
         data = {
-            'uuid': 'test-uuid-123',
-            'x_mm': 100.0,
-            'y_mm': 50.0,
-            'angle_deg': 90.0,
-            'efl_mm': 100.0,
-            'object_height_mm': 25.4
+            "uuid": "test-uuid-123",
+            "x_mm": 100.0,
+            "y_mm": 50.0,
+            "angle_deg": 90.0,
+            "efl_mm": 100.0,
+            "object_height_mm": 25.4,
         }
 
-        item = self.collab._create_item_from_remote('lens', data)
+        item = self.collab._create_item_from_remote("lens", data)
 
         self.assertIsNotNone(item)
-        self.assertEqual(item.item_uuid, 'test-uuid-123')
+        self.assertEqual(item.item_uuid, "test-uuid-123")
 
     def test_create_mirror_from_remote(self):
         """Test creating a mirror from remote data."""
         data = {
-            'uuid': 'test-mirror-uuid',
-            'x_mm': 200.0,
-            'y_mm': 100.0,
-            'angle_deg': 45.0,
-            'object_height_mm': 25.4
+            "uuid": "test-mirror-uuid",
+            "x_mm": 200.0,
+            "y_mm": 100.0,
+            "angle_deg": 45.0,
+            "object_height_mm": 25.4,
         }
 
-        item = self.collab._create_item_from_remote('mirror', data)
+        item = self.collab._create_item_from_remote("mirror", data)
 
         self.assertIsNotNone(item)
-        self.assertEqual(item.item_uuid, 'test-mirror-uuid')
+        self.assertEqual(item.item_uuid, "test-mirror-uuid")
 
     def test_create_source_from_remote(self):
         """Test creating a source from remote data."""
         data = {
-            'uuid': 'test-source-uuid',
-            'x_mm': 0.0,
-            'y_mm': 0.0,
-            'angle_deg': 0.0,
-            'wavelength_nm': 633.0
+            "uuid": "test-source-uuid",
+            "x_mm": 0.0,
+            "y_mm": 0.0,
+            "angle_deg": 0.0,
+            "wavelength_nm": 633.0,
         }
 
-        item = self.collab._create_item_from_remote('source', data)
+        item = self.collab._create_item_from_remote("source", data)
 
         self.assertIsNotNone(item)
-        self.assertEqual(item.item_uuid, 'test-source-uuid')
+        self.assertEqual(item.item_uuid, "test-source-uuid")
 
     def test_unknown_item_type_returns_none(self):
         """Test that unknown item type returns None."""
-        data = {'uuid': 'test-uuid'}
+        data = {"uuid": "test-uuid"}
 
-        item = self.collab._create_item_from_remote('unknown_type', data)
+        item = self.collab._create_item_from_remote("unknown_type", data)
 
         self.assertIsNone(item)
 
@@ -351,7 +345,7 @@ class TestMessageFormat(unittest.TestCase):
             action="add_item",
             item_type="lens",
             item_id="uuid-123",
-            data={'x_mm': 100.0, 'y_mm': 50.0}
+            data={"x_mm": 100.0, "y_mm": 50.0},
         )
 
         # Get sent data
@@ -359,21 +353,18 @@ class TestMessageFormat(unittest.TestCase):
         message = json.loads(sent_data)
 
         # Verify structure
-        self.assertIn('type', message)
-        self.assertIn('command', message)
-        self.assertIn('timestamp', message)
+        self.assertIn("type", message)
+        self.assertIn("command", message)
+        self.assertIn("timestamp", message)
 
-        self.assertEqual(message['type'], 'command')
-        self.assertEqual(message['command']['action'], 'add_item')
-        self.assertEqual(message['command']['item_type'], 'lens')
-        self.assertEqual(message['command']['item_id'], 'uuid-123')
-        self.assertIn('data', message['command'])
+        self.assertEqual(message["type"], "command")
+        self.assertEqual(message["command"]["action"], "add_item")
+        self.assertEqual(message["command"]["item_type"], "lens")
+        self.assertEqual(message["command"]["item_id"], "uuid-123")
+        self.assertIn("data", message["command"])
 
 
 # Run tests
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Run with verbose output
     unittest.main(verbosity=2)
-
-
-

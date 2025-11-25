@@ -5,8 +5,10 @@ Qt WebSocket test client.
 Tests if Qt's QWebSocket can connect to the minimal server and stay connected.
 Run this after starting test_minimal_server.py.
 """
+
 import sys
-from PyQt6.QtCore import QCoreApplication, QUrl, QTimer
+
+from PyQt6.QtCore import QCoreApplication, QTimer, QUrl
 from PyQt6.QtWebSockets import QWebSocket
 
 
@@ -100,6 +102,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-

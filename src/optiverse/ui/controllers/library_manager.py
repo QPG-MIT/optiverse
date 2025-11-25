@@ -3,11 +3,12 @@ Library management for component library operations.
 
 This module extracts library loading and import logic from MainWindow.
 """
+
 from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Callable
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -18,8 +19,16 @@ if TYPE_CHECKING:
 
 # Category display order
 CATEGORY_ORDER = [
-    "Lenses", "Objectives", "Mirrors", "Beamsplitters",
-    "Dichroics", "Waveplates", "Sources", "Background", "Misc", "Other"
+    "Lenses",
+    "Objectives",
+    "Mirrors",
+    "Beamsplitters",
+    "Dichroics",
+    "Waveplates",
+    "Sources",
+    "Background",
+    "Misc",
+    "Other",
 ]
 
 # Map from lowercase category keys to display names
@@ -46,8 +55,8 @@ class LibraryManager:
     def __init__(
         self,
         library_tree: QtWidgets.QTreeWidget,
-        storage_service: "StorageService",
-        log_service: "LogService",
+        storage_service: StorageService,
+        log_service: LogService,
         get_dark_mode: Callable[[], bool],
         get_style: Callable[[], QtWidgets.QStyle],
         parent_widget: QtWidgets.QWidget,
@@ -71,9 +80,9 @@ class LibraryManager:
         self.parent_widget = parent_widget
 
         # Component templates for toolbar placement
-        self.component_templates: Dict[str, dict] = {}
+        self.component_templates: dict[str, dict] = {}
 
-    def populate(self) -> Dict[str, dict]:
+    def populate(self) -> dict[str, dict]:
         """
         Load and populate component library organized by category.
 
@@ -109,7 +118,7 @@ class LibraryManager:
         self.library_tree.expandAll()
         return self.component_templates
 
-    def _extract_toolbar_templates(self, records: List[dict]) -> Dict[str, dict]:
+    def _extract_toolbar_templates(self, records: list[dict]) -> dict[str, dict]:
         """Extract standard component templates for toolbar placement."""
         templates = {}
         for rec in records:
@@ -122,7 +131,7 @@ class LibraryManager:
                 templates["beamsplitter"] = rec
         return templates
 
-    def _categorize_records(self, records: List[dict]) -> Dict[str, List[dict]]:
+    def _categorize_records(self, records: list[dict]) -> dict[str, list[dict]]:
         """Organize records by category."""
         from ...objects.component_registry import ComponentRegistry
 
@@ -148,7 +157,7 @@ class LibraryManager:
 
         return categories
 
-    def _populate_tree(self, categories: Dict[str, List[dict]]):
+    def _populate_tree(self, categories: dict[str, list[dict]]):
         """Populate tree widget with categorized components."""
         is_dark = self._get_dark_mode()
         style = self._get_style()
@@ -203,7 +212,7 @@ class LibraryManager:
             self.parent_widget,
             "Select Component Library Folder to Import",
             "",
-            QtWidgets.QFileDialog.Option.ShowDirsOnly
+            QtWidgets.QFileDialog.Option.ShowDirsOnly,
         )
 
         if not source_dir:
@@ -213,16 +222,15 @@ class LibraryManager:
 
         # Find component folders
         component_folders = [
-            p for p in source_path.iterdir()
-            if p.is_dir() and (p / "component.json").exists()
+            p for p in source_path.iterdir() if p.is_dir() and (p / "component.json").exists()
         ]
 
         if not component_folders:
             QtWidgets.QMessageBox.warning(
                 self.parent_widget,
                 "Invalid Library",
-                f"Selected folder does not contain any valid components.\n\n"
-                f"A component library should contain folders with component.json files."
+                "Selected folder does not contain any valid components.\n\n"
+                "A component library should contain folders with component.json files.",
             )
             return False
 
@@ -233,7 +241,7 @@ class LibraryManager:
             f"Found {len(component_folders)} component(s) in:\n{source_dir}\n\n"
             f"Import all components into your user library?",
             QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
-            QtWidgets.QMessageBox.StandardButton.Yes
+            QtWidgets.QMessageBox.StandardButton.Yes,
         )
 
         if reply != QtWidgets.QMessageBox.StandardButton.Yes:
@@ -259,13 +267,6 @@ class LibraryManager:
         if skipped_count > 0:
             message += f"Skipped: {skipped_count} component(s) (already exist or invalid)"
 
-        QtWidgets.QMessageBox.information(
-            self.parent_widget,
-            "Import Complete",
-            message
-        )
+        QtWidgets.QMessageBox.information(self.parent_widget, "Import Complete", message)
 
         return imported_count > 0
-
-
-

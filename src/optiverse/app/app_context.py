@@ -12,12 +12,8 @@ class AppContext:
     storage: StorageService
 
     @staticmethod
-    def create_default() -> "AppContext":
+    def create_default() -> AppContext:
         return AppContext(
             settings=SettingsService(),
             storage=StorageService(),
         )
-
-
-
-

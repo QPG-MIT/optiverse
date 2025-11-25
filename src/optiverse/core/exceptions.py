@@ -17,15 +17,14 @@ Usage:
     except ComponentLoadError as e:
         logger.error(f"Failed to load component: {e}")
 """
-from __future__ import annotations
 
-from typing import Optional
+from __future__ import annotations
 
 
 class OptiverseError(Exception):
     """Base exception for all Optiverse errors."""
 
-    def __init__(self, message: str, context: Optional[str] = None):
+    def __init__(self, message: str, context: str | None = None):
         """
         Initialize the exception.
 
@@ -48,8 +47,10 @@ class OptiverseError(Exception):
 # Serialization Errors
 # =============================================================================
 
+
 class SerializationError(OptiverseError):
     """Base class for serialization-related errors."""
+
     pass
 
 
@@ -59,10 +60,7 @@ class ComponentLoadError(SerializationError):
     def __init__(self, path: str, reason: str):
         self.path = path
         self.reason = reason
-        super().__init__(
-            f"Failed to load component from '{path}': {reason}",
-            context=path
-        )
+        super().__init__(f"Failed to load component from '{path}': {reason}", context=path)
 
 
 class ComponentSaveError(SerializationError):
@@ -71,10 +69,7 @@ class ComponentSaveError(SerializationError):
     def __init__(self, path: str, reason: str):
         self.path = path
         self.reason = reason
-        super().__init__(
-            f"Failed to save component to '{path}': {reason}",
-            context=path
-        )
+        super().__init__(f"Failed to save component to '{path}': {reason}", context=path)
 
 
 class AssemblyLoadError(SerializationError):
@@ -83,10 +78,7 @@ class AssemblyLoadError(SerializationError):
     def __init__(self, path: str, reason: str):
         self.path = path
         self.reason = reason
-        super().__init__(
-            f"Failed to load assembly from '{path}': {reason}",
-            context=path
-        )
+        super().__init__(f"Failed to load assembly from '{path}': {reason}", context=path)
 
 
 class AssemblySaveError(SerializationError):
@@ -95,10 +87,7 @@ class AssemblySaveError(SerializationError):
     def __init__(self, path: str, reason: str):
         self.path = path
         self.reason = reason
-        super().__init__(
-            f"Failed to save assembly to '{path}': {reason}",
-            context=path
-        )
+        super().__init__(f"Failed to save assembly to '{path}': {reason}", context=path)
 
 
 class UnknownTypeError(SerializationError):
@@ -106,18 +95,17 @@ class UnknownTypeError(SerializationError):
 
     def __init__(self, type_name: str):
         self.type_name = type_name
-        super().__init__(
-            f"Unknown item type: '{type_name}'",
-            context=f"type={type_name}"
-        )
+        super().__init__(f"Unknown item type: '{type_name}'", context=f"type={type_name}")
 
 
 # =============================================================================
 # Component Errors
 # =============================================================================
 
+
 class ComponentError(OptiverseError):
     """Base class for component-related errors."""
+
     pass
 
 
@@ -127,10 +115,7 @@ class InvalidComponentError(ComponentError):
     def __init__(self, name: str, reason: str):
         self.name = name
         self.reason = reason
-        super().__init__(
-            f"Invalid component '{name}': {reason}",
-            context=name
-        )
+        super().__init__(f"Invalid component '{name}': {reason}", context=name)
 
 
 class InterfaceError(ComponentError):
@@ -142,7 +127,7 @@ class InterfaceError(ComponentError):
         self.reason = reason
         super().__init__(
             f"Interface error in '{component_name}.{interface_name}': {reason}",
-            context=f"{component_name}.{interface_name}"
+            context=f"{component_name}.{interface_name}",
         )
 
 
@@ -150,8 +135,10 @@ class InterfaceError(ComponentError):
 # Collaboration Errors
 # =============================================================================
 
+
 class CollaborationError(OptiverseError):
     """Base class for collaboration-related errors."""
+
     pass
 
 
@@ -161,10 +148,7 @@ class ConnectionError(CollaborationError):
     def __init__(self, server_url: str, reason: str):
         self.server_url = server_url
         self.reason = reason
-        super().__init__(
-            f"Failed to connect to '{server_url}': {reason}",
-            context=server_url
-        )
+        super().__init__(f"Failed to connect to '{server_url}': {reason}", context=server_url)
 
 
 class SyncError(CollaborationError):
@@ -173,10 +157,7 @@ class SyncError(CollaborationError):
     def __init__(self, session_id: str, reason: str):
         self.session_id = session_id
         self.reason = reason
-        super().__init__(
-            f"Sync failed for session '{session_id}': {reason}",
-            context=session_id
-        )
+        super().__init__(f"Sync failed for session '{session_id}': {reason}", context=session_id)
 
 
 class SessionError(CollaborationError):
@@ -185,18 +166,17 @@ class SessionError(CollaborationError):
     def __init__(self, session_id: str, reason: str):
         self.session_id = session_id
         self.reason = reason
-        super().__init__(
-            f"Session error '{session_id}': {reason}",
-            context=session_id
-        )
+        super().__init__(f"Session error '{session_id}': {reason}", context=session_id)
 
 
 # =============================================================================
 # Raytracing Errors
 # =============================================================================
 
+
 class RaytracingError(OptiverseError):
     """Base class for raytracing-related errors."""
+
     pass
 
 
@@ -214,18 +194,17 @@ class IntersectionError(RaytracingError):
     def __init__(self, surface_type: str, reason: str):
         self.surface_type = surface_type
         self.reason = reason
-        super().__init__(
-            f"Intersection error with {surface_type}: {reason}",
-            context=surface_type
-        )
+        super().__init__(f"Intersection error with {surface_type}: {reason}", context=surface_type)
 
 
 # =============================================================================
 # Configuration Errors
 # =============================================================================
 
+
 class ConfigurationError(OptiverseError):
     """Base class for configuration-related errors."""
+
     pass
 
 
@@ -235,10 +214,4 @@ class SettingsError(ConfigurationError):
     def __init__(self, setting_key: str, reason: str):
         self.setting_key = setting_key
         self.reason = reason
-        super().__init__(
-            f"Settings error for '{setting_key}': {reason}",
-            context=setting_key
-        )
-
-
-
+        super().__init__(f"Settings error for '{setting_key}': {reason}", context=setting_key)

@@ -5,6 +5,3 @@ def test_main_window_smoke(qtbot):
     qtbot.addWidget(w)
     w.show()
     assert w.windowTitle().startswith("Photonic Sandbox")
-
-
-

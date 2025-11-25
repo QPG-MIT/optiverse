@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict, Any, Tuple
 import math
+from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -59,7 +59,9 @@ class InterfaceDefinition:
     n2: float = 1.5  # Transmitted refractive index
 
     # Polarizing interface properties
-    polarizer_subtype: str = "waveplate"  # "waveplate", "linear_polarizer", "circular_polarizer", "faraday_rotator"
+    polarizer_subtype: str = (
+        "waveplate"  # "waveplate", "linear_polarizer", "circular_polarizer", "faraday_rotator"
+    )
 
     # Waveplate properties
     phase_shift_deg: float = 90.0  # Phase shift in degrees (90° for QWP, 180° for HWP)
@@ -79,7 +81,7 @@ class InterfaceDefinition:
     # Positive radius: center is to the right (convex from left)
     # Negative radius: center is to the left (concave from left)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize to dictionary.
 
@@ -90,12 +92,12 @@ class InterfaceDefinition:
 
         # Always include geometry and type info
         result = {
-            'x1_mm': self.x1_mm,
-            'y1_mm': self.y1_mm,
-            'x2_mm': self.x2_mm,
-            'y2_mm': self.y2_mm,
-            'element_type': self.element_type,
-            'name': self.name,
+            "x1_mm": self.x1_mm,
+            "y1_mm": self.y1_mm,
+            "x2_mm": self.x2_mm,
+            "y2_mm": self.y2_mm,
+            "element_type": self.element_type,
+            "name": self.name,
         }
 
         # Get relevant properties for this element type
@@ -108,13 +110,13 @@ class InterfaceDefinition:
 
         # Always include curvature info if surface is curved (for Zemax compatibility)
         if self.is_curved:
-            result['is_curved'] = self.is_curved
-            result['radius_of_curvature_mm'] = self.radius_of_curvature_mm
+            result["is_curved"] = self.is_curved
+            result["radius_of_curvature_mm"] = self.radius_of_curvature_mm
 
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'InterfaceDefinition':
+    def from_dict(cls, data: dict[str, Any]) -> InterfaceDefinition:
         """
         Deserialize from dictionary.
 
@@ -124,14 +126,14 @@ class InterfaceDefinition:
         from . import interface_types
 
         # Load geometry and type info (always present)
-        element_type = data.get('element_type', 'refractive_interface')
+        element_type = data.get("element_type", "refractive_interface")
         kwargs = {
-            'x1_mm': data.get('x1_mm', 0.0),
-            'y1_mm': data.get('y1_mm', 0.0),
-            'x2_mm': data.get('x2_mm', 10.0),
-            'y2_mm': data.get('y2_mm', 0.0),
-            'element_type': element_type,
-            'name': data.get('name', ''),
+            "x1_mm": data.get("x1_mm", 0.0),
+            "y1_mm": data.get("y1_mm", 0.0),
+            "x2_mm": data.get("x2_mm", 10.0),
+            "y2_mm": data.get("y2_mm", 0.0),
+            "element_type": element_type,
+            "name": data.get("name", ""),
         }
 
         # Get relevant properties for this element type
@@ -143,32 +145,32 @@ class InterfaceDefinition:
             kwargs[prop_name] = data.get(prop_name, default_value)
 
         # Load curvature info if present (for Zemax compatibility)
-        if 'is_curved' in data:
-            kwargs['is_curved'] = data.get('is_curved', False)
-            kwargs['radius_of_curvature_mm'] = data.get('radius_of_curvature_mm', 0.0)
+        if "is_curved" in data:
+            kwargs["is_curved"] = data.get("is_curved", False)
+            kwargs["radius_of_curvature_mm"] = data.get("radius_of_curvature_mm", 0.0)
 
         return cls(**kwargs)
 
-    def get_color(self) -> Tuple[int, int, int]:
+    def get_color(self) -> tuple[int, int, int]:
         """
         Get display color based on element type.
 
         Returns RGB tuple (0-255 range).
         """
-        if self.element_type == 'lens':
+        if self.element_type == "lens":
             return (0, 180, 180)  # Cyan
-        elif self.element_type == 'mirror':
+        elif self.element_type == "mirror":
             return (255, 140, 0)  # Orange
-        elif self.element_type == 'beam_splitter':
+        elif self.element_type == "beam_splitter":
             if self.is_polarizing:
                 return (150, 0, 150)  # Purple (PBS)
             else:
                 return (0, 150, 120)  # Green (BS)
-        elif self.element_type == 'dichroic':
+        elif self.element_type == "dichroic":
             return (255, 0, 255)  # Magenta
-        elif self.element_type == 'polarizing_interface':
+        elif self.element_type == "polarizing_interface":
             return (255, 215, 0)  # Gold
-        elif self.element_type == 'refractive_interface':
+        elif self.element_type == "refractive_interface":
             # Blue for refractive, gray if same index
             if abs(self.n1 - self.n2) > 0.01:
                 return (100, 100, 255)  # Blue
@@ -187,35 +189,35 @@ class InterfaceDefinition:
         if self.name:
             return self.name
 
-        if self.element_type == 'lens':
-            return f'Lens ({self.efl_mm:.1f}mm)'
-        elif self.element_type == 'mirror':
-            return 'Mirror'
-        elif self.element_type == 'beam_splitter':
+        if self.element_type == "lens":
+            return f"Lens ({self.efl_mm:.1f}mm)"
+        elif self.element_type == "mirror":
+            return "Mirror"
+        elif self.element_type == "beam_splitter":
             if self.is_polarizing:
-                return f'PBS ({self.split_T:.0f}/{self.split_R:.0f})'
+                return f"PBS ({self.split_T:.0f}/{self.split_R:.0f})"
             else:
-                return f'BS ({self.split_T:.0f}/{self.split_R:.0f})'
-        elif self.element_type == 'dichroic':
-            return f'Dichroic ({self.cutoff_wavelength_nm:.0f}nm)'
-        elif self.element_type == 'polarizing_interface':
-            if self.polarizer_subtype == 'waveplate':
+                return f"BS ({self.split_T:.0f}/{self.split_R:.0f})"
+        elif self.element_type == "dichroic":
+            return f"Dichroic ({self.cutoff_wavelength_nm:.0f}nm)"
+        elif self.element_type == "polarizing_interface":
+            if self.polarizer_subtype == "waveplate":
                 if self.phase_shift_deg == 90.0:
-                    return f'QWP ({self.fast_axis_deg:.0f}°)'
+                    return f"QWP ({self.fast_axis_deg:.0f}°)"
                 elif self.phase_shift_deg == 180.0:
-                    return f'HWP ({self.fast_axis_deg:.0f}°)'
+                    return f"HWP ({self.fast_axis_deg:.0f}°)"
                 else:
-                    return f'Waveplate ({self.phase_shift_deg:.0f}°, {self.fast_axis_deg:.0f}°)'
-            elif self.polarizer_subtype == 'linear_polarizer':
-                return f'Lin. Pol. ({self.transmission_axis_deg:.0f}°)'
-            elif self.polarizer_subtype == 'faraday_rotator':
-                return f'Faraday ({self.rotation_angle_deg:.0f}°)'
+                    return f"Waveplate ({self.phase_shift_deg:.0f}°, {self.fast_axis_deg:.0f}°)"
+            elif self.polarizer_subtype == "linear_polarizer":
+                return f"Lin. Pol. ({self.transmission_axis_deg:.0f}°)"
+            elif self.polarizer_subtype == "faraday_rotator":
+                return f"Faraday ({self.rotation_angle_deg:.0f}°)"
             else:
-                return 'Polarizer'
-        elif self.element_type == 'refractive_interface':
-            return f'n={self.n1:.3f}→{self.n2:.3f}'
+                return "Polarizer"
+        elif self.element_type == "refractive_interface":
+            return f"n={self.n1:.3f}→{self.n2:.3f}"
         else:
-            return 'Interface'
+            return "Interface"
 
     def length_mm(self) -> float:
         """Calculate interface length in millimeters."""
@@ -233,18 +235,15 @@ class InterfaceDefinition:
         dy = self.y2_mm - self.y1_mm
         return math.degrees(math.atan2(dy, dx))
 
-    def midpoint_mm(self) -> Tuple[float, float]:
+    def midpoint_mm(self) -> tuple[float, float]:
         """Calculate midpoint coordinates in millimeters."""
-        return (
-            (self.x1_mm + self.x2_mm) / 2,
-            (self.y1_mm + self.y2_mm) / 2
-        )
+        return ((self.x1_mm + self.x2_mm) / 2, (self.y1_mm + self.y2_mm) / 2)
 
-    def copy(self) -> 'InterfaceDefinition':
+    def copy(self) -> InterfaceDefinition:
         """Create a copy of this interface definition."""
         return InterfaceDefinition.from_dict(self.to_dict())
 
-    def center_of_curvature_mm(self) -> Tuple[float, float]:
+    def center_of_curvature_mm(self) -> tuple[float, float]:
         """
         Calculate center of curvature for curved surfaces.
 
@@ -257,7 +256,7 @@ class InterfaceDefinition:
         """
         if not self.is_curved or abs(self.radius_of_curvature_mm) < 1e-6:
             # Flat surface: return point at infinity
-            return (float('inf'), 0.0)
+            return (float("inf"), 0.0)
 
         # Get midpoint of the interface
         mid_x = (self.x1_mm + self.x2_mm) / 2
@@ -271,7 +270,11 @@ class InterfaceDefinition:
 
     def is_flat(self) -> bool:
         """Check if surface is flat (not curved)."""
-        return not self.is_curved or abs(self.radius_of_curvature_mm) < 1e-6 or math.isinf(self.radius_of_curvature_mm)
+        return (
+            not self.is_curved
+            or abs(self.radius_of_curvature_mm) < 1e-6
+            or math.isinf(self.radius_of_curvature_mm)
+        )
 
     def surface_sag_at_y(self, y_mm: float) -> float:
         """
@@ -292,9 +295,9 @@ class InterfaceDefinition:
             return 0.0
 
         R = abs(self.radius_of_curvature_mm)
-        y_sq = y_mm ** 2
+        y_sq = y_mm**2
 
-        if y_sq > R ** 2:
+        if y_sq > R**2:
             # Beyond the surface radius
             return 0.0
 
@@ -305,6 +308,3 @@ class InterfaceDefinition:
             return sag  # Convex from left
         else:
             return -sag  # Concave from left
-
-
-

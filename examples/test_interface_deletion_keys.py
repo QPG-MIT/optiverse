@@ -8,10 +8,11 @@ Run this script to test the keyboard shortcuts:
 """
 
 import sys
-from PyQt6 import QtWidgets, QtCore, QtGui
 
-from optiverse.ui.widgets.interface_tree_panel import InterfaceTreePanel
+from PyQt6 import QtCore, QtWidgets
+
 from optiverse.core.interface_definition import InterfaceDefinition
+from optiverse.ui.widgets.interface_tree_panel import InterfaceTreePanel
 
 
 def main():
@@ -29,8 +30,8 @@ def main():
 
     # Add some test interfaces
     for i in range(5):
-        interface = InterfaceDefinition(element_type='refractive_interface')
-        interface.name = f"Test Interface {i+1}"
+        interface = InterfaceDefinition(element_type="refractive_interface")
+        interface.name = f"Test Interface {i + 1}"
         interface.n1 = 1.0
         interface.n2 = 1.5
         interface.x1_mm = -10.0
@@ -66,8 +67,5 @@ def main():
     sys.exit(app.exec())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-
-
-

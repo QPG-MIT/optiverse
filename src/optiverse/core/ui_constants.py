@@ -122,6 +122,3 @@ PATH_MEASURE_ENDPOINT_COLOR = (255, 255, 0, 200)  # Yellow
 
 # Selection indicator color (shared across measurement items)
 SELECTION_INDICATOR_COLOR = (255, 255, 0, 200)  # Yellow dashed outline
-
-
-

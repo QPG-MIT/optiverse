@@ -4,29 +4,36 @@ import logging
 import math
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Tuple
 
 import numpy as np
 
 _logger = logging.getLogger(__name__)
 
+from .color_utils import qcolor_from_hex
+from .models import OpticalElement, Polarization, RayPath, SourceParams
 from .raytracing_math import (
-    deg2rad, normalize, reflect_vec, ray_hit_element, ray_hit_curved_element,
-    transform_polarization_mirror, transform_polarization_lens,
-    transform_polarization_beamsplitter, transform_polarization_waveplate,
+    NUMBA_AVAILABLE,
     compute_dichroic_reflectance,
-    refract_vector_snell, fresnel_coefficients,
-    NUMBA_AVAILABLE
+    deg2rad,
+    fresnel_coefficients,
+    normalize,
+    ray_hit_curved_element,
+    ray_hit_element,
+    reflect_vec,
+    refract_vector_snell,
+    transform_polarization_beamsplitter,
+    transform_polarization_lens,
+    transform_polarization_mirror,
+    transform_polarization_waveplate,
 )
-from .models import OpticalElement, SourceParams, RayPath, Polarization, RefractiveInterface
-from .color_utils import qcolor_from_hex, wavelength_to_rgb
 
 
-def _endpoints(elements: List[OpticalElement]):
+def _endpoints(elements: list[OpticalElement]):
     return [(e, e.p1, e.p2) for e in elements]
 
 
 # ===== PARALLEL RAYTRACING SUPPORT =====
+
 
 def _trace_single_ray_worker(args):
     """
@@ -47,16 +54,32 @@ def _trace_single_ray_worker(args):
     mirrors, lenses, bss, waveplates, dichroics, refractive_interfaces, blocks = element_lists
 
     # Unpack configuration
-    max_events = config['max_events']
-    EPS_ADV = config['EPS_ADV']
-    MIN_I = config['MIN_I']
+    max_events = config["max_events"]
+    EPS_ADV = config["EPS_ADV"]
+    MIN_I = config["MIN_I"]
 
     # Trace this ray
-    paths: List[RayPath] = []
+    paths: list[RayPath] = []
 
     # Stack: (points, position, velocity, remaining, last_obj, events, intensity, polarization, wavelength)
-    stack: List[Tuple[List[np.ndarray], np.ndarray, np.ndarray, float, object, int, float, Polarization, float]] = []
-    stack.append(([P_init.copy()], P_init.copy(), V_init.copy(), remaining_init, None, 0, 1.0, pol_init, wl_init))
+    stack: list[
+        tuple[
+            list[np.ndarray], np.ndarray, np.ndarray, float, object, int, float, Polarization, float
+        ]
+    ] = []
+    stack.append(
+        (
+            [P_init.copy()],
+            P_init.copy(),
+            V_init.copy(),
+            remaining_init,
+            None,
+            0,
+            1.0,
+            pol_init,
+            wl_init,
+        )
+    )
 
     while stack:
         pts, P, V, remaining, last_obj, events, I, pol, wl = stack.pop()
@@ -148,8 +171,8 @@ def _trace_single_ray_worker(args):
             # Don't skip based on last_obj for interfaces - allow multiple hits
 
             # Check if this is a curved interface
-            is_curved = getattr(iface, 'is_curved', False)
-            radius = getattr(iface, 'radius_of_curvature_mm', 0.0)
+            is_curved = getattr(iface, "is_curved", False)
+            radius = getattr(iface, "radius_of_curvature_mm", 0.0)
 
             if is_curved and abs(radius) > 0.1:
                 # Curved interface - use ray_hit_curved_element
@@ -210,7 +233,7 @@ def _trace_single_ray_worker(args):
 
         # Save originals for refractive-side logic before any orientation normalization
         n_hat_orig = n_hat.copy()
-        t_hat_orig = t_hat.copy()
+        t_hat.copy()
         dot_v_n_orig = float(np.dot(V, n_hat_orig))
 
         # Existing orientation normalization for non-refractive elements
@@ -222,7 +245,19 @@ def _trace_single_ray_worker(args):
             V2 = normalize(reflect_vec(V, n_hat))
             P2 = P + V2 * EPS_ADV
             pol2 = transform_polarization_mirror(pol, V, n_hat)
-            stack.append((pts + [P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I, pol2, wl))
+            stack.append(
+                (
+                    pts + [P2.copy()],
+                    P2.copy(),
+                    V2,
+                    remaining - EPS_ADV,
+                    obj,
+                    events + 1,
+                    I,
+                    pol2,
+                    wl,
+                )
+            )
             continue
 
         if kind == "lens":
@@ -236,12 +271,24 @@ def _trace_single_ray_worker(args):
             V2 = normalize(Vloc[0] * n_hat + Vloc[1] * t_hat)
             P2 = P + V2 * EPS_ADV
             pol2 = transform_polarization_lens(pol)
-            stack.append((pts + [P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I, pol2, wl))
+            stack.append(
+                (
+                    pts + [P2.copy()],
+                    P2.copy(),
+                    V2,
+                    remaining - EPS_ADV,
+                    obj,
+                    events + 1,
+                    I,
+                    pol2,
+                    wl,
+                )
+            )
             continue
 
         if kind == "bs":
-            is_polarizing = getattr(obj, 'is_polarizing', False)
-            pbs_axis_deg = getattr(obj, 'pbs_transmission_axis_deg', 0.0)
+            is_polarizing = getattr(obj, "is_polarizing", False)
+            pbs_axis_deg = getattr(obj, "pbs_transmission_axis_deg", 0.0)
 
             pol_t, intensity_factor_t = transform_polarization_beamsplitter(
                 pol, V, n_hat, t_hat, is_polarizing, pbs_axis_deg, is_transmitted=True
@@ -262,32 +309,55 @@ def _trace_single_ray_worker(args):
             Pt = P + Vt * EPS_ADV
             It = I * T
             if It >= MIN_I:
-                stack.append((pts + [Pt.copy()], Pt.copy(), Vt, remaining - EPS_ADV, obj, events + 1, It, pol_t, wl))
+                stack.append(
+                    (
+                        pts + [Pt.copy()],
+                        Pt.copy(),
+                        Vt,
+                        remaining - EPS_ADV,
+                        obj,
+                        events + 1,
+                        It,
+                        pol_t,
+                        wl,
+                    )
+                )
 
             Vr = normalize(reflect_vec(V, n_hat))
             Pr = P + Vr * EPS_ADV
             Ir = I * R
             if Ir >= MIN_I:
-                stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, obj, events + 1, Ir, pol_r, wl))
+                stack.append(
+                    (
+                        pts + [Pr.copy()],
+                        Pr.copy(),
+                        Vr,
+                        remaining - EPS_ADV,
+                        obj,
+                        events + 1,
+                        Ir,
+                        pol_r,
+                        wl,
+                    )
+                )
             continue
 
         if kind == "waveplate":
-            phase_shift_deg = getattr(obj, 'phase_shift_deg', 90.0)
-            fast_axis_deg = getattr(obj, 'fast_axis_deg', 0.0)
+            phase_shift_deg = getattr(obj, "phase_shift_deg", 90.0)
+            fast_axis_deg = getattr(obj, "fast_axis_deg", 0.0)
 
             # Determine forward/backward based on which side ray hits waveplate from
             # Use waveplate's intrinsic orientation angle (not the ray-dependent t_hat!)
             # The waveplate's angle_deg defines its inherent direction in the lab frame
-            waveplate_angle_deg = getattr(obj, 'angle_deg', 90.0)
+            waveplate_angle_deg = getattr(obj, "angle_deg", 90.0)
             waveplate_angle_rad = deg2rad(waveplate_angle_deg)
 
             # Compute forward normal (perpendicular to waveplate, 90° CCW from tangent)
             # For vertical waveplate (90°): normal points LEFT (-1, 0)
             # For horizontal waveplate (0°): normal points UP (0, 1)
-            forward_normal = np.array([
-                -math.sin(waveplate_angle_rad),
-                math.cos(waveplate_angle_rad)
-            ])
+            forward_normal = np.array(
+                [-math.sin(waveplate_angle_rad), math.cos(waveplate_angle_rad)]
+            )
 
             # Ray hits from forward side if traveling against the normal
             dot_v_n = float(np.dot(V, forward_normal))
@@ -306,13 +376,15 @@ def _trace_single_ray_worker(args):
             V2 = normalize(V)
             P2 = P + V2 * EPS_ADV
             # Start new segment with just P2 (not all previous points)
-            stack.append(([P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I, pol2, wl))
+            stack.append(
+                ([P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I, pol2, wl)
+            )
             continue
 
         if kind == "dichroic":
-            cutoff_wl = getattr(obj, 'cutoff_wavelength_nm', 550.0)
-            transition_width = getattr(obj, 'transition_width_nm', 50.0)
-            pass_type = getattr(obj, 'pass_type', 'longpass')
+            cutoff_wl = getattr(obj, "cutoff_wavelength_nm", 550.0)
+            transition_width = getattr(obj, "transition_width_nm", 50.0)
+            pass_type = getattr(obj, "pass_type", "longpass")
 
             if wl > 0:
                 R, T = compute_dichroic_reflectance(wl, cutoff_wl, transition_width, pass_type)
@@ -323,14 +395,38 @@ def _trace_single_ray_worker(args):
             Pt = P + Vt * EPS_ADV
             It = I * T
             if It >= MIN_I:
-                stack.append((pts + [Pt.copy()], Pt.copy(), Vt, remaining - EPS_ADV, obj, events + 1, It, pol, wl))
+                stack.append(
+                    (
+                        pts + [Pt.copy()],
+                        Pt.copy(),
+                        Vt,
+                        remaining - EPS_ADV,
+                        obj,
+                        events + 1,
+                        It,
+                        pol,
+                        wl,
+                    )
+                )
 
             Vr = normalize(reflect_vec(V, n_hat))
             Pr = P + Vr * EPS_ADV
             Ir = I * R
             if Ir >= MIN_I:
                 pol_r = transform_polarization_mirror(pol, V, n_hat)
-                stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, obj, events + 1, Ir, pol_r, wl))
+                stack.append(
+                    (
+                        pts + [Pr.copy()],
+                        Pr.copy(),
+                        Vr,
+                        remaining - EPS_ADV,
+                        obj,
+                        events + 1,
+                        Ir,
+                        pol_r,
+                        wl,
+                    )
+                )
             continue
 
         if kind == "block":
@@ -370,14 +466,38 @@ def _trace_single_ray_worker(args):
                 Pt = P + Vt * EPS_ADV
                 It = I * T
                 if It >= MIN_I:
-                    stack.append((pts + [Pt.copy()], Pt.copy(), Vt, remaining - EPS_ADV, iface, events + 1, It, pol_t, wl))
+                    stack.append(
+                        (
+                            pts + [Pt.copy()],
+                            Pt.copy(),
+                            Vt,
+                            remaining - EPS_ADV,
+                            iface,
+                            events + 1,
+                            It,
+                            pol_t,
+                            wl,
+                        )
+                    )
 
                 # Reflected ray
                 Vr = normalize(reflect_vec(V, n_hat))
                 Pr = P + Vr * EPS_ADV
                 Ir = I * R
                 if Ir >= MIN_I:
-                    stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, iface, events + 1, Ir, pol_r, wl))
+                    stack.append(
+                        (
+                            pts + [Pr.copy()],
+                            Pr.copy(),
+                            Vr,
+                            remaining - EPS_ADV,
+                            iface,
+                            events + 1,
+                            Ir,
+                            pol_r,
+                            wl,
+                        )
+                    )
                 continue
 
             # Regular refractive interface - apply Snell's law and Fresnel equations
@@ -401,7 +521,19 @@ def _trace_single_ray_worker(args):
                 Vr = V_refracted
                 Pr = P + Vr * EPS_ADV
                 pol_r = transform_polarization_mirror(pol, V, n_hat_ref)
-                stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, iface, events + 1, I, pol_r, wl))
+                stack.append(
+                    (
+                        pts + [Pr.copy()],
+                        Pr.copy(),
+                        Vr,
+                        remaining - EPS_ADV,
+                        iface,
+                        events + 1,
+                        I,
+                        pol_r,
+                        wl,
+                    )
+                )
             else:
                 # Partial reflection and transmission - compute Fresnel coefficients
                 theta1 = abs(math.acos(max(-1.0, min(1.0, -np.dot(V, n_hat_ref)))))
@@ -413,7 +545,19 @@ def _trace_single_ray_worker(args):
                 It = I * T
                 if It >= MIN_I:
                     # Polarization approximately preserved through refraction (simplified)
-                    stack.append((pts + [Pt.copy()], Pt.copy(), Vt, remaining - EPS_ADV, iface, events + 1, It, pol, wl))
+                    stack.append(
+                        (
+                            pts + [Pt.copy()],
+                            Pt.copy(),
+                            Vt,
+                            remaining - EPS_ADV,
+                            iface,
+                            events + 1,
+                            It,
+                            pol,
+                            wl,
+                        )
+                    )
 
                 # Reflected ray (Fresnel reflection)
                 Vr = normalize(reflect_vec(V, n_hat_ref))
@@ -421,19 +565,31 @@ def _trace_single_ray_worker(args):
                 Ir = I * R
                 if Ir >= MIN_I:
                     pol_r = transform_polarization_mirror(pol, V, n_hat_ref)
-                    stack.append((pts + [Pr.copy()], Pr.copy(), Vr, remaining - EPS_ADV, iface, events + 1, Ir, pol_r, wl))
+                    stack.append(
+                        (
+                            pts + [Pr.copy()],
+                            Pr.copy(),
+                            Vr,
+                            remaining - EPS_ADV,
+                            iface,
+                            events + 1,
+                            Ir,
+                            pol_r,
+                            wl,
+                        )
+                    )
             continue
 
     return paths
 
 
 def trace_rays(
-    elements: List[OpticalElement],
-    sources: List[SourceParams],
+    elements: list[OpticalElement],
+    sources: list[SourceParams],
     max_events: int = 80,
     parallel: bool = None,
     parallel_threshold: int = 20,
-) -> List[RayPath]:
+) -> list[RayPath]:
     """
     Trace rays from sources through optical elements.
 
@@ -485,9 +641,9 @@ def trace_rays(
 
     # Configuration
     config = {
-        'max_events': max_events,
-        'EPS_ADV': 1e-3,
-        'MIN_I': 0.02,
+        "max_events": max_events,
+        "EPS_ADV": 1e-3,
+        "MIN_I": 0.02,
     }
 
     # Build ray job list
@@ -504,7 +660,11 @@ def trace_rays(
         base_rgb = (src_col.red(), src_col.green(), src_col.blue())
 
         # Generate ray positions and angles
-        ys = [0.0] if (S.n_rays <= 1 or S.size_mm == 0) else list(np.linspace(-S.size_mm/2, S.size_mm/2, S.n_rays))
+        ys = (
+            [0.0]
+            if (S.n_rays <= 1 or S.size_mm == 0)
+            else list(np.linspace(-S.size_mm / 2, S.size_mm / 2, S.n_rays))
+        )
         if spread == 0 or S.n_rays <= 1:
             angles = [base] * len(ys)
         else:
@@ -543,24 +703,22 @@ def trace_rays(
                 results = executor.map(_trace_single_ray_worker, ray_jobs)
 
             # Flatten results
-            paths: List[RayPath] = []
+            paths: list[RayPath] = []
             for ray_paths in results:
                 paths.extend(ray_paths)
 
             return paths
         except Exception as e:
             # If parallel processing fails, fall back to sequential
-            _logger.warning("Parallel raytracing failed (%s), falling back to sequential processing", e)
+            _logger.warning(
+                "Parallel raytracing failed (%s), falling back to sequential processing", e
+            )
             use_parallel = False
 
     if not use_parallel:
         # Sequential processing (original behavior)
-        paths: List[RayPath] = []
+        paths: list[RayPath] = []
         for job in ray_jobs:
             ray_paths = _trace_single_ray_worker(job)
             paths.extend(ray_paths)
         return paths
-
-
-
-

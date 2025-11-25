@@ -1,6 +1,7 @@
 """
 Utility functions for z-order (stacking order) manipulation.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -10,8 +11,7 @@ if TYPE_CHECKING:
 
 
 def calculate_bring_to_front(
-    items: list[QtWidgets.QGraphicsItem],
-    scene: QtWidgets.QGraphicsScene
+    items: list[QtWidgets.QGraphicsItem], scene: QtWidgets.QGraphicsScene
 ) -> dict[QtWidgets.QGraphicsItem, float]:
     """
     Calculate new z-values to bring items to front.
@@ -39,8 +39,7 @@ def calculate_bring_to_front(
 
 
 def calculate_send_to_back(
-    items: list[QtWidgets.QGraphicsItem],
-    scene: QtWidgets.QGraphicsScene
+    items: list[QtWidgets.QGraphicsItem], scene: QtWidgets.QGraphicsScene
 ) -> dict[QtWidgets.QGraphicsItem, float]:
     """
     Calculate new z-values to send items to back.
@@ -68,8 +67,7 @@ def calculate_send_to_back(
 
 
 def calculate_bring_forward(
-    items: list[QtWidgets.QGraphicsItem],
-    scene: QtWidgets.QGraphicsScene
+    items: list[QtWidgets.QGraphicsItem], scene: QtWidgets.QGraphicsScene
 ) -> dict[QtWidgets.QGraphicsItem, float]:
     """
     Calculate new z-values to bring items forward (one step up).
@@ -91,8 +89,7 @@ def calculate_bring_forward(
 
 
 def calculate_send_backward(
-    items: list[QtWidgets.QGraphicsItem],
-    scene: QtWidgets.QGraphicsScene
+    items: list[QtWidgets.QGraphicsItem], scene: QtWidgets.QGraphicsScene
 ) -> dict[QtWidgets.QGraphicsItem, float]:
     """
     Calculate new z-values to send items backward (one step down).
@@ -117,7 +114,7 @@ def apply_z_order_change(
     items: list[QtWidgets.QGraphicsItem],
     operation: str,
     scene: QtWidgets.QGraphicsScene,
-    undo_stack=None
+    undo_stack=None,
 ) -> None:
     """
     Apply z-order change operation with optional undo support.
@@ -149,6 +146,7 @@ def apply_z_order_change(
     # Apply changes via undo command if undo_stack provided
     if undo_stack is not None:
         from .undo_commands import ZOrderCommand
+
         cmd = ZOrderCommand(items, old_z_values, new_z_values)
         undo_stack.push(cmd)
     else:
@@ -229,6 +227,3 @@ def handle_z_order_from_menu(
             undo_stack = main_window.undo_stack
 
     apply_z_order_change(items, operation, item.scene(), undo_stack)
-
-
-

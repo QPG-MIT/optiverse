@@ -7,12 +7,11 @@ to ensure perfect consistency.
 
 Key principle: "What You See Is What You Drop"
 """
+
 from __future__ import annotations
 
-from typing import Optional, Dict, Any
-
-from ..core.models import ComponentParams
 from ..core.interface_definition import InterfaceDefinition
+from ..core.models import ComponentParams
 from ..platform.paths import to_absolute_path
 from .base_obj import BaseObj
 
@@ -34,7 +33,7 @@ class ComponentFactory:
     """
 
     @staticmethod
-    def create_item_from_dict(data: dict, x_mm: float, y_mm: float) -> Optional[BaseObj]:
+    def create_item_from_dict(data: dict, x_mm: float, y_mm: float) -> BaseObj | None:
         """
         Create an optical component item from library data.
 
@@ -58,7 +57,11 @@ class ComponentFactory:
             name = data.get("name", "Background")
             image_path_raw = data.get("image_path", "")
             image_path = to_absolute_path(image_path_raw) if image_path_raw else ""
-            object_height_mm = float(data.get("object_height_mm", data.get("object_height", data.get("length_mm", 100.0))))
+            object_height_mm = float(
+                data.get(
+                    "object_height_mm", data.get("object_height", data.get("length_mm", 100.0))
+                )
+            )
             angle_deg = float(data.get("angle_deg", 0.0))
             mm_per_pixel = float(data.get("mm_per_pixel", object_height_mm / 1000.0))
 
@@ -83,7 +86,11 @@ class ComponentFactory:
             name = data.get("name", "Decorative")
             image_path_raw = data.get("image_path", "")
             image_path = to_absolute_path(image_path_raw) if image_path_raw else ""
-            object_height_mm = float(data.get("object_height_mm", data.get("object_height", data.get("length_mm", 100.0))))
+            object_height_mm = float(
+                data.get(
+                    "object_height_mm", data.get("object_height", data.get("length_mm", 100.0))
+                )
+            )
             angle_deg = float(data.get("angle_deg", 0.0))
             mm_per_pixel = float(data.get("mm_per_pixel", object_height_mm / 1000.0))
 
@@ -116,7 +123,9 @@ class ComponentFactory:
         image_path_raw = data.get("image_path", "")
         # Convert package-relative paths to absolute filesystem paths
         image_path = to_absolute_path(image_path_raw) if image_path_raw else ""
-        object_height_mm = float(data.get("object_height_mm", data.get("object_height", data.get("length_mm", 60.0))))
+        object_height_mm = float(
+            data.get("object_height_mm", data.get("object_height", data.get("length_mm", 60.0)))
+        )
 
         # Determine angle (default to 0.0 = native orientation from Component Editor)
         if "angle_deg" in data:
@@ -157,6 +166,3 @@ class ComponentFactory:
             params.reference_line_mm = reference_line_mm
 
         return ComponentItem(params)
-
-
-

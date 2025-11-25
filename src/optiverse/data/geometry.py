@@ -3,11 +3,13 @@ Geometric primitives for optical elements.
 
 Pure geometric data structures with no optical or UI dependencies.
 """
+
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Optional, Tuple
-import numpy as np
+
 import math
+from dataclasses import dataclass
+
+import numpy as np
 
 
 @dataclass
@@ -18,8 +20,9 @@ class LineSegment:
     This represents the geometry of a flat optical interface in 2D space.
     All coordinates are in millimeters.
     """
-    p1: 'np.ndarray'  # Start point [x, y] in mm
-    p2: 'np.ndarray'  # End point [x, y] in mm
+
+    p1: np.ndarray  # Start point [x, y] in mm
+    p2: np.ndarray  # End point [x, y] in mm
     is_curved: bool = False  # Always False for LineSegment
     radius_of_curvature_mm: float = 0.0  # Always 0 for flat segments
 
@@ -81,7 +84,7 @@ class LineSegment:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'LineSegment':
+    def from_dict(cls, data: dict) -> LineSegment:
         """Deserialize from dictionary"""
         return cls(
             p1=np.array(data["p1"], dtype=float),
@@ -103,8 +106,9 @@ class CurvedSegment:
 
     The center of curvature is calculated from these parameters.
     """
-    p1: 'np.ndarray'  # Start point [x, y] in mm
-    p2: 'np.ndarray'  # End point [x, y] in mm
+
+    p1: np.ndarray  # Start point [x, y] in mm
+    p2: np.ndarray  # End point [x, y] in mm
     radius_of_curvature_mm: float  # Radius of curvature (+ or -)
     is_curved: bool = True  # Always True for CurvedSegment
 
@@ -290,7 +294,7 @@ class CurvedSegment:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'CurvedSegment':
+    def from_dict(cls, data: dict) -> CurvedSegment:
         """Deserialize from dictionary"""
         return cls(
             p1=np.array(data["p1"], dtype=float),
@@ -301,6 +305,3 @@ class CurvedSegment:
 
 # Type alias for any geometry segment
 GeometrySegment = LineSegment | CurvedSegment
-
-
-

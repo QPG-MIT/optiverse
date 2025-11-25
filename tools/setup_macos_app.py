@@ -19,10 +19,10 @@ Then launch with:
 """
 
 import os
-import sys
-from pathlib import Path
 import shutil
 import subprocess
+import sys
+from pathlib import Path
 
 
 def get_conda_info():
@@ -30,10 +30,7 @@ def get_conda_info():
     try:
         # Get conda base
         result = subprocess.run(
-            ["conda", "info", "--base"],
-            capture_output=True,
-            text=True,
-            check=True
+            ["conda", "info", "--base"], capture_output=True, text=True, check=True
         )
         conda_base = result.stdout.strip()
 
@@ -67,7 +64,7 @@ def create_app_bundle(project_root: Path, editable: bool = True):
 
     # Create Info.plist
     info_plist = contents_path / "Info.plist"
-    plist_content = '''<?xml version="1.0" encoding="UTF-8"?>
+    plist_content = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -99,10 +96,10 @@ def create_app_bundle(project_root: Path, editable: bool = True):
     <string>NSApplication</string>
 </dict>
 </plist>
-'''
+"""
 
     info_plist.write_text(plist_content)
-    print(f"✅ Created Info.plist")
+    print("✅ Created Info.plist")
 
     # Copy or create icon
     icon_icns = project_root / "resources" / "optiverse.icns"
@@ -110,10 +107,10 @@ def create_app_bundle(project_root: Path, editable: bool = True):
 
     if icon_icns.exists():
         shutil.copy(icon_icns, resources_path / "optiverse.icns")
-        print(f"✅ Copied .icns icon")
+        print("✅ Copied .icns icon")
     elif icon_png.exists():
         # Try to create icns on the fly
-        print(f"⚠️  .icns not found, attempting to create from PNG...")
+        print("⚠️  .icns not found, attempting to create from PNG...")
         try:
             iconset_dir = resources_path / "optiverse.iconset"
             iconset_dir.mkdir(exist_ok=True)
@@ -122,26 +119,33 @@ def create_app_bundle(project_root: Path, editable: bool = True):
             sizes = [16, 32, 128, 256, 512]
             for size in sizes:
                 output_file = iconset_dir / f"icon_{size}x{size}.png"
-                subprocess.run([
-                    'sips', '-z', str(size), str(size),
-                    str(icon_png),
-                    '--out', str(output_file)
-                ], check=True, capture_output=True)
+                subprocess.run(
+                    ["sips", "-z", str(size), str(size), str(icon_png), "--out", str(output_file)],
+                    check=True,
+                    capture_output=True,
+                )
 
             # Convert to icns
-            subprocess.run([
-                'iconutil', '-c', 'icns',
-                str(iconset_dir),
-                '-o', str(resources_path / "optiverse.icns")
-            ], check=True, capture_output=True)
+            subprocess.run(
+                [
+                    "iconutil",
+                    "-c",
+                    "icns",
+                    str(iconset_dir),
+                    "-o",
+                    str(resources_path / "optiverse.icns"),
+                ],
+                check=True,
+                capture_output=True,
+            )
 
             shutil.rmtree(iconset_dir)
-            print(f"✅ Created .icns icon from PNG")
+            print("✅ Created .icns icon from PNG")
         except Exception as e:
             print(f"⚠️  Could not create icon: {e}")
-            print(f"   Run: python scripts/create_icon.py")
+            print("   Run: python scripts/create_icon.py")
     else:
-        print(f"⚠️  No icon found. Run: python scripts/create_icon.py")
+        print("⚠️  No icon found. Run: python scripts/create_icon.py")
 
     # Create launcher script
     launcher = macos_path / "optiverse"
@@ -149,7 +153,7 @@ def create_app_bundle(project_root: Path, editable: bool = True):
 
     if conda_base and conda_env:
         # Using conda environment
-        launcher_content = f'''#!/bin/bash
+        launcher_content = f"""#!/bin/bash
 # Optiverse macOS launcher (conda environment: {conda_env})
 
 # Get the project directory (3 levels up from this script)
@@ -167,13 +171,18 @@ conda activate {conda_env}
 
 # Launch application
 exec python -m optiverse.app.main "$@"
-'''
+"""
     else:
         # Using venv or system Python
         python_path = sys.executable
-        site_packages = Path(python_path).parent.parent / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
+        (
+            Path(python_path).parent.parent
+            / "lib"
+            / f"python{sys.version_info.major}.{sys.version_info.minor}"
+            / "site-packages"
+        )
 
-        launcher_content = f'''#!/bin/bash
+        launcher_content = f"""#!/bin/bash
 # Optiverse macOS launcher (Python: {python_path})
 
 # Get the project directory
@@ -185,23 +194,23 @@ cd "$PROJECT_DIR"
 
 # Launch with the Python that was used to create the bundle
 exec "{python_path}" -m optiverse.app.main "$@"
-'''
+"""
 
     launcher.write_text(launcher_content)
     launcher.chmod(0o755)
     print(f"✅ Created launcher script ({'conda' if conda_env else 'venv/system python'})")
 
-    print(f"\n{'='*60}")
-    print(f"✅ Optiverse.app bundle created successfully!")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print("✅ Optiverse.app bundle created successfully!")
+    print(f"{'=' * 60}")
     print(f"\nMode: {'Editable (changes reflected immediately)' if editable else 'Standalone'}")
-    print(f"\nTo launch Optiverse:")
+    print("\nTo launch Optiverse:")
     print(f"  open {app_path}")
-    print(f"\nOr double-click Optiverse.app in Finder")
-    print(f"\nThe app will show as 'Optiverse' in the menu bar.")
+    print("\nOr double-click Optiverse.app in Finder")
+    print("\nThe app will show as 'Optiverse' in the menu bar.")
 
     if not icon_icns.exists():
-        print(f"\n⚠️  For proper icon support, run: python scripts/create_icon.py")
+        print("\n⚠️  For proper icon support, run: python scripts/create_icon.py")
 
     print()
 
@@ -230,5 +239,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

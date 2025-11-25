@@ -12,6 +12,7 @@ from PyQt6.QtSvgWidgets import QGraphicsSvgItem
 # Optional QtSvg for SVG support
 try:
     from PyQt6 import QtSvg
+
     HAVE_QTSVG = True
 except ImportError:
     HAVE_QTSVG = False
@@ -19,6 +20,7 @@ except ImportError:
 # Import cache directory function
 try:
     from ..platform.paths import svg_cache_dir
+
     HAVE_CACHE = True
 except Exception as e:
     HAVE_CACHE = False
@@ -145,7 +147,7 @@ class ComponentSvgSprite(QGraphicsSvgItem):
         """
         # Check if parent selection state changed
         par = self.parentItem()
-        is_selected = (par is not None and par.isSelected())
+        is_selected = par is not None and par.isSelected()
 
         # Invalidate cache if selection state changed
         if is_selected != self._parent_was_selected:
@@ -205,7 +207,7 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
             return
 
         # Load pixmap - handle SVG or raster images
-        if image_path.lower().endswith('.svg') and HAVE_QTSVG:
+        if image_path.lower().endswith(".svg") and HAVE_QTSVG:
             # Render SVG to high-resolution pixmap once
             # High resolution ensures sharpness at all zoom levels
             pix = self._render_svg_to_pixmap(image_path, object_height_mm)
@@ -250,8 +252,8 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
         y2_px = (-y2_mm / mm_per_pixel) + image_center_y_px  # Negate Y
 
         # Extract line vector for alignment
-        dx_px = x2_px - x1_px
-        dy_px = y2_px - y1_px
+        x2_px - x1_px
+        y2_px - y1_px
 
         # Calculate the actual length of the reference line in mm
         dx_mm = x2_mm - x1_mm
@@ -294,7 +296,7 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
         """
         # Check if parent selection state changed
         par = self.parentItem()
-        is_selected = (par is not None and par.isSelected())
+        is_selected = par is not None and par.isSelected()
 
         # Invalidate cache if selection state changed
         if is_selected != self._parent_was_selected:
@@ -340,7 +342,9 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
         # 8000x8000 RGBA = 256MB uncompressed, so 8000px is the safe maximum
         target_height = max(4000, min(8000, int(object_height_mm * 100)))
 
-        logging.debug(f"Rendering SVG: {Path(svg_path).name} at {target_height}px (HAVE_CACHE={HAVE_CACHE})")
+        logging.debug(
+            f"Rendering SVG: {Path(svg_path).name} at {target_height}px (HAVE_CACHE={HAVE_CACHE})"
+        )
 
         # Try to load from cache first
         cached_pix = ComponentSprite._load_from_cache(svg_path, target_height)
@@ -348,7 +352,7 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
             return cached_pix
 
         # Cache miss - show loading indicator and render
-        logging.debug(f"Rendering SVG from scratch...")
+        logging.debug("Rendering SVG from scratch...")
         app = QtWidgets.QApplication.instance()
         if app:
             app.setOverrideCursor(QtCore.Qt.CursorShape.WaitCursor)
@@ -409,7 +413,7 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
 
         # Create hash from path, height, and modification time
         key_str = f"{svg_path}:{target_height}:{mtime}"
-        hash_obj = hashlib.sha256(key_str.encode('utf-8'))
+        hash_obj = hashlib.sha256(key_str.encode("utf-8"))
         return hash_obj.hexdigest()[:16]  # Use first 16 chars for shorter filename
 
     @staticmethod
@@ -436,10 +440,14 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
                 pix = QtGui.QPixmap(str(cache_file))
                 if not pix.isNull():
                     file_size_mb = cache_file.stat().st_size / (1024 * 1024)
-                    logging.debug(f"SVG cache hit: {cache_file.name} ({pix.width()}x{pix.height()}, {file_size_mb:.1f}MB)")
+                    logging.debug(
+                        f"SVG cache hit: {cache_file.name} ({pix.width()}x{pix.height()}, {file_size_mb:.1f}MB)"
+                    )
                     return pix
                 else:
-                    logging.warning(f"SVG cache file corrupted or exceeds Qt limit: {cache_file.name}")
+                    logging.warning(
+                        f"SVG cache file corrupted or exceeds Qt limit: {cache_file.name}"
+                    )
                     # Delete corrupted file
                     try:
                         cache_file.unlink()
@@ -481,7 +489,9 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
             success = pixmap.save(str(cache_file), "PNG")
             if success:
                 file_size_mb = cache_file.stat().st_size / (1024 * 1024)
-                logging.debug(f"SVG cached successfully: {cache_file.name} ({pixmap.width()}x{pixmap.height()}, {file_size_mb:.1f}MB)")
+                logging.debug(
+                    f"SVG cached successfully: {cache_file.name} ({pixmap.width()}x{pixmap.height()}, {file_size_mb:.1f}MB)"
+                )
             else:
                 logging.error(f"Failed to save SVG cache file: {cache_file}")
         except OSError as e:
@@ -513,12 +523,4 @@ def create_component_sprite(
     # Always use ComponentSprite - it pre-renders SVG to high-res pixmap
     # This gives excellent performance when zooming (pixmap scaling is fast)
     # Native vector rendering (ComponentSvgSprite) re-renders on every zoom = slow
-    return ComponentSprite(
-        image_path,
-        reference_line_mm,
-        object_height_mm,
-        parent_item
-    )
-
-
-
+    return ComponentSprite(image_path, reference_line_mm, object_height_mm, parent_item)

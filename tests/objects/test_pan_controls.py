@@ -3,7 +3,7 @@ Tests for pan controls in GraphicsView.
 
 Space key + drag and middle mouse button + drag should pan the view.
 """
-import pytest
+
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from optiverse.objects import GraphicsView
@@ -18,8 +18,8 @@ class TestPanControlsState:
         view = GraphicsView(scene)
 
         # Should have _hand flag for space key state
-        assert hasattr(view, '_hand')
-        assert view._hand == False  # Initially not panning
+        assert hasattr(view, "_hand")
+        assert not view._hand  # Initially not panning
 
     def test_graphicsview_has_key_handlers(self):
         """GraphicsView should have key event handlers."""
@@ -27,8 +27,8 @@ class TestPanControlsState:
         view = GraphicsView(scene)
 
         # Should have key event handlers
-        assert hasattr(view, 'keyPressEvent')
-        assert hasattr(view, 'keyReleaseEvent')
+        assert hasattr(view, "keyPressEvent")
+        assert hasattr(view, "keyReleaseEvent")
         assert callable(view.keyPressEvent)
         assert callable(view.keyReleaseEvent)
 
@@ -38,8 +38,8 @@ class TestPanControlsState:
         view = GraphicsView(scene)
 
         # Should have mouse event handlers
-        assert hasattr(view, 'mousePressEvent')
-        assert hasattr(view, 'mouseReleaseEvent')
+        assert hasattr(view, "mousePressEvent")
+        assert hasattr(view, "mouseReleaseEvent")
         assert callable(view.mousePressEvent)
         assert callable(view.mouseReleaseEvent)
 
@@ -80,13 +80,13 @@ class TestMiddleButtonPanning:
         assert view.dragMode() == QtWidgets.QGraphicsView.DragMode.RubberBandDrag
 
         # Simulate middle button press
-        event = QtCore.QEvent(QtCore.QEvent.Type.MouseButtonPress)
+        QtCore.QEvent(QtCore.QEvent.Type.MouseButtonPress)
         mouse_event = QtGui.QMouseEvent(
             QtCore.QEvent.Type.MouseButtonPress,
             QtCore.QPointF(100, 100),
             QtCore.Qt.MouseButton.MiddleButton,
             QtCore.Qt.MouseButton.MiddleButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
 
         view.mousePressEvent(mouse_event)
@@ -105,7 +105,7 @@ class TestMiddleButtonPanning:
             QtCore.QPointF(100, 100),
             QtCore.Qt.MouseButton.MiddleButton,
             QtCore.Qt.MouseButton.MiddleButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         view.mousePressEvent(press_event)
 
@@ -118,7 +118,7 @@ class TestMiddleButtonPanning:
             QtCore.QPointF(150, 150),
             QtCore.Qt.MouseButton.MiddleButton,
             QtCore.Qt.MouseButton.NoButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         view.mouseReleaseEvent(release_event)
 
@@ -136,7 +136,7 @@ class TestMiddleButtonPanning:
             QtCore.QPointF(100, 100),
             QtCore.Qt.MouseButton.LeftButton,
             QtCore.Qt.MouseButton.LeftButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         view.mousePressEvent(left_press)
 
@@ -149,7 +149,7 @@ class TestMiddleButtonPanning:
             QtCore.QPointF(150, 150),
             QtCore.Qt.MouseButton.LeftButton,
             QtCore.Qt.MouseButton.NoButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         view.mouseReleaseEvent(left_release)
 
@@ -167,18 +167,18 @@ class TestSpaceKeyPanning:
 
         # Initial state
         assert view.dragMode() == QtWidgets.QGraphicsView.DragMode.RubberBandDrag
-        assert view._hand == False
+        assert not view._hand
 
         # Simulate space key press
         key_event = QtGui.QKeyEvent(
             QtCore.QEvent.Type.KeyPress,
             QtCore.Qt.Key.Key_Space,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         view.keyPressEvent(key_event)
 
         # Should enable hand mode
-        assert view._hand == True
+        assert view._hand
         assert view.dragMode() == QtWidgets.QGraphicsView.DragMode.ScrollHandDrag
 
     def test_space_key_release_restores_rubber_band_drag(self):
@@ -190,23 +190,23 @@ class TestSpaceKeyPanning:
         key_press = QtGui.QKeyEvent(
             QtCore.QEvent.Type.KeyPress,
             QtCore.Qt.Key.Key_Space,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         view.keyPressEvent(key_press)
 
-        assert view._hand == True
+        assert view._hand
         assert view.dragMode() == QtWidgets.QGraphicsView.DragMode.ScrollHandDrag
 
         # Release space
         key_release = QtGui.QKeyEvent(
             QtCore.QEvent.Type.KeyRelease,
             QtCore.Qt.Key.Key_Space,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         view.keyReleaseEvent(key_release)
 
         # Should restore to normal mode
-        assert view._hand == False
+        assert not view._hand
         assert view.dragMode() == QtWidgets.QGraphicsView.DragMode.RubberBandDrag
 
 
@@ -222,20 +222,20 @@ class TestPanControlInteraction:
         key_press = QtGui.QKeyEvent(
             QtCore.QEvent.Type.KeyPress,
             QtCore.Qt.Key.Key_Space,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         view.keyPressEvent(key_press)
-        assert view._hand == True
+        assert view._hand
         assert view.dragMode() == QtWidgets.QGraphicsView.DragMode.ScrollHandDrag
 
         # Release space - should go back to RubberBandDrag
         key_release = QtGui.QKeyEvent(
             QtCore.QEvent.Type.KeyRelease,
             QtCore.Qt.Key.Key_Space,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         view.keyReleaseEvent(key_release)
-        assert view._hand == False
+        assert not view._hand
         assert view.dragMode() == QtWidgets.QGraphicsView.DragMode.RubberBandDrag
 
         # Now try middle button
@@ -244,7 +244,7 @@ class TestPanControlInteraction:
             QtCore.QPointF(100, 100),
             QtCore.Qt.MouseButton.MiddleButton,
             QtCore.Qt.MouseButton.MiddleButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         view.mousePressEvent(middle_press)
 
@@ -257,7 +257,7 @@ class TestPanControlInteraction:
             QtCore.QPointF(150, 150),
             QtCore.Qt.MouseButton.MiddleButton,
             QtCore.Qt.MouseButton.NoButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         view.mouseReleaseEvent(middle_release)
 
@@ -276,7 +276,7 @@ class TestPanControlInteraction:
                 QtCore.QPointF(100 + i * 10, 100),
                 QtCore.Qt.MouseButton.MiddleButton,
                 QtCore.Qt.MouseButton.MiddleButton,
-                QtCore.Qt.KeyboardModifier.NoModifier
+                QtCore.Qt.KeyboardModifier.NoModifier,
             )
             view.mousePressEvent(press)
             assert view.dragMode() == QtWidgets.QGraphicsView.DragMode.ScrollHandDrag
@@ -287,7 +287,7 @@ class TestPanControlInteraction:
                 QtCore.QPointF(100 + i * 10, 100),
                 QtCore.Qt.MouseButton.MiddleButton,
                 QtCore.Qt.MouseButton.NoButton,
-                QtCore.Qt.KeyboardModifier.NoModifier
+                QtCore.Qt.KeyboardModifier.NoModifier,
             )
             view.mouseReleaseEvent(release)
             assert view.dragMode() == QtWidgets.QGraphicsView.DragMode.RubberBandDrag
@@ -323,7 +323,10 @@ class TestViewportUpdateMode:
 
         # Should use FullViewportUpdate to avoid scale bar artifacts
         # during panning (scale bar is drawn in drawForeground)
-        assert view.viewportUpdateMode() == QtWidgets.QGraphicsView.ViewportUpdateMode.FullViewportUpdate
+        assert (
+            view.viewportUpdateMode()
+            == QtWidgets.QGraphicsView.ViewportUpdateMode.FullViewportUpdate
+        )
 
 
 class TestTransformationAnchorBehavior:
@@ -335,7 +338,9 @@ class TestTransformationAnchorBehavior:
         view = GraphicsView(scene)
 
         # Should start with AnchorUnderMouse for intuitive zooming
-        assert view.transformationAnchor() == QtWidgets.QGraphicsView.ViewportAnchor.AnchorUnderMouse
+        assert (
+            view.transformationAnchor() == QtWidgets.QGraphicsView.ViewportAnchor.AnchorUnderMouse
+        )
 
     def test_transformation_anchor_changes_during_middle_button_pan(self):
         """Transformation anchor should change during middle button panning.
@@ -347,7 +352,9 @@ class TestTransformationAnchorBehavior:
         view = GraphicsView(scene)
 
         # Initial anchor for zooming
-        assert view.transformationAnchor() == QtWidgets.QGraphicsView.ViewportAnchor.AnchorUnderMouse
+        assert (
+            view.transformationAnchor() == QtWidgets.QGraphicsView.ViewportAnchor.AnchorUnderMouse
+        )
 
         # Press middle button
         press_event = QtGui.QMouseEvent(
@@ -355,7 +362,7 @@ class TestTransformationAnchorBehavior:
             QtCore.QPointF(100, 100),
             QtCore.Qt.MouseButton.MiddleButton,
             QtCore.Qt.MouseButton.MiddleButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         view.mousePressEvent(press_event)
 
@@ -368,12 +375,14 @@ class TestTransformationAnchorBehavior:
             QtCore.QPointF(150, 150),
             QtCore.Qt.MouseButton.MiddleButton,
             QtCore.Qt.MouseButton.NoButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         view.mouseReleaseEvent(release_event)
 
         # Anchor should restore to AnchorUnderMouse for zooming
-        assert view.transformationAnchor() == QtWidgets.QGraphicsView.ViewportAnchor.AnchorUnderMouse
+        assert (
+            view.transformationAnchor() == QtWidgets.QGraphicsView.ViewportAnchor.AnchorUnderMouse
+        )
 
     def test_transformation_anchor_unchanged_by_left_button(self):
         """Left button should not affect transformation anchor."""
@@ -388,7 +397,7 @@ class TestTransformationAnchorBehavior:
             QtCore.QPointF(100, 100),
             QtCore.Qt.MouseButton.LeftButton,
             QtCore.Qt.MouseButton.LeftButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         view.mousePressEvent(press_event)
 
@@ -400,12 +409,9 @@ class TestTransformationAnchorBehavior:
             QtCore.QPointF(150, 150),
             QtCore.Qt.MouseButton.LeftButton,
             QtCore.Qt.MouseButton.NoButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         view.mouseReleaseEvent(release_event)
 
         # Anchor should still not change
         assert view.transformationAnchor() == initial_anchor
-
-
-

@@ -4,9 +4,10 @@ Widget for displaying and editing interface properties in component edit dialogs
 This widget shows optical properties (focal length, refractive index, etc.) for
 one or more interfaces, excluding the geometric coordinates (x1, y1, x2, y2).
 """
+
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from PyQt6 import QtCore, QtWidgets
 
@@ -25,10 +26,14 @@ class InterfacePropertiesWidget(QtWidgets.QWidget):
 
     propertiesChanged = QtCore.pyqtSignal()
 
-    def __init__(self, interfaces: List[InterfaceDefinition], parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(
+        self, interfaces: list[InterfaceDefinition], parent: QtWidgets.QWidget | None = None
+    ):
         super().__init__(parent)
         self.interfaces = interfaces
-        self._property_widgets: Dict[int, Dict[str, QtWidgets.QWidget]] = {}  # interface_index -> {prop_name -> widget}
+        self._property_widgets: dict[
+            int, dict[str, QtWidgets.QWidget]
+        ] = {}  # interface_index -> {prop_name -> widget}
         self._updating = False
 
         self._setup_ui()
@@ -52,7 +57,9 @@ class InterfacePropertiesWidget(QtWidgets.QWidget):
 
         layout.addStretch()
 
-    def _create_interface_section(self, idx: int, interface: InterfaceDefinition) -> QtWidgets.QWidget:
+    def _create_interface_section(
+        self, idx: int, interface: InterfaceDefinition
+    ) -> QtWidgets.QWidget:
         """Create a section for one interface."""
         group = QtWidgets.QGroupBox()
 
@@ -95,43 +102,55 @@ class InterfacePropertiesWidget(QtWidgets.QWidget):
             if isinstance(value, bool):
                 widget = QtWidgets.QCheckBox()
                 widget.setChecked(value)
-                widget.toggled.connect(lambda checked, i=idx, p=prop_name: self._on_property_changed(i, p, checked))
+                widget.toggled.connect(
+                    lambda checked, i=idx, p=prop_name: self._on_property_changed(i, p, checked)
+                )
                 self._property_widgets[idx][prop_name] = widget
                 form.addRow(label_text, widget)
 
             elif isinstance(value, (int, float)):
                 widget = SmartDoubleSpinBox()
-                min_val, max_val = interface_types.get_property_range(interface.element_type, prop_name)
+                min_val, max_val = interface_types.get_property_range(
+                    interface.element_type, prop_name
+                )
                 widget.setRange(min_val, max_val)
                 widget.setDecimals(3)
                 if unit:
                     widget.setSuffix(f" {unit}")
                 widget.setValue(float(value))
-                widget.valueChanged.connect(lambda val, i=idx, p=prop_name: self._on_property_changed(i, p, val))
+                widget.valueChanged.connect(
+                    lambda val, i=idx, p=prop_name: self._on_property_changed(i, p, val)
+                )
                 self._property_widgets[idx][prop_name] = widget
                 form.addRow(label_text, widget)
 
             elif isinstance(value, str):
-                if prop_name == 'pass_type':
+                if prop_name == "pass_type":
                     widget = QtWidgets.QComboBox()
-                    widget.addItems(['longpass', 'shortpass'])
+                    widget.addItems(["longpass", "shortpass"])
                     idx_combo = widget.findText(value)
                     if idx_combo >= 0:
                         widget.setCurrentIndex(idx_combo)
-                    widget.currentTextChanged.connect(lambda v, i=idx, p=prop_name: self._on_property_changed(i, p, v))
+                    widget.currentTextChanged.connect(
+                        lambda v, i=idx, p=prop_name: self._on_property_changed(i, p, v)
+                    )
                     self._property_widgets[idx][prop_name] = widget
-                elif prop_name == 'polarizer_subtype':
+                elif prop_name == "polarizer_subtype":
                     # Dropdown for polarizer subtype
                     widget = QtWidgets.QComboBox()
-                    widget.addItems(['waveplate', 'linear_polarizer', 'faraday_rotator'])
+                    widget.addItems(["waveplate", "linear_polarizer", "faraday_rotator"])
                     idx_combo = widget.findText(value)
                     if idx_combo >= 0:
                         widget.setCurrentIndex(idx_combo)
-                    widget.currentTextChanged.connect(lambda v, i=idx, p=prop_name: self._on_property_changed(i, p, v))
+                    widget.currentTextChanged.connect(
+                        lambda v, i=idx, p=prop_name: self._on_property_changed(i, p, v)
+                    )
                     self._property_widgets[idx][prop_name] = widget
                 else:
                     widget = QtWidgets.QLineEdit(value)
-                    widget.textChanged.connect(lambda v, i=idx, p=prop_name: self._on_property_changed(i, p, v))
+                    widget.textChanged.connect(
+                        lambda v, i=idx, p=prop_name: self._on_property_changed(i, p, v)
+                    )
                     self._property_widgets[idx][prop_name] = widget
                 form.addRow(label_text, widget)
 
@@ -147,11 +166,11 @@ class InterfacePropertiesWidget(QtWidgets.QWidget):
             setattr(self.interfaces[interface_idx], prop_name, value)
             self.propertiesChanged.emit()
 
-    def get_interfaces(self) -> List[InterfaceDefinition]:
+    def get_interfaces(self) -> list[InterfaceDefinition]:
         """Get the current interfaces with updated values."""
         return self.interfaces
 
-    def update_from_interfaces(self, interfaces: List[InterfaceDefinition]):
+    def update_from_interfaces(self, interfaces: list[InterfaceDefinition]):
         """Update widget values from interfaces."""
         self._updating = True
         try:
@@ -180,6 +199,3 @@ class InterfacePropertiesWidget(QtWidgets.QWidget):
 
         finally:
             self._updating = False
-
-
-

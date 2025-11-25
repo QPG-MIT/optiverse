@@ -4,7 +4,8 @@ Component Registry - Delegates to definitions loader and provides categorization
 This module provides a thin wrapper over the definitions loader and categorization logic.
 Standard components are defined in objects/library/*/component.json files.
 """
-from typing import Dict, List, Any
+
+from typing import Any
 
 from .definitions_loader import load_component_dicts
 
@@ -17,7 +18,7 @@ class ComponentRegistry:
     """
 
     @staticmethod
-    def get_standard_components() -> List[Dict[str, Any]]:
+    def get_standard_components() -> list[dict[str, Any]]:
         """
         Load all standard components from per-object folders.
         Returns a list of JSON-serializable component dicts.
@@ -25,12 +26,12 @@ class ComponentRegistry:
         return load_component_dicts()
 
     @staticmethod
-    def get_components_by_category() -> Dict[str, List[Dict[str, Any]]]:
+    def get_components_by_category() -> dict[str, list[dict[str, Any]]]:
         """
         Get standard components organized by category using the same
         categorization logic as the UI.
         """
-        categories: Dict[str, List[Dict[str, Any]]] = {
+        categories: dict[str, list[dict[str, Any]]] = {
             "Lenses": [],
             "Objectives": [],
             "Mirrors": [],
@@ -75,7 +76,6 @@ class ComponentRegistry:
 
         return categories
 
-
     @staticmethod
     def get_category_for_element_type(element_type: str, name: str = "") -> str:
         """
@@ -106,6 +106,3 @@ class ComponentRegistry:
             "beam_block": "Misc",
         }
         return element_type_to_category.get(element_type, "Other")
-
-
-

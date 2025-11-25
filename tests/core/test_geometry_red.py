@@ -1,4 +1,5 @@
 import math
+
 import numpy as np
 
 
@@ -20,7 +21,7 @@ def test_normalize():
 
 
 def test_reflect_and_intersect():
-    from optiverse.core.geometry import reflect_vec, ray_hit_element
+    from optiverse.core.geometry import ray_hit_element, reflect_vec
 
     # Segment AB along x-axis from (-1,0) to (1,0), ray from (0,-1) heading up
     A = np.array([-1.0, 0.0])
@@ -37,7 +38,3 @@ def test_reflect_and_intersect():
     # Reflect V across upward normal [0,1] should invert Y
     Vr = reflect_vec(V, np.array([0.0, 1.0]))
     assert np.allclose(Vr, np.array([0.0, -1.0]))
-
-
-
-

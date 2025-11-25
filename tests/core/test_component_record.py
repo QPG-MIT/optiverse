@@ -1,6 +1,8 @@
 """Tests for ComponentRecord dataclass and serialization."""
+
 import pytest
-from optiverse.core.models import ComponentRecord, serialize_component, deserialize_component
+
+from optiverse.core.models import ComponentRecord, deserialize_component, serialize_component
 
 
 def test_component_record_lens():
@@ -14,7 +16,7 @@ def test_component_record_lens():
         length_mm=40.0,
         efl_mm=100.0,
         split_TR=(50.0, 50.0),
-        notes="Test notes"
+        notes="Test notes",
     )
     assert rec.name == "Test Lens"
     assert rec.kind == "lens"
@@ -33,7 +35,7 @@ def test_component_record_mirror():
         length_mm=70.7,
         efl_mm=0.0,
         split_TR=(50.0, 50.0),
-        notes=""
+        notes="",
     )
     assert rec.kind == "mirror"
     assert rec.efl_mm == 0.0
@@ -51,7 +53,7 @@ def test_component_record_beamsplitter():
         length_mm=20.0,
         efl_mm=0.0,
         split_TR=(30.0, 70.0),
-        notes="Custom split ratio"
+        notes="Custom split ratio",
     )
     assert rec.kind == "beamsplitter"
     assert rec.split_TR == (30.0, 70.0)
@@ -68,7 +70,7 @@ def test_serialize_lens():
         length_mm=5.0,
         efl_mm=75.0,
         split_TR=(50.0, 50.0),
-        notes="Note"
+        notes="Note",
     )
     data = serialize_component(rec)
     assert data["name"] == "Lens1"
@@ -93,7 +95,7 @@ def test_serialize_mirror():
         length_mm=5.0,
         efl_mm=0.0,
         split_TR=(50.0, 50.0),
-        notes=""
+        notes="",
     )
     data = serialize_component(rec)
     assert data["kind"] == "mirror"
@@ -113,7 +115,7 @@ def test_serialize_beamsplitter():
         length_mm=5.0,
         efl_mm=0.0,
         split_TR=(40.0, 60.0),
-        notes=""
+        notes="",
     )
     data = serialize_component(rec)
     assert data["split_TR"] == [40.0, 60.0]
@@ -134,7 +136,7 @@ def test_deserialize_lens():
         "line_px": [5.0, 5.0, 15.0, 5.0],
         "length_mm": 2.5,
         "efl_mm": 50.0,
-        "notes": "My lens"
+        "notes": "My lens",
     }
     rec = deserialize_component(data)
     assert rec.name == "TestLens"
@@ -153,7 +155,7 @@ def test_deserialize_mirror():
         "mm_per_pixel": 0.1,
         "line_px": [0.0, 0.0, 10.0, 10.0],
         "length_mm": 14.14,
-        "notes": ""
+        "notes": "",
     }
     rec = deserialize_component(data)
     assert rec.kind == "mirror"
@@ -171,7 +173,7 @@ def test_deserialize_beamsplitter_new_format():
         "line_px": [0.0, 0.0, 20.0, 0.0],
         "length_mm": 4.0,
         "split_TR": [30.0, 70.0],
-        "notes": ""
+        "notes": "",
     }
     rec = deserialize_component(data)
     assert rec.kind == "beamsplitter"
@@ -189,7 +191,7 @@ def test_deserialize_beamsplitter_legacy_format():
         "length_mm": 4.0,
         "split_T": 25.0,
         "split_R": 75.0,
-        "notes": ""
+        "notes": "",
     }
     rec = deserialize_component(data)
     assert rec.split_TR == (25.0, 75.0)
@@ -203,7 +205,7 @@ def test_deserialize_handles_missing_fields():
         "image_path": "",
         "mm_per_pixel": 0.1,
         "line_px": [0.0, 0.0, 1.0, 0.0],
-        "length_mm": 0.1
+        "length_mm": 0.1,
     }
     rec = deserialize_component(data)
     assert rec.name == "Minimal"
@@ -223,7 +225,7 @@ def test_deserialize_ignores_unknown_keys():
         "efl_mm": 100.0,
         "notes": "",
         "unknown_field": "should be ignored",
-        "another_unknown": 123
+        "another_unknown": 123,
     }
     rec = deserialize_component(data)
     assert rec.name == "Test"
@@ -238,7 +240,7 @@ def test_deserialize_malformed_line_px():
         "image_path": "/test.png",
         "mm_per_pixel": 0.5,
         "line_px": [0.0, 0.0, 10.0],  # Only 3 values
-        "length_mm": 5.0
+        "length_mm": 5.0,
     }
     rec = deserialize_component(data)
     assert rec is None
@@ -255,7 +257,7 @@ def test_roundtrip_serialization():
         length_mm=12.34,
         efl_mm=0.0,
         split_TR=(35.5, 64.5),
-        notes="Round and round"
+        notes="Round and round",
     )
     data = serialize_component(original)
     restored = deserialize_component(data)
@@ -268,6 +270,3 @@ def test_roundtrip_serialization():
     assert restored.length_mm == pytest.approx(original.length_mm)
     assert restored.split_TR == original.split_TR
     assert restored.notes == original.notes
-
-
-

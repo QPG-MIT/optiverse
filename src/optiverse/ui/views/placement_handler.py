@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Dict, Optional, Union
+from typing import TYPE_CHECKING, Callable
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.component_types import ComponentType
 
 if TYPE_CHECKING:
-    from ...objects import GraphicsView
     from ...core.undo_stack import UndoStack
+    from ...objects import GraphicsView
     from ...services.log_service import LogService
 
 
@@ -25,10 +25,10 @@ class PlacementHandler:
     def __init__(
         self,
         scene: QtWidgets.QGraphicsScene,
-        view: "GraphicsView",
-        undo_stack: "UndoStack",
-        log_service: "LogService",
-        component_templates: Dict[str, dict],
+        view: GraphicsView,
+        undo_stack: UndoStack,
+        log_service: LogService,
+        component_templates: dict[str, dict],
         snap_to_grid_getter: Callable[[], bool],
         connect_item_signals: Callable[[QtWidgets.QGraphicsItem], None],
         schedule_retrace: Callable[[], None],
@@ -60,8 +60,8 @@ class PlacementHandler:
 
         # State
         self._active = False
-        self._component_type: Optional[str] = None
-        self._ghost: Optional[QtWidgets.QGraphicsItem] = None
+        self._component_type: str | None = None
+        self._ghost: QtWidgets.QGraphicsItem | None = None
 
     @property
     def is_active(self) -> bool:
@@ -69,7 +69,7 @@ class PlacementHandler:
         return self._active
 
     @property
-    def component_type(self) -> Optional[str]:
+    def component_type(self) -> str | None:
         """Get the current component type being placed."""
         return self._component_type
 
@@ -97,7 +97,7 @@ class PlacementHandler:
         # Show tooltip
         QtWidgets.QToolTip.showText(
             QtGui.QCursor.pos(),
-            f"Click to place {component_type}. Right-click or Escape to cancel."
+            f"Click to place {component_type}. Right-click or Escape to cancel.",
         )
 
     def deactivate(self) -> str | None:
@@ -156,7 +156,7 @@ class PlacementHandler:
             QtCore.QPointF(cursor_pos),
             QtCore.Qt.MouseButton.NoButton,
             QtCore.Qt.MouseButton.NoButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
+            QtCore.Qt.KeyboardModifier.NoModifier,
         )
         # Send to VIEW first (critical for wheelEvent which is received by the view)
         QtWidgets.QApplication.sendEvent(self.view, move_event)
@@ -216,7 +216,7 @@ class PlacementHandler:
     def _create_ghost(self, scene_pos: QtCore.QPointF) -> None:
         """Create a ghost preview for the component being placed."""
         from ...core.models import SourceParams
-        from ...objects import SourceItem, TextNoteItem, RectangleItem
+        from ...objects import RectangleItem, SourceItem, TextNoteItem
         from ...objects.component_factory import ComponentFactory
 
         # Clear any existing ghost
@@ -238,13 +238,16 @@ class PlacementHandler:
             params = SourceParams(x_mm=scene_pos.x(), y_mm=scene_pos.y())
             ghost = SourceItem(params)
 
-        elif component_type in (ComponentType.LENS, ComponentType.MIRROR, ComponentType.BEAMSPLITTER):
+        elif component_type in (
+            ComponentType.LENS,
+            ComponentType.MIRROR,
+            ComponentType.BEAMSPLITTER,
+        ):
             # Use ComponentFactory with library templates for interface-based components
             template = self.component_templates.get(component_type)
             if template is None:
                 self.log_service.warning(
-                    f"No template found for component type: {component_type}",
-                    "Placement"
+                    f"No template found for component type: {component_type}", "Placement"
                 )
                 return
 
@@ -253,14 +256,11 @@ class PlacementHandler:
             template_copy["image_path"] = ""  # Remove sprite to show interface lines only
 
             ghost = ComponentFactory.create_item_from_dict(
-                template_copy,
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y()
+                template_copy, x_mm=scene_pos.x(), y_mm=scene_pos.y()
             )
             if ghost is None:
                 self.log_service.error(
-                    f"Failed to create ghost for component type: {component_type}",
-                    "Placement"
+                    f"Failed to create ghost for component type: {component_type}", "Placement"
                 )
                 return
 
@@ -310,7 +310,7 @@ class PlacementHandler:
         """Place a component at the specified scene position."""
         from ...core.models import SourceParams
         from ...core.undo_commands import AddItemCommand
-        from ...objects import SourceItem, TextNoteItem, RectangleItem
+        from ...objects import RectangleItem, SourceItem, TextNoteItem
         from ...objects.component_factory import ComponentFactory
 
         # Apply snap to grid if enabled
@@ -332,12 +332,15 @@ class PlacementHandler:
             params = SourceParams(x_mm=scene_pos.x(), y_mm=scene_pos.y())
             item = SourceItem(params)
 
-        elif component_type in (ComponentType.LENS, ComponentType.MIRROR, ComponentType.BEAMSPLITTER):
+        elif component_type in (
+            ComponentType.LENS,
+            ComponentType.MIRROR,
+            ComponentType.BEAMSPLITTER,
+        ):
             template = self.component_templates.get(component_type)
             if template is None:
                 self.log_service.error(
-                    f"No template found for component type: {component_type}",
-                    "Placement"
+                    f"No template found for component type: {component_type}", "Placement"
                 )
                 return
 
@@ -345,14 +348,11 @@ class PlacementHandler:
             template_copy["image_path"] = ""  # Remove sprite to show interface lines only
 
             item = ComponentFactory.create_item_from_dict(
-                template_copy,
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y()
+                template_copy, x_mm=scene_pos.x(), y_mm=scene_pos.y()
             )
             if item is None:
                 self.log_service.error(
-                    f"Failed to create component for type: {component_type}",
-                    "Placement"
+                    f"Failed to create component for type: {component_type}", "Placement"
                 )
                 return
 
@@ -387,7 +387,9 @@ class PlacementHandler:
         # Force Qt to update its internal mouse position tracking
         self._send_synthetic_mouse_move()
 
-    def place_component_at(self, component_type: Union[str, ComponentType], scene_pos: QtCore.QPointF) -> Optional[QtWidgets.QGraphicsItem]:
+    def place_component_at(
+        self, component_type: str | ComponentType, scene_pos: QtCore.QPointF
+    ) -> QtWidgets.QGraphicsItem | None:
         """
         Public method to programmatically place a component at a position.
 
@@ -426,6 +428,3 @@ class PlacementHandler:
         if new_items:
             return list(new_items)[0]
         return None
-
-
-

@@ -4,15 +4,15 @@ Settings dialog for application-wide preferences.
 Provides a general-purpose settings interface organized by categories,
 allowing easy addition of new settings in the future.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
-from ...services.settings_service import SettingsService
 from ...platform.paths import get_user_library_root
+from ...services.settings_service import SettingsService
 
 
 class SettingsDialog(QtWidgets.QDialog):
@@ -30,7 +30,9 @@ class SettingsDialog(QtWidgets.QDialog):
 
     settings_changed = QtCore.pyqtSignal()
 
-    def __init__(self, settings_service: SettingsService, parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(
+        self, settings_service: SettingsService, parent: QtWidgets.QWidget | None = None
+    ):
         super().__init__(parent)
         self.settings_service = settings_service
 
@@ -61,13 +63,15 @@ class SettingsDialog(QtWidgets.QDialog):
 
         # Button box
         button_box = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.StandardButton.Ok |
-            QtWidgets.QDialogButtonBox.StandardButton.Cancel |
-            QtWidgets.QDialogButtonBox.StandardButton.Apply
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+            | QtWidgets.QDialogButtonBox.StandardButton.Apply
         )
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
-        button_box.button(QtWidgets.QDialogButtonBox.StandardButton.Apply).clicked.connect(self._apply_settings)
+        button_box.button(QtWidgets.QDialogButtonBox.StandardButton.Apply).clicked.connect(
+            self._apply_settings
+        )
         right_layout.addWidget(button_box)
 
         main_layout.addLayout(right_layout, 1)
@@ -86,7 +90,9 @@ class SettingsDialog(QtWidgets.QDialog):
         """Build all settings pages and add to category list."""
         # Library Settings
         self._build_library_page()
-        self._add_category("Library", "Component library locations and organization", self.library_page)
+        self._add_category(
+            "Library", "Component library locations and organization", self.library_page
+        )
 
         # Future categories can be added here:
         # self._build_appearance_page()
@@ -107,7 +113,7 @@ class SettingsDialog(QtWidgets.QDialog):
         if index >= 0:
             self.pages_stack.setCurrentIndex(index)
             item = self.category_list.item(index)
-            description = item.data(QtCore.Qt.ItemDataRole.UserRole)
+            item.data(QtCore.Qt.ItemDataRole.UserRole)
             self.page_title.setText(f"{item.text()}")
 
     def _build_library_page(self):
@@ -136,7 +142,9 @@ class SettingsDialog(QtWidgets.QDialog):
         list_layout = QtWidgets.QHBoxLayout()
 
         self.library_list = QtWidgets.QListWidget()
-        self.library_list.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
+        self.library_list.setSelectionMode(
+            QtWidgets.QAbstractItemView.SelectionMode.SingleSelection
+        )
         list_layout.addWidget(self.library_list)
 
         # Buttons
@@ -228,7 +236,7 @@ class SettingsDialog(QtWidgets.QDialog):
             self,
             "Select Component Library Directory",
             "",
-            QtWidgets.QFileDialog.Option.ShowDirsOnly
+            QtWidgets.QFileDialog.Option.ShowDirsOnly,
         )
 
         if not path:
@@ -240,9 +248,7 @@ class SettingsDialog(QtWidgets.QDialog):
             existing_path = item.data(QtCore.Qt.ItemDataRole.UserRole)
             if existing_path == path:
                 QtWidgets.QMessageBox.information(
-                    self,
-                    "Already Added",
-                    f"This library path is already in the list:\n{path}"
+                    self, "Already Added", f"This library path is already in the list:\n{path}"
                 )
                 return
 
@@ -258,9 +264,7 @@ class SettingsDialog(QtWidgets.QDialog):
         # Don't allow removing the default library (first item)
         if self.library_list.row(current_item) == 0:
             QtWidgets.QMessageBox.information(
-                self,
-                "Cannot Remove",
-                "The default user library cannot be removed."
+                self, "Cannot Remove", "The default user library cannot be removed."
             )
             return
 
@@ -271,7 +275,7 @@ class SettingsDialog(QtWidgets.QDialog):
             "Remove Library Path",
             f"Remove this library path from the list?\n\n{path}\n\n"
             "Note: This only removes it from the list. The files will not be deleted.",
-            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
         )
 
         if reply == QtWidgets.QMessageBox.StandardButton.Yes:
@@ -296,7 +300,7 @@ class SettingsDialog(QtWidgets.QDialog):
             self,
             "Settings Applied",
             "Settings have been applied successfully.\n\n"
-            "Note: You may need to restart the application for all changes to take effect."
+            "Note: You may need to restart the application for all changes to take effect.",
         )
 
     def _save_settings(self):
@@ -317,5 +321,3 @@ class SettingsDialog(QtWidgets.QDialog):
         self._save_settings()
         self.settings_changed.emit()
         super().accept()
-
-

@@ -6,6 +6,7 @@ import pytest
 def test_image_canvas_drag_points(qtbot):
     """Test dragging points in ImageCanvas."""
     from PyQt6 import QtCore, QtGui
+
     from optiverse.objects.views.image_canvas import ImageCanvas
 
     canvas = ImageCanvas()
@@ -35,6 +36,7 @@ def test_image_canvas_drag_points(qtbot):
 def test_image_canvas_points_changed_signal(qtbot):
     """Test that pointsChanged signal is emitted."""
     from PyQt6 import QtCore, QtGui
+
     from optiverse.objects.views.image_canvas import ImageCanvas
 
     canvas = ImageCanvas()
@@ -53,6 +55,7 @@ def test_image_canvas_points_changed_signal(qtbot):
 def test_image_canvas_hover_detection(qtbot):
     """Test hover detection near points."""
     from PyQt6 import QtCore, QtGui
+
     from optiverse.objects.views.image_canvas import ImageCanvas
 
     canvas = ImageCanvas()
@@ -73,10 +76,7 @@ def test_image_canvas_hover_detection(qtbot):
     pixrect = canvas._target_rect()
 
     # Position near point 1
-    test_pos = QtCore.QPoint(
-        int(pixrect.x() + 100),
-        int(pixrect.y() + 100)
-    )
+    test_pos = QtCore.QPoint(int(pixrect.x() + 100), int(pixrect.y() + 100))
     point_idx = canvas._get_point_at_screen_pos(test_pos)
     assert point_idx in (1, 2, None)  # Should detect a point or None if scale is off
 
@@ -90,6 +90,7 @@ def test_image_canvas_hover_detection(qtbot):
 def test_image_canvas_screen_to_image_coords(qtbot):
     """Test screen to image coordinate conversion."""
     from PyQt6 import QtCore, QtGui, QtWidgets
+
     from optiverse.objects.views.image_canvas import ImageCanvas
 
     canvas = ImageCanvas()
@@ -118,6 +119,3 @@ def test_image_canvas_screen_to_image_coords(qtbot):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-
-
-

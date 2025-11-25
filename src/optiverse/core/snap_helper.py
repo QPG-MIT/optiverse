@@ -3,6 +3,7 @@ Magnetic snap helper for aligning components.
 
 Provides PowerPoint-style snap-to-align functionality with visual guides.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -24,6 +25,7 @@ class SnapResult:
         guide_lines: List of guide lines to display (type, coordinate)
                     e.g., [("horizontal", 100.0), ("vertical", 200.0)]
     """
+
     position: QtCore.QPointF
     snapped: bool
     guide_lines: list[tuple[str, float]]
@@ -123,9 +125,7 @@ class SnapHelper:
         return SnapResult(final_pos, snapped, guide_lines)
 
     def _view_to_scene_distance(
-        self,
-        distance_px: float,
-        view: QtWidgets.QGraphicsView | None
+        self, distance_px: float, view: QtWidgets.QGraphicsView | None
     ) -> float:
         """Convert a distance in view pixels to scene coordinates.
 
@@ -154,6 +154,3 @@ class SnapHelper:
 
         # Convert view pixels to scene units
         return distance_px / avg_scale
-
-
-

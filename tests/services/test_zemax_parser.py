@@ -2,8 +2,7 @@
 Test Zemax parser functionality.
 """
 
-import pytest
-from optiverse.services.zemax_parser import ZemaxParser, ZemaxSurface, ZemaxFile
+from optiverse.services.zemax_parser import ZemaxParser
 
 
 def test_zemax_parser_basic():
@@ -43,7 +42,7 @@ def test_zemax_parser_surface_object():
     assert surf0.type == "STANDARD"
     assert surf0.curvature == 0.0
     assert surf0.is_flat
-    assert surf0.thickness == float('inf')
+    assert surf0.thickness == float("inf")
 
 
 def test_zemax_parser_surface1_entry():
@@ -112,6 +111,3 @@ def test_zemax_parser_surface4_image():
     assert surf4.number == 4
     assert surf4.is_flat
     assert abs(surf4.diameter - 0.0052) < 0.001  # Very small diameter
-
-
-

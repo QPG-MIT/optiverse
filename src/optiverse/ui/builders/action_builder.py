@@ -4,11 +4,12 @@ Action Builder - Constructs actions, menus, and toolbars for MainWindow.
 This module extracts the UI building logic from MainWindow into a dedicated
 builder class for better separation of concerns.
 """
+
 from __future__ import annotations
 
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -57,7 +58,7 @@ class ActionBuilder:
     and menus to it.
     """
 
-    def __init__(self, window: "MainWindow"):
+    def __init__(self, window: MainWindow):
         """
         Initialize the action builder.
 
@@ -108,10 +109,9 @@ class ActionBuilder:
         w.act_redo.setEnabled(False)
 
         w.act_delete = QtGui.QAction("Delete", w)
-        w.act_delete.setShortcuts([
-            QtGui.QKeySequence.StandardKey.Delete,
-            QtGui.QKeySequence(QtCore.Qt.Key.Key_Backspace)
-        ])
+        w.act_delete.setShortcuts(
+            [QtGui.QKeySequence.StandardKey.Delete, QtGui.QKeySequence(QtCore.Qt.Key.Key_Backspace)]
+        )
         w.act_delete.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         w.act_delete.triggered.connect(w.delete_selected)
 
@@ -160,7 +160,9 @@ class ActionBuilder:
         w.act_add_text.toggled.connect(partial(w._toggle_placement_mode, ComponentType.TEXT))
 
         w.act_add_rectangle = QtGui.QAction("Rectangle", w, checkable=True)
-        w.act_add_rectangle.toggled.connect(partial(w._toggle_placement_mode, ComponentType.RECTANGLE))
+        w.act_add_rectangle.toggled.connect(
+            partial(w._toggle_placement_mode, ComponentType.RECTANGLE)
+        )
 
         # --- Tool Actions ---
         w.act_inspect = QtGui.QAction("Inspect", w, checkable=True)
@@ -444,13 +446,13 @@ class ActionBuilder:
         w.tool_controller.set_action_measure_angle(w.act_measure_angle)
 
         # Register placement actions
-        w.tool_controller.set_placement_actions({
-            ComponentType.SOURCE: w.act_add_source,
-            ComponentType.LENS: w.act_add_lens,
-            ComponentType.MIRROR: w.act_add_mirror,
-            ComponentType.BEAMSPLITTER: w.act_add_bs,
-            ComponentType.TEXT: w.act_add_text,
-            ComponentType.RECTANGLE: w.act_add_rectangle,
-        })
-
-
+        w.tool_controller.set_placement_actions(
+            {
+                ComponentType.SOURCE: w.act_add_source,
+                ComponentType.LENS: w.act_add_lens,
+                ComponentType.MIRROR: w.act_add_mirror,
+                ComponentType.BEAMSPLITTER: w.act_add_bs,
+                ComponentType.TEXT: w.act_add_text,
+                ComponentType.RECTANGLE: w.act_add_rectangle,
+            }
+        )

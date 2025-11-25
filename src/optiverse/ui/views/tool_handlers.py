@@ -2,28 +2,29 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, List, Optional
+from typing import TYPE_CHECKING, Callable
 
 import numpy as np
-
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.ui_constants import (
-    INSPECT_TOOL_TOLERANCE_PX,
-    PATH_MEASURE_TOLERANCE_PX,
-    MIN_SCALE_FACTOR,
     BEAM_SPLITTER_SIBLING_THRESHOLD_MM,
-    PARALLEL_BUNDLE_THRESHOLD_MM,
+    INSPECT_TOOL_TOLERANCE_PX,
     MAX_ALPHA,
+    MIN_SCALE_FACTOR,
+    PARALLEL_BUNDLE_THRESHOLD_MM,
+    PATH_MEASURE_TOLERANCE_PX,
 )
 
 if TYPE_CHECKING:
-    from ...raytracing import RayPath
-    from ...objects import GraphicsView
     from ...core.undo_stack import UndoStack
+    from ...objects import GraphicsView
+    from ...raytracing import RayPath
 
 
-def point_to_segment_distance(point: np.ndarray, seg_start: np.ndarray, seg_end: np.ndarray) -> float:
+def point_to_segment_distance(
+    point: np.ndarray, seg_start: np.ndarray, seg_end: np.ndarray
+) -> float:
     """
     Calculate the minimum distance from a point to a line segment.
 
@@ -68,8 +69,8 @@ class InspectToolHandler:
 
     def __init__(
         self,
-        view: "GraphicsView",
-        get_ray_data: Callable[[], List["RayPath"]],
+        view: GraphicsView,
+        get_ray_data: Callable[[], list[RayPath]],
         parent_widget: QtWidgets.QWidget,
     ):
         """
@@ -104,10 +105,10 @@ class InspectToolHandler:
         tolerance = INSPECT_TOOL_TOLERANCE_PX / max(scale_factor, MIN_SCALE_FACTOR)
 
         best_ray = None
-        best_distance = float('inf')
+        best_distance = float("inf")
         best_point_idx = None
 
-        for i, ray_data in enumerate(ray_data_list):
+        for _i, ray_data in enumerate(ray_data_list):
             # Check each line segment in the ray path
             points = ray_data.points
             for j in range(len(points) - 1):
@@ -130,11 +131,11 @@ class InspectToolHandler:
             QtWidgets.QMessageBox.information(
                 self.parent_widget,
                 "No Ray Found",
-                "No ray found near the clicked position.\nTry clicking closer to a ray."
+                "No ray found near the clicked position.\nTry clicking closer to a ray.",
             )
             return False
 
-    def _show_ray_info_dialog(self, ray_data: "RayPath", point_idx: int) -> None:
+    def _show_ray_info_dialog(self, ray_data: RayPath, point_idx: int) -> None:
         """Display a dialog with ray polarization and intensity information."""
         # Get position
         point = ray_data.points[point_idx]
@@ -150,8 +151,8 @@ class InspectToolHandler:
         if pol is not None:
             ex, ey = pol.jones_vector[0], pol.jones_vector[1]
             # Calculate Stokes parameters
-            I_total = abs(ex)**2 + abs(ey)**2
-            Q = abs(ex)**2 - abs(ey)**2
+            I_total = abs(ex) ** 2 + abs(ey) ** 2
+            Q = abs(ex) ** 2 - abs(ey) ** 2
             U = 2 * np.real(ex * np.conj(ey))
             V = 2 * np.imag(ex * np.conj(ey))
 
@@ -176,7 +177,9 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
             pol_text = "No polarization information available"
 
         # Get wavelength
-        wavelength_text = f"{ray_data.wavelength_nm:.1f} nm" if ray_data.wavelength_nm > 0 else "Not specified"
+        wavelength_text = (
+            f"{ray_data.wavelength_nm:.1f} nm" if ray_data.wavelength_nm > 0 else "Not specified"
+        )
 
         # Create info dialog
         dialog = QtWidgets.QDialog(self.parent_widget)
@@ -233,8 +236,8 @@ class AngleMeasureToolHandler:
     def __init__(
         self,
         scene: QtWidgets.QGraphicsScene,
-        view: "GraphicsView",
-        undo_stack: "UndoStack",
+        view: GraphicsView,
+        undo_stack: UndoStack,
         parent_widget: QtWidgets.QWidget,
         on_complete: Callable[[], None] = None,
     ):
@@ -255,15 +258,15 @@ class AngleMeasureToolHandler:
         self.on_complete = on_complete
 
         # State for three-click workflow
-        self._state: Optional[str] = None  # 'waiting_point1', 'waiting_vertex', 'waiting_point2'
-        self._point1: Optional[QtCore.QPointF] = None
-        self._vertex: Optional[QtCore.QPointF] = None
+        self._state: str | None = None  # 'waiting_point1', 'waiting_vertex', 'waiting_point2'
+        self._point1: QtCore.QPointF | None = None
+        self._vertex: QtCore.QPointF | None = None
         self._preview_line = None  # Preview line from point1 to vertex
         self._temp_item = None  # Preview angle item
 
     def activate(self) -> None:
         """Activate the angle measure tool."""
-        self._state = 'waiting_point1'
+        self._state = "waiting_point1"
         self._point1 = None
         self._vertex = None
         self._preview_line = None
@@ -315,14 +318,12 @@ class AngleMeasureToolHandler:
         Returns:
             True if click was handled, False otherwise
         """
-        from ...objects.annotations.angle_measure_item import AngleMeasureItem
-        from ...core.undo_commands import AddItemCommand
 
-        if self._state == 'waiting_point1':
+        if self._state == "waiting_point1":
             return self._handle_point1_click(scene_pos)
-        elif self._state == 'waiting_vertex':
+        elif self._state == "waiting_vertex":
             return self._handle_vertex_click(scene_pos)
-        elif self._state == 'waiting_point2':
+        elif self._state == "waiting_point2":
             return self._handle_point2_click(scene_pos)
 
         return False
@@ -330,20 +331,17 @@ class AngleMeasureToolHandler:
     def _handle_point1_click(self, scene_pos: QtCore.QPointF) -> bool:
         """Handle first point click (first click)."""
         self._point1 = QtCore.QPointF(scene_pos)
-        self._state = 'waiting_vertex'
+        self._state = "waiting_vertex"
 
         # Create preview line that will follow mouse
-        self._preview_line = QtWidgets.QGraphicsLineItem(
-            QtCore.QLineF(self._point1, self._point1)
-        )
+        self._preview_line = QtWidgets.QGraphicsLineItem(QtCore.QLineF(self._point1, self._point1))
         pen = QtGui.QPen(QtGui.QColor(0, 150, 255, 150), 2.0)
         pen.setCosmetic(True)
         self._preview_line.setPen(pen)
         self.scene.addItem(self._preview_line)
 
         QtWidgets.QToolTip.showText(
-            QtGui.QCursor.pos(),
-            "First point set. Click to set vertex (corner)."
+            QtGui.QCursor.pos(), "First point set. Click to set vertex (corner)."
         )
         return True
 
@@ -352,7 +350,7 @@ class AngleMeasureToolHandler:
         from ...objects.annotations.angle_measure_item import AngleMeasureItem
 
         self._vertex = QtCore.QPointF(scene_pos)
-        self._state = 'waiting_point2'
+        self._state = "waiting_point2"
 
         # Remove preview line
         if self._preview_line:
@@ -362,22 +360,17 @@ class AngleMeasureToolHandler:
         # Create temporary preview angle item
         temp_point2 = QtCore.QPointF(scene_pos)  # Temporary, will follow mouse
         self._temp_item = AngleMeasureItem(
-            vertex=self._vertex,
-            point1=self._point1,
-            point2=temp_point2
+            vertex=self._vertex, point1=self._point1, point2=temp_point2
         )
         self.scene.addItem(self._temp_item)
 
-        QtWidgets.QToolTip.showText(
-            QtGui.QCursor.pos(),
-            "Vertex set. Click to set second point."
-        )
+        QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), "Vertex set. Click to set second point.")
         return True
 
     def _handle_point2_click(self, scene_pos: QtCore.QPointF) -> bool:
         """Handle second point click (third click) and create measurement."""
-        from ...objects.annotations.angle_measure_item import AngleMeasureItem
         from ...core.undo_commands import AddItemCommand
+        from ...objects.annotations.angle_measure_item import AngleMeasureItem
 
         point2 = QtCore.QPointF(scene_pos)
 
@@ -387,11 +380,7 @@ class AngleMeasureToolHandler:
             self._temp_item = None
 
         # Create final angle measure item
-        angle_item = AngleMeasureItem(
-            vertex=self._vertex,
-            point1=self._point1,
-            point2=point2
-        )
+        angle_item = AngleMeasureItem(vertex=self._vertex, point1=self._point1, point2=point2)
 
         # Connect commandCreated signal for undo support
         angle_item.commandCreated.connect(self.undo_stack.push)
@@ -408,10 +397,7 @@ class AngleMeasureToolHandler:
 
         # Show result tooltip
         angle = angle_item.angle
-        QtWidgets.QToolTip.showText(
-            QtGui.QCursor.pos(),
-            f"Angle measurement: {angle:.1f}°"
-        )
+        QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), f"Angle measurement: {angle:.1f}°")
 
         # Reset state
         self._state = None
@@ -427,16 +413,17 @@ class AngleMeasureToolHandler:
     def _handle_item_delete(self, item) -> None:
         """Handle delete request from item's context menu."""
         from ...core.undo_commands import RemoveItemCommand
+
         if item.scene():
             cmd = RemoveItemCommand(item.scene(), item)
             self.undo_stack.push(cmd)
 
     def handle_mouse_move(self, scene_pos: QtCore.QPointF) -> None:
         """Handle mouse move to update preview."""
-        if self._state == 'waiting_vertex' and self._preview_line:
+        if self._state == "waiting_vertex" and self._preview_line:
             # Update preview line from point1 to current mouse position
             self._preview_line.setLine(QtCore.QLineF(self._point1, scene_pos))
-        elif self._state == 'waiting_point2' and self._temp_item:
+        elif self._state == "waiting_point2" and self._temp_item:
             # Update temporary item's second point
             self._temp_item.set_point2(scene_pos)
 
@@ -451,9 +438,9 @@ class PathMeasureToolHandler:
     def __init__(
         self,
         scene: QtWidgets.QGraphicsScene,
-        view: "GraphicsView",
-        undo_stack: "UndoStack",
-        get_ray_data: Callable[[], List["RayPath"]],
+        view: GraphicsView,
+        undo_stack: UndoStack,
+        get_ray_data: Callable[[], list[RayPath]],
         parent_widget: QtWidgets.QWidget,
         on_complete: Callable[[], None] = None,
     ):
@@ -476,14 +463,14 @@ class PathMeasureToolHandler:
         self.on_complete = on_complete
 
         # State for two-click workflow
-        self._state: Optional[str] = None  # 'waiting_first_click' or 'waiting_second_click'
-        self._ray_index: Optional[int] = None
-        self._start_param: Optional[float] = None
+        self._state: str | None = None  # 'waiting_first_click' or 'waiting_second_click'
+        self._ray_index: int | None = None
+        self._start_param: float | None = None
         self._temp_item = None
 
     def activate(self) -> None:
         """Activate the path measure tool."""
-        self._state = 'waiting_first_click'
+        self._state = "waiting_first_click"
         self._ray_index = None
         self._start_param = None
         self._temp_item = None
@@ -531,8 +518,6 @@ class PathMeasureToolHandler:
         Returns:
             True if click was handled, False otherwise
         """
-        from optiverse.objects.annotations.path_measure_item import PathMeasureItem
-        from ...core.undo_commands import AddItemCommand, AddMultipleItemsCommand
 
         ray_data_list = self._get_ray_data()
         click_pt = np.array([scene_pos.x(), scene_pos.y()])
@@ -543,12 +528,14 @@ class PathMeasureToolHandler:
         tolerance = PATH_MEASURE_TOLERANCE_PX / max(scale_factor, MIN_SCALE_FACTOR)
 
         best_ray_index = -1
-        best_distance = float('inf')
+        best_distance = float("inf")
         best_param = 0.0
 
         for i, ray_data in enumerate(ray_data_list):
             points = ray_data.points
-            total_length = sum(np.linalg.norm(points[j + 1] - points[j]) for j in range(len(points) - 1))
+            total_length = sum(
+                np.linalg.norm(points[j + 1] - points[j]) for j in range(len(points) - 1)
+            )
 
             if total_length < 1e-6:
                 continue
@@ -580,33 +567,30 @@ class PathMeasureToolHandler:
             QtWidgets.QMessageBox.information(
                 self.parent_widget,
                 "No Ray Found",
-                "No ray found near the clicked position.\nTry clicking closer to a ray."
+                "No ray found near the clicked position.\nTry clicking closer to a ray.",
             )
             return False
 
-        if self._state == 'waiting_first_click':
+        if self._state == "waiting_first_click":
             return self._handle_first_click(best_ray_index, best_param, ray_data_list)
-        elif self._state == 'waiting_second_click':
+        elif self._state == "waiting_second_click":
             return self._handle_second_click(best_ray_index, best_param, scene_pos, ray_data_list)
 
         return False
 
     def _handle_first_click(
-        self, ray_index: int, param: float, ray_data_list: List["RayPath"]
+        self, ray_index: int, param: float, ray_data_list: list[RayPath]
     ) -> bool:
         """Handle the first click (set start point)."""
         from optiverse.objects.annotations.path_measure_item import PathMeasureItem
 
         self._ray_index = ray_index
         self._start_param = param
-        self._state = 'waiting_second_click'
+        self._state = "waiting_second_click"
 
         ray_data = ray_data_list[ray_index]
         self._temp_item = PathMeasureItem(
-            ray_path_points=ray_data.points,
-            start_param=param,
-            end_param=param,
-            ray_index=ray_index
+            ray_path_points=ray_data.points, start_param=param, end_param=param, ray_index=ray_index
         )
         # Temp preview item added directly (not undoable, removed on second click)
         self.scene.addItem(self._temp_item)
@@ -614,7 +598,7 @@ class PathMeasureToolHandler:
         QtWidgets.QToolTip.showText(
             QtGui.QCursor.pos(),
             "Start point set. Click again on the SAME ray to set end point.\n\n"
-            "⚠️ At beam splitters: Each path is separate."
+            "⚠️ At beam splitters: Each path is separate.",
         )
         return True
 
@@ -623,10 +607,11 @@ class PathMeasureToolHandler:
         best_ray_index: int,
         best_param: float,
         scene_pos: QtCore.QPointF,
-        ray_data_list: List["RayPath"],
+        ray_data_list: list[RayPath],
     ) -> bool:
         """Handle the second click (set end point and create measurement)."""
         from optiverse.objects.annotations.path_measure_item import PathMeasureItem
+
         from ...core.undo_commands import AddItemCommand, AddMultipleItemsCommand
 
         # Smart ray matching with multiple strategies for dense bundles
@@ -644,19 +629,22 @@ class PathMeasureToolHandler:
 
             # Strategy 2: Beam splitter siblings (share starting point)
             if len(original_ray.points) > 0 and len(clicked_ray.points) > 0:
-                if np.linalg.norm(original_ray.points[0] - clicked_ray.points[0]) < BEAM_SPLITTER_SIBLING_THRESHOLD_MM:
+                if (
+                    np.linalg.norm(original_ray.points[0] - clicked_ray.points[0])
+                    < BEAM_SPLITTER_SIBLING_THRESHOLD_MM
+                ):
                     allow_ray = True
 
             # Strategy 3: Parallel bundle detection
             if not allow_ray and len(clicked_ray.points) > 1:
-                first_click_pos = self._param_to_position(ray_data_list, self._ray_index, self._start_param)
+                first_click_pos = self._param_to_position(
+                    ray_data_list, self._ray_index, self._start_param
+                )
                 if first_click_pos is not None:
-                    min_dist = float('inf')
+                    min_dist = float("inf")
                     for j in range(len(clicked_ray.points) - 1):
                         dist = point_to_segment_distance(
-                            first_click_pos,
-                            clicked_ray.points[j],
-                            clicked_ray.points[j + 1]
+                            first_click_pos, clicked_ray.points[j], clicked_ray.points[j + 1]
                         )
                         min_dist = min(min_dist, dist)
 
@@ -668,7 +656,7 @@ class PathMeasureToolHandler:
             QtWidgets.QMessageBox.warning(
                 self.parent_widget,
                 "Different Ray",
-                "Please click on the same ray or a nearby parallel ray for the end point."
+                "Please click on the same ray or a nearby parallel ray for the end point.",
             )
             return False
 
@@ -676,7 +664,9 @@ class PathMeasureToolHandler:
         click_pt = np.array([scene_pos.x(), scene_pos.y()])
 
         if use_clicked_ray:
-            end_param_on_original = self._find_param_on_ray(ray_data_list, self._ray_index, click_pt)
+            end_param_on_original = self._find_param_on_ray(
+                ray_data_list, self._ray_index, click_pt
+            )
             start_param = min(self._start_param, end_param_on_original)
             end_param = max(self._start_param, end_param_on_original)
             best_ray_index = self._ray_index
@@ -700,7 +690,7 @@ class PathMeasureToolHandler:
             ray_path_points=ray_data.points,
             start_param=start_param,
             end_param=end_param,
-            ray_index=best_ray_index
+            ray_index=best_ray_index,
         )
         # Connect signals for undo support
         path_measure.commandCreated.connect(self.undo_stack.push)
@@ -712,12 +702,15 @@ class PathMeasureToolHandler:
             start_pos = ray_data.points[0]
             for sibling_idx, sibling_ray in enumerate(ray_data_list):
                 if sibling_idx != best_ray_index and len(sibling_ray.points) > 0:
-                    if np.linalg.norm(start_pos - sibling_ray.points[0]) < BEAM_SPLITTER_SIBLING_THRESHOLD_MM:
+                    if (
+                        np.linalg.norm(start_pos - sibling_ray.points[0])
+                        < BEAM_SPLITTER_SIBLING_THRESHOLD_MM
+                    ):
                         sibling_measure = PathMeasureItem(
                             ray_path_points=sibling_ray.points,
                             start_param=start_param,
                             end_param=end_param,
-                            ray_index=sibling_idx
+                            ray_index=sibling_idx,
                         )
                         # Connect signals for undo support
                         sibling_measure.commandCreated.connect(self.undo_stack.push)
@@ -757,13 +750,14 @@ class PathMeasureToolHandler:
     def _handle_item_delete(self, item) -> None:
         """Handle delete request from item's context menu."""
         from ...core.undo_commands import RemoveItemCommand
+
         if item.scene():
             cmd = RemoveItemCommand(item.scene(), item)
             self.undo_stack.push(cmd)
 
     def _param_to_position(
-        self, ray_data_list: List["RayPath"], ray_index: int, param: float
-    ) -> Optional[np.ndarray]:
+        self, ray_data_list: list[RayPath], ray_index: int, param: float
+    ) -> np.ndarray | None:
         """Convert parameter [0, 1] on a ray to actual scene position."""
         if ray_index < 0 or ray_index >= len(ray_data_list):
             return None
@@ -774,7 +768,9 @@ class PathMeasureToolHandler:
         if len(points) < 2:
             return points[0].copy() if len(points) == 1 else None
 
-        total_length = sum(np.linalg.norm(points[j+1] - points[j]) for j in range(len(points)-1))
+        total_length = sum(
+            np.linalg.norm(points[j + 1] - points[j]) for j in range(len(points) - 1)
+        )
         if total_length < 1e-6:
             return points[0].copy()
 
@@ -782,7 +778,7 @@ class PathMeasureToolHandler:
         accumulated = 0.0
 
         for j in range(len(points) - 1):
-            p1, p2 = points[j], points[j+1]
+            p1, p2 = points[j], points[j + 1]
             segment_len = np.linalg.norm(p2 - p1)
 
             if accumulated + segment_len >= target_dist:
@@ -794,17 +790,19 @@ class PathMeasureToolHandler:
         return points[-1].copy()
 
     def _find_param_on_ray(
-        self, ray_data_list: List["RayPath"], ray_index: int, click_pt: np.ndarray
+        self, ray_data_list: list[RayPath], ray_index: int, click_pt: np.ndarray
     ) -> float:
         """Find the parameter [0, 1] on a specific ray closest to the clicked point."""
         ray_data = ray_data_list[ray_index]
         points = ray_data.points
 
-        total_length = sum(np.linalg.norm(points[j + 1] - points[j]) for j in range(len(points) - 1))
+        total_length = sum(
+            np.linalg.norm(points[j + 1] - points[j]) for j in range(len(points) - 1)
+        )
         if total_length < 1e-6:
             return 0.0
 
-        best_distance = float('inf')
+        best_distance = float("inf")
         best_param = 0.0
         accumulated = 0.0
 
@@ -829,6 +827,3 @@ class PathMeasureToolHandler:
             accumulated += segment_len
 
         return best_param
-
-
-
