@@ -295,6 +295,7 @@ class ActionBuilder:
 
         toolbar.addSeparator()
 
+        # --- Measurement Tools ---
         # Ruler button
         ruler_icon = QtGui.QIcon(_get_icon_path("ruler.png"))
         w.act_add_ruler.setIcon(ruler_icon)
@@ -305,9 +306,12 @@ class ActionBuilder:
         toolbar.addAction(w.act_measure_path)
 
         # Angle Measure tool
-        w.act_measure_angle.setIcon(ruler_icon)
+        w.act_measure_angle.setIcon(QtGui.QIcon(_get_icon_path("angle_measure.png")))
         toolbar.addAction(w.act_measure_angle)
 
+        toolbar.addSeparator()
+
+        # --- Inspection & Annotation Tools ---
         # Inspect button
         w.act_inspect.setIcon(QtGui.QIcon(_get_icon_path("inspect.png")))
         toolbar.addAction(w.act_inspect)
