@@ -13,7 +13,7 @@ import numpy as np
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
-from ...core.protocols import HasUndoStack
+from ...core.zorder_utils import handle_z_order_from_menu
 
 
 class PathMeasureItem(QtWidgets.QGraphicsObject):
@@ -469,11 +469,14 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
                 self._show_edit_length_dialog()
             elif action == act_delete and self.scene():
                 self.scene().removeItem(self)
-            elif action in (act_bring_to_front, act_bring_forward, act_send_backward, act_send_to_back):
-                self._handle_z_order_action(
-                    action, act_bring_to_front, act_bring_forward,
-                    act_send_backward, act_send_to_back
-                )
+            else:
+                # Handle z-order actions via utility
+                handle_z_order_from_menu(self, action, {
+                    act_bring_to_front: "bring_to_front",
+                    act_bring_forward: "bring_forward",
+                    act_send_backward: "send_backward",
+                    act_send_to_back: "send_to_back",
+                })
             
             event.accept()
             return
@@ -556,46 +559,6 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         if ok and abs(value - current_length) > 0.01:
             self.set_target_length(value)
             self.update()
-    
-    def _handle_z_order_action(self, selected_action, act_bring_to_front, act_bring_forward,
-                               act_send_backward, act_send_to_back):
-        """Handle z-order menu actions."""
-        from optiverse.core.zorder_utils import apply_z_order_change
-        
-        if not self.scene():
-            return
-        
-        # Get items to operate on
-        if self.isSelected():
-            items = [item for item in self.scene().selectedItems() 
-                    if hasattr(item, 'setZValue')]
-        else:
-            items = [self]
-        
-        if not items:
-            return
-        
-        # Determine operation
-        if selected_action == act_bring_to_front:
-            operation = "bring_to_front"
-        elif selected_action == act_bring_forward:
-            operation = "bring_forward"
-        elif selected_action == act_send_backward:
-            operation = "send_backward"
-        elif selected_action == act_send_to_back:
-            operation = "send_to_back"
-        else:
-            return
-        
-        # Get undo stack from main window
-        undo_stack = None
-        if self.scene().views():
-            main_window = self.scene().views()[0].window()
-            if isinstance(main_window, HasUndoStack):
-                undo_stack = main_window.undo_stack
-        
-        # Apply z-order change
-        apply_z_order_change(items, operation, self.scene(), undo_stack)
     
     def get_ray_index(self) -> int:
         """Get the ray index for tracking across retraces."""

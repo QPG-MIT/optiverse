@@ -156,3 +156,76 @@ def apply_z_order_change(
         for item in items:
             item.setZValue(new_z_values[item])
 
+
+def get_z_order_items_from_item(
+    item: QtWidgets.QGraphicsItem,
+) -> list[QtWidgets.QGraphicsItem]:
+    """
+    Get items for z-order operations based on selection state.
+    
+    If the item is selected, returns all selected items.
+    Otherwise returns just the single item.
+    
+    Args:
+        item: The item to get z-order targets for
+        
+    Returns:
+        List of items to apply z-order change to
+    """
+    if not item.scene():
+        return []
+    
+    if item.isSelected():
+        return [it for it in item.scene().selectedItems() if hasattr(it, 'setZValue')]
+    else:
+        return [item]
+
+
+def handle_z_order_from_menu(
+    item: QtWidgets.QGraphicsItem,
+    selected_action,
+    action_map: dict,
+) -> None:
+    """
+    Handle z-order menu action selection and apply the change.
+    
+    This helper simplifies the boilerplate in annotation items' context menus.
+    
+    Args:
+        item: The item whose context menu was triggered
+        selected_action: The QAction that was selected
+        action_map: Dict mapping QActions to operation strings
+                   e.g., {act_bring_to_front: "bring_to_front", ...}
+    
+    Example:
+        action_map = {
+            act_bring_to_front: "bring_to_front",
+            act_bring_forward: "bring_forward",
+            act_send_backward: "send_backward",
+            act_send_to_back: "send_to_back",
+        }
+        handle_z_order_from_menu(self, selected_action, action_map)
+    """
+    from .protocols import HasUndoStack
+    
+    operation = action_map.get(selected_action)
+    if not operation:
+        return
+    
+    if not item.scene():
+        return
+    
+    items = get_z_order_items_from_item(item)
+    if not items:
+        return
+    
+    # Get undo stack from main window
+    undo_stack = None
+    views = item.scene().views()
+    if views:
+        main_window = views[0].window()
+        if isinstance(main_window, HasUndoStack):
+            undo_stack = main_window.undo_stack
+    
+    apply_z_order_change(items, operation, item.scene(), undo_stack)
+

@@ -8,13 +8,29 @@ This module provides:
 - Mock service fixtures
 - Factory fixtures for common test objects
 """
+from __future__ import annotations
+
 import os
 import sys
+from typing import TYPE_CHECKING, Callable, Generator, Tuple
+
 import pytest
+
+if TYPE_CHECKING:
+    from PyQt6.QtWidgets import QApplication, QGraphicsScene
+    from pytestqt.qtbot import QtBot as QtBotType
+    from optiverse.objects.views import GraphicsView
+    from optiverse.core.undo_stack import UndoStack
+    from optiverse.objects.sources import SourceItem
+    from optiverse.objects.generic import ComponentItem
+    from tests.fixtures.mocks import (
+        MockStorageService, MockSettingsService,
+        MockCollaborationManager, MockLogService
+    )
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _ensure_src_on_path():
+def _ensure_src_on_path() -> Generator[None, None, None]:
     """Ensure src directory is on Python path for imports."""
     root = os.path.dirname(os.path.dirname(__file__))
     src = os.path.join(root, "src")
@@ -24,7 +40,7 @@ def _ensure_src_on_path():
 
 
 @pytest.fixture(scope="session")
-def qapp():
+def qapp() -> Generator["QApplication", None, None]:
     """
     Create a QApplication instance for tests.
     
@@ -39,7 +55,7 @@ def qapp():
 
 
 @pytest.fixture
-def qtbot(qapp):
+def qtbot(qapp: "QApplication") -> Generator["QtBotType", None, None]:
     """
     Provides a QtBot object for Qt widget testing.
     
@@ -55,7 +71,7 @@ def qtbot(qapp):
 # =============================================================================
 
 @pytest.fixture
-def scene(qapp):
+def scene(qapp: "QApplication") -> Generator["QGraphicsScene", None, None]:
     """
     Create a QGraphicsScene with proper size and automatic cleanup.
     
@@ -64,20 +80,22 @@ def scene(qapp):
     from PyQt6 import QtWidgets
     from optiverse.core.constants import SCENE_SIZE_MM, SCENE_MIN_COORD
     
-    scene = QtWidgets.QGraphicsScene()
-    scene.setSceneRect(
+    s = QtWidgets.QGraphicsScene()
+    s.setSceneRect(
         SCENE_MIN_COORD,
         SCENE_MIN_COORD,
         SCENE_SIZE_MM,
         SCENE_SIZE_MM,
     )
-    yield scene
+    yield s
     # Cleanup: remove all items
-    scene.clear()
+    s.clear()
 
 
 @pytest.fixture
-def view(qapp, scene):
+def view(
+    qapp: "QApplication", scene: "QGraphicsScene"
+) -> Generator["GraphicsView", None, None]:
     """
     Create a GraphicsView attached to a scene.
     
@@ -85,12 +103,12 @@ def view(qapp, scene):
     """
     from optiverse.objects import GraphicsView
     
-    view = GraphicsView()
-    view.setScene(scene)
-    yield view
+    v = GraphicsView()
+    v.setScene(scene)
+    yield v
     # Cleanup
-    view.setScene(None)
-    view.deleteLater()
+    v.setScene(None)
+    v.deleteLater()
 
 
 # =============================================================================
@@ -98,28 +116,28 @@ def view(qapp, scene):
 # =============================================================================
 
 @pytest.fixture
-def mock_storage_service():
+def mock_storage_service() -> "MockStorageService":
     """Provide a MockStorageService for testing."""
     from tests.fixtures.mocks import MockStorageService
     return MockStorageService()
 
 
 @pytest.fixture
-def mock_settings_service():
+def mock_settings_service() -> "MockSettingsService":
     """Provide a MockSettingsService for testing."""
     from tests.fixtures.mocks import MockSettingsService
     return MockSettingsService()
 
 
 @pytest.fixture
-def mock_collaboration_manager():
+def mock_collaboration_manager() -> "MockCollaborationManager":
     """Provide a MockCollaborationManager for testing."""
     from tests.fixtures.mocks import MockCollaborationManager
     return MockCollaborationManager()
 
 
 @pytest.fixture
-def mock_log_service():
+def mock_log_service() -> "MockLogService":
     """Provide a MockLogService for testing."""
     from tests.fixtures.mocks import MockLogService
     return MockLogService()
@@ -130,7 +148,7 @@ def mock_log_service():
 # =============================================================================
 
 @pytest.fixture
-def source_factory():
+def source_factory() -> Callable[..., "SourceItem"]:
     """
     Provide a factory function for creating SourceItems.
     
@@ -143,21 +161,21 @@ def source_factory():
 
 
 @pytest.fixture
-def lens_factory():
+def lens_factory() -> Callable[..., "ComponentItem"]:
     """Provide a factory function for creating LensItems."""
     from tests.fixtures.factories import create_lens_item
     return create_lens_item
 
 
 @pytest.fixture
-def mirror_factory():
+def mirror_factory() -> Callable[..., "ComponentItem"]:
     """Provide a factory function for creating MirrorItems."""
     from tests.fixtures.factories import create_mirror_item
     return create_mirror_item
 
 
 @pytest.fixture
-def component_factory():
+def component_factory() -> Callable[..., "ComponentItem"]:
     """Provide a factory function for creating ComponentItems."""
     from tests.fixtures.factories import create_component_item
     return create_component_item
@@ -168,7 +186,7 @@ def component_factory():
 # =============================================================================
 
 @pytest.fixture
-def undo_stack():
+def undo_stack() -> Generator["UndoStack", None, None]:
     """
     Provide a fresh UndoStack for testing.
     
@@ -186,7 +204,9 @@ def undo_stack():
 # =============================================================================
 
 @pytest.fixture
-def basic_optical_setup(qapp, scene):
+def basic_optical_setup(
+    qapp: "QApplication", scene: "QGraphicsScene"
+) -> Generator[Tuple["SourceItem", "ComponentItem", "ComponentItem"], None, None]:
     """
     Provide a basic optical setup: source -> lens -> mirror.
     
