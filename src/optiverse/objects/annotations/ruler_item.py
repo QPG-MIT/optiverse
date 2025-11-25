@@ -6,6 +6,8 @@ from typing import Optional, Dict, Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
+from ...core.protocols import HasUndoStack
+
 
 class RulerItem(QtWidgets.QGraphicsObject):
     """
@@ -215,7 +217,7 @@ class RulerItem(QtWidgets.QGraphicsObject):
         undo_stack = None
         if self.scene().views():
             main_window = self.scene().views()[0].window()
-            if hasattr(main_window, 'undo_stack'):
+            if isinstance(main_window, HasUndoStack):
                 undo_stack = main_window.undo_stack
         
         # Apply z-order change

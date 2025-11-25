@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Callable, List, Optional
 
 from PyQt6 import QtCore, QtWidgets
 
+from ...core.log_categories import LogCategory
+
 if TYPE_CHECKING:
     from ...core.undo_stack import UndoStack
     from ...services.log_service import LogService
@@ -169,7 +171,7 @@ class ComponentOperationsHandler:
         self._set_paste_enabled(len(self._clipboard) > 0)
         
         if len(self._clipboard) > 0:
-            self.log_service.info(f"Copied {len(self._clipboard)} item(s) to clipboard", "Copy/Paste")
+            self.log_service.info(f"Copied {len(self._clipboard)} item(s) to clipboard", LogCategory.COPY_PASTE)
     
     def paste_items(self, target_pos: Optional[QtCore.QPointF] = None):
         """Paste items from clipboard using clone() method.
@@ -182,7 +184,7 @@ class ComponentOperationsHandler:
         from ...core.undo_commands import PasteItemsCommand
         
         if not self._clipboard:
-            self.log_service.warning("Cannot paste - clipboard is empty", "Copy/Paste")
+            self.log_service.warning("Cannot paste - clipboard is empty", LogCategory.COPY_PASTE)
             return
         
         # Calculate offset based on target position or use fixed offset
@@ -224,11 +226,11 @@ class ComponentOperationsHandler:
                 import traceback
                 self.log_service.error(
                     f"Error pasting {type(item).__name__}: {e}\n{traceback.format_exc()}",
-                    "Copy/Paste"
+                    LogCategory.COPY_PASTE
                 )
         
         if pasted_items:
-            self.log_service.info(f"Successfully pasted {len(pasted_items)} item(s)", "Copy/Paste")
+            self.log_service.info(f"Successfully pasted {len(pasted_items)} item(s)", LogCategory.COPY_PASTE)
             
             # Use undo command to add all pasted items at once
             cmd = PasteItemsCommand(self.scene, pasted_items)

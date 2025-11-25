@@ -6,6 +6,16 @@ import json
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
+from ...core.constants import MIME_OPTICS_COMPONENT
+
+
+class HasComponentEditor:
+    """Protocol marker for windows that can open component editor."""
+    
+    def open_component_editor(self, component: dict | None = None) -> None:
+        """Open the component editor."""
+        ...
+
 
 class LibraryTree(QtWidgets.QTreeWidget):
     """Drag-enabled library tree for component templates organized by category."""
@@ -51,7 +61,7 @@ class LibraryTree(QtWidgets.QTreeWidget):
         """Open component editor with the selected component loaded."""
         # Get the main window parent
         main_window = self.window()
-        if hasattr(main_window, 'open_component_editor'):
+        if isinstance(main_window, HasComponentEditor):
             main_window.open_component_editor(component_data)
 
     def startDrag(self, actions):
@@ -68,7 +78,7 @@ class LibraryTree(QtWidgets.QTreeWidget):
             return
             
         md = QtCore.QMimeData()
-        md.setData("application/x-optics-component", json.dumps(payload).encode("utf-8"))
+        md.setData(MIME_OPTICS_COMPONENT, json.dumps(payload).encode("utf-8"))
         drag = QtGui.QDrag(self)
         drag.setMimeData(md)
         

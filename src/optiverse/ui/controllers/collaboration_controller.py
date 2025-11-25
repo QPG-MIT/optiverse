@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Optional
 
 from PyQt6 import QtCore, QtWidgets
 
+from ...core.log_categories import LogCategory
+
 if TYPE_CHECKING:
     from ...services.collaboration_manager import CollaborationManager
     from ...services.log_service import LogService
@@ -88,7 +90,7 @@ class CollaborationController(QtCore.QObject):
         
         self._log_service.info(
             f"Created session '{session_id}' as host (current_canvas={use_current_canvas})",
-            "Collaboration"
+            LogCategory.COLLABORATION
         )
     
     def _join_session(self, info: dict):
@@ -102,7 +104,7 @@ class CollaborationController(QtCore.QObject):
         
         self._log_service.info(
             f"Joining session '{session_id}' as client",
-            "Collaboration"
+            LogCategory.COLLABORATION
         )
     
     def disconnect(self):
@@ -121,9 +123,9 @@ class CollaborationController(QtCore.QObject):
                     self._server_process.wait(timeout=3)
                 except TimeoutError:
                     self._server_process.kill()
-                self._log_service.info("Stopped collaboration server", "Collaboration")
+                self._log_service.info("Stopped collaboration server", LogCategory.COLLABORATION)
             except OSError as e:
-                self._log_service.warning(f"Error stopping server: {e}", "Collaboration")
+                self._log_service.warning(f"Error stopping server: {e}", LogCategory.COLLABORATION)
             finally:
                 self._server_process = None
     

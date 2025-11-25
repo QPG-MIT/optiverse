@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Callable, Optional
 from PyQt6 import QtCore
 
 from ...services.error_handler import ErrorContext
+from ...core.log_categories import LogCategory
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QGraphicsScene
@@ -151,7 +152,7 @@ class RaytracingController(QtCore.QObject):
                 from ...integration import convert_scene_to_polymorphic
                 elements = convert_scene_to_polymorphic(self._scene.items())
             except Exception as e:
-                self._log_service.error(f"Error converting scene: {e}", "Raytracing")
+                self._log_service.error(f"Error converting scene: {e}", LogCategory.RAYTRACING)
                 return
             
             # Build source params (use actual params from items)
@@ -164,7 +165,7 @@ class RaytracingController(QtCore.QObject):
                 from ...raytracing import trace_rays_polymorphic
                 paths = trace_rays_polymorphic(elements, srcs, max_events=80)
             except Exception as e:
-                self._log_service.error(f"Error in raytracing: {e}", "Raytracing")
+                self._log_service.error(f"Error in raytracing: {e}", LogCategory.RAYTRACING)
                 return
             
             # Render paths

@@ -11,7 +11,7 @@ import logging
 from dataclasses import fields
 from typing import Dict, Any, Optional, Type, TYPE_CHECKING
 
-from ..core.protocols import Serializable
+from ..core.protocols import Serializable, HasSettings
 from ..core.exceptions import UnknownTypeError
 
 _logger = logging.getLogger(__name__)
@@ -174,7 +174,7 @@ def serialize_item(item: Serializable) -> Dict[str, Any]:
                     # Get the main window from the view
                     view = views[0]
                     main_window = view.window()
-                    if hasattr(main_window, 'settings'):
+                    if isinstance(main_window, HasSettings):
                         library_roots = get_all_library_roots(main_window.settings)
         except (AttributeError, RuntimeError):
             # If we can't get library roots, that's okay - will use defaults

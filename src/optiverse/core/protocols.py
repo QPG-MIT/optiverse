@@ -168,3 +168,48 @@ class HasInterfaces(Protocol):
         """Get positions of all interfaces in scene coordinates."""
         ...
 
+
+@runtime_checkable
+class HasUndoStack(Protocol):
+    """
+    Protocol for objects that provide an undo stack.
+    
+    Used by items that need to push undo commands.
+    """
+    
+    undo_stack: Any  # UndoStack
+
+
+@runtime_checkable
+class HasCollaboration(Protocol):
+    """
+    Protocol for objects that provide collaboration management.
+    
+    Used by items that broadcast changes during collaboration.
+    """
+    
+    collaboration_manager: Any  # CollaborationManager
+
+
+@runtime_checkable
+class HasSettings(Protocol):
+    """
+    Protocol for objects that provide settings access.
+    
+    Used by objects needing access to application settings.
+    """
+    
+    settings: Any  # SettingsService
+
+
+@runtime_checkable
+class HasSnapping(Protocol):
+    """
+    Protocol for objects that provide magnetic snapping.
+    
+    Used by draggable items for snap-to-interface behavior.
+    """
+    
+    magnetic_snap: bool
+    _snap_helper: Any  # SnapHelper
+

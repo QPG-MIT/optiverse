@@ -19,6 +19,7 @@ except ImportError:
 
 from ...platform.paths import is_macos
 from ...services.error_handler import ErrorContext
+from ...core.constants import MIME_OPTICS_COMPONENT
 
 
 class GraphicsView(QtWidgets.QGraphicsView):
@@ -602,7 +603,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
     # ----- drag & drop (images and components) -----
     def dragEnterEvent(self, e: QtGui.QDragEnterEvent):
         md = e.mimeData()
-        if md.hasFormat("application/x-optics-component"):
+        if md.hasFormat(MIME_OPTICS_COMPONENT):
             # Temporarily disable transformation anchor to prevent zoom issues during drag
             # Save current anchor and switch to NoAnchor during drag operation
             self._saved_anchor = self.transformationAnchor()
@@ -611,7 +612,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
             # Build ghost right away so the moment you cross into the canvas you see it
             try:
                 import json
-                rec = json.loads(bytes(md.data("application/x-optics-component")).decode("utf-8"))
+                rec = json.loads(bytes(md.data(MIME_OPTICS_COMPONENT)).decode("utf-8"))
                 self._clear_ghost()
                 self._make_ghost(rec, self.mapToScene(e.position().toPoint()))
             except Exception as ex:
@@ -626,12 +627,12 @@ class GraphicsView(QtWidgets.QGraphicsView):
 
     def dragMoveEvent(self, e: QtGui.QDragMoveEvent):
         md = e.mimeData()
-        if md.hasFormat("application/x-optics-component"):
+        if md.hasFormat(MIME_OPTICS_COMPONENT):
             # Move the ghost with the pointer; if it doesn't exist yet, (re)create it
             try:
                 if self._ghost_item is None:
                     import json
-                    rec = json.loads(bytes(md.data("application/x-optics-component")).decode("utf-8"))
+                    rec = json.loads(bytes(md.data(MIME_OPTICS_COMPONENT)).decode("utf-8"))
                     self._make_ghost(rec, self.mapToScene(e.position().toPoint()))
                 else:
                     self._ghost_item.setPos(self.mapToScene(e.position().toPoint()))
@@ -659,9 +660,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
             scene_pos = self.mapToScene(pos_view)
 
             # Component from library
-            if md.hasFormat("application/x-optics-component"):
+            if md.hasFormat(MIME_OPTICS_COMPONENT):
                 import json
-                data = md.data("application/x-optics-component")
+                data = md.data(MIME_OPTICS_COMPONENT)
                 try:
                     rec = json.loads(bytes(data).decode("utf-8"))
                 except (json.JSONDecodeError, UnicodeDecodeError):

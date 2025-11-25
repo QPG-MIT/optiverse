@@ -236,7 +236,7 @@ class PropertyChangeCommand(Command):
 
     def __init__(
         self,
-        item: Any,
+        item: Undoable,
         before_state: Dict[str, Any],
         after_state: Dict[str, Any],
     ):
@@ -244,7 +244,7 @@ class PropertyChangeCommand(Command):
         Initialize PropertyChangeCommand.
 
         Args:
-            item: The item whose properties changed (must have to_dict/from_dict or apply_state)
+            item: The item whose properties changed (must implement Undoable protocol)
             before_state: Dictionary of property values before the change
             after_state: Dictionary of property values after the change
         """

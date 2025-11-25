@@ -62,6 +62,11 @@ PLACEMENT_GHOST_OPACITY = 0.5
 # Current file format version
 FILE_FORMAT_VERSION = "2.0"
 
+# ========== MIME Type Constants ==========
+
+# Custom MIME type for optics components (used in drag-and-drop)
+MIME_OPTICS_COMPONENT = "application/x-optics-component"
+
 # ========== Physical Constants ==========
 
 # Speed of light in vacuum (mm/ns for internal calculations)

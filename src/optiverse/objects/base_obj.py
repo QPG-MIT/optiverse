@@ -14,7 +14,7 @@ from ..core.ui_constants import (
     CLONE_OFFSET_X_MM,
     CLONE_OFFSET_Y_MM,
 )
-from ..core.protocols import HasParams, HasShape
+from ..core.protocols import HasParams, HasShape, HasUndoStack, HasCollaboration, HasSnapping
 from .rotation_handler import (
     SingleItemRotationHandler,
     GroupRotationHandler,
@@ -88,8 +88,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
                     if views:
                         main_window = views[0].window()
                         # Check if magnetic snap is enabled and this is an interactive move
-                        if hasattr(main_window, 'magnetic_snap') and main_window.magnetic_snap:
-                            if hasattr(main_window, '_snap_helper'):
+                        if isinstance(main_window, HasSnapping) and main_window.magnetic_snap:
                                 # value is the new position being proposed
                                 new_pos = value
                                 
@@ -123,7 +122,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
                     views = self.scene().views()
                     if views:
                         main_window = views[0].window()
-                        if hasattr(main_window, 'collaboration_manager'):
+                        if isinstance(main_window, HasCollaboration):
                             main_window.collaboration_manager.broadcast_move_item(self)
 
         # Phase 2.2: Ensure sprite re-renders when selection toggles (remove lingering tint)
@@ -237,7 +236,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
         if not views:
             return None
         main_window = views[0].window()
-        if main_window and hasattr(main_window, 'undo_stack'):
+        if isinstance(main_window, HasUndoStack):
             return main_window.undo_stack
         return None
     
@@ -423,7 +422,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
         undo_stack = None
         if self.scene().views():
             main_window = self.scene().views()[0].window()
-            if hasattr(main_window, 'undo_stack'):
+            if isinstance(main_window, HasUndoStack):
                 undo_stack = main_window.undo_stack
         
         # Apply z-order change

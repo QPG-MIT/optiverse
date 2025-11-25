@@ -13,6 +13,7 @@ from .collaboration_service import CollaborationService
 from .log_service import get_log_service
 from ..objects.type_registry import TypeRegistry
 from ..core.protocols import Serializable, HasShape, Editable, Lockable
+from ..core.log_categories import LogCategory
 
 if TYPE_CHECKING:
     from ..ui.views.main_window import MainWindow
@@ -98,7 +99,7 @@ class CollaborationManager(QObject):
         # Cache initial state
         self.last_known_state = self.get_session_state()
         
-        self.log.info(f"Created session '{session_id}' as host (current_canvas={use_current_canvas})", "Collaboration")
+        self.log.info(f"Created session '{session_id}' as host (current_canvas={use_current_canvas})", LogCategory.COLLABORATION)
     
     def join_session(self, server_url: str, session_id: str, user_id: str) -> None:
         """
@@ -121,7 +122,7 @@ class CollaborationManager(QObject):
         # Connect to session
         self.connect_to_session(server_url, session_id, user_id)
         
-        self.log.info(f"Joining session '{session_id}' as client", "Collaboration")
+        self.log.info(f"Joining session '{session_id}' as client", LogCategory.COLLABORATION)
     
     def connect_to_session(self, server_url: str, session_id: str, user_id: str) -> None:
         """
@@ -186,7 +187,7 @@ class CollaborationManager(QObject):
         
         # Log the broadcast (all QGraphicsItems have x/y)
         pos = (item.x(), item.y())
-        self.log.info(f"Broadcasting ADD: {item_type} at ({pos[0]:.0f}, {pos[1]:.0f})", "Collaboration")
+        self.log.info(f"Broadcasting ADD: {item_type} at ({pos[0]:.0f}, {pos[1]:.0f})", LogCategory.COLLABORATION)
         
         # Broadcast to other users
         data = item.to_dict()
@@ -219,7 +220,7 @@ class CollaborationManager(QObject):
         # Log the broadcast (all QGraphicsItems have x/y/rotation)
         pos = (item.x(), item.y())
         rot = item.rotation()
-        self.log.debug(f"Broadcasting MOVE: {item_type} to ({pos[0]:.0f}, {pos[1]:.0f}) rot={rot:.0f} deg", "Collaboration")
+        self.log.debug(f"Broadcasting MOVE: {item_type} to ({pos[0]:.0f}, {pos[1]:.0f}) rot={rot:.0f} deg", LogCategory.COLLABORATION)
         
         data = item.to_dict()
         data['item_uuid'] = item.item_uuid
@@ -252,7 +253,7 @@ class CollaborationManager(QObject):
             del self.item_uuid_map[item.item_uuid]
         
         # Log the broadcast
-        self.log.info(f"Broadcasting REMOVE: {item_type}", "Collaboration")
+        self.log.info(f"Broadcasting REMOVE: {item_type}", LogCategory.COLLABORATION)
         
         self.collaboration_service.send_command(
             action="remove_item",
@@ -279,7 +280,7 @@ class CollaborationManager(QObject):
             return
         
         # Log the broadcast
-        self.log.info(f"Broadcasting UPDATE: {item_type}", "Collaboration")
+        self.log.info(f"Broadcasting UPDATE: {item_type}", LogCategory.COLLABORATION)
         
         data = item.to_dict()
         data['item_uuid'] = item.item_uuid
@@ -302,7 +303,7 @@ class CollaborationManager(QObject):
         
         # If reconnecting, request sync
         if self.needs_resync and self.role == "client":
-            self.log.info("Reconnected - requesting state sync", "Collaboration")
+            self.log.info("Reconnected - requesting state sync", LogCategory.COLLABORATION)
             # Send sync request with local version
             self.collaboration_service.send_message({
                 'type': 'sync:request',
@@ -350,7 +351,7 @@ class CollaborationManager(QObject):
         item_id = command.get('item_id')
         data = command.get('data', {})
         
-        self.log.debug(f"Processing remote command: {action} {item_type} {item_id}", "Collaboration")
+        self.log.debug(f"Processing remote command: {action} {item_type} {item_id}", LogCategory.COLLABORATION)
         
         # Suppress broadcasting while applying remote changes
         self._suppress_broadcast = True
@@ -373,7 +374,7 @@ class CollaborationManager(QObject):
         if item:
             # Log the remote add
             pos = (data.get('x_mm', 0), data.get('y_mm', 0))
-            self.log.info(f"Received ADD: {item_type} at ({pos[0]:.0f}, {pos[1]:.0f})", "Collaboration")
+            self.log.info(f"Received ADD: {item_type} at ({pos[0]:.0f}, {pos[1]:.0f})", LogCategory.COLLABORATION)
             
             # Add to scene
             self.main_window.scene.addItem(item)
@@ -385,7 +386,7 @@ class CollaborationManager(QObject):
             if self.main_window.autotrace:
                 self.main_window.retrace()
         else:
-            self.log.error(f"ADD failed: couldn't create {item_type}", "Collaboration")
+            self.log.error(f"ADD failed: couldn't create {item_type}", LogCategory.COLLABORATION)
         
         self.remote_item_added.emit(item_type, data)
     
@@ -431,7 +432,7 @@ class CollaborationManager(QObject):
                 if item_uuid:
                     item.item_uuid = item_uuid
             else:
-                self.log.error(f"Unknown item type: {item_type}", "Collaboration")
+                self.log.error(f"Unknown item type: {item_type}", LogCategory.COLLABORATION)
                 return None
             
             # Load data from dict
@@ -439,7 +440,7 @@ class CollaborationManager(QObject):
             return item
             
         except Exception as e:
-            self.log.error(f"Error creating remote item: {e}", "Collaboration")
+            self.log.error(f"Error creating remote item: {e}", LogCategory.COLLABORATION)
             import traceback
             traceback.print_exc()
             return None
@@ -450,7 +451,7 @@ class CollaborationManager(QObject):
             item = self.item_uuid_map[item_uuid]
             pos = (data.get('x_mm', 0), data.get('y_mm', 0))
             rot = data.get('angle_deg', 0)
-            self.log.debug(f"Received MOVE: to ({pos[0]:.0f}, {pos[1]:.0f}) rot={rot:.0f} deg", "Collaboration")
+            self.log.debug(f"Received MOVE: to ({pos[0]:.0f}, {pos[1]:.0f}) rot={rot:.0f} deg", LogCategory.COLLABORATION)
             
             # All items in uuid_map are QGraphicsItems with setPos/setRotation
             if 'x_mm' in data and 'y_mm' in data:
@@ -459,7 +460,7 @@ class CollaborationManager(QObject):
                 item.setRotation(data['angle_deg'])
         else:
             # Item not found, might need to add it
-            self.log.warning(f"MOVE failed: item {item_uuid[:8]} not found", "Collaboration")
+            self.log.warning(f"MOVE failed: item {item_uuid[:8]} not found", LogCategory.COLLABORATION)
             self.remote_item_moved.emit(item_uuid, data)
     
     def _apply_remove_item(self, item_uuid: str) -> None:
@@ -467,13 +468,13 @@ class CollaborationManager(QObject):
         if item_uuid in self.item_uuid_map:
             item = self.item_uuid_map[item_uuid]
             item_type = self._get_item_type(item)
-            self.log.info(f"Received REMOVE: {item_type}", "Collaboration")
+            self.log.info(f"Received REMOVE: {item_type}", LogCategory.COLLABORATION)
             
             if self.main_window.scene:
                 self.main_window.scene.removeItem(item)
             del self.item_uuid_map[item_uuid]
         else:
-            self.log.warning(f"REMOVE failed: item {item_uuid[:8]} not found", "Collaboration")
+            self.log.warning(f"REMOVE failed: item {item_uuid[:8]} not found", LogCategory.COLLABORATION)
         self.remote_item_removed.emit(item_uuid)
     
     def _apply_update_item(self, item_uuid: str, data: Dict[str, Any]) -> None:
@@ -481,7 +482,7 @@ class CollaborationManager(QObject):
         if item_uuid in self.item_uuid_map:
             item = self.item_uuid_map[item_uuid]
             item_type = self._get_item_type(item)
-            self.log.info(f"Received UPDATE: {item_type}", "Collaboration")
+            self.log.info(f"Received UPDATE: {item_type}", LogCategory.COLLABORATION)
             
             # For BaseObj items, use deserialize_item to update
             from ..objects import BaseObj
@@ -514,7 +515,7 @@ class CollaborationManager(QObject):
                 data_copy.pop('item_type', None)
                 item.from_dict(data_copy)
         else:
-            self.log.warning(f"UPDATE failed: item {item_uuid[:8]} not found", "Collaboration")
+            self.log.warning(f"UPDATE failed: item {item_uuid[:8]} not found", LogCategory.COLLABORATION)
         self.remote_item_updated.emit(item_uuid, data)
     
     def _on_sync_state_received(self, message: Dict[str, Any]) -> None:
@@ -523,15 +524,15 @@ class CollaborationManager(QObject):
         if not state:
             return
         
-        self.log.info("Received full state sync", "Collaboration")
+        self.log.info("Received full state sync", LogCategory.COLLABORATION)
         
         # Check for version conflict
         conflict_resolution = message.get('conflict_resolution', 'host_wins')
         has_conflict = self._detect_version_conflict(state)
         
         if has_conflict and self.role == "client":
-            self.log.warning(f"Version conflict detected: local={self.session_version}, remote={state.get('version', 0)}", "Collaboration")
-            self.log.info(f"Resolving with strategy: {conflict_resolution}", "Collaboration")
+            self.log.warning(f"Version conflict detected: local={self.session_version}, remote={state.get('version', 0)}", LogCategory.COLLABORATION)
+            self.log.info(f"Resolving with strategy: {conflict_resolution}", LogCategory.COLLABORATION)
         
         # Clear scene before applying state (host wins by default)
         if self.main_window.scene:
@@ -546,7 +547,7 @@ class CollaborationManager(QObject):
         try:
             # Apply all items from state
             items = state.get('items', [])
-            self.log.info(f"Applying {len(items)} items from state sync", "Collaboration")
+            self.log.info(f"Applying {len(items)} items from state sync", LogCategory.COLLABORATION)
             
             for item_data in items:
                 item_type = item_data.get('item_type')
@@ -563,18 +564,18 @@ class CollaborationManager(QObject):
             if self.main_window.autotrace:
                 self.main_window.retrace()
             
-            self.log.info(f"State sync complete - version {self.session_version}", "Collaboration")
+            self.log.info(f"State sync complete - version {self.session_version}", LogCategory.COLLABORATION)
         finally:
             self._suppress_broadcast = False
     
     def _on_user_joined(self, user_id: str) -> None:
         """Handle user joined notification."""
-        self.log.info(f"👤 User joined: {user_id}", "Collaboration")
+        self.log.info(f"👤 User joined: {user_id}", LogCategory.COLLABORATION)
         self.status_changed.emit(f"{user_id} joined")
         
         # If we're the host, send full state to new client
         if self.role == "host":
-            self.log.info(f"Sending full state to new client: {user_id}", "Collaboration")
+            self.log.info(f"Sending full state to new client: {user_id}", LogCategory.COLLABORATION)
             state = self.get_session_state()
             self.collaboration_service.send_message({
                 'type': 'sync:full_state',
@@ -584,7 +585,7 @@ class CollaborationManager(QObject):
     
     def _on_user_left(self, user_id: str) -> None:
         """Handle user left notification."""
-        self.log.info(f"👤 User left: {user_id}", "Collaboration")
+        self.log.info(f"👤 User left: {user_id}", LogCategory.COLLABORATION)
         self.status_changed.emit(f"{user_id} left")
     
     def _on_error(self, error: str) -> None:
