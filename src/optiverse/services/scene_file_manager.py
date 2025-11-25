@@ -38,6 +38,7 @@ class SceneFileManager:
         get_ray_data: Callable,
         on_modified: Callable[[bool], None],
         parent_widget: QtWidgets.QWidget,
+        connect_item_signals: Optional[Callable] = None,
     ):
         """
         Initialize the scene file manager.
@@ -48,12 +49,14 @@ class SceneFileManager:
             get_ray_data: Callable to get current ray data (for path measures)
             on_modified: Callback when modified state changes
             parent_widget: Parent widget for dialogs
+            connect_item_signals: Optional callback to connect signals for items
         """
         self.scene = scene
         self.log_service = log_service
         self._get_ray_data = get_ray_data
         self._on_modified = on_modified
         self.parent_widget = parent_widget
+        self._connect_item_signals = connect_item_signals
         
         # File state
         self._saved_file_path: Optional[str] = None
@@ -211,7 +214,10 @@ class SceneFileManager:
         
         # Load annotations
         for ruler_data in data.get("rulers", []):
-            self.scene.addItem(RulerItem.from_dict(ruler_data))
+            ruler = RulerItem.from_dict(ruler_data)
+            if self._connect_item_signals:
+                self._connect_item_signals(ruler)
+            self.scene.addItem(ruler)
         
         for text_data in data.get("texts", []):
             self.scene.addItem(TextNoteItem.from_dict(text_data))

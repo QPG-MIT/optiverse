@@ -150,8 +150,11 @@ class ActionBuilder:
         w.act_add_bs = QtGui.QAction("Beamsplitter", w, checkable=True)
         w.act_add_bs.toggled.connect(partial(w._toggle_placement_mode, ComponentType.BEAMSPLITTER))
 
-        w.act_add_ruler = QtGui.QAction("Ruler", w)
-        w.act_add_ruler.triggered.connect(w.start_place_ruler)
+        w.act_add_ruler = QtGui.QAction("Ruler", w, checkable=True)
+        w.act_add_ruler.setChecked(False)
+        w.act_add_ruler.setShortcut("R")
+        w.act_add_ruler.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
+        w.act_add_ruler.toggled.connect(w._toggle_ruler_placement)
 
         w.act_add_text = QtGui.QAction("Text", w, checkable=True)
         w.act_add_text.toggled.connect(partial(w._toggle_placement_mode, ComponentType.TEXT))
@@ -167,6 +170,10 @@ class ActionBuilder:
         w.act_measure_path = QtGui.QAction("Path Measure", w, checkable=True)
         w.act_measure_path.setChecked(False)
         w.act_measure_path.toggled.connect(w._toggle_path_measure)
+
+        w.act_measure_angle = QtGui.QAction("Angle Measure", w, checkable=True)
+        w.act_measure_angle.setChecked(False)
+        w.act_measure_angle.toggled.connect(w._toggle_angle_measure)
 
         # --- View Actions ---
         w.act_zoom_in = QtGui.QAction("Zoom In", w)
@@ -297,6 +304,10 @@ class ActionBuilder:
         w.act_measure_path.setIcon(ruler_icon)
         toolbar.addAction(w.act_measure_path)
 
+        # Angle Measure tool
+        w.act_measure_angle.setIcon(ruler_icon)
+        toolbar.addAction(w.act_measure_angle)
+
         # Inspect button
         w.act_inspect.setIcon(QtGui.QIcon(_get_icon_path("inspect.png")))
         toolbar.addAction(w.act_inspect)
@@ -367,6 +378,7 @@ class ActionBuilder:
         mTools.addSeparator()
         mTools.addAction(w.act_inspect)
         mTools.addAction(w.act_measure_path)
+        mTools.addAction(w.act_measure_angle)
         mTools.addSeparator()
         mTools.addAction(w.act_editor)
         mTools.addAction(w.act_reload)
@@ -425,6 +437,7 @@ class ActionBuilder:
         # Register inspect and path measure actions
         w.tool_controller.set_action_inspect(w.act_inspect)
         w.tool_controller.set_action_measure_path(w.act_measure_path)
+        w.tool_controller.set_action_measure_angle(w.act_measure_angle)
         
         # Register placement actions
         w.tool_controller.set_placement_actions({

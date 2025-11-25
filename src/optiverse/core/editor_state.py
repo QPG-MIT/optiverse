@@ -6,7 +6,10 @@ Provides a clean state machine for editor modes, replacing scattered boolean fla
 from __future__ import annotations
 
 from enum import Enum, auto
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..objects.annotations.ruler_item import RulerItem
 
 
 class EditorMode(Enum):
@@ -19,6 +22,7 @@ class EditorMode(Enum):
     DEFAULT = auto()        # Normal selection/editing mode
     INSPECT = auto()        # Inspect tool active
     PATH_MEASURE = auto()   # Path measure tool active
+    ANGLE_MEASURE = auto()  # Angle measure tool active
     PLACEMENT = auto()      # Component placement mode
     RULER_PLACEMENT = auto()  # Ruler two-click placement
 
@@ -38,7 +42,7 @@ class EditorState:
         self._placement_type: Optional[str] = None
         
         # Ruler placement state (only valid when mode == RULER_PLACEMENT)
-        self._ruler_first_point = None  # QPointF or None
+        self._ruler_in_progress: Optional['RulerItem'] = None  # RulerItem being placed
         
     @property
     def mode(self) -> EditorMode:
@@ -61,6 +65,11 @@ class EditorState:
         return self._mode == EditorMode.PATH_MEASURE
     
     @property
+    def is_angle_measure(self) -> bool:
+        """Check if angle measure mode is active."""
+        return self._mode == EditorMode.ANGLE_MEASURE
+    
+    @property
     def is_placement(self) -> bool:
         """Check if placement mode is active."""
         return self._mode == EditorMode.PLACEMENT
@@ -76,15 +85,15 @@ class EditorState:
         return self._placement_type if self._mode == EditorMode.PLACEMENT else None
     
     @property
-    def ruler_first_point(self):
-        """Get the ruler first point (only valid in RULER_PLACEMENT mode)."""
-        return self._ruler_first_point if self._mode == EditorMode.RULER_PLACEMENT else None
+    def ruler_in_progress(self) -> Optional['RulerItem']:
+        """Get the ruler currently being placed (only valid in RULER_PLACEMENT mode)."""
+        return self._ruler_in_progress if self._mode == EditorMode.RULER_PLACEMENT else None
     
-    @ruler_first_point.setter
-    def ruler_first_point(self, value):
-        """Set the ruler first point."""
+    @ruler_in_progress.setter
+    def ruler_in_progress(self, value: Optional['RulerItem']):
+        """Set the ruler currently being placed."""
         if self._mode == EditorMode.RULER_PLACEMENT:
-            self._ruler_first_point = value
+            self._ruler_in_progress = value
     
     def enter_default(self) -> EditorMode:
         """
@@ -96,7 +105,7 @@ class EditorState:
         prev = self._mode
         self._mode = EditorMode.DEFAULT
         self._placement_type = None
-        self._ruler_first_point = None
+        self._ruler_in_progress = None
         return prev
     
     def enter_inspect(self) -> EditorMode:
@@ -109,7 +118,7 @@ class EditorState:
         prev = self._mode
         self._mode = EditorMode.INSPECT
         self._placement_type = None
-        self._ruler_first_point = None
+        self._ruler_in_progress = None
         return prev
     
     def enter_path_measure(self) -> EditorMode:
@@ -122,7 +131,20 @@ class EditorState:
         prev = self._mode
         self._mode = EditorMode.PATH_MEASURE
         self._placement_type = None
-        self._ruler_first_point = None
+        self._ruler_in_progress = None
+        return prev
+    
+    def enter_angle_measure(self) -> EditorMode:
+        """
+        Enter angle measure mode.
+        
+        Returns:
+            Previous mode for cleanup purposes
+        """
+        prev = self._mode
+        self._mode = EditorMode.ANGLE_MEASURE
+        self._placement_type = None
+        self._ruler_in_progress = None
         return prev
     
     def enter_placement(self, component_type: str) -> EditorMode:
@@ -138,7 +160,7 @@ class EditorState:
         prev = self._mode
         self._mode = EditorMode.PLACEMENT
         self._placement_type = component_type
-        self._ruler_first_point = None
+        self._ruler_in_progress = None
         return prev
     
     def enter_ruler_placement(self) -> EditorMode:
@@ -151,6 +173,15 @@ class EditorState:
         prev = self._mode
         self._mode = EditorMode.RULER_PLACEMENT
         self._placement_type = None
-        self._ruler_first_point = None
+        self._ruler_in_progress = None
         return prev
+    
+    def exit_ruler_placement(self) -> EditorMode:
+        """
+        Exit ruler placement mode and return to default mode.
+        
+        Returns:
+            Previous mode for cleanup purposes
+        """
+        return self.enter_default()
 

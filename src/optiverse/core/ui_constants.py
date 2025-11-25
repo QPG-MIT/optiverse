@@ -64,3 +64,29 @@ MAX_ALPHA = 255.0
 # Default tolerance for magnetic snap (pixels)
 MAGNETIC_SNAP_TOLERANCE_PX = 10.0
 
+# ========== Ruler Constants ==========
+
+# Ruler line dimensions
+RULER_LINE_WIDTH = 2.0
+RULER_LINE_WIDTH_SELECTED = 3.0  # 1.5x normal when selected
+
+# Ruler bar dimensions (the end markers)
+RULER_BAR_WIDTH = 1.0
+RULER_BAR_HEIGHT = 12.0
+
+# Hit testing tolerances
+RULER_HIT_RADIUS_PX = 10.0
+RULER_BOUNDING_PAD_PX = 90.0
+RULER_MIN_STROKE_WIDTH_PX = 12.0
+
+# Label positioning
+RULER_LABEL_PADDING = 10.0
+RULER_TOTAL_LABEL_PERP_OFFSET = 50.0  # Perpendicular offset from end point
+RULER_TOTAL_LABEL_ALONG_OFFSET = 15.0  # Offset along segment direction
+RULER_LABEL_CORNER_RADIUS = 4.0
+RULER_LABEL_BG_ALPHA = 240
+RULER_LABEL_BG_ALPHA_SELECTED = 250
+
+# Change detection threshold for undo (in scene units)
+RULER_POINT_CHANGE_THRESHOLD = 0.1
+

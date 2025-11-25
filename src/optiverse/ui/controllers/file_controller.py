@@ -38,6 +38,7 @@ class FileController(QtCore.QObject):
         log_service: "LogService",
         get_ray_data: Callable,
         parent_widget: QtWidgets.QWidget,
+        connect_item_signals: Optional[Callable] = None,
     ):
         super().__init__(parent_widget)
         
@@ -52,6 +53,7 @@ class FileController(QtCore.QObject):
             get_ray_data=get_ray_data,
             on_modified=self._on_modified_changed,
             parent_widget=parent_widget,
+            connect_item_signals=connect_item_signals,
         )
         
         # Autosave timer

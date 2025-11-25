@@ -24,7 +24,6 @@ from ...core.editor_state import EditorMode, EditorState
 from ...core.protocols import Editable
 from ...core.models import SourceParams
 from ...core.snap_helper import SnapHelper
-from ...core.undo_commands import AddItemCommand
 from ...core.undo_stack import UndoStack
 from ...services.settings_service import SettingsService
 from ...services.storage_service import StorageService
@@ -39,12 +38,13 @@ from ..controllers.ray_renderer import RayRenderer
 from ..widgets.library_tree import LibraryTree
 from .collaboration_dialog import CollaborationDialog
 from .log_window import LogWindow
-from .tool_handlers import InspectToolHandler, PathMeasureToolHandler, point_to_segment_distance
+from .tool_handlers import InspectToolHandler, PathMeasureToolHandler, AngleMeasureToolHandler
 from .placement_handler import PlacementHandler
+from .ruler_placement_handler import RulerPlacementHandler
+from .scene_event_handler import SceneEventHandler
 from ..builders import ActionBuilder
 from ...objects import (
     GraphicsView,
-    RulerItem,
     SourceItem,
     TextNoteItem,
 )
@@ -127,11 +127,12 @@ class MainWindow(QtWidgets.QMainWindow):
         # Build library dock first (needed before menus reference libDock)
         self._build_library_dock()
         
-        # Tool mode controller - manages inspect, path measure, placement modes
+        # Tool mode controller - manages inspect, path measure, angle measure, placement modes
         self.tool_controller = ToolModeController(
             editor_state=self._editor_state,
             view=self.view,
             path_measure_handler=self.path_measure_handler,
+            angle_measure_handler=self.angle_measure_handler,
             placement_handler=self.placement_handler,
             parent=self,
         )
@@ -139,6 +140,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # Build UI using ActionBuilder
         action_builder = ActionBuilder(self)
         action_builder.build_all()
+        
+        # Initialize handlers that need actions (after action_builder creates them)
+        self._init_event_handlers()
 
         # Install event filter for snap and ruler placement
         self.scene.installEventFilter(self)
@@ -166,6 +170,7 @@ class MainWindow(QtWidgets.QMainWindow):
             log_service=self.log_service,
             get_ray_data=self._get_ray_data,
             parent_widget=self,
+            connect_item_signals=self._connect_item_signals,
         )
         # Connect file controller signals
         self.file_controller.traceRequested.connect(self._schedule_retrace)
@@ -194,6 +199,15 @@ class MainWindow(QtWidgets.QMainWindow):
             get_ray_data=self._get_ray_data,
             parent_widget=self,
             on_complete=self._on_path_measure_complete,
+        )
+        
+        # Angle measure tool handler
+        self.angle_measure_handler = AngleMeasureToolHandler(
+            scene=self.scene,
+            view=self.view,
+            undo_stack=self.undo_stack,
+            parent_widget=self,
+            on_complete=self._on_angle_measure_complete,
         )
         
         # Item drag handler - tracks positions/rotations for undo/redo
@@ -255,6 +269,34 @@ class MainWindow(QtWidgets.QMainWindow):
             schedule_retrace=self._schedule_retrace,
             broadcast_add_item=self.collaboration_manager.broadcast_add_item,
         )
+    
+    def _init_event_handlers(self):
+        """Initialize handlers that require actions to be created first."""
+        # Ruler placement handler
+        self.ruler_handler = RulerPlacementHandler(
+            scene=self.scene,
+            view=self.view,
+            editor_state=self._editor_state,
+            undo_stack=self.undo_stack,
+            get_ruler_action=lambda: self.act_add_ruler,
+            finish_ruler_mode=self.tool_controller.finish_ruler_placement,
+        )
+        
+        # Scene event handler - routes events to appropriate handlers
+        self.scene_event_handler = SceneEventHandler(
+            editor_state=self._editor_state,
+            placement_handler=self.placement_handler,
+            inspect_handler=self.inspect_handler,
+            path_measure_handler=self.path_measure_handler,
+            angle_measure_handler=self.angle_measure_handler,
+            ruler_handler=self.ruler_handler,
+            drag_handler=self.drag_handler,
+            cancel_placement_mode=self._cancel_placement_mode,
+            get_inspect_action=lambda: self.act_inspect,
+            get_path_measure_action=lambda: self.act_measure_path,
+            get_angle_measure_action=lambda: self.act_measure_angle,
+            parent=self,
+        )
 
     def populate_library(self):
         """Load and populate component library (delegated to library manager)."""
@@ -271,8 +313,11 @@ class MainWindow(QtWidgets.QMainWindow):
             item.edited.connect(self._maybe_retrace)
             item.edited.connect(partial(self.collaboration_manager.broadcast_update_item, item))
         
-        # Connect commandCreated signal for undo/redo (BaseObj always has this)
+        # Connect commandCreated signal for undo/redo
+        # BaseObj and RulerItem both have commandCreated signal
         if isinstance(item, BaseObj):
+            item.commandCreated.connect(self.undo_stack.push)
+        elif isinstance(item, RulerItem):
             item.commandCreated.connect(self.undo_stack.push)
 
     def on_drop_component(self, rec: dict, scene_pos: QtCore.QPointF):
@@ -306,22 +351,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.undo_stack.redo()
         self._schedule_retrace()
 
+    def _toggle_ruler_placement(self, on: bool):
+        """Toggle ruler placement mode (delegated to RulerPlacementHandler)."""
+        self.ruler_handler.toggle(on, self.tool_controller._cancel_other_modes)
+    
     def start_place_ruler(self):
-        """Enter ruler placement mode (two-click)."""
-        # Cancel any other active mode
-        self.tool_controller._cancel_other_modes("ruler")
-        
-        self._editor_state.enter_ruler_placement()
-        self._prev_cursor = self.view.cursor()
-        self.view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
-        QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), "Click start point, then end point")
+        """Enter ruler placement mode (delegated to RulerPlacementHandler)."""
+        self.ruler_handler.start(self.tool_controller._cancel_other_modes)
 
     def _finish_place_ruler(self):
-        """Exit ruler placement mode."""
-        self.tool_controller.finish_ruler_placement()
-        if self._prev_cursor is not None:
-            self.view.setCursor(self._prev_cursor)
-            self._prev_cursor = None
+        """Exit ruler placement mode (delegated to RulerPlacementHandler)."""
+        self.ruler_handler.finish()
 
     # ----- Ray tracing (delegated to RaytracingController) -----
     def clear_rays(self):
@@ -382,6 +422,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_path_measure_complete(self) -> None:
         """Called when path measure tool completes - used instead of lambda."""
         self.act_measure_path.setChecked(False)
+    
+    def _on_angle_measure_complete(self) -> None:
+        """Called when angle measure tool completes - used instead of lambda."""
+        self.act_measure_angle.setChecked(False)
 
     # ----- Save / Load (delegated to FileController) -----
     def save_assembly(self):
@@ -466,6 +510,10 @@ class MainWindow(QtWidgets.QMainWindow):
         """Toggle path measure tool mode (delegated to ToolModeController)."""
         self.tool_controller.toggle_path_measure(on)
     
+    def _toggle_angle_measure(self, on: bool):
+        """Toggle angle measure tool mode (delegated to ToolModeController)."""
+        self.tool_controller.toggle_angle_measure(on)
+
     def _toggle_placement_mode(self, component_type: str, on: bool):
         """Toggle component placement mode (delegated to ToolModeController)."""
         self.tool_controller.toggle_placement(component_type, on)
@@ -555,106 +603,19 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.library_manager.import_library():
             self.populate_library()
 
-    # ----- Event filter for snap, ruler placement, inspect, and placement mode -----
+    # ----- Event filter (delegated to SceneEventHandler) -----
     def eventFilter(self, obj, ev):
-        """Handle scene events for snap, ruler placement, inspect tool, and component placement."""
-        et = ev.type()
-
-        # --- Component placement mode ---
-        if self.placement_handler.is_active:
-            # Mouse move - update ghost position
-            if et == QtCore.QEvent.Type.GraphicsSceneMouseMove:
-                mev = ev  # QGraphicsSceneMouseEvent
-                scene_pt = mev.scenePos()
-                self.placement_handler.handle_mouse_move(scene_pt)
-                return True  # consume event
-            
-            # Mouse press - place component or cancel
-            elif et == QtCore.QEvent.Type.GraphicsSceneMousePress:
-                mev = ev  # QGraphicsSceneMouseEvent
-                scene_pt = mev.scenePos()
-                
-                if mev.button() == QtCore.Qt.MouseButton.LeftButton:
-                    self.placement_handler.handle_click(scene_pt, mev.button())
-                    return True  # consume event
-                
-                elif mev.button() == QtCore.Qt.MouseButton.RightButton:
-                    # Cancel placement
-                    self._cancel_placement_mode()
-                    return True  # consume event
-        
-        # --- Inspect tool ---
-        if self._editor_state.is_inspect and et == QtCore.QEvent.Type.GraphicsSceneMousePress:
-            mev = ev  # QGraphicsSceneMouseEvent
-            if mev.button() == QtCore.Qt.MouseButton.LeftButton:
-                scene_pt = mev.scenePos()
-                self.inspect_handler.handle_click(scene_pt)
-                return True  # consume event
-        
-        # --- Path Measure tool ---
-        if self._editor_state.is_path_measure and et == QtCore.QEvent.Type.GraphicsSceneMousePress:
-            mev = ev  # QGraphicsSceneMouseEvent
-            if mev.button() == QtCore.Qt.MouseButton.LeftButton:
-                scene_pt = mev.scenePos()
-                self.path_measure_handler.handle_click(scene_pt)
-                return True  # consume event
-
-        # --- Ruler 2-click placement ---
-        if self._editor_state.is_ruler_placement and et == QtCore.QEvent.Type.GraphicsSceneMousePress:
-            mev = ev  # QGraphicsSceneMouseEvent
-            if mev.button() == QtCore.Qt.MouseButton.LeftButton:
-                scene_pt = mev.scenePos()
-                if self._editor_state.ruler_first_point is None:
-                    # first click
-                    self._editor_state.ruler_first_point = QtCore.QPointF(scene_pt)
-                    return True  # consume
-                else:
-                    # second click -> create ruler in item coords
-                    p1 = QtCore.QPointF(self._editor_state.ruler_first_point)
-                    p2 = QtCore.QPointF(scene_pt)
-                    R = RulerItem(p1, p2)
-                    R.setPos(0, 0)
-                    cmd = AddItemCommand(self.scene, R)
-                    self.undo_stack.push(cmd)
-                    R.setSelected(True)
-                    self._finish_place_ruler()
-                    return True  # consume
-            elif mev.button() == QtCore.Qt.MouseButton.RightButton:
-                # cancel placement on right-click
-                self._finish_place_ruler()
-                return True
-
-        # --- Track item positions and rotations on mouse press ---
-        if et == QtCore.QEvent.Type.GraphicsSceneMousePress:
-            self.drag_handler.handle_mouse_press(ev)
-
-        # --- Snap to grid and create move/rotate commands on mouse release ---
-        if et == QtCore.QEvent.Type.GraphicsSceneMouseRelease:
-            self.drag_handler.handle_mouse_release()
-
+        """Handle scene events (delegated to SceneEventHandler)."""
+        result = self.scene_event_handler.handle_event(obj, ev)
+        if result is not None:
+            return result
         return super().eventFilter(obj, ev)
     
     def keyPressEvent(self, ev):
-        """Handle key press events for mode cancellation and deletion."""
-        # Check if Escape is pressed and any special mode is active
-        if ev.key() == QtCore.Qt.Key.Key_Escape:
-            if self._editor_state.is_placement:
-                self._cancel_placement_mode()
-                ev.accept()
-                return
-            elif self._editor_state.is_ruler_placement:
-                self._finish_place_ruler()
-                ev.accept()
-                return
-            elif self._editor_state.is_inspect:
-                self.act_inspect.setChecked(False)
-                ev.accept()
-                return
-            elif self._editor_state.is_path_measure:
-                self.act_measure_path.setChecked(False)
-                ev.accept()
-                return
-        
+        """Handle key press events (delegated to SceneEventHandler)."""
+        if self.scene_event_handler.handle_key_press(ev):
+            ev.accept()
+            return
         # Pass to parent for normal handling (Delete/Backspace handled by act_delete action)
         super().keyPressEvent(ev)
 

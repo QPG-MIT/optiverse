@@ -13,7 +13,7 @@ from ...core.component_types import ComponentType
 from ...core.editor_state import EditorState
 
 if TYPE_CHECKING:
-    from ..views.tool_handlers import PathMeasureToolHandler
+    from ..views.tool_handlers import PathMeasureToolHandler, AngleMeasureToolHandler
     from ..views.placement_handler import PlacementHandler
 
 
@@ -27,6 +27,7 @@ class ToolModeController(QtCore.QObject):
     # Signals for UI updates
     inspectModeChanged = QtCore.pyqtSignal(bool)
     pathMeasureModeChanged = QtCore.pyqtSignal(bool)
+    angleMeasureModeChanged = QtCore.pyqtSignal(bool)
     placementModeChanged = QtCore.pyqtSignal(str, bool)  # (component_type, is_active)
     rulerPlacementChanged = QtCore.pyqtSignal(bool)
     
@@ -35,6 +36,7 @@ class ToolModeController(QtCore.QObject):
         editor_state: EditorState,
         view: QtWidgets.QGraphicsView,
         path_measure_handler: "PathMeasureToolHandler",
+        angle_measure_handler: "AngleMeasureToolHandler",
         placement_handler: "PlacementHandler",
         parent: Optional[QtCore.QObject] = None,
     ):
@@ -43,11 +45,13 @@ class ToolModeController(QtCore.QObject):
         self._editor_state = editor_state
         self._view = view
         self._path_measure_handler = path_measure_handler
+        self._angle_measure_handler = angle_measure_handler
         self._placement_handler = placement_handler
         
         # Action references (set by MainWindow after initialization)
         self._action_inspect: Optional[QtWidgets.QAction] = None
         self._action_measure_path: Optional[QtWidgets.QAction] = None
+        self._action_measure_angle: Optional[QtWidgets.QAction] = None
         self._placement_actions: Dict[ComponentType, QtWidgets.QAction] = {}
     
     def set_action_inspect(self, action: QtWidgets.QAction):
@@ -57,6 +61,28 @@ class ToolModeController(QtCore.QObject):
     def set_action_measure_path(self, action: QtWidgets.QAction):
         """Set the measure path action for unchecking."""
         self._action_measure_path = action
+    
+    def set_action_measure_angle(self, action: QtWidgets.QAction):
+        """Set the measure angle action for unchecking."""
+        self._action_measure_angle = action
+    
+    def toggle_angle_measure(self, on: bool):
+        """Toggle angle measure tool mode."""
+        if on:
+            self._cancel_other_modes("angle_measure")
+            self._editor_state.enter_angle_measure()
+            self._angle_measure_handler.activate()
+            self._view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
+            QtWidgets.QToolTip.showText(
+                QtGui.QCursor.pos(),
+                "Click vertex (corner), then first point, then second point."
+            )
+        else:
+            self._editor_state.enter_default()
+            self._angle_measure_handler.deactivate()
+            self._view.unsetCursor()
+        
+        self.angleMeasureModeChanged.emit(on)
     
     def set_placement_actions(self, actions: Dict[ComponentType, QtWidgets.QAction]):
         """Set placement actions for unchecking."""
@@ -149,6 +175,10 @@ class ToolModeController(QtCore.QObject):
         if active_mode != "path_measure" and self._editor_state.is_path_measure:
             if self._action_measure_path:
                 self._action_measure_path.setChecked(False)
+        
+        if active_mode != "angle_measure" and self._editor_state.is_angle_measure:
+            if self._action_measure_angle:
+                self._action_measure_angle.setChecked(False)
         
         if active_mode != "placement" and self._editor_state.is_placement:
             self.cancel_placement(except_type=except_placement_type)

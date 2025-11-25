@@ -117,7 +117,7 @@ class ComponentOperationsHandler:
         """Delete selected items using undo stack."""
         from ...core.undo_commands import RemoveItemCommand, RemoveMultipleItemsCommand
         from ...objects import BaseObj, RectangleItem
-        from ...objects.annotations import RulerItem, TextNoteItem
+        from ...objects.annotations import RulerItem, TextNoteItem, AngleMeasureItem
         from ...objects.annotations.path_measure_item import PathMeasureItem
         
         selected = self.scene.selectedItems()
@@ -126,7 +126,7 @@ class ComponentOperationsHandler:
         
         for item in selected:
             # Only delete optical components and annotations (not grid lines or rays)
-            if isinstance(item, (BaseObj, RulerItem, TextNoteItem, RectangleItem, PathMeasureItem)):
+            if isinstance(item, (BaseObj, RulerItem, TextNoteItem, RectangleItem, PathMeasureItem, AngleMeasureItem)):
                 # Check if item is locked
                 if isinstance(item, BaseObj) and item.is_locked():
                     locked_items.append(item)
