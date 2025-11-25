@@ -51,8 +51,8 @@ class LibraryTree(QtWidgets.QTreeWidget):
         """Open component editor with the selected component loaded."""
         # Get the main window parent
         main_window = self.window()
-        if hasattr(main_window, 'open_component_editor_with_data'):
-            main_window.open_component_editor_with_data(component_data)
+        if hasattr(main_window, 'open_component_editor'):
+            main_window.open_component_editor(component_data)
 
     def startDrag(self, actions):
         it = self.currentItem()

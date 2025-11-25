@@ -7,6 +7,7 @@ Provides options to:
 """
 from __future__ import annotations
 
+import logging
 import sys
 import subprocess
 import socket
@@ -14,6 +15,8 @@ from pathlib import Path
 from typing import Optional
 
 from PyQt6 import QtCore, QtGui, QtWidgets
+
+_logger = logging.getLogger(__name__)
 
 
 class CollaborationDialog(QtWidgets.QDialog):
@@ -237,8 +240,8 @@ class CollaborationDialog(QtWidgets.QDialog):
             
             # If connect_ex returns 0, connection succeeded (port is listening)
             return result == 0
-        except Exception as e:
-            print(f"Port check error: {e}")
+        except OSError as e:
+            _logger.debug("Port check error: %s", e)
             return False
     
     def _on_start_server(self) -> None:
@@ -264,8 +267,8 @@ class CollaborationDialog(QtWidgets.QDialog):
                     "pip install websockets"
                 )
                 return
-        except Exception as e:
-            print(f"Error checking websockets: {e}")
+        except (subprocess.SubprocessError, OSError) as e:
+            _logger.debug("Error checking websockets: %s", e)
         
         # Find the server script
         server_script = Path(__file__).parent.parent.parent.parent.parent / "tools" / "collaboration_server.py"
@@ -343,7 +346,7 @@ class CollaborationDialog(QtWidgets.QDialog):
                 # Don't switch UI, just accept the dialog to connect
                 QtCore.QTimer.singleShot(500, self.accept)
         
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             QtWidgets.QMessageBox.critical(
                 self,
                 "Server Start Failed",
@@ -362,8 +365,8 @@ class CollaborationDialog(QtWidgets.QDialog):
                     # Force kill if it doesn't stop
                     self.server_process.kill()
                     self.server_process.wait()
-            except Exception as e:
-                print(f"Error stopping server: {e}")
+            except OSError as e:
+                _logger.warning("Error stopping server: %s", e)
             finally:
                 self.server_process = None
             

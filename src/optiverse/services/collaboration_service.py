@@ -121,8 +121,8 @@ class CollaborationService(QObject):
             
             json_str = json.dumps(message)
             self.ws.sendTextMessage(json_str)
-        except Exception as e:
-            self.log.error(f"Error sending message: {e}", "Collaboration")
+        except (TypeError, ValueError) as e:
+            self.log.error(f"Error serializing message: {e}", "Collaboration")
             self.error_occurred.emit(str(e))
     
     def is_connected(self) -> bool:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import uuid
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -14,6 +14,7 @@ from ..core.ui_constants import (
     CLONE_OFFSET_X_MM,
     CLONE_OFFSET_Y_MM,
 )
+from ..core.protocols import HasParams, HasShape
 from .rotation_handler import (
     SingleItemRotationHandler,
     GroupRotationHandler,
@@ -435,21 +436,22 @@ class BaseObj(QtWidgets.QGraphicsObject):
     
     def capture_state(self) -> dict[str, Any]:
         """Capture current state for undo/redo. Subclasses should extend."""
+        import dataclasses
         state = {
             'pos': {'x': self.pos().x(), 'y': self.pos().y()},
             'rotation': self.rotation(),
             'locked': self._locked,
             'z_value': float(self.zValue()),
         }
-        # Capture params if available
-        if hasattr(self, 'params'):
-            import dataclasses
-            if dataclasses.is_dataclass(self.params):
-                state['params'] = dataclasses.asdict(self.params)
+        # Capture params if available (using protocol for type safety)
+        if isinstance(self, HasParams) and dataclasses.is_dataclass(self.params):
+            state['params'] = dataclasses.asdict(self.params)
         return state
     
     def apply_state(self, state: dict[str, Any]) -> None:
         """Apply state from undo/redo. Subclasses should extend if needed."""
+        import dataclasses
+        
         if 'pos' in state:
             self.setPos(QtCore.QPointF(state['pos']['x'], state['pos']['y']))
         if 'rotation' in state:
@@ -459,21 +461,18 @@ class BaseObj(QtWidgets.QGraphicsObject):
         if 'z_value' in state:
             self.setZValue(state['z_value'])
         
-        # Apply params if available
-        if 'params' in state and hasattr(self, 'params'):
-            import dataclasses
+        # Apply params if available (using protocol for type safety)
+        if 'params' in state and isinstance(self, HasParams):
             if dataclasses.is_dataclass(self.params):
-                # Update params fields from state
                 for key, value in state['params'].items():
                     if hasattr(self.params, key):
                         setattr(self.params, key, value)
         
-        # Sync visual state
-        if hasattr(self, '_sync_params_from_item'):
+        # Sync visual state (using protocol for type safety)
+        if isinstance(self, HasParams):
             self._sync_params_from_item()
-        if hasattr(self, '_update_shape'):
+        if isinstance(self, HasShape):
             self._update_shape()
-        if hasattr(self, '_update_geom'):
             self._update_geom()
         self.edited.emit()
         self.update()

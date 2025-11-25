@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any, Dict
 
 from PyQt6 import QtCore
 
+from .protocols import Editable, Undoable, HasParams
+
 if TYPE_CHECKING:
     from PyQt6 import QtWidgets
 
@@ -260,8 +262,8 @@ class PropertyChangeCommand(Command):
     
     def _apply_state(self, state: Dict[str, Any]) -> None:
         """Apply a state dictionary to the item."""
-        # Try custom apply_state method first
-        if hasattr(self.item, 'apply_state'):
+        # Try custom apply_state method first (Undoable protocol)
+        if isinstance(self.item, Undoable):
             self.item.apply_state(state)
             return
         
@@ -271,15 +273,15 @@ class PropertyChangeCommand(Command):
                 self.item.setPos(QtCore.QPointF(value['x'], value['y']))
             elif key == 'rotation':
                 self.item.setRotation(value)
-            elif hasattr(self.item, 'params'):
+            elif isinstance(self.item, HasParams):
                 # For items with params dataclass
                 if hasattr(self.item.params, key):
                     setattr(self.item.params, key, value)
         
         # Trigger updates
-        if hasattr(self.item, '_sync_params_from_item'):
+        if isinstance(self.item, HasParams):
             self.item._sync_params_from_item()
-        if hasattr(self.item, 'edited'):
+        if isinstance(self.item, Editable):
             self.item.edited.emit()
         if hasattr(self.item, 'update'):
             self.item.update()

@@ -72,6 +72,7 @@ class ActionBuilder:
         self.build_toolbar()
         self.build_menubar()
         self.register_shortcuts()
+        self._register_tool_controller_actions()
     
     def build_actions(self) -> None:
         """Build all menu actions and attach them to the window."""
@@ -383,6 +384,9 @@ class ActionBuilder:
         # Add collaboration status to status bar
         w.collab_status_label = QtWidgets.QLabel("Not connected")
         w.statusBar().addPermanentWidget(w.collab_status_label)
+        
+        # Connect collab controller status signal
+        w.collab_controller.statusChanged.connect(w.collab_status_label.setText)
 
     def register_shortcuts(self) -> None:
         """Register actions with shortcuts to main window for global access."""
@@ -414,3 +418,20 @@ class ActionBuilder:
         # Collaboration actions
         w.addAction(w.act_collaborate)
 
+    def _register_tool_controller_actions(self) -> None:
+        """Register actions with ToolModeController for mutual exclusion."""
+        w = self.window
+        
+        # Register inspect and path measure actions
+        w.tool_controller.set_action_inspect(w.act_inspect)
+        w.tool_controller.set_action_measure_path(w.act_measure_path)
+        
+        # Register placement actions
+        w.tool_controller.set_placement_actions({
+            ComponentType.SOURCE: w.act_add_source,
+            ComponentType.LENS: w.act_add_lens,
+            ComponentType.MIRROR: w.act_add_mirror,
+            ComponentType.BEAMSPLITTER: w.act_add_bs,
+            ComponentType.TEXT: w.act_add_text,
+            ComponentType.RECTANGLE: w.act_add_rectangle,
+        })

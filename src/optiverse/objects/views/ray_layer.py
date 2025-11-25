@@ -7,8 +7,11 @@ so uncached rendering provides better performance than fighting cache invalidati
 """
 from __future__ import annotations
 
+import logging
 import time
 from PyQt6 import QtCore, QtGui, QtWidgets
+
+_logger = logging.getLogger(__name__)
 
 
 class DebugRayPathItem(QtWidgets.QGraphicsPathItem):
@@ -44,8 +47,10 @@ class DebugRayPathItem(QtWidgets.QGraphicsPathItem):
         if DebugRayPathItem.paint_count % 100 == 0:
             avg = sum(DebugRayPathItem.paint_times) / len(DebugRayPathItem.paint_times)
             max_time = max(DebugRayPathItem.paint_times)
-            print(f"   📊 Ray path item paints: {DebugRayPathItem.paint_count} total, "
-                  f"avg={avg:.3f}ms, max={max_time:.3f}ms, segments={self._segment_count}")
+            _logger.debug(
+                "Ray path item paints: %d total, avg=%.3fms, max=%.3fms, segments=%d",
+                DebugRayPathItem.paint_count, avg, max_time, self._segment_count
+            )
 
 
 class CachedRayLayer(QtWidgets.QGraphicsItemGroup):
@@ -151,8 +156,11 @@ class CachedRayLayer(QtWidgets.QGraphicsItemGroup):
             if segment_count == 0:
                 continue
             
-            print(f"  📉 Simplified {original_segment_count} segments → {segment_count} "
-                  f"({100 * (1 - segment_count/original_segment_count):.1f}% reduction)")
+            _logger.debug(
+                "Simplified %d segments -> %d (%.1f%% reduction)",
+                original_segment_count, segment_count,
+                100 * (1 - segment_count/original_segment_count)
+            )
             
             # Create graphics item for this style group (with debug tracking)
             item = DebugRayPathItem(combined_path)
@@ -268,8 +276,8 @@ class CachedRayLayer(QtWidgets.QGraphicsItemGroup):
             time_since_last = (paint_start - self._last_paint_time) * 1000
             self._last_paint_time = paint_start
             
-            print(f"🎨 PAINT #{self._paint_count}: avg={avg_time:.2f}ms, "
-                  f"min={min_time:.2f}ms, max={max_time:.2f}ms, "
-                  f"30 frames took {time_since_last:.0f}ms")
-            print(f"   Children: {len(self.childItems())} ray items")
+            _logger.debug(
+                "PAINT #%d: avg=%.2fms, min=%.2fms, max=%.2fms, 30 frames took %.0fms. Children: %d ray items",
+                self._paint_count, avg_time, min_time, max_time, time_since_last, len(self.childItems())
+            )
 

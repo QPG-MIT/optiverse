@@ -7,8 +7,12 @@ Architecture:
 This adapter bridges the old and new systems, enabling gradual migration.
 """
 from __future__ import annotations
+
+import logging
 from typing import List, Union, TYPE_CHECKING
 import numpy as np
+
+_logger = logging.getLogger(__name__)
 
 # Phase 1: Unified interface model
 from ..data import OpticalInterface, LineSegment, CurvedSegment, GeometrySegment
@@ -186,9 +190,7 @@ def convert_scene_to_polymorphic(scene_items) -> List[IOpticalElement]:
                     
             except Exception as e:
                 # Log error but continue with other components
-                print(f"Warning: Error converting {type(item).__name__}: {e}")
-                import traceback
-                traceback.print_exc()
+                _logger.warning("Error converting %s: %s", type(item).__name__, e, exc_info=True)
                 continue
     
     return elements

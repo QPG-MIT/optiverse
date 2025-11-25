@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import logging
 from PyQt6 import QtCore, QtGui, QtWidgets
+
+_logger = logging.getLogger(__name__)
 
 try:
     from PyQt6.QtOpenGLWidgets import QOpenGLWidget
@@ -34,13 +37,11 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 # Configure for proper background rendering
                 gl_widget.setAutoFillBackground(False)  # Let QGraphicsView draw background
                 self.setViewport(gl_widget)
-                print("✅ OpenGL viewport enabled - GPU-accelerated canvas rendering")
+                _logger.info("OpenGL viewport enabled - GPU-accelerated canvas rendering")
             except Exception as e:
-                print(f"⚠️  Failed to enable OpenGL viewport: {e}")
-                print("   Falling back to software rendering")
+                _logger.warning("Failed to enable OpenGL viewport: %s. Falling back to software rendering", e)
         else:
-            print("⚠️  PyOpenGL not available - using software rendering")
-            print("   Install with: pip install PyOpenGL")
+            _logger.debug("PyOpenGL not available - using software rendering")
         
         self.setRenderHints(
             QtGui.QPainter.RenderHint.Antialiasing | QtGui.QPainter.RenderHint.TextAntialiasing
@@ -100,6 +101,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
         self._pinch_start_scale = 1.0
         self._is_panning_gesture = False
         
+        # Saved transformation anchor during drag operations
+        self._saved_anchor: QtWidgets.QGraphicsView.ViewportAnchor | None = None
+        
         # Dark mode state
         self._dark_mode = self._detect_system_dark_mode() if is_macos() else False
         
@@ -127,6 +131,25 @@ class GraphicsView(QtWidgets.QGraphicsView):
     def is_dark_mode(self) -> bool:
         """Check if dark mode is enabled."""
         return self._dark_mode
+
+    def _restore_drag_state(self):
+        """Restore transformation anchor and reset mouse tracking after drag operations."""
+        # Restore transformation anchor
+        if self._saved_anchor is not None:
+            self.setTransformationAnchor(self._saved_anchor)
+            self._saved_anchor = None
+        
+        # Force Qt to update its internal mouse position tracking
+        # This ensures zoom-to-cursor works correctly after drag-and-drop
+        cursor_pos = self.mapFromGlobal(QtGui.QCursor.pos())
+        move_event = QtGui.QMouseEvent(
+            QtCore.QEvent.Type.MouseMove,
+            QtCore.QPointF(cursor_pos),
+            QtCore.Qt.MouseButton.NoButton,
+            QtCore.Qt.MouseButton.NoButton,
+            QtCore.Qt.KeyboardModifier.NoModifier
+        )
+        QtWidgets.QApplication.sendEvent(self.viewport(), move_event)
 
     def wheelEvent(self, e: QtGui.QWheelEvent):
         """Handle wheel events including Mac trackpad scrolling.
@@ -593,9 +616,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 self._make_ghost(rec, self.mapToScene(e.position().toPoint()))
             except Exception as ex:
                 # Log error for debugging
-                import traceback
-                print(f"Ghost preview error: {ex}")
-                traceback.print_exc()
+                _logger.warning("Ghost preview error: %s", ex, exc_info=True)
             e.acceptProposedAction()
         elif md.hasImage() or md.hasUrls():
             # Also save anchor for image/URL drag operations
@@ -616,7 +637,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
                     self._ghost_item.setPos(self.mapToScene(e.position().toPoint()))
                     self.viewport().update()  # Force redraw as ghost moves
             except Exception as ex:
-                print(f"Ghost move error: {ex}")
+                _logger.warning("Ghost move error: %s", ex)
             e.acceptProposedAction()
         elif md.hasImage() or md.hasUrls():
             e.acceptProposedAction()
@@ -624,23 +645,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
     def dragLeaveEvent(self, e: QtGui.QDragLeaveEvent):
         """Clear ghost when drag leaves the view."""
         self._clear_ghost()
-        # Restore transformation anchor when drag leaves
-        if hasattr(self, '_saved_anchor'):
-            self.setTransformationAnchor(self._saved_anchor)
-            delattr(self, '_saved_anchor')
-        
-        # Force Qt to update its internal mouse position tracking
-        # This ensures zoom-to-cursor works correctly if drag is cancelled
-        cursor_pos = self.mapFromGlobal(QtGui.QCursor.pos())
-        move_event = QtGui.QMouseEvent(
-            QtCore.QEvent.Type.MouseMove,
-            QtCore.QPointF(cursor_pos),
-            QtCore.Qt.MouseButton.NoButton,
-            QtCore.Qt.MouseButton.NoButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
-        )
-        QtWidgets.QApplication.sendEvent(self.viewport(), move_event)
-        
+        self._restore_drag_state()
         e.accept()
 
     def dropEvent(self, e: QtGui.QDropEvent):
@@ -665,26 +670,8 @@ class GraphicsView(QtWidgets.QGraphicsView):
 
                 # Finalize: remove ghost and create the real object
                 self._clear_ghost()
-                
-                # Restore transformation anchor after drag completes
-                if hasattr(self, '_saved_anchor'):
-                    self.setTransformationAnchor(self._saved_anchor)
-                    delattr(self, '_saved_anchor')
-
+                self._restore_drag_state()
                 self.main_window.on_drop_component(rec, scene_pos)
-                
-                # Force Qt to update its internal mouse position tracking by sending a synthetic mouse move
-                # This ensures zoom-to-cursor works correctly after drag-and-drop operations
-                # Without this, Qt's internal mouse tracking can get stuck, causing buggy zoom behavior
-                cursor_pos = self.mapFromGlobal(QtGui.QCursor.pos())
-                move_event = QtGui.QMouseEvent(
-                    QtCore.QEvent.Type.MouseMove,
-                    QtCore.QPointF(cursor_pos),
-                    QtCore.Qt.MouseButton.NoButton,
-                    QtCore.Qt.MouseButton.NoButton,
-                    QtCore.Qt.KeyboardModifier.NoModifier
-                )
-                QtWidgets.QApplication.sendEvent(self.viewport(), move_event)
             
             e.acceptProposedAction()
             return
@@ -702,22 +689,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 item = QtWidgets.QGraphicsPixmapItem(pix)
                 item.setPos(scene_pos - QtCore.QPointF(pix.width() / 2, pix.height() / 2))
                 scene.addItem(item)
-                # Restore transformation anchor after drop
-                if hasattr(self, '_saved_anchor'):
-                    self.setTransformationAnchor(self._saved_anchor)
-                    delattr(self, '_saved_anchor')
-                
-                # Force Qt to update mouse position tracking after drop
-                cursor_pos = self.mapFromGlobal(QtGui.QCursor.pos())
-                move_event = QtGui.QMouseEvent(
-                    QtCore.QEvent.Type.MouseMove,
-                    QtCore.QPointF(cursor_pos),
-                    QtCore.Qt.MouseButton.NoButton,
-                    QtCore.Qt.MouseButton.NoButton,
-                    QtCore.Qt.KeyboardModifier.NoModifier
-                )
-                QtWidgets.QApplication.sendEvent(self.viewport(), move_event)
-                
+                self._restore_drag_state()
                 e.acceptProposedAction()
                 return
 
@@ -732,41 +704,12 @@ class GraphicsView(QtWidgets.QGraphicsView):
                             item = QtWidgets.QGraphicsPixmapItem(pix)
                             item.setPos(scene_pos - QtCore.QPointF(pix.width() / 2, pix.height() / 2))
                             scene.addItem(item)
-                            # Restore transformation anchor after drop
-                            if hasattr(self, '_saved_anchor'):
-                                self.setTransformationAnchor(self._saved_anchor)
-                                delattr(self, '_saved_anchor')
-                            
-                            # Force Qt to update mouse position tracking after drop
-                            cursor_pos = self.mapFromGlobal(QtGui.QCursor.pos())
-                            move_event = QtGui.QMouseEvent(
-                                QtCore.QEvent.Type.MouseMove,
-                                QtCore.QPointF(cursor_pos),
-                                QtCore.Qt.MouseButton.NoButton,
-                                QtCore.Qt.MouseButton.NoButton,
-                                QtCore.Qt.KeyboardModifier.NoModifier
-                            )
-                            QtWidgets.QApplication.sendEvent(self.viewport(), move_event)
-                            
+                            self._restore_drag_state()
                             e.acceptProposedAction()
                             return
         
-        # If we get here without accepting, restore anchor and ignore
-        if hasattr(self, '_saved_anchor'):
-            self.setTransformationAnchor(self._saved_anchor)
-            delattr(self, '_saved_anchor')
-        
-        # Force Qt to update mouse position tracking even if drop is rejected
-        cursor_pos = self.mapFromGlobal(QtGui.QCursor.pos())
-        move_event = QtGui.QMouseEvent(
-            QtCore.QEvent.Type.MouseMove,
-            QtCore.QPointF(cursor_pos),
-            QtCore.Qt.MouseButton.NoButton,
-            QtCore.Qt.MouseButton.NoButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
-        )
-        QtWidgets.QApplication.sendEvent(self.viewport(), move_event)
-        
+        # If we get here without accepting, restore state and ignore
+        self._restore_drag_state()
         e.ignore()
 
     # ----- Pan Controls (Phase 3.1: Space + Middle Button) -----
@@ -853,9 +796,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
         # When QGraphicsView has a QOpenGLWidget viewport, all QPainter operations
         # (including QGraphicsPathItem) are GPU-accelerated automatically
         if OPENGL_AVAILABLE:
-            print("✅ Ray rendering via OpenGL viewport (GPU-accelerated)")
+            _logger.info("Ray rendering via OpenGL viewport (GPU-accelerated)")
         else:
-            print("ℹ️  Using software ray rendering (no OpenGL)")
+            _logger.debug("Using software ray rendering (no OpenGL)")
         self._ray_gl_widget = None
     
     def update_ray_overlay(self, ray_paths: list, width_px: float):

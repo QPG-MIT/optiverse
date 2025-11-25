@@ -12,6 +12,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from .collaboration_service import CollaborationService
 from .log_service import get_log_service
 from ..objects.type_registry import TypeRegistry
+from ..core.protocols import Serializable, HasShape, Editable, Lockable
 
 if TYPE_CHECKING:
     from ..ui.views.main_window import MainWindow
@@ -87,7 +88,7 @@ class CollaborationManager(QObject):
         
         if not use_current_canvas:
             # Clear the canvas for empty session
-            if hasattr(self.main_window, 'scene') and self.main_window.scene:
+            if self.main_window.scene:
                 self.main_window.scene.clear()
             self.item_uuid_map.clear()
         else:
@@ -113,7 +114,7 @@ class CollaborationManager(QObject):
         self.initial_sync_complete = False  # Client needs initial sync
         
         # Clear canvas before joining
-        if hasattr(self.main_window, 'scene') and self.main_window.scene:
+        if self.main_window.scene:
             self.main_window.scene.clear()
         self.item_uuid_map.clear()
         
@@ -149,19 +150,19 @@ class CollaborationManager(QObject):
     def rebuild_uuid_map(self) -> None:
         """Rebuild the UUID map from current scene items."""
         self.item_uuid_map.clear()
-        if not hasattr(self.main_window, 'scene'):
+        if not self.main_window.scene:
             return
         
         for item in self.main_window.scene.items():
-            if hasattr(item, 'item_uuid'):
+            if isinstance(item, Serializable):
                 self.item_uuid_map[item.item_uuid] = item
     
-    def broadcast_add_item(self, item: Any) -> None:
+    def broadcast_add_item(self, item: Serializable) -> None:
         """
         Broadcast that an item was added locally.
         
         Args:
-            item: The item that was added
+            item: The item that was added (must be Serializable)
         """
         if not self.enabled or self._suppress_broadcast:
             return
@@ -170,7 +171,7 @@ class CollaborationManager(QObject):
         if not self.initial_sync_complete:
             return
         
-        if not hasattr(item, 'item_uuid') or not hasattr(item, 'to_dict'):
+        if not isinstance(item, Serializable):
             return
         
         item_type = self._get_item_type(item)
@@ -183,9 +184,9 @@ class CollaborationManager(QObject):
         # Increment version
         self._increment_version()
         
-        # Log the broadcast
-        pos = (item.x(), item.y()) if hasattr(item, 'x') and hasattr(item, 'y') else (0, 0)
-        self.log.info(f"📤 Broadcasting ADD: {item_type} at ({pos[0]:.0f}, {pos[1]:.0f})", "Collaboration")
+        # Log the broadcast (all QGraphicsItems have x/y)
+        pos = (item.x(), item.y())
+        self.log.info(f"Broadcasting ADD: {item_type} at ({pos[0]:.0f}, {pos[1]:.0f})", "Collaboration")
         
         # Broadcast to other users
         data = item.to_dict()
@@ -198,27 +199,27 @@ class CollaborationManager(QObject):
             data=data
         )
     
-    def broadcast_move_item(self, item: Any) -> None:
+    def broadcast_move_item(self, item: Serializable) -> None:
         """
         Broadcast that an item was moved locally.
         
         Args:
-            item: The item that was moved
+            item: The item that was moved (must be Serializable)
         """
         if not self.enabled or self._suppress_broadcast:
             return
         
-        if not hasattr(item, 'item_uuid') or not hasattr(item, 'to_dict'):
+        if not isinstance(item, Serializable):
             return
         
         item_type = self._get_item_type(item)
         if not item_type:
             return
         
-        # Log the broadcast
-        pos = (item.x(), item.y()) if hasattr(item, 'x') and hasattr(item, 'y') else (0, 0)
-        rot = item.rotation() if hasattr(item, 'rotation') else 0
-        self.log.debug(f"📤 Broadcasting MOVE: {item_type} to ({pos[0]:.0f}, {pos[1]:.0f}) rot={rot:.0f}°", "Collaboration")
+        # Log the broadcast (all QGraphicsItems have x/y/rotation)
+        pos = (item.x(), item.y())
+        rot = item.rotation()
+        self.log.debug(f"Broadcasting MOVE: {item_type} to ({pos[0]:.0f}, {pos[1]:.0f}) rot={rot:.0f} deg", "Collaboration")
         
         data = item.to_dict()
         data['item_uuid'] = item.item_uuid
@@ -229,17 +230,17 @@ class CollaborationManager(QObject):
             data=data
         )
     
-    def broadcast_remove_item(self, item: Any) -> None:
+    def broadcast_remove_item(self, item: Serializable) -> None:
         """
         Broadcast that an item was removed locally.
         
         Args:
-            item: The item that was removed
+            item: The item that was removed (must be Serializable)
         """
         if not self.enabled or self._suppress_broadcast:
             return
         
-        if not hasattr(item, 'item_uuid'):
+        if not isinstance(item, Serializable):
             return
         
         item_type = self._get_item_type(item)
@@ -251,7 +252,7 @@ class CollaborationManager(QObject):
             del self.item_uuid_map[item.item_uuid]
         
         # Log the broadcast
-        self.log.info(f"📤 Broadcasting REMOVE: {item_type}", "Collaboration")
+        self.log.info(f"Broadcasting REMOVE: {item_type}", "Collaboration")
         
         self.collaboration_service.send_command(
             action="remove_item",
@@ -260,17 +261,17 @@ class CollaborationManager(QObject):
             data={}
         )
     
-    def broadcast_update_item(self, item: Any) -> None:
+    def broadcast_update_item(self, item: Serializable) -> None:
         """
         Broadcast that an item was updated locally.
         
         Args:
-            item: The item that was updated
+            item: The item that was updated (must be Serializable)
         """
         if not self.enabled or self._suppress_broadcast:
             return
         
-        if not hasattr(item, 'item_uuid') or not hasattr(item, 'to_dict'):
+        if not isinstance(item, Serializable):
             return
         
         item_type = self._get_item_type(item)
@@ -278,7 +279,7 @@ class CollaborationManager(QObject):
             return
         
         # Log the broadcast
-        self.log.info(f"📤 Broadcasting UPDATE: {item_type}", "Collaboration")
+        self.log.info(f"Broadcasting UPDATE: {item_type}", "Collaboration")
         
         data = item.to_dict()
         data['item_uuid'] = item.item_uuid
@@ -289,7 +290,7 @@ class CollaborationManager(QObject):
             data=data
         )
     
-    def _get_item_type(self, item: Any) -> Optional[str]:
+    def _get_item_type(self, item: Serializable) -> Optional[str]:
         """Get the type string for an item using centralized TypeRegistry."""
         return TypeRegistry.get_type_for_item(item)
     
@@ -372,7 +373,7 @@ class CollaborationManager(QObject):
         if item:
             # Log the remote add
             pos = (data.get('x_mm', 0), data.get('y_mm', 0))
-            self.log.info(f"📥 Applying ADD: {item_type} at ({pos[0]:.0f}, {pos[1]:.0f})", "Collaboration")
+            self.log.info(f"Received ADD: {item_type} at ({pos[0]:.0f}, {pos[1]:.0f})", "Collaboration")
             
             # Add to scene
             self.main_window.scene.addItem(item)
@@ -384,7 +385,7 @@ class CollaborationManager(QObject):
             if self.main_window.autotrace:
                 self.main_window.retrace()
         else:
-            self.log.error(f"📥 ADD failed: couldn't create {item_type}", "Collaboration")
+            self.log.error(f"ADD failed: couldn't create {item_type}", "Collaboration")
         
         self.remote_item_added.emit(item_type, data)
     
@@ -449,15 +450,16 @@ class CollaborationManager(QObject):
             item = self.item_uuid_map[item_uuid]
             pos = (data.get('x_mm', 0), data.get('y_mm', 0))
             rot = data.get('angle_deg', 0)
-            self.log.debug(f"📥 Applying MOVE: to ({pos[0]:.0f}, {pos[1]:.0f}) rot={rot:.0f}°", "Collaboration")
+            self.log.debug(f"Received MOVE: to ({pos[0]:.0f}, {pos[1]:.0f}) rot={rot:.0f} deg", "Collaboration")
             
-            if hasattr(item, 'setPos') and 'x_mm' in data and 'y_mm' in data:
+            # All items in uuid_map are QGraphicsItems with setPos/setRotation
+            if 'x_mm' in data and 'y_mm' in data:
                 item.setPos(data['x_mm'], data['y_mm'])
-            if hasattr(item, 'setRotation') and 'angle_deg' in data:
+            if 'angle_deg' in data:
                 item.setRotation(data['angle_deg'])
         else:
             # Item not found, might need to add it
-            self.log.warning(f"📥 MOVE failed: item {item_uuid[:8]} not found", "Collaboration")
+            self.log.warning(f"MOVE failed: item {item_uuid[:8]} not found", "Collaboration")
             self.remote_item_moved.emit(item_uuid, data)
     
     def _apply_remove_item(self, item_uuid: str) -> None:
@@ -465,13 +467,13 @@ class CollaborationManager(QObject):
         if item_uuid in self.item_uuid_map:
             item = self.item_uuid_map[item_uuid]
             item_type = self._get_item_type(item)
-            self.log.info(f"📥 Applying REMOVE: {item_type}", "Collaboration")
+            self.log.info(f"Received REMOVE: {item_type}", "Collaboration")
             
-            if hasattr(self.main_window, 'scene') and self.main_window.scene:
+            if self.main_window.scene:
                 self.main_window.scene.removeItem(item)
             del self.item_uuid_map[item_uuid]
         else:
-            self.log.warning(f"📥 REMOVE failed: item {item_uuid[:8]} not found", "Collaboration")
+            self.log.warning(f"REMOVE failed: item {item_uuid[:8]} not found", "Collaboration")
         self.remote_item_removed.emit(item_uuid)
     
     def _apply_update_item(self, item_uuid: str, data: Dict[str, Any]) -> None:
@@ -479,7 +481,7 @@ class CollaborationManager(QObject):
         if item_uuid in self.item_uuid_map:
             item = self.item_uuid_map[item_uuid]
             item_type = self._get_item_type(item)
-            self.log.info(f"📥 Applying UPDATE: {item_type}", "Collaboration")
+            self.log.info(f"Received UPDATE: {item_type}", "Collaboration")
             
             # For BaseObj items, use deserialize_item to update
             from ..objects import BaseObj
@@ -497,22 +499,22 @@ class CollaborationManager(QObject):
                     item.setPos(updated_item.pos())
                     item.setRotation(updated_item.rotation())
                     item.setZValue(updated_item.zValue())
-                    if hasattr(updated_item, '_locked'):
-                        item.set_locked(updated_item._locked)
+                    if isinstance(updated_item, Lockable):
+                        item.set_locked(updated_item.is_locked())
                     # Trigger update
-                    if hasattr(item, '_update_geom'):
+                    if isinstance(item, HasShape):
                         item._update_geom()
-                    if hasattr(item, 'update'):
+                    if isinstance(item, Editable):
                         item.update()
-            elif hasattr(item, 'from_dict'):
-                # Annotation items use their own from_dict
+            elif callable(getattr(item, 'from_dict', None)):
+                # Annotation items use their own from_dict method
                 data_copy = data.copy()
                 data_copy.pop('uuid', None)
                 data_copy.pop('item_uuid', None)
                 data_copy.pop('item_type', None)
                 item.from_dict(data_copy)
         else:
-            self.log.warning(f"📥 UPDATE failed: item {item_uuid[:8]} not found", "Collaboration")
+            self.log.warning(f"UPDATE failed: item {item_uuid[:8]} not found", "Collaboration")
         self.remote_item_updated.emit(item_uuid, data)
     
     def _on_sync_state_received(self, message: Dict[str, Any]) -> None:
@@ -532,7 +534,7 @@ class CollaborationManager(QObject):
             self.log.info(f"Resolving with strategy: {conflict_resolution}", "Collaboration")
         
         # Clear scene before applying state (host wins by default)
-        if hasattr(self.main_window, 'scene') and self.main_window.scene:
+        if self.main_window.scene:
             # Remove all items from scene
             for item in list(self.main_window.scene.items()):
                 self.main_window.scene.removeItem(item)
@@ -557,10 +559,9 @@ class CollaborationManager(QObject):
             self.initial_sync_complete = True
             self.needs_resync = False
             
-            # Retrace if needed
-            if hasattr(self.main_window, 'autotrace') and self.main_window.autotrace:
-                if hasattr(self.main_window, 'retrace'):
-                    self.main_window.retrace()
+            # Retrace if needed (autotrace and retrace always exist on MainWindow)
+            if self.main_window.autotrace:
+                self.main_window.retrace()
             
             self.log.info(f"State sync complete - version {self.session_version}", "Collaboration")
         finally:
@@ -599,7 +600,7 @@ class CollaborationManager(QObject):
         """
         items = []
         for item_uuid, item in self.item_uuid_map.items():
-            if hasattr(item, 'to_dict'):
+            if isinstance(item, Serializable):
                 item_data = item.to_dict()
                 item_data['uuid'] = item_uuid
                 item_data['item_type'] = self._get_item_type(item)

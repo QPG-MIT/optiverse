@@ -6,17 +6,20 @@ of segments. This replaces Qt's slow software rasterizer with hardware accelerat
 """
 from __future__ import annotations
 
+import logging
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtOpenGLWidgets import QOpenGLWidget
 from PyQt6.QtOpenGL import QOpenGLShaderProgram, QOpenGLShader, QOpenGLVertexArrayObject, QOpenGLBuffer
+
+_logger = logging.getLogger(__name__)
 
 try:
     from OpenGL import GL
     OPENGL_AVAILABLE = True
 except ImportError:
     OPENGL_AVAILABLE = False
-    print("Warning: PyOpenGL not available. Install with: pip install PyOpenGL")
+    _logger.debug("PyOpenGL not available. Install with: pip install PyOpenGL")
 
 
 class RayOpenGLWidget(QOpenGLWidget):
@@ -73,7 +76,7 @@ class RayOpenGLWidget(QOpenGLWidget):
     def initializeGL(self):
         """Initialize OpenGL context, shaders, and buffers."""
         if not OPENGL_AVAILABLE:
-            print("OpenGL not available - ray rendering will be disabled")
+            _logger.debug("OpenGL not available - ray rendering will be disabled")
             return
         
         # Set clear color to FULLY TRANSPARENT (critical for overlay)
@@ -128,30 +131,30 @@ class RayOpenGLWidget(QOpenGLWidget):
         
         # Compile shaders
         if not self.shader_program.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Vertex, vertex_shader_source):
-            print(f"Vertex shader error: {self.shader_program.log()}")
+            _logger.error("Vertex shader error: %s", self.shader_program.log())
             return
         
         if not self.shader_program.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Fragment, fragment_shader_source):
-            print(f"Fragment shader error: {self.shader_program.log()}")
+            _logger.error("Fragment shader error: %s", self.shader_program.log())
             return
         
         if not self.shader_program.link():
-            print(f"Shader linking error: {self.shader_program.log()}")
+            _logger.error("Shader linking error: %s", self.shader_program.log())
             return
         
         # Create VAO (Vertex Array Object)
         self.vao = QOpenGLVertexArrayObject()
         if not self.vao.create():
-            print("Failed to create VAO")
+            _logger.error("Failed to create VAO")
             return
         
         # Create VBO (Vertex Buffer Object)
         self.vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
         if not self.vbo.create():
-            print("Failed to create VBO")
+            _logger.error("Failed to create VBO")
             return
         
-        print(f"✅ OpenGL initialized: Shaders compiled, buffers created")
+        _logger.info("OpenGL initialized: Shaders compiled, buffers created")
     
     def paintGL(self):
         """Render rays using OpenGL."""
@@ -190,7 +193,7 @@ class RayOpenGLWidget(QOpenGLWidget):
         # Track frames
         self.frame_count += 1
         if self.frame_count % 300 == 0:
-            print(f"🎮 OpenGL: Rendered {self.frame_count} frames, {self.vertex_count // 2} segments")
+            _logger.debug("OpenGL: Rendered %d frames, %d segments", self.frame_count, self.vertex_count // 2)
     
     def resizeGL(self, w: int, h: int):
         """Handle widget resize."""
@@ -254,7 +257,7 @@ class RayOpenGLWidget(QOpenGLWidget):
         # Trigger repaint
         self.update()
         
-        print(f"🎮 Uploaded {self.vertex_count // 2} ray segments to GPU")
+        _logger.debug("Uploaded %d ray segments to GPU", self.vertex_count // 2)
     
     def _upload_to_gpu(self):
         """Upload vertex data to GPU buffer."""

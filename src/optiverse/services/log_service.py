@@ -7,9 +7,12 @@ All debug messages are timestamped and stored in memory.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import List, Callable
 from enum import Enum
+
+_logger = logging.getLogger(__name__)
 
 
 class LogLevel(Enum):
@@ -99,7 +102,7 @@ class LogService:
                 listener(log_msg)
             except Exception as e:
                 # Don't let listener errors break logging
-                print(f"Error in log listener: {e}")
+                _logger.debug("Error in log listener: %s", e)
     
     def debug(self, message: str, category: str = "General"):
         """Log a debug message."""

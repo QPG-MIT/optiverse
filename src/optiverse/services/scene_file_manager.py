@@ -16,6 +16,9 @@ from typing import TYPE_CHECKING, Callable, Optional
 
 from PyQt6 import QtWidgets
 
+from ..core.protocols import Serializable
+from ..core.exceptions import AssemblyLoadError, AssemblySaveError
+
 if TYPE_CHECKING:
     from .log_service import LogService
 
@@ -122,7 +125,7 @@ class SceneFileManager:
         }
         
         for it in self.scene.items():
-            if isinstance(it, BaseObj) and hasattr(it, 'type_name'):
+            if isinstance(it, BaseObj) and isinstance(it, Serializable):
                 data["items"].append(it.to_dict())
             elif isinstance(it, RulerItem):
                 data["rulers"].append(it.to_dict())
@@ -171,7 +174,8 @@ class SceneFileManager:
             
             self.log_service.debug(f"Autosaved to {autosave_path}", "Autosave")
             
-        except Exception as e:
+        except (OSError, TypeError) as e:
+            # OSError for file operations, TypeError for JSON serialization issues
             self.log_service.error(f"Autosave failed: {e}", "Autosave")
     
     def clear_autosave(self):
@@ -181,7 +185,7 @@ class SceneFileManager:
                 os.unlink(self._autosave_path)
                 self._autosave_path = None
                 self.log_service.debug("Cleared autosave file", "Autosave")
-        except Exception as e:
+        except OSError as e:
             self.log_service.error(f"Failed to clear autosave: {e}", "Autosave")
     
     def load_from_data(self, data: dict):
@@ -201,7 +205,8 @@ class SceneFileManager:
             try:
                 item = deserialize_item(item_data)
                 self.scene.addItem(item)
-            except Exception as e:
+            except (KeyError, ValueError, TypeError) as e:
+                # KeyError: missing required fields, ValueError/TypeError: invalid data
                 self.log_service.error(f"Error loading item: {e}", "Load")
         
         # Load annotations
@@ -220,7 +225,8 @@ class SceneFileManager:
             try:
                 item = PathMeasureItem.from_dict(pm_data, ray_data)
                 self.scene.addItem(item)
-            except Exception as e:
+            except (KeyError, ValueError, TypeError) as e:
+                # KeyError: missing required fields, ValueError/TypeError: invalid data
                 self.log_service.error(f"Error loading path measure: {e}", "Load")
     
     def _format_time_ago(self, delta: datetime.timedelta) -> str:
@@ -307,7 +313,9 @@ class SceneFileManager:
             else:
                 most_recent.unlink()
                 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, KeyError, ValueError) as e:
+            # OSError: file access, JSONDecodeError: corrupt file
+            # KeyError/ValueError: invalid data structure
             self.log_service.error(f"Failed to recover autosave: {e}", "Recovery")
         
         return False
@@ -317,7 +325,10 @@ class SceneFileManager:
         Save scene to specified file path.
         
         Returns:
-            True if save was successful, False otherwise
+            True if save was successful
+        
+        Raises:
+            AssemblySaveError: If the file cannot be saved
         """
         data = self.serialize_scene()
         
@@ -330,27 +341,24 @@ class SceneFileManager:
             self.clear_autosave()
             return True
             
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(
-                self.parent_widget, "Save error", str(e)
-            )
-            return False
+        except (OSError, json.JSONDecodeError) as e:
+            raise AssemblySaveError(path, str(e)) from e
     
     def open_file(self, path: str) -> bool:
         """
         Open and load a scene file.
         
         Returns:
-            True if open was successful, False otherwise
+            True if open was successful
+        
+        Raises:
+            AssemblyLoadError: If the file cannot be opened or parsed
         """
         try:
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(
-                self.parent_widget, "Open error", str(e)
-            )
-            return False
+        except (OSError, json.JSONDecodeError) as e:
+            raise AssemblyLoadError(path, str(e)) from e
         
         self.load_from_data(data)
         self._saved_file_path = path

@@ -7,11 +7,14 @@ and logging integration. Prevents the application from crashing on errors.
 
 from __future__ import annotations
 
+import logging
 import sys
 import traceback
 from typing import Optional, Callable
 from PyQt6 import QtWidgets, QtCore
 from .log_service import get_log_service
+
+_logger = logging.getLogger(__name__)
 
 
 class ErrorHandler:
@@ -78,7 +81,7 @@ class ErrorHandler:
             try:
                 self._error_callback(exc_value, tb_str)
             except Exception as e:
-                print(f"Error in error callback: {e}")
+                _logger.error("Error in error callback: %s", e)
     
     def show_error_dialog(self, title: str, message: str, details: str = ""):
         """
@@ -92,14 +95,10 @@ class ErrorHandler:
         # Get the QApplication instance
         app = QtWidgets.QApplication.instance()
         if not app:
-            # No Qt application running, print to console
-            print(f"\n{'='*60}")
-            print(f"ERROR: {title}")
-            print(f"{'='*60}")
-            print(message)
+            # No Qt application running, log to console
+            _logger.error("ERROR: %s - %s", title, message)
             if details:
-                print(f"\nDetails:\n{details}")
-            print(f"{'='*60}\n")
+                _logger.debug("Details:\n%s", details)
             return
         
         # Create error dialog
@@ -141,7 +140,7 @@ class ErrorHandler:
             try:
                 self._error_callback(error, tb_str)
             except Exception as e:
-                print(f"Error in error callback: {e}")
+                _logger.error("Error in error callback: %s", e)
 
 
 # Global singleton instance

@@ -50,9 +50,11 @@ class Serializable(Protocol):
     Items implementing this protocol:
     - Can convert to a dict via `to_dict()`
     - Have a type_name for identification
+    - Have a unique item_uuid for collaboration
     """
     
     type_name: str
+    item_uuid: str
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert item state to a dictionary for serialization."""

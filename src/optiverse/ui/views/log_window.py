@@ -242,7 +242,7 @@ class LogWindow(QtWidgets.QDialog):
                     "Export Successful",
                     f"Log exported to:\n{filename}"
                 )
-            except Exception as e:
+            except OSError as e:
                 QtWidgets.QMessageBox.critical(
                     self,
                     "Export Failed",

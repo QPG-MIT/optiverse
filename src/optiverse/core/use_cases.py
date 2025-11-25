@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 import math
 import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Tuple
 
 import numpy as np
+
+_logger = logging.getLogger(__name__)
 
 from .raytracing_math import (
     deg2rad, normalize, reflect_vec, ray_hit_element, ray_hit_curved_element,
@@ -465,7 +468,7 @@ def trace_rays(
         parallel = NUMBA_AVAILABLE
         if not NUMBA_AVAILABLE and parallel:
             # This shouldn't happen with parallel=None, but just in case
-            print("Note: Parallel processing disabled (Numba not available)")
+            _logger.debug("Parallel processing disabled (Numba not available)")
     # Prepare element lists
     mirrors = [(e, e.p1, e.p2) for e in elements if e.kind == "mirror"]
     lenses = [(e, e.p1, e.p2) for e in elements if e.kind == "lens"]
@@ -547,7 +550,7 @@ def trace_rays(
             return paths
         except Exception as e:
             # If parallel processing fails, fall back to sequential
-            print(f"Warning: Parallel raytracing failed ({e}), falling back to sequential processing")
+            _logger.warning("Parallel raytracing failed (%s), falling back to sequential processing", e)
             use_parallel = False
     
     if not use_parallel:

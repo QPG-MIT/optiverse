@@ -12,7 +12,6 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from ...core.constants import (
     SCENE_SIZE_MM,
     SCENE_MIN_COORD,
-    AUTOSAVE_DEBOUNCE_MS,
     DEFAULT_WINDOW_WIDTH,
     DEFAULT_WINDOW_HEIGHT,
 )
@@ -22,6 +21,7 @@ from ...core.ui_constants import (
 )
 from ...core.component_types import ComponentType
 from ...core.editor_state import EditorMode, EditorState
+from ...core.protocols import Editable
 from ...core.models import SourceParams
 from ...core.snap_helper import SnapHelper
 from ...core.undo_commands import AddItemCommand
@@ -31,7 +31,7 @@ from ...services.storage_service import StorageService
 from ...services.collaboration_manager import CollaborationManager
 from ...services.log_service import get_log_service
 from ...services.error_handler import get_error_handler, ErrorContext
-from ..controllers import RaytracingController
+from ..controllers import RaytracingController, FileController, CollaborationController, ToolModeController
 from ..controllers.library_manager import LibraryManager
 from ..controllers.item_drag_handler import ItemDragHandler
 from ..controllers.component_operations import ComponentOperationsHandler
@@ -42,7 +42,6 @@ from .log_window import LogWindow
 from .tool_handlers import InspectToolHandler, PathMeasureToolHandler, point_to_segment_distance
 from .placement_handler import PlacementHandler
 from ..builders import ActionBuilder
-from ...services.scene_file_manager import SceneFileManager
 from ...objects import (
     GraphicsView,
     RulerItem,
@@ -94,26 +93,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # Centralized editor state (replaces scattered boolean flags)
         self._editor_state = EditorState()
         
-        # Path measure tool state (managed by handler, kept here for compatibility)
-        self._path_measure_state = None  # 'waiting_first_click' or 'waiting_second_click'
-        self._path_measure_ray_index = None
-        self._path_measure_start_param = None
-        self._path_measure_temp_item = None  # Temporary visual feedback item
-        
-        # Autosave timer with debouncing (triggered by significant changes)
-        self._autosave_timer = QtCore.QTimer()
-        self._autosave_timer.setSingleShot(True)
-        self._autosave_timer.setInterval(AUTOSAVE_DEBOUNCE_MS)
-        self._autosave_timer.timeout.connect(self._do_autosave)
-        
-        # Placement ghost item (managed by PlacementHandler)
-        self._placement_ghost = None
-        
         # Cache standard component templates for toolbar placement
-        # Maps toolbar type strings to library component data
         self._component_templates = {}
-        
-        # Grid now drawn in GraphicsView.drawBackground() for better performance
         
         # Snap helper for magnetic alignment
         self._snap_helper = SnapHelper(tolerance_px=MAGNETIC_SNAP_TOLERANCE_PX)
@@ -128,10 +109,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.collaboration_manager = CollaborationManager(self)
         self.log_service = get_log_service()
         self.log_service.debug("MainWindow.__init__ called", "Init")
-        self.collab_server_process = None  # Track hosted server process
-        
-        # Track unsaved changes (synced from file_manager via _on_modified_changed)
-        self._is_modified = False
         
         # Load saved preferences
         self.magnetic_snap = self.settings_service.get_value("magnetic_snap", True, bool)
@@ -143,33 +120,30 @@ class MainWindow(QtWidgets.QMainWindow):
         from ..theme_manager import apply_theme
         apply_theme(dark_mode_saved)
         
-        # Connect collaboration signals
-        # Note: remote_item_added is handled internally by CollaborationManager._apply_add_item()
-        # We only need to update UI status here
-        self.collaboration_manager.status_changed.connect(self._on_collaboration_status_changed)
-        
         # Initialize extracted handlers
         self._init_handlers()
 
         # Build library dock first (needed before menus reference libDock)
         self._build_library_dock()
         
+        # Tool mode controller - manages inspect, path measure, placement modes
+        self.tool_controller = ToolModeController(
+            editor_state=self._editor_state,
+            view=self.view,
+            path_measure_handler=self.path_measure_handler,
+            placement_handler=self.placement_handler,
+            parent=self,
+        )
+        
         # Build UI using ActionBuilder
         action_builder = ActionBuilder(self)
         action_builder.build_all()
-        
-        # Mark canvas as modified when commands are pushed
-        self._connect_modification_tracking()
 
         # Install event filter for snap and ruler placement
         self.scene.installEventFilter(self)
-        # Grid is now drawn automatically in GraphicsView.drawBackground()
         
         # Check for autosave recovery on startup
-        QtCore.QTimer.singleShot(100, self._check_autosave_recovery)
-        
-        # Set initial window title
-        self._update_window_title()
+        QtCore.QTimer.singleShot(100, self.file_controller.check_autosave_recovery)
     
     def _init_handlers(self):
         """Initialize extracted handler classes."""
@@ -184,14 +158,25 @@ class MainWindow(QtWidgets.QMainWindow):
             parent=self,
         )
         
-        # Scene file manager - handles save/load/autosave
-        self.file_manager = SceneFileManager(
+        # File controller - handles save/load/autosave with UI
+        self.file_controller = FileController(
             scene=self.scene,
+            undo_stack=self.undo_stack,
             log_service=self.log_service,
             get_ray_data=self._get_ray_data,
-            on_modified=self._on_modified_changed,
             parent_widget=self,
         )
+        # Connect file controller signals
+        self.file_controller.traceRequested.connect(self._schedule_retrace)
+        self.file_controller.windowTitleChanged.connect(self.setWindowTitle)
+        
+        # Collaboration controller - handles hosting/joining sessions
+        self.collab_controller = CollaborationController(
+            collaboration_manager=self.collaboration_manager,
+            log_service=self.log_service,
+            parent_widget=self,
+        )
+        # Status updates are connected via ActionBuilder to status label
         
         # Inspect tool handler
         self.inspect_handler = InspectToolHandler(
@@ -238,84 +223,6 @@ class MainWindow(QtWidgets.QMainWindow):
     # Grid is now drawn in GraphicsView.drawBackground() for much better performance
     # No need for _draw_grid() method anymore!
 
-    def _connect_modification_tracking(self):
-        """Connect signals to track when canvas is modified."""
-        # Connect to commandPushed signal instead of monkey-patching
-        self.undo_stack.commandPushed.connect(self._on_command_pushed)
-    
-    def _on_command_pushed(self):
-        """Handle command pushed - mark modified and schedule autosave."""
-        self._mark_modified()
-        # Schedule autosave after significant changes (not during drag)
-        self._schedule_autosave()
-
-    def _mark_modified(self):
-        """Mark the canvas as having unsaved changes."""
-        self.file_manager.mark_modified()
-        # NOTE: _is_modified is synced via _on_modified_changed callback
-
-    def _mark_clean(self):
-        """Mark the canvas as saved (no unsaved changes)."""
-        self.file_manager.mark_clean()
-        # NOTE: _is_modified is synced via _on_modified_changed callback
-
-    def _update_window_title(self):
-        """Update window title to show file name and modified state."""
-        if self._saved_file_path:
-            import os
-            filename = os.path.basename(self._saved_file_path)
-            # Remove extension for cleaner look
-            filename_no_ext = os.path.splitext(filename)[0]
-            title = filename_no_ext
-        else:
-            title = "Untitled"
-        
-        # Add modified indicator (asterisk before title on macOS, standard convention)
-        if self._is_modified:
-            title = f"{title} — Edited"
-        
-        self.setWindowTitle(title)
-    
-    def _schedule_autosave(self):
-        """Schedule autosave with debouncing."""
-        if self._autosave_timer:
-            self._autosave_timer.stop()
-            self._autosave_timer.start()
-    
-    # ----- File management delegated to SceneFileManager -----
-    def _do_autosave(self):
-        """Perform autosave (delegated to file manager)."""
-        self.file_manager.do_autosave()
-    
-    def _check_autosave_recovery(self):
-        """Check for autosave on startup (delegated to file manager)."""
-        if self.file_manager.check_autosave_recovery():
-            self._schedule_retrace()
-    
-    def _prompt_save_changes(self):
-        """Prompt user to save unsaved changes."""
-        reply = self.file_manager.prompt_save_changes()
-        if reply == QtWidgets.QMessageBox.StandardButton.Save:
-            self.save_assembly()
-            if self._is_modified:
-                return QtWidgets.QMessageBox.StandardButton.Cancel
-        return reply
-    
-    def _on_modified_changed(self, is_modified: bool):
-        """Callback when file manager's modified state changes."""
-        self._is_modified = is_modified
-        self._update_window_title()
-    
-    @property
-    def _saved_file_path(self) -> Optional[str]:
-        """Get saved file path from file manager."""
-        return self.file_manager.saved_file_path
-    
-    @_saved_file_path.setter
-    def _saved_file_path(self, value: Optional[str]):
-        """Set saved file path on file manager."""
-        self.file_manager.saved_file_path = value
-
     def _build_library_dock(self):
         """Build component library dock with categorized tree view."""
         self.libDock = QtWidgets.QDockWidget("Component Library", self)
@@ -360,12 +267,12 @@ class MainWindow(QtWidgets.QMainWindow):
         from ...objects import BaseObj
         
         # Connect edited signal for retrace and collaboration
-        if hasattr(item, 'edited'):
+        if isinstance(item, Editable):
             item.edited.connect(self._maybe_retrace)
             item.edited.connect(partial(self.collaboration_manager.broadcast_update_item, item))
         
-        # Connect commandCreated signal for undo/redo
-        if isinstance(item, BaseObj) and hasattr(item, 'commandCreated'):
+        # Connect commandCreated signal for undo/redo (BaseObj always has this)
+        if isinstance(item, BaseObj):
             item.commandCreated.connect(self.undo_stack.push)
 
     def on_drop_component(self, rec: dict, scene_pos: QtCore.QPointF):
@@ -402,12 +309,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def start_place_ruler(self):
         """Enter ruler placement mode (two-click)."""
         # Cancel any other active mode
-        if self._editor_state.is_inspect:
-            self.act_inspect.setChecked(False)
-        if self._editor_state.is_path_measure:
-            self.act_measure_path.setChecked(False)
-        if self._editor_state.is_placement:
-            self._cancel_placement_mode()
+        self.tool_controller._cancel_other_modes("ruler")
         
         self._editor_state.enter_ruler_placement()
         self._prev_cursor = self.view.cursor()
@@ -416,7 +318,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _finish_place_ruler(self):
         """Exit ruler placement mode."""
-        self._editor_state.enter_default()
+        self.tool_controller.finish_ruler_placement()
         if self._prev_cursor is not None:
             self.view.setCursor(self._prev_cursor)
             self._prev_cursor = None
@@ -481,50 +383,22 @@ class MainWindow(QtWidgets.QMainWindow):
         """Called when path measure tool completes - used instead of lambda."""
         self.act_measure_path.setChecked(False)
 
-    # ----- Save / Load (delegated to SceneFileManager) -----
+    # ----- Save / Load (delegated to FileController) -----
     def save_assembly(self):
-        """Quick save: save to current file or prompt if new."""
-        with ErrorContext("while saving assembly", suppress=True):
-            if self._saved_file_path:
-                self.file_manager.save_to_file(self._saved_file_path)
-            else:
-                self.save_assembly_as()
+        """Quick save (delegated to file controller)."""
+        self.file_controller.save_assembly()
     
     def save_assembly_as(self):
-        """Save As: always prompt for new file location."""
-        with ErrorContext("while saving assembly", suppress=True):
-            path, _ = QtWidgets.QFileDialog.getSaveFileName(
-                self, "Save Assembly As", "", "Optics Assembly (*.json)"
-            )
-            if path:
-                self.file_manager.save_to_file(path)
+        """Save As (delegated to file controller)."""
+        self.file_controller.save_assembly_as()
 
     def open_assembly(self):
-        """Load all elements from JSON file."""
-        with ErrorContext("while opening assembly", suppress=True):
-            if self._is_modified:
-                reply = self._prompt_save_changes()
-                if reply == QtWidgets.QMessageBox.StandardButton.Cancel:
-                    return
-            
-            path, _ = QtWidgets.QFileDialog.getOpenFileName(
-                self, "Open Assembly", "", "Optics Assembly (*.json)"
-            )
-            if not path:
-                return
-            
-            if not self.file_manager.open_file(path):
-                return
-        
-        # Connect edited signal for optical components
-        from ...objects import BaseObj
-        for item in self.scene.items():
-            if isinstance(item, BaseObj) and hasattr(item, 'edited'):
-                item.edited.connect(self._maybe_retrace)
-        
-        # Clear undo history after loading
-        self.undo_stack.clear()
-        self._schedule_retrace()
+        """Open assembly (delegated to file controller)."""
+        if self.file_controller.open_assembly():
+            # Connect edited signal for optical components
+            for item in self.scene.items():
+                if isinstance(item, Editable):
+                    item.edited.connect(self._maybe_retrace)
 
     # ----- Settings -----
     def _toggle_autotrace(self, on: bool):
@@ -585,108 +459,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view.zoomChanged.emit()
     
     def _toggle_inspect(self, on: bool):
-        """Toggle inspect tool mode."""
-        if on:
-            # Cancel any other active mode
-            if self._editor_state.is_placement:
-                self._cancel_placement_mode()
-            if self._editor_state.is_path_measure:
-                self.act_measure_path.setChecked(False)
-            if self._editor_state.is_ruler_placement:
-                self._finish_place_ruler()
-            
-            self._editor_state.enter_inspect()
-            # Change cursor to indicate inspect mode is active
-            self.view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
-            QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), "Click on a ray to view its properties")
-        else:
-            self._editor_state.enter_default()
-            # Restore default cursor (unset to use widget default)
-            self.view.unsetCursor()
+        """Toggle inspect tool mode (delegated to ToolModeController)."""
+        self.tool_controller.toggle_inspect(on)
     
     def _toggle_path_measure(self, on: bool):
-        """Toggle path measure tool mode."""
-        if on:
-            # Cancel any other active mode
-            if self._editor_state.is_placement:
-                self._cancel_placement_mode()
-            if self._editor_state.is_inspect:
-                self.act_inspect.setChecked(False)
-            if self._editor_state.is_ruler_placement:
-                self._finish_place_ruler()
-            
-            self._editor_state.enter_path_measure()
-            # Activate handler
-            self.path_measure_handler.activate()
-            # Change cursor to indicate path measure mode is active
-            self.view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
-            QtWidgets.QToolTip.showText(
-                QtGui.QCursor.pos(),
-                "Click on a ray to set start point.\n\n"
-                "💡 Tip: At beam splitters, transmitted and reflected are separate rays.\n"
-                "Create one measurement for each path."
-            )
-        else:
-            self._editor_state.enter_default()
-            # Deactivate handler
-            self.path_measure_handler.deactivate()
-            # Restore default cursor
-            self.view.unsetCursor()
+        """Toggle path measure tool mode (delegated to ToolModeController)."""
+        self.tool_controller.toggle_path_measure(on)
     
     def _toggle_placement_mode(self, component_type: str, on: bool):
-        """Toggle component placement mode."""
-        if on:
-            # Cancel any other active mode
-            if self._editor_state.is_inspect:
-                self.act_inspect.setChecked(False)
-            if self._editor_state.is_path_measure:
-                self.act_measure_path.setChecked(False)
-            if self._editor_state.is_ruler_placement:
-                self._finish_place_ruler()
-            
-            # Disable any other placement mode buttons
-            self._cancel_placement_mode(except_type=component_type)
-            
-            # Enter placement mode
-            self._editor_state.enter_placement(component_type)
-            
-            # Activate handler
-            self.placement_handler.activate(component_type)
-        else:
-            # Exit placement mode
-            self._cancel_placement_mode()
+        """Toggle component placement mode (delegated to ToolModeController)."""
+        self.tool_controller.toggle_placement(component_type, on)
     
     def _cancel_placement_mode(self, except_type: str | None = None):
-        """Cancel placement mode and clean up."""
-        # Get previous type before deactivating
-        prev_type = self.placement_handler.component_type if self.placement_handler.is_active else self._editor_state.placement_type
-        
-        # Deactivate handler (handles ghost cleanup, cursor, mouse tracking)
-        self.placement_handler.deactivate()
-        
-        # Reset state
-        self._editor_state.enter_default()
-        self._placement_ghost = None  # Handler manages this now
-        
-        # Uncheck toolbar buttons (except the one we're toggling to)
-        if prev_type != except_type:
-            # Map component types to their actions
-            type_to_action = {
-                ComponentType.SOURCE: self.act_add_source,
-                ComponentType.LENS: self.act_add_lens,
-                ComponentType.MIRROR: self.act_add_mirror,
-                ComponentType.BEAMSPLITTER: self.act_add_bs,
-                ComponentType.TEXT: self.act_add_text,
-                ComponentType.RECTANGLE: self.act_add_rectangle,
-            }
-            # Handle both enum and string types for backward compatibility
-            if isinstance(prev_type, str):
-                try:
-                    prev_type = ComponentType(prev_type)
-                except ValueError:
-                    prev_type = None
-            if prev_type in type_to_action:
-                type_to_action[prev_type].setChecked(False)
+        """Cancel placement mode (delegated to ToolModeController)."""
+        self.tool_controller.cancel_placement(except_type=except_type)
 
     def _set_ray_width(self, v: float):
         """Set ray width and retrace."""
@@ -704,8 +490,13 @@ class MainWindow(QtWidgets.QMainWindow):
             for act in self._raywidth_group.actions():
                 act.setChecked(abs(float(act.text().split()[0]) - v) < 1e-9)
 
-    def open_component_editor(self):
-        """Open component editor dialog."""
+    def open_component_editor(self, component_data: dict = None):
+        """
+        Open component editor dialog, optionally with pre-loaded data.
+        
+        Args:
+            component_data: Optional dict to load into the editor
+        """
         try:
             from .component_editor_dialog import ComponentEditorDialog
         except ImportError as e:
@@ -716,22 +507,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # Connect saved signal to reload library
         if hasattr(self._comp_editor, "saved"):
             self._comp_editor.saved.connect(self.populate_library)
-        self._comp_editor.show()
-    
-    def open_component_editor_with_data(self, component_data: dict):
-        """Open component editor dialog with a specific component loaded."""
-        try:
-            from .component_editor_dialog import ComponentEditorDialog
-        except ImportError as e:
-            QtWidgets.QMessageBox.critical(self, "Import error", str(e))
-            return
-        self._comp_editor = ComponentEditorDialog(self.storage_service, self)
-        self._comp_editor.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose, True)
-        # Connect saved signal to reload library
-        if hasattr(self._comp_editor, "saved"):
-            self._comp_editor.saved.connect(self.populate_library)
-        # Load the component data into the editor
-        self._comp_editor._load_from_dict(component_data)
+        # Load component data if provided
+        if component_data is not None:
+            self._comp_editor._load_from_dict(component_data)
         self._comp_editor.show()
     
     def open_user_library_folder(self):
@@ -886,105 +664,37 @@ class MainWindow(QtWidgets.QMainWindow):
         log_window = LogWindow(self)
         log_window.show()
     
-    # ----- Collaboration -----
+    # ----- Collaboration (delegated to CollaborationController) -----
     def open_collaboration_dialog(self):
         """Open dialog to connect to or host a collaboration session."""
-        dialog = CollaborationDialog(self)
-        if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
-            info = dialog.get_connection_info()
-            
-            mode = info.get("mode", "connect")
-            
-            if mode == "host":
-                # Host creating a new session
-                session_id = info.get("session_id", "default")
-                user_id = info.get("user_id", "host")
-                use_current_canvas = info.get("use_current_canvas", True)
-                
-                # Store server process if hosted locally
-                if dialog.server_process:
-                    self.collab_server_process = dialog.server_process
-                
-                # Create session as host
-                self.collaboration_manager.create_session(
-                    session_id=session_id,
-                    user_id=user_id,
-                    use_current_canvas=use_current_canvas
-                )
-                
-                # Connect to local server
-                server_url = f"ws://localhost:{info.get('port', 8765)}"
-                self.collaboration_manager.connect_to_session(server_url, session_id, user_id)
-                
-                self.log_service.info(
-                    f"Created session '{session_id}' as host (current_canvas={use_current_canvas})",
-                    "Collaboration"
-                )
-            
-            else:
-                # Client joining existing session
-                server_url = info.get("server_url", "ws://localhost:8765")
-                session_id = info.get("session_id", "default")
-                user_id = info.get("user_id", "user")
-                
-                # Join session as client
-                self.collaboration_manager.join_session(server_url, session_id, user_id)
-                
-                self.log_service.info(
-                    f"Joining session '{session_id}' as client",
-                    "Collaboration"
-                )
-            
+        self.collab_controller.open_dialog()
+        if self.collab_controller.is_connected:
             self.act_disconnect.setEnabled(True)
             self.act_collaborate.setEnabled(False)
     
     def disconnect_collaboration(self):
         """Disconnect from collaboration session."""
-        self.collaboration_manager.disconnect()
+        self.collab_controller.disconnect()
         self.act_disconnect.setEnabled(False)
         self.act_collaborate.setEnabled(True)
-        self.collab_status_label.setText("Not connected")
-        
-        # Stop server if we're hosting one
-        if self.collab_server_process:
-            try:
-                self.collab_server_process.terminate()
-                try:
-                    self.collab_server_process.wait(timeout=3)
-                except TimeoutError:
-                    self.collab_server_process.kill()
-                self.log_service.info("Stopped collaboration server", "Collaboration")
-            except OSError as e:
-                self.log_service.warning(f"Error stopping server: {e}", "Collaboration")
-            finally:
-                self.collab_server_process = None
-    
-    def _on_collaboration_status_changed(self, status: str):
-        """Update collaboration status indicator."""
-        self.collab_status_label.setText(f"Collaboration: {status}")
     
     # ensure clean shutdown
     def closeEvent(self, e: QtGui.QCloseEvent):
         # Check for unsaved changes
-        if self._is_modified:
-            reply = self._prompt_save_changes()
+        if self.file_controller.is_modified:
+            reply = self.file_controller.prompt_save_changes()
             if reply == QtWidgets.QMessageBox.StandardButton.Cancel:
                 e.ignore()  # Don't close the window
                 return
         
         try:
-            # Stop autosave timer
-            if hasattr(self, '_autosave_timer'):
-                self._autosave_timer.stop()
-            
             # Clear autosave on clean exit
-            self.file_manager.clear_autosave()
+            self.file_controller.file_manager.clear_autosave()
             
             if hasattr(self, "_comp_editor") and self._comp_editor:
                 self._comp_editor.close()
-            # Disconnect from collaboration and stop server if running
-            if hasattr(self, "collaboration_manager"):
-                self.disconnect_collaboration()
+            # Disconnect from collaboration (collab_controller always exists after __init__)
+            self.collab_controller.cleanup()
         except (OSError, RuntimeError):
             # Ignore cleanup errors during shutdown
             pass

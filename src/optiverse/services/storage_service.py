@@ -7,6 +7,9 @@ import shutil
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
+from ..core.exceptions import ComponentLoadError, ComponentSaveError
+from ..core.utils import slugify
+
 _logger = logging.getLogger(__name__)
 
 from ..platform.paths import (
@@ -21,14 +24,6 @@ from ..core.models import (
     serialize_component,
     deserialize_component,
 )
-
-
-def slugify(name: str) -> str:
-    """Convert component name to filesystem-safe folder name."""
-    import re
-    s = name.strip().lower()
-    s = re.sub(r"[^a-z0-9]+", "_", s).strip("_")
-    return s or "component"
 
 
 class StorageService:
@@ -247,8 +242,7 @@ class StorageService:
             
             return data
         except (json.JSONDecodeError, OSError, KeyError) as e:
-            _logger.debug("Failed to get component data for %s: %s", name, e)
-            return None
+            raise ComponentLoadError(str(json_path), str(e)) from e
     
     def export_component(self, name: str, destination: str) -> bool:
         """
@@ -280,8 +274,7 @@ class StorageService:
             shutil.copytree(component_folder, dest_component)
             return True
         except OSError as e:
-            _logger.error("Export failed for %s: %s", name, e)
-            return False
+            raise ComponentSaveError(str(destination), str(e)) from e
     
     def import_component(self, source_folder: str, overwrite: bool = False) -> bool:
         """

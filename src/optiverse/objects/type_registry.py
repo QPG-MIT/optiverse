@@ -7,8 +7,14 @@ extensible save/load without hardcoded type checks.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import fields
-from typing import Dict, Any, Optional, Type
+from typing import Dict, Any, Optional, Type, TYPE_CHECKING
+
+from ..core.protocols import Serializable
+from ..core.exceptions import UnknownTypeError
+
+_logger = logging.getLogger(__name__)
 
 from ..platform.paths import (
     to_relative_path, 
@@ -116,15 +122,15 @@ class TypeRegistry:
 register_type = TypeRegistry.register
 
 
-def serialize_item(item) -> Dict[str, Any]:
+def serialize_item(item: Serializable) -> Dict[str, Any]:
     """
     Generic item serialization using vars() introspection.
     
     Captures ALL attributes automatically, including dynamic attributes
-    added at runtime. Works for any item with a params attribute.
+    added at runtime. Works for any item implementing the Serializable protocol.
     
     Args:
-        item: Item to serialize (must have params attribute)
+        item: Item to serialize (must implement Serializable protocol)
     
     Returns:
         Dictionary ready for JSON serialization
@@ -194,7 +200,7 @@ def serialize_item(item) -> Dict[str, Any]:
     return d
 
 
-def deserialize_item(data: Dict[str, Any]):
+def deserialize_item(data: Dict[str, Any], strict: bool = False):
     """
     Generic item deserialization using registry lookup.
     
@@ -203,9 +209,14 @@ def deserialize_item(data: Dict[str, Any]):
     
     Args:
         data: Dictionary from JSON deserialization
+        strict: If True, raises UnknownTypeError for unknown types.
+                If False (default), logs warning and returns None.
     
     Returns:
-        Reconstructed item instance, or None if type not found
+        Reconstructed item instance, or None if type not found (when strict=False)
+    
+    Raises:
+        UnknownTypeError: If strict=True and type is not registered
     """
     # Extract type and look up in registry
     type_name = data.get("_type")
@@ -216,7 +227,9 @@ def deserialize_item(data: Dict[str, Any]):
     params_class = TypeRegistry.get_params_class(type_name)
     
     if not item_class or not params_class:
-        print(f"Warning: Unknown item type '{type_name}', skipping")
+        if strict:
+            raise UnknownTypeError(type_name)
+        _logger.warning("Unknown item type '%s', skipping", type_name)
         return None
     
     # Make a copy to avoid mutating input

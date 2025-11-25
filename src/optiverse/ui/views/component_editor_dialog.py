@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+import logging
 import os
 import json
-import re
-import time
-from pathlib import Path
 from typing import Optional, Tuple, List
 import math
 
 from PyQt6 import QtCore, QtGui, QtWidgets
+
+_logger = logging.getLogger(__name__)
 
 from ...core.models import ComponentRecord, serialize_component, deserialize_component
 from ...core.interface_definition import InterfaceDefinition
@@ -17,18 +17,12 @@ from ...core.undo_stack import UndoStack
 from ...core.undo_commands import Command
 from ...services.storage_service import StorageService
 from ...services.error_handler import get_error_handler, ErrorContext
-from ...platform.paths import assets_dir
 from ...objects.views import MultiLineCanvas, InterfaceLine
 from ..widgets.interface_tree_panel import InterfaceTreePanel
 from ..widgets.ruler_widget import CanvasWithRulers
 from .zemax_importer import ZemaxImporter
-
-
-def slugify(name: str) -> str:
-    """Convert name to filesystem-safe slug."""
-    s = name.strip().lower()
-    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
-    return s or "component"
+from .component_library_io import ComponentLibraryIO
+from .component_image_handler import ComponentImageHandler
 
 
 class MoveInterfaceCommand(QtGui.QUndoCommand):
@@ -94,14 +88,28 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.undo_stack.canUndoChanged.connect(self._update_undo_actions)
         self.undo_stack.canRedoChanged.connect(self._update_undo_actions)
 
+        # Library I/O handler (initialized after UI setup in _build_library_dock)
+        self._library_io: ComponentLibraryIO | None = None
+        
+        # Image handler (initialized after canvas creation)
+        self._image_handler: ComponentImageHandler | None = None
+
         self.canvas = MultiLineCanvas()
         self.canvas_with_rulers = CanvasWithRulers(self.canvas)
         self.setCentralWidget(self.canvas_with_rulers)
-        self.canvas.imageDropped.connect(self._on_image_dropped)
         self.canvas.linesChanged.connect(self._on_canvas_lines_changed)
         self.canvas.lineSelected.connect(self._on_canvas_line_selected)
         self.canvas.linesSelected.connect(self._on_canvas_lines_selected)
         self.canvas.linesMoved.connect(self._on_canvas_lines_moved)
+        
+        # Image handler
+        self._image_handler = ComponentImageHandler(
+            canvas=self.canvas,
+            parent_widget=self,
+            set_image_callback=self._set_image,
+            paste_json_callback=self.paste_component_json,
+        )
+        self.canvas.imageDropped.connect(self._image_handler.on_image_dropped)
         
         # Zemax importer
         self._zemax_importer = ZemaxImporter(self)
@@ -289,6 +297,15 @@ class ComponentEditor(QtWidgets.QMainWindow):
         
         self.libDock.setWidget(self.libList)
         self._refresh_library_list()
+        
+        # Initialize library I/O handler
+        self._library_io = ComponentLibraryIO(
+            storage=self.storage,
+            parent_widget=self,
+            build_record_callback=self._build_record_from_ui,
+            refresh_callback=self._refresh_library_list,
+            saved_callback=self.saved.emit,
+        )
 
     # ---------- Callbacks (New Interface-Based System) ----------
     
@@ -534,9 +551,12 @@ class ComponentEditor(QtWidgets.QMainWindow):
             max_coord = object_height * 2  # Sanity check: coords shouldn't exceed 2x object height
             if (abs(x1_canvas) > max_coord or abs(y1_canvas) > max_coord or 
                 abs(x2_canvas) > max_coord or abs(y2_canvas) > max_coord):
-                print(f"Warning: Interface {i} has unusually large coordinates:")
-                print(f"  Storage: ({interface.x1_mm:.2f}, {interface.y1_mm:.2f}) to ({interface.x2_mm:.2f}, {interface.y2_mm:.2f})")
-                print(f"  Canvas: ({x1_canvas:.2f}, {y1_canvas:.2f}) to ({x2_canvas:.2f}, {y2_canvas:.2f})")
+                _logger.warning(
+                    "Interface %d has unusually large coordinates: "
+                    "Storage: (%.2f, %.2f) to (%.2f, %.2f), Canvas: (%.2f, %.2f) to (%.2f, %.2f)",
+                    i, interface.x1_mm, interface.y1_mm, interface.x2_mm, interface.y2_mm,
+                    x1_canvas, y1_canvas, x2_canvas, y2_canvas
+                )
             
             # Create InterfaceLine for canvas display
             line = InterfaceLine(
@@ -576,10 +596,12 @@ class ComponentEditor(QtWidgets.QMainWindow):
                     interfaces[i].y2_mm = line.y2
                     
                     # Debug: Log coordinates (both use Y-up)
-                    if False:  # Set to True for debugging
-                        print(f"Interface {i} dragged:")
-                        print(f"  Canvas (Y-up): ({line.x1:.2f}, {line.y1:.2f}) to ({line.x2:.2f}, {line.y2:.2f})")
-                        print(f"  Storage (Y-up): ({interfaces[i].x1_mm:.2f}, {interfaces[i].y1_mm:.2f}) to ({interfaces[i].x2_mm:.2f}, {interfaces[i].y2_mm:.2f})")
+                    _logger.debug(
+                        "Interface %d dragged: Canvas (Y-up): (%.2f, %.2f) to (%.2f, %.2f), "
+                        "Storage (Y-up): (%.2f, %.2f) to (%.2f, %.2f)",
+                        i, line.x1, line.y1, line.x2, line.y2,
+                        interfaces[i].x1_mm, interfaces[i].y1_mm, interfaces[i].x2_mm, interfaces[i].y2_mm
+                    )
                     
                     # Update the interface in the panel (silently - signals blocked)
                     self.interface_panel.update_interface(i, interfaces[i])
@@ -595,25 +617,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
 
     # ---------- File & Clipboard ----------
     def open_image(self):
-        """Open image file dialog."""
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self,
-            "Open Image",
-            "",
-            "Images (*.png *.jpg *.jpeg *.tif *.tiff *.svg)"
-        )
-        if not path:
-            return
-        
-        if path.lower().endswith(".svg"):
-            pix = MultiLineCanvas._render_svg_to_pixmap(path)
-            if not pix:
-                QtWidgets.QMessageBox.warning(self, "Load failed", "Invalid SVG.")
-                return
-        else:
-            pix = QtGui.QPixmap(path)
-        
-        self._set_image(pix, path)
+        """Open image file dialog (delegated to image_handler)."""
+        if self._image_handler:
+            self._image_handler.open_image()
     
     def _import_zemax(self):
         """Import Zemax ZMX file."""
@@ -647,101 +653,14 @@ class ComponentEditor(QtWidgets.QMainWindow):
             )
 
     def paste_image(self):
-        """Paste image from clipboard."""
-        cb = QtWidgets.QApplication.clipboard()
-        mime = cb.mimeData()
-
-        # 1) Direct bitmap/SVG bytes
-        pix = self._pixmap_from_mime(mime)
-        if pix is not None and not pix.isNull():
-            self._set_image(pix, None)
-            return
-
-        # 2) URLs
-        if mime and mime.hasUrls():
-            for url in mime.urls():
-                if url.isLocalFile():
-                    path = url.toLocalFile()
-                    low = path.lower()
-                    if low.endswith((".png", ".jpg", ".jpeg", ".tif", ".tiff", ".svg")):
-                        if low.endswith(".svg"):
-                            pix = MultiLineCanvas._render_svg_to_pixmap(path)
-                            if pix:
-                                self._set_image(pix, path)
-                                return
-                        else:
-                            pix = QtGui.QPixmap(path)
-                            if not pix.isNull():
-                                self._set_image(pix, path)
-                                return
-
-        # 3) Plain text path
-        text = cb.text().strip()
-        if text and os.path.exists(text) and text.lower().endswith(
-            (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".svg")
-        ):
-            if text.lower().endswith(".svg"):
-                pix = MultiLineCanvas._render_svg_to_pixmap(text)
-                if pix:
-                    self._set_image(pix, text)
-                    return
-            else:
-                pix = QtGui.QPixmap(text)
-                if not pix.isNull():
-                    self._set_image(pix, text)
-                    return
-
-        QtWidgets.QMessageBox.information(
-            self,
-            "Paste Image",
-            "Clipboard doesn't contain an image (PNG/JPEG/TIFF/SVG) or an image file path/URL."
-        )
-
-    def _pixmap_from_mime(self, mime: QtCore.QMimeData) -> Optional[QtGui.QPixmap]:
-        """Extract pixmap from mime data."""
-        if not mime:
-            return None
-        
-        if mime.hasImage():
-            img = mime.imageData()
-            if isinstance(img, QtGui.QImage):
-                return QtGui.QPixmap.fromImage(img)
-            if isinstance(img, QtGui.QPixmap):
-                return img
-        
-        for fmt in ("image/png", "image/jpeg", "image/jpg", "image/tiff", "image/x-qt-image"):
-            if fmt in mime.formats():
-                ba = mime.data(fmt)
-                img = QtGui.QImage()
-                if img.loadFromData(ba):
-                    return QtGui.QPixmap.fromImage(img)
-        
-        if "image/svg+xml" in mime.formats():
-            svg_bytes = mime.data("image/svg+xml")
-            pix = MultiLineCanvas._render_svg_to_pixmap(bytes(svg_bytes))
-            if pix:
-                return pix
-        
-        return None
+        """Paste image from clipboard (delegated to image_handler)."""
+        if self._image_handler:
+            self._image_handler.paste_image()
 
     def _smart_paste(self):
-        """Smart paste: detect focus widget, image, or JSON."""
-        fw = self.focusWidget()
-        if isinstance(fw, (QtWidgets.QLineEdit, QtWidgets.QPlainTextEdit, QtWidgets.QTextEdit)):
-            fw.paste()
-            return
-        
-        before = self.canvas.has_image()
-        self.paste_image()
-        after = self.canvas.has_image()
-        
-        if not after and not before:
-            # No image pasted, try JSON
-            self.paste_component_json()
-
-    def _on_image_dropped(self, pix: QtGui.QPixmap, path: str):
-        """Handle image drop."""
-        self._set_image(pix, path or None)
+        """Smart paste (delegated to image_handler)."""
+        if self._image_handler:
+            self._image_handler.smart_paste()
 
     # ---------- JSON Copy/Paste ----------
     def _build_record_from_ui(self) -> Optional[ComponentRecord]:
@@ -784,8 +703,8 @@ class ComponentEditor(QtWidgets.QMainWindow):
         
         # Save asset file (normalized to 1000px height) only if image exists
         asset_path = ""
-        if has_image:
-            asset_path = self._ensure_asset_file_normalized(name)
+        if has_image and self._image_handler:
+            asset_path = self._image_handler.ensure_asset_file_normalized(name)
 
         # Get category from combobox and convert to storage format (lowercase)
         category = self.category_combo.currentText().strip().lower()
@@ -799,59 +718,6 @@ class ComponentEditor(QtWidgets.QMainWindow):
             category=category,
             notes=self.notes.toPlainText().strip()
         )
-
-    def _ensure_asset_file(self, name: str) -> str:
-        """Save asset file, preserving original format if possible."""
-        assets_folder = assets_dir()
-        stamp = time.strftime("%Y%m%d-%H%M%S")
-        base = f"{slugify(name)}-{stamp}"
-
-        src_path = self.canvas.source_path()
-        pix = self.canvas.current_pixmap()
-        
-        if src_path and os.path.exists(src_path):
-            ext = os.path.splitext(src_path)[1].lower()
-            if ext in (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".svg"):
-                dst = os.path.join(assets_folder, base + ext)
-                try:
-                    with open(src_path, "rb") as fsrc, open(dst, "wb") as fdst:
-                        fdst.write(fsrc.read())
-                    return dst
-                except OSError:
-                    pass  # Fall through to PNG save if file copy fails
-        
-        if pix is None or pix.isNull():
-            raise RuntimeError("No image available to save.")
-        
-        dst = os.path.join(assets_folder, base + ".png")
-        pix.save(dst, "PNG")
-        return dst
-    
-    def _ensure_asset_file_normalized(self, name: str) -> str:
-        """Save asset file normalized to 1000px height."""
-        assets_folder = assets_dir()
-        stamp = time.strftime("%Y%m%d-%H%M%S")
-        base = f"{slugify(name)}-{stamp}"
-        dst = os.path.join(assets_folder, base + ".png")
-        
-        pix = self.canvas.current_pixmap()
-        if pix is None or pix.isNull():
-            raise RuntimeError("No image available to save.")
-        
-        # Ensure device pixel ratio = 1.0 before scaling
-        img = pix.toImage()
-        img.setDevicePixelRatio(1.0)
-        pix = QtGui.QPixmap.fromImage(img)
-        
-        # Normalize to 1000px height while preserving aspect ratio
-        if pix.height() != 1000:
-            pix = pix.scaledToHeight(1000, QtCore.Qt.TransformationMode.SmoothTransformation)
-        
-        # Ensure saved image has device pixel ratio = 1.0
-        img = pix.toImage()
-        img.setDevicePixelRatio(1.0)
-        img.save(dst, "PNG")
-        return dst
 
     def copy_component_json(self):
         """Copy component as JSON to clipboard."""
@@ -871,7 +737,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         
         try:
             data = json.loads(text)
-        except Exception as e:
+        except json.JSONDecodeError as e:
             QtWidgets.QMessageBox.warning(
                 self,
                 "Invalid JSON",
@@ -965,250 +831,29 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self._sync_interfaces_to_canvas()
 
     def save_component(self):
-        """Save component to library in folder-based structure."""
-        with ErrorContext("while saving component", suppress=True):
-            rec = self._build_record_from_ui()
-            if not rec:
-                return
-            
-            try:
-                # Save using the new folder-based storage
-                self.storage.save_component(rec)
-                
-                # Copy JSON to clipboard for convenience
-                serialized = serialize_component(rec, self.storage.settings_service)
-                QtWidgets.QApplication.clipboard().setText(json.dumps(serialized, indent=2))
-                
-                # Show success message
-                library_path = self.storage.get_library_root()
-                QtWidgets.QMessageBox.information(
-                    self,
-                    "Saved",
-                    f"Saved component '{rec.name}'\n\n"
-                    f"Interfaces: {len(rec.interfaces) if rec.interfaces else 0}\n"
-                    f"Library location:\n{library_path}\n\n"
-                    f"Component JSON copied to clipboard."
-                )
-                
-                self._refresh_library_list()
-                self.saved.emit()
-                
-            except Exception as e:
-                QtWidgets.QMessageBox.critical(
-                    self,
-                    "Save Failed",
-                    f"Failed to save component '{rec.name}':\n\n{str(e)}"
-                )
+        """Save component to library (delegated to library_io)."""
+        if self._library_io:
+            self._library_io.save_component()
     
     def export_component(self):
-        """Export current component to a folder."""
-        with ErrorContext("while exporting component", suppress=True):
-            rec = self._build_record_from_ui()
-            if not rec:
-                QtWidgets.QMessageBox.warning(
-                    self,
-                    "No Component",
-                    "Please create or load a component first."
-                )
-                return
-            
-            # Ask user for destination folder
-            dest_dir = QtWidgets.QFileDialog.getExistingDirectory(
-                self,
-                "Select Export Destination",
-                "",
-                QtWidgets.QFileDialog.Option.ShowDirsOnly
-            )
-            
-            if not dest_dir:
-                return  # User cancelled
-            
-            try:
-                # First save to library to ensure it's up to date
-                self.storage.save_component(rec)
-                
-                # Then export from library
-                success = self.storage.export_component(rec.name, dest_dir)
-                
-                if success:
-                    from ...services.storage_service import slugify
-                    folder_name = slugify(rec.name)
-                    export_path = Path(dest_dir) / folder_name
-                    
-                    QtWidgets.QMessageBox.information(
-                        self,
-                        "Export Successful",
-                        f"Component '{rec.name}' exported to:\n{export_path}\n\n"
-                        f"You can share this folder with others."
-                    )
-                else:
-                    QtWidgets.QMessageBox.critical(
-                        self,
-                        "Export Failed",
-                        f"Failed to export component '{rec.name}'."
-                    )
-            except Exception as e:
-                QtWidgets.QMessageBox.critical(
-                    self,
-                    "Export Error",
-                    f"Error exporting component:\n\n{str(e)}"
-                )
+        """Export current component to a folder (delegated to library_io)."""
+        if self._library_io:
+            self._library_io.export_component()
     
     def import_component(self):
-        """Import a component from a folder."""
-        # Ask user to select component folder
-        source_dir = QtWidgets.QFileDialog.getExistingDirectory(
-            self,
-            "Select Component Folder to Import",
-            "",
-            QtWidgets.QFileDialog.Option.ShowDirsOnly
-        )
-        
-        if not source_dir:
-            return  # User cancelled
-        
-        # Check if component.json exists
-        source_path = Path(source_dir)
-        json_path = source_path / "component.json"
-        
-        if not json_path.exists():
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Invalid Component",
-                f"Selected folder does not contain a component.json file:\n{source_dir}"
-            )
-            return
-        
-        try:
-            # Load component name to check for conflicts
-            with open(json_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            component_name = data.get("name", "")
-            
-            if not component_name:
-                QtWidgets.QMessageBox.warning(
-                    self,
-                    "Invalid Component",
-                    "Component JSON does not have a valid name."
-                )
-                return
-            
-            # Check if component already exists
-            existing = self.storage.get_component(component_name)
-            overwrite = False
-            
-            if existing:
-                reply = QtWidgets.QMessageBox.question(
-                    self,
-                    "Component Exists",
-                    f"Component '{component_name}' already exists in the library.\n\n"
-                    f"Do you want to overwrite it?",
-                    QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
-                    QtWidgets.QMessageBox.StandardButton.No
-                )
-                
-                if reply == QtWidgets.QMessageBox.StandardButton.Yes:
-                    overwrite = True
-                else:
-                    return
-            
-            # Import the component
-            success = self.storage.import_component(source_dir, overwrite=overwrite)
-            
-            if success:
-                QtWidgets.QMessageBox.information(
-                    self,
-                    "Import Successful",
-                    f"Component '{component_name}' imported successfully."
-                )
-                self._refresh_library_list()
-                self.saved.emit()
-            else:
-                QtWidgets.QMessageBox.critical(
-                    self,
-                    "Import Failed",
-                    f"Failed to import component from:\n{source_dir}"
-                )
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(
-                self,
-                "Import Error",
-                f"Error importing component:\n\n{str(e)}"
-            )
+        """Import a component from a folder (delegated to library_io)."""
+        if self._library_io:
+            self._library_io.import_component()
 
     def reload_library(self):
-        """Reload library from disk."""
-        self._refresh_library_list()
-        rows = self.storage.load_library()
-        library_root = self.storage.get_library_root()
-        QtWidgets.QMessageBox.information(
-            self,
-            "Library",
-            f"Loaded {len(rows)} component(s).\n\nLibrary folder:\n{library_root}"
-        )
+        """Reload library from disk (delegated to library_io)."""
+        if self._library_io:
+            self._library_io.reload_library()
     
     def load_library_from_path(self):
-        """Load component library from a custom path."""
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self,
-            "Load Library File",
-            "",
-            "JSON files (*.json);;All files (*.*)"
-        )
-        if not path:
-            return
-        
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            
-            if not isinstance(data, list):
-                QtWidgets.QMessageBox.warning(
-                    self,
-                    "Invalid Library",
-                    "The selected file does not contain a valid component library (expected JSON array)."
-                )
-                return
-            
-            # Merge with existing library
-            existing = self.storage.load_library()
-            existing_names = {comp.get("name") for comp in existing}
-            
-            new_count = 0
-            for comp in data:
-                if isinstance(comp, dict) and comp.get("name"):
-                    if comp.get("name") not in existing_names:
-                        existing.append(comp)
-                        existing_names.add(comp.get("name"))
-                        new_count += 1
-            
-            if new_count > 0:
-                self.storage.save_library(existing)
-                self._refresh_library_list()
-                QtWidgets.QMessageBox.information(
-                    self,
-                    "Library Loaded",
-                    f"Loaded {new_count} new component(s) from:\n{path}\n\nTotal components: {len(existing)}"
-                )
-            else:
-                QtWidgets.QMessageBox.information(
-                    self,
-                    "Library Loaded",
-                    "No new components found in the library file (all components already exist)."
-                )
-        
-        except json.JSONDecodeError as e:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Invalid JSON",
-                f"Could not parse JSON file:\n{e}"
-            )
-        except Exception as e:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Load Error",
-                f"Could not load library file:\n{e}"
-            )
+        """Load component library from a custom path (delegated to library_io)."""
+        if self._library_io:
+            self._library_io.load_library_from_path()
 
 
 # Keep old name for backward compatibility
