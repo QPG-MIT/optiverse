@@ -80,7 +80,8 @@ class MainWindow(QtWidgets.QMainWindow):
             SCENE_MIN_COORD, SCENE_MIN_COORD, SCENE_SIZE_MM, SCENE_SIZE_MM
         )
         self.view = GraphicsView(self.scene)
-        self.view.main_window = self  # Reference for dropEvent callback
+        # Connect drop signal instead of circular reference
+        self.view.componentDropped.connect(self.on_drop_component)
         self.setCentralWidget(self.view)
         
         # Initialize OpenGL ray overlay for hardware-accelerated rendering
@@ -258,9 +259,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def populate_library(self):
         """Load and populate component library (delegated to library manager)."""
         self._component_templates = self.library_manager.populate()
-        # Update placement handler with new templates
-        if hasattr(self, 'placement_handler'):
-            self.placement_handler.component_templates = self._component_templates
+        # Update placement handler with new templates (always exists after _build_library_dock)
+        self.placement_handler.component_templates = self._component_templates
     
     def _connect_item_signals(self, item):
         """Connect standard signals for a new item (edited, commandCreated)."""
@@ -504,9 +504,8 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         self._comp_editor = ComponentEditorDialog(self.storage_service, self)
         self._comp_editor.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose, True)
-        # Connect saved signal to reload library
-        if hasattr(self._comp_editor, "saved"):
-            self._comp_editor.saved.connect(self.populate_library)
+        # Connect saved signal to reload library (saved is always a signal on ComponentEditorDialog)
+        self._comp_editor.saved.connect(self.populate_library)
         # Load component data if provided
         if component_data is not None:
             self._comp_editor._load_from_dict(component_data)
@@ -691,7 +690,8 @@ class MainWindow(QtWidgets.QMainWindow):
             # Clear autosave on clean exit
             self.file_controller.file_manager.clear_autosave()
             
-            if hasattr(self, "_comp_editor") and self._comp_editor:
+            # Close component editor if it was opened
+            if getattr(self, "_comp_editor", None) is not None:
                 self._comp_editor.close()
             # Disconnect from collaboration (collab_controller always exists after __init__)
             self.collab_controller.cleanup()

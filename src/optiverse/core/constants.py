@@ -78,3 +78,8 @@ AIR_REFRACTIVE_INDEX = 1.0
 # Common glass refractive index (BK7-like)
 GLASS_REFRACTIVE_INDEX = 1.52
 
+# ========== Raytracing Constants ==========
+
+# Maximum number of raytracing events (reflections/refractions) per ray
+MAX_RAYTRACING_EVENTS = 80
+

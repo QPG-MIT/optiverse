@@ -439,10 +439,8 @@ class CollaborationManager(QObject):
             item.from_dict(data_copy)
             return item
             
-        except Exception as e:
+        except (KeyError, ValueError, TypeError) as e:
             self.log.error(f"Error creating remote item: {e}", LogCategory.COLLABORATION)
-            import traceback
-            traceback.print_exc()
             return None
     
     def _apply_move_item(self, item_uuid: str, data: Dict[str, Any]) -> None:

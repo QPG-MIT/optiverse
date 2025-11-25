@@ -15,6 +15,7 @@ from PyQt6 import QtCore
 
 from ...services.error_handler import ErrorContext
 from ...core.log_categories import LogCategory
+from ...core.constants import MAX_RAYTRACING_EVENTS
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QGraphicsScene
@@ -163,7 +164,7 @@ class RaytracingController(QtCore.QObject):
             # Trace using polymorphic engine
             try:
                 from ...raytracing import trace_rays_polymorphic
-                paths = trace_rays_polymorphic(elements, srcs, max_events=80)
+                paths = trace_rays_polymorphic(elements, srcs, max_events=MAX_RAYTRACING_EVENTS)
             except Exception as e:
                 self._log_service.error(f"Error in raytracing: {e}", LogCategory.RAYTRACING)
                 return

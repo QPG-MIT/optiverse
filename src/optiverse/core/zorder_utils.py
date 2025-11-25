@@ -176,7 +176,8 @@ def get_z_order_items_from_item(
         return []
     
     if item.isSelected():
-        return [it for it in item.scene().selectedItems() if hasattr(it, 'setZValue')]
+        # All QGraphicsItems have setZValue, no filtering needed
+        return list(item.scene().selectedItems())
     else:
         return [item]
 

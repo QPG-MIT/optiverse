@@ -251,8 +251,8 @@ class CollaborationService(QObject):
         except json.JSONDecodeError as e:
             self.log.error(f"Error parsing message: {e}", LogCategory.COLLABORATION)
             self.error_occurred.emit(f"Invalid JSON: {e}")
-        except Exception as e:
-            self.log.error(f"Error processing message: {e}", LogCategory.COLLABORATION)
+        except (KeyError, TypeError, ValueError) as e:
+            self.log.error(f"Error processing message data: {e}", LogCategory.COLLABORATION)
             self.error_occurred.emit(str(e))
     
     def _on_error(self, error_code) -> None:

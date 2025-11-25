@@ -4,8 +4,11 @@ Convert Zemax surface definitions to OptiVerse InterfaceDefinition objects.
 Maps Zemax sequential surfaces to the interface-based component model.
 """
 
+import logging
 from typing import List, Optional
 from ..core.interface_definition import InterfaceDefinition
+
+_logger = logging.getLogger(__name__)
 from ..core.models import ComponentRecord
 from .zemax_parser import ZemaxFile, ZemaxSurface
 from .glass_catalog import GlassCatalog
@@ -265,38 +268,40 @@ if __name__ == "__main__":
     import sys
     from .zemax_parser import ZemaxParser
     
+    logging.basicConfig(level=logging.DEBUG, format="%(message)s")
+    
     if len(sys.argv) > 1:
         # Parse Zemax file
         parser = ZemaxParser()
         zemax_data = parser.parse(sys.argv[1])
         
         if zemax_data:
-            print("Zemax file parsed successfully")
-            print(parser.format_summary(zemax_data))
-            print("\n" + "="*60)
+            _logger.info("Zemax file parsed successfully")
+            _logger.info(parser.format_summary(zemax_data))
+            _logger.info("\n" + "="*60)
             
             # Convert to interfaces
             converter = ZemaxToInterfaceConverter()
             component = converter.convert(zemax_data)
             
-            print(f"\nConverted to OptiVerse component:")
-            print(f"Name: {component.name}")
+            _logger.info(f"\nConverted to OptiVerse component:")
+            _logger.info(f"Name: {component.name}")
             num_ifaces = len(component.interfaces) if component.interfaces else 0
             if num_ifaces > 1:
-                print(f"Type: Multi-element ({num_ifaces} interfaces)")
+                _logger.info(f"Type: Multi-element ({num_ifaces} interfaces)")
             elif num_ifaces == 1:
-                print(f"Type: {component.interfaces[0].element_type}")
+                _logger.info(f"Type: {component.interfaces[0].element_type}")
             else:
-                print(f"Type: Unknown")
-            print(f"Object height: {component.object_height_mm:.2f} mm")
-            print(f"Interfaces: {num_ifaces}")
-            print()
+                _logger.info(f"Type: Unknown")
+            _logger.info(f"Object height: {component.object_height_mm:.2f} mm")
+            _logger.info(f"Interfaces: {num_ifaces}")
+            _logger.info("")
             
             if component.interfaces:
                 for i, iface in enumerate(component.interfaces):
-                    print(f"Interface {i+1}: {iface.name}")
-                    print(f"  Position: x={iface.x1_mm:.2f} mm")
-                    print(f"  Height: {iface.length_mm():.2f} mm")
-                    print(f"  Indices: n1={iface.n1:.4f} → n2={iface.n2:.4f}")
-                    print()
+                    _logger.info(f"Interface {i+1}: {iface.name}")
+                    _logger.info(f"  Position: x={iface.x1_mm:.2f} mm")
+                    _logger.info(f"  Height: {iface.length_mm():.2f} mm")
+                    _logger.info(f"  Indices: n1={iface.n1:.4f} → n2={iface.n2:.4f}")
+                    _logger.info("")
 

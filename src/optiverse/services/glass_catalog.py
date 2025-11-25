@@ -5,8 +5,11 @@ Provides refractive index calculations using Sellmeier equation
 for common optical glasses (Schott, Ohara, etc.).
 """
 
-from typing import Optional, Dict
+import logging
 import math
+from typing import Optional, Dict
+
+_logger = logging.getLogger(__name__)
 
 
 class GlassCatalog:
@@ -214,6 +217,8 @@ class GlassCatalog:
 
 # Quick test
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG, format="%(message)s")
+    
     catalog = GlassCatalog()
     
     # Test at common wavelengths
@@ -225,9 +230,9 @@ if __name__ == "__main__":
     ]
     
     for glass in ["N-BK7", "N-LAK22", "N-SF6HT"]:
-        print(f"\n{glass}:")
+        _logger.info(f"\n{glass}:")
         for wl, desc in wavelengths:
             n = catalog.get_refractive_index(glass, wl)
             if n:
-                print(f"  {desc:15s} {wl:.4f}µm: n = {n:.5f}")
+                _logger.info(f"  {desc:15s} {wl:.4f}µm: n = {n:.5f}")
 

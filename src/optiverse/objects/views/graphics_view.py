@@ -24,12 +24,11 @@ from ...core.constants import MIME_OPTICS_COMPONENT
 
 class GraphicsView(QtWidgets.QGraphicsView):
     zoomChanged = QtCore.pyqtSignal()
+    # Signal emitted when a component is dropped (dict, QPointF)
+    componentDropped = QtCore.pyqtSignal(dict, QtCore.QPointF)
 
     def __init__(self, scene: QtWidgets.QGraphicsScene | None = None):
         super().__init__(scene)
-        
-        # Reference to main window (set by MainWindow after creation)
-        self.main_window = None
         
         # Enable OpenGL-accelerated viewport for GPU rendering
         if OPENGL_AVAILABLE:
@@ -615,7 +614,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 rec = json.loads(bytes(md.data(MIME_OPTICS_COMPONENT)).decode("utf-8"))
                 self._clear_ghost()
                 self._make_ghost(rec, self.mapToScene(e.position().toPoint()))
-            except Exception as ex:
+            except (json.JSONDecodeError, KeyError, ValueError) as ex:
                 # Log error for debugging
                 _logger.warning("Ghost preview error: %s", ex, exc_info=True)
             e.acceptProposedAction()
@@ -637,7 +636,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 else:
                     self._ghost_item.setPos(self.mapToScene(e.position().toPoint()))
                     self.viewport().update()  # Force redraw as ghost moves
-            except Exception as ex:
+            except (json.JSONDecodeError, KeyError, ValueError) as ex:
                 _logger.warning("Ghost move error: %s", ex)
             e.acceptProposedAction()
         elif md.hasImage() or md.hasUrls():
@@ -672,7 +671,8 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 # Finalize: remove ghost and create the real object
                 self._clear_ghost()
                 self._restore_drag_state()
-                self.main_window.on_drop_component(rec, scene_pos)
+                # Emit signal instead of direct call (decoupled from MainWindow)
+                self.componentDropped.emit(rec, scene_pos)
             
             e.acceptProposedAction()
             return

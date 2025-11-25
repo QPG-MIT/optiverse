@@ -283,8 +283,8 @@ class PropertyChangeCommand(Command):
             self.item._sync_params_from_item()
         if isinstance(self.item, Editable):
             self.item.edited.emit()
-        if hasattr(self.item, 'update'):
-            self.item.update()
+        # All QGraphicsItems have update() - no hasattr check needed
+        self.item.update()
 
 
 class RotateItemCommand(Command):

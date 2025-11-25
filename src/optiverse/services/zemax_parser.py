@@ -276,9 +276,10 @@ class ZemaxParser:
 # Quick test
 if __name__ == "__main__":
     import sys
+    logging.basicConfig(level=logging.DEBUG, format="%(message)s")
     if len(sys.argv) > 1:
         parser = ZemaxParser()
         data = parser.parse(sys.argv[1])
         if data:
-            print(parser.format_summary(data))
+            _logger.info(parser.format_summary(data))
 
