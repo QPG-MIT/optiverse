@@ -61,10 +61,10 @@ QDialog { background-color: white; color: black; }
 def _load_stylesheet_from_file(filename: str) -> Optional[str]:
     """
     Load a stylesheet from the styles directory.
-    
+
     Args:
         filename: Name of the QSS file (e.g., "dark_theme.qss")
-        
+
     Returns:
         Stylesheet content if file exists, None otherwise
     """
@@ -80,9 +80,9 @@ def _load_stylesheet_from_file(filename: str) -> Optional[str]:
 def get_dark_stylesheet() -> str:
     """
     Get the dark mode stylesheet.
-    
+
     Tries to load from file first, falls back to embedded version.
-    
+
     Returns:
         Dark theme stylesheet string
     """
@@ -97,9 +97,9 @@ def get_dark_stylesheet() -> str:
 def get_light_stylesheet() -> str:
     """
     Get the light mode stylesheet.
-    
+
     Tries to load from file first, falls back to embedded version.
-    
+
     Returns:
         Light theme stylesheet string
     """
@@ -118,9 +118,9 @@ def get_light_stylesheet() -> str:
 def detect_system_dark_mode() -> bool:
     """
     Detect if the system is in dark mode.
-    
+
     Uses Qt's palette to determine if the system theme is dark.
-    
+
     Returns:
         True if system is in dark mode, False otherwise
     """
@@ -174,12 +174,12 @@ def _create_light_palette() -> QtGui.QPalette:
 def apply_theme(dark_mode: bool) -> None:
     """
     Apply the appropriate theme (stylesheet + palette) based on dark mode setting.
-    
+
     This function:
     1. Sets the appropriate stylesheet
     2. Configures the application palette
     3. Forces a complete style refresh on all widgets
-    
+
     Args:
         dark_mode: True for dark theme, False for light theme
     """
@@ -187,7 +187,7 @@ def apply_theme(dark_mode: bool) -> None:
     if not app:
         _logger.warning("No QApplication instance - cannot apply theme")
         return
-    
+
     # Apply stylesheet and palette
     if dark_mode:
         app.setStyleSheet(get_dark_stylesheet())
@@ -197,11 +197,13 @@ def apply_theme(dark_mode: bool) -> None:
         app.setStyleSheet(get_light_stylesheet())
         app.setPalette(_create_light_palette())
         _logger.info("Applied light theme")
-    
+
     # Force complete style refresh to override macOS system styling
     # This is critical on Mac where system dark mode can conflict with app theme
     for widget in app.allWidgets():
         widget.style().unpolish(widget)
         widget.style().polish(widget)
         widget.update()
+
+
 

@@ -200,10 +200,10 @@ REFRACTIVE_INDEX_PRESETS = {
 def get_type_info(element_type: str) -> Dict[str, Any]:
     """
     Get metadata for an interface type.
-    
+
     Args:
         element_type: Type identifier (e.g., 'lens', 'mirror')
-    
+
     Returns:
         Dictionary with type metadata, or empty dict if not found
     """
@@ -223,11 +223,11 @@ def get_type_display_name(element_type: str) -> str:
 def get_property_label(element_type: str, prop_name: str) -> str:
     """
     Get human-readable label for a property.
-    
+
     Args:
         element_type: Type identifier
         prop_name: Property name
-    
+
     Returns:
         Human-readable label, or property name if not found
     """
@@ -238,11 +238,11 @@ def get_property_label(element_type: str, prop_name: str) -> str:
 def get_property_unit(element_type: str, prop_name: str) -> str:
     """
     Get unit for a property.
-    
+
     Args:
         element_type: Type identifier
         prop_name: Property name
-    
+
     Returns:
         Unit string (e.g., 'mm', '%', '°'), or empty string if none
     """
@@ -253,11 +253,11 @@ def get_property_unit(element_type: str, prop_name: str) -> str:
 def get_property_range(element_type: str, prop_name: str) -> Tuple[float, float]:
     """
     Get valid range for a property.
-    
+
     Args:
         element_type: Type identifier
         prop_name: Property name
-    
+
     Returns:
         Tuple of (min, max) values
     """
@@ -268,11 +268,11 @@ def get_property_range(element_type: str, prop_name: str) -> Tuple[float, float]
 def get_property_default(element_type: str, prop_name: str) -> Any:
     """
     Get default value for a property.
-    
+
     Args:
         element_type: Type identifier
         prop_name: Property name
-    
+
     Returns:
         Default value, or None if not found
     """
@@ -283,20 +283,20 @@ def get_property_default(element_type: str, prop_name: str) -> Any:
 def get_type_color(element_type: str, is_polarizing: bool = False) -> Tuple[int, int, int]:
     """
     Get RGB color for an interface type.
-    
+
     Args:
         element_type: Type identifier
         is_polarizing: If True and type is beam_splitter, return purple instead of green
-    
+
     Returns:
         RGB tuple (0-255 range)
     """
     color = get_type_info(element_type).get('color', (150, 150, 150))
-    
+
     # Special case: PBS is purple instead of green
     if element_type == 'beam_splitter' and is_polarizing:
         return (150, 0, 150)
-    
+
     return color
 
 
@@ -313,19 +313,19 @@ def get_type_properties(element_type: str) -> List[str]:
 def get_polarizing_interface_properties(polarizer_subtype: str) -> List[str]:
     """
     Get properties relevant to a specific polarizer subtype.
-    
+
     This filters the full property list to show only relevant properties
     for the current polarizer subtype, providing a clean UI.
-    
+
     Args:
         polarizer_subtype: The subtype of polarizer ('waveplate', 'linear_polarizer', etc.)
-    
+
     Returns:
         List of property names relevant to this subtype
     """
     # Always show the subtype selector
     base_props = ['polarizer_subtype']
-    
+
     if polarizer_subtype == 'waveplate':
         return base_props + ['phase_shift_deg', 'fast_axis_deg']
     elif polarizer_subtype == 'linear_polarizer':
@@ -340,19 +340,21 @@ def get_polarizing_interface_properties(polarizer_subtype: str) -> List[str]:
 def validate_property_value(element_type: str, prop_name: str, value: Any) -> bool:
     """
     Validate if a property value is within valid range.
-    
+
     Args:
         element_type: Type identifier
         prop_name: Property name
         value: Value to validate
-    
+
     Returns:
         True if valid, False otherwise
     """
     if isinstance(value, (int, float)):
         min_val, max_val = get_property_range(element_type, prop_name)
         return min_val <= value <= max_val
-    
+
     # For non-numeric values, accept anything
     return True
+
+
 

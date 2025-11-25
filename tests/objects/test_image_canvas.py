@@ -30,3 +30,5 @@ def test_image_canvas_click_and_line(qtbot):
     assert p1 is not None and p2 is not None
 
 
+
+

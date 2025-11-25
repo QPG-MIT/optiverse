@@ -26,7 +26,7 @@ from .rotation_handler import (
 class BaseObj(QtWidgets.QGraphicsObject):
     """
     Base class for all optical elements (Source, Lens, Mirror, Beamsplitter).
-    
+
     Provides common functionality:
     - Standard flags (movable, selectable, sends geometry changes)
     - Context menu (Edit, Delete)
@@ -38,7 +38,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
 
     edited = QtCore.pyqtSignal()
     commandCreated = QtCore.pyqtSignal(object)  # Emits Command objects for undo/redo
-    
+
     # Metadata registry for serialization (extensible by subclasses)
     # Maps metadata key to getter function
     _metadata_registry = {
@@ -51,10 +51,10 @@ class BaseObj(QtWidgets.QGraphicsObject):
         super().__init__()
         # Generate or use provided UUID for collaboration
         self.item_uuid = item_uuid if item_uuid else str(uuid.uuid4())
-        
+
         # Lock state (prevents movement, rotation, and deletion)
         self._locked = False
-        
+
         self.setFlags(
             QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable
             | QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
@@ -64,7 +64,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
         self.setCursor(QtCore.Qt.CursorShape.OpenHandCursor)
         self.setTransformOriginPoint(0.0, 0.0)
         self._ready = False  # Set to True after full initialization
-        
+
         # Rotation handlers (extracted for cleaner code)
         self._single_rotation: Optional[SingleItemRotationHandler] = None
         self._group_rotation: Optional[GroupRotationHandler] = None
@@ -72,12 +72,12 @@ class BaseObj(QtWidgets.QGraphicsObject):
 
     def itemChange(self, change, value):
         """Sync params when position or rotation changes, and apply magnetic snap."""
-        
+
         # Block position changes if locked
         if change == QtWidgets.QGraphicsItem.GraphicsItemChange.ItemPositionChange:
             if self._locked:
                 return self.pos()  # Return current position (no change)
-        
+
         # Magnetic snap: intercept position changes during interactive moves
         if change == QtWidgets.QGraphicsItem.GraphicsItemChange.ItemPositionChange:
             if getattr(self, "_ready", False) and self.scene() is not None:
@@ -91,7 +91,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
                         if isinstance(main_window, HasSnapping) and main_window.magnetic_snap:
                                 # value is the new position being proposed
                                 new_pos = value
-                                
+
                                 # Calculate snap
                                 snap_result = main_window._snap_helper.calculate_snap(
                                     new_pos,
@@ -99,7 +99,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
                                     scene,
                                     views[0]
                                 )
-                                
+
                                 if snap_result.snapped:
                                     # Update guide lines
                                     views[0].set_snap_guides(snap_result.guide_lines)
@@ -108,7 +108,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
                                 else:
                                     # Clear guides if not snapping
                                     views[0].clear_snap_guides()
-        
+
         if change in (
             QtWidgets.QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged,
             QtWidgets.QGraphicsItem.GraphicsItemChange.ItemRotationHasChanged,
@@ -116,7 +116,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
             if getattr(self, "_ready", False) and self.scene() is not None:
                 self._sync_params_from_item()
                 self.edited.emit()
-                
+
                 # Broadcast position/rotation change to collaboration
                 if self.scene():
                     views = self.scene().views()
@@ -135,7 +135,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
             sp = getattr(self, "_sprite", None)
             if sp is not None:
                 sp.update()
-            
+
             # Force viewport repaint to clear any cached rendering
             if self.scene() is not None:
                 views = self.scene().views()
@@ -150,11 +150,11 @@ class BaseObj(QtWidgets.QGraphicsObject):
         Override in subclasses that have params.
         """
         pass
-    
+
     def is_locked(self) -> bool:
         """Check if item is locked (prevents movement, rotation, deletion)."""
         return self._locked
-    
+
     def set_locked(self, locked: bool):
         """Set lock state (prevents movement, rotation, deletion, and selection)."""
         self._locked = locked
@@ -169,7 +169,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
             self.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
         # Update visual appearance
         self.update()
-    
+
     def setRotation(self, angle: float):
         """Override setRotation to block when locked."""
         if not self._locked:
@@ -180,7 +180,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
     def _sprite_rect_in_item(self) -> QtCore.QRectF | None:
         """
         Get sprite bounds in item-local coordinates.
-        
+
         Returns None if sprite doesn't exist or is invisible.
         This is used to make sprites part of the clickable area.
         """
@@ -193,7 +193,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
     def _shape_union_sprite(self, shape_path: QtGui.QPainterPath) -> QtGui.QPainterPath:
         """
         Union sprite bounds into shape for hit testing.
-        
+
         This makes the sprite clickable, not just the geometry line.
         Call this at the end of shape() method.
         """
@@ -208,7 +208,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
     def _bounds_union_sprite(self, base_rect: QtCore.QRectF) -> QtCore.QRectF:
         """
         Union sprite bounds into bounding rect.
-        
+
         Ensures the bounding box encompasses the entire sprite.
         Call this at the end of boundingRect() method.
         """
@@ -227,7 +227,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
             if views:
                 return views[0].window()
         return QtWidgets.QApplication.activeWindow()
-    
+
     def _get_undo_stack(self) -> Optional[QtWidgets.QUndoStack]:
         """Get the undo stack from main window (for WheelRotationTracker)."""
         if not self.scene():
@@ -239,23 +239,23 @@ class BaseObj(QtWidgets.QGraphicsObject):
         if isinstance(main_window, HasUndoStack):
             return main_window.undo_stack
         return None
-    
+
     def mousePressEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
         """Handle mouse press for rotation mode (Ctrl+drag) or normal drag."""
         # If locked, ignore event so rubber band selection can work
         if self._locked:
             ev.ignore()
             return
-        
+
         if self.isSelected() and (ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
             # Enter rotation mode
             mouse_pos = ev.scenePos()
-            
+
             # Check if this is a group rotation
             if self.scene():
-                selected_items = [item for item in self.scene().selectedItems() 
+                selected_items = [item for item in self.scene().selectedItems()
                                 if isinstance(item, BaseObj)]
-                
+
                 if len(selected_items) > 1:
                     # Group rotation
                     self._group_rotation = GroupRotationHandler(selected_items)
@@ -271,7 +271,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
                 self._single_rotation = SingleItemRotationHandler(self)
                 self._single_rotation.start_rotation(mouse_pos, self.rotation())
                 self._group_rotation = None
-            
+
             # Change cursor to indicate rotation mode
             self.setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
             ev.accept()
@@ -283,7 +283,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
         """Handle mouse move for rotation or normal drag."""
         mouse_pos = ev.scenePos()
         snap_to_45 = bool(ev.modifiers() & QtCore.Qt.KeyboardModifier.ShiftModifier)
-        
+
         if self._group_rotation and self._group_rotation.is_rotating:
             # Group rotation
             self._group_rotation.update_rotation(mouse_pos, snap_to_45)
@@ -320,20 +320,20 @@ class BaseObj(QtWidgets.QGraphicsObject):
         if self._locked and (ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
             ev.ignore()
             return
-        
+
         if self.isSelected() and (ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
             dy = ev.angleDelta().y()
             steps = dy / QT_WHEEL_ANGLE_DELTA_PER_STEP
             rotation_delta = WHEEL_ROTATION_DEGREES_PER_STEP * steps
-            
+
             # Check if multiple items are selected for group rotation
             if self.scene():
-                selected_items = [item for item in self.scene().selectedItems() 
+                selected_items = [item for item in self.scene().selectedItems()
                                 if isinstance(item, BaseObj)]
-                
+
                 # Track for undo
                 self._wheel_tracker.track(selected_items)
-                
+
                 if len(selected_items) > 1:
                     # Group rotation around common center
                     rotate_group_instant(selected_items, rotation_delta)
@@ -346,7 +346,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
                 self._wheel_tracker.track([self])
                 self.setRotation(self.rotation() + rotation_delta)
                 self.edited.emit()
-            
+
             ev.accept()
         else:
             ev.ignore()
@@ -356,25 +356,25 @@ class BaseObj(QtWidgets.QGraphicsObject):
         m = QtWidgets.QMenu()
         act_edit = m.addAction("Edit…")
         act_delete = m.addAction("Delete")
-        
+
         # Add Lock action (checkable)
         m.addSeparator()
         act_lock = m.addAction("Lock")
         act_lock.setCheckable(True)
         act_lock.setChecked(self._locked)
-        
+
         # Disable delete if locked
         if self._locked:
             act_delete.setEnabled(False)
             act_delete.setToolTip("Item is locked")
-        
+
         # Add z-order submenu
         m.addSeparator()
         act_bring_to_front = m.addAction("Bring to Front")
         act_bring_forward = m.addAction("Bring Forward")
         act_send_backward = m.addAction("Send Backward")
         act_send_to_back = m.addAction("Send to Back")
-        
+
         a = m.exec(ev.screenPos())
         if a == act_edit:
             self.open_editor()
@@ -384,28 +384,28 @@ class BaseObj(QtWidgets.QGraphicsObject):
             self.scene().removeItem(self)
         elif a in (act_bring_to_front, act_bring_forward, act_send_backward, act_send_to_back):
             # Handle z-order changes
-            self._handle_z_order_action(a, act_bring_to_front, act_bring_forward, 
+            self._handle_z_order_action(a, act_bring_to_front, act_bring_forward,
                                        act_send_backward, act_send_to_back)
-    
+
     def _handle_z_order_action(self, selected_action, act_bring_to_front, act_bring_forward,
                                act_send_backward, act_send_to_back):
         """Handle z-order menu actions."""
         from ..core.zorder_utils import apply_z_order_change
-        
+
         if not self.scene():
             return
-        
+
         # Get items to operate on: if this item is selected, use all selected items
         # Otherwise, just use this item
         if self.isSelected():
-            items = [item for item in self.scene().selectedItems() 
+            items = [item for item in self.scene().selectedItems()
                     if hasattr(item, 'setZValue')]
         else:
             items = [self]
-        
+
         if not items:
             return
-        
+
         # Determine operation
         if selected_action == act_bring_to_front:
             operation = "bring_to_front"
@@ -417,14 +417,14 @@ class BaseObj(QtWidgets.QGraphicsObject):
             operation = "send_to_back"
         else:
             return
-        
+
         # Get undo stack from main window
         undo_stack = None
         if self.scene().views():
             main_window = self.scene().views()[0].window()
             if isinstance(main_window, HasUndoStack):
                 undo_stack = main_window.undo_stack
-        
+
         # Apply z-order change
         apply_z_order_change(items, operation, self.scene(), undo_stack)
 
@@ -432,7 +432,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
     def open_editor(self):
         """Open editor dialog for this element."""
         pass
-    
+
     def capture_state(self) -> dict[str, Any]:
         """Capture current state for undo/redo. Subclasses should extend."""
         import dataclasses
@@ -446,11 +446,11 @@ class BaseObj(QtWidgets.QGraphicsObject):
         if isinstance(self, HasParams) and dataclasses.is_dataclass(self.params):
             state['params'] = dataclasses.asdict(self.params)
         return state
-    
+
     def apply_state(self, state: dict[str, Any]) -> None:
         """Apply state from undo/redo. Subclasses should extend if needed."""
         import dataclasses
-        
+
         if 'pos' in state:
             self.setPos(QtCore.QPointF(state['pos']['x'], state['pos']['y']))
         if 'rotation' in state:
@@ -459,14 +459,14 @@ class BaseObj(QtWidgets.QGraphicsObject):
             self.set_locked(state['locked'])
         if 'z_value' in state:
             self.setZValue(state['z_value'])
-        
+
         # Apply params if available (using protocol for type safety)
         if 'params' in state and isinstance(self, HasParams):
             if dataclasses.is_dataclass(self.params):
                 for key, value in state['params'].items():
                     if hasattr(self.params, key):
                         setattr(self.params, key, value)
-        
+
         # Sync visual state (using protocol for type safety)
         if isinstance(self, HasParams):
             self._sync_params_from_item()
@@ -479,34 +479,34 @@ class BaseObj(QtWidgets.QGraphicsObject):
     def clone(self, offset_mm: tuple[float, float] = (CLONE_OFFSET_X_MM, CLONE_OFFSET_Y_MM)) -> 'BaseObj':
         """
         Create a deep copy of this item with optional position offset.
-        
+
         This method creates a proper in-memory clone without using file serialization,
         making it robust for copy/paste operations. Sprites, interfaces, and all other
         properties are preserved.
-        
+
         Args:
             offset_mm: (x_offset, y_offset) in millimeters to offset the cloned item
-            
+
         Returns:
             A new instance of the same type with all properties copied
         """
         import copy
-        
+
         # Deep copy the params to get all nested structures (interfaces, etc.)
         new_params = copy.deepcopy(self.params)
-        
+
         # Apply position offset
         new_params.x_mm += offset_mm[0]
         new_params.y_mm += offset_mm[1]
-        
+
         # Create new instance of same type with copied params
         # This will automatically handle sprite attachment, interface setup, etc.
         new_item = type(self)(new_params)
-        
+
         # Copy item-level properties that aren't in params
         new_item._locked = self._locked
         new_item.setZValue(self.zValue())
-        
+
         return new_item
 
     def to_dict(self) -> dict[str, Any]:
@@ -522,8 +522,10 @@ class BaseObj(QtWidgets.QGraphicsObject):
         # Restore locked state if present
         if "locked" in d:
             self.set_locked(d["locked"])
-        
+
         # Restore z-value if present
         if "z_value" in d:
             self.setZValue(float(d["z_value"]))
+
+
 

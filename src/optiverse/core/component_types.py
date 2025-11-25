@@ -11,7 +11,7 @@ from enum import Enum
 class ComponentType(str, Enum):
     """
     Types of optical components that can be placed on the canvas.
-    
+
     Inherits from str to allow string comparison for backward compatibility.
     """
     SOURCE = "source"
@@ -25,7 +25,7 @@ class ComponentType(str, Enum):
     RULER = "ruler"
     BLOCK = "block"
     SLM = "slm"
-    
+
     @classmethod
     def is_optical(cls, component_type: "ComponentType | str") -> bool:
         """Check if a component type is an optical element (not annotation)."""
@@ -39,7 +39,7 @@ class ComponentType(str, Enum):
             except ValueError:
                 return False
         return component_type in optical_types
-    
+
     @classmethod
     def is_annotation(cls, component_type: "ComponentType | str") -> bool:
         """Check if a component type is an annotation (not optical)."""
@@ -50,4 +50,6 @@ class ComponentType(str, Enum):
             except ValueError:
                 return False
         return component_type in annotation_types
+
+
 

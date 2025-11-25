@@ -22,14 +22,14 @@ from optiverse.services.storage_service import StorageService
 def main():
     """Open Component Editor for testing Zemax import."""
     app = QtWidgets.QApplication(sys.argv)
-    
+
     # Create storage service
     storage = StorageService()
-    
+
     # Create and show Component Editor
     editor = ComponentEditor(storage)
     editor.show()
-    
+
     # Show instructions
     print("=" * 70)
     print("ZEMAX IMPORT UI TEST")
@@ -49,10 +49,12 @@ def main():
     print()
     print("Press Ctrl+C in terminal or close window to exit.")
     print("=" * 70)
-    
+
     sys.exit(app.exec())
 
 
 if __name__ == "__main__":
     main()
+
+
 

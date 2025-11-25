@@ -32,15 +32,15 @@ def create_beamsplitter_cube_50_50(
 ) -> ComponentParams:
     """
     Create a realistic beam splitter cube with proper refraction.
-    
+
     The cube is oriented at rotation_deg (typically 45°) with the beam splitter
     coating running diagonally from bottom-left to top-right in local coordinates.
-    
+
     Coordinate system (local, before rotation):
     - The cube extends from -size_mm/2 to +size_mm/2 in both x and y
     - The diagonal coating goes from (-size/2, -size/2) to (+size/2, +size/2)
     - Four edges: left, bottom, right, top
-    
+
     Args:
         size_mm: Side length of the cube in mm
         center_x: X position of cube center
@@ -52,14 +52,14 @@ def create_beamsplitter_cube_50_50(
         pbs_axis_deg: PBS transmission axis angle (absolute, in lab frame)
         image_path: Optional path to cube image
         name: Optional component name
-    
+
     Returns:
         ComponentParams with 5 interfaces configured
     """
     half_size = size_mm / 2.0
-    
+
     interfaces = []
-    
+
     # Interface 1: Left edge (entrance surface for horizontal beam from left)
     # Air (n=1.0) -> Glass (n=n_glass)
     interfaces.append(InterfaceDefinition(
@@ -70,7 +70,7 @@ def create_beamsplitter_cube_50_50(
         n2=n_glass,  # Glass
         name="Left Edge"
     ))
-    
+
     # Interface 2: Bottom edge (entrance surface for vertical beam from below)
     # Air (n=1.0) -> Glass (n=n_glass)
     interfaces.append(InterfaceDefinition(
@@ -81,7 +81,7 @@ def create_beamsplitter_cube_50_50(
         n2=n_glass,  # Glass
         name="Bottom Edge"
     ))
-    
+
     # Interface 3: Diagonal beam splitter coating (runs from bottom-left to top-right)
     # Glass (n=n_glass) on both sides, but with beam splitting coating
     interfaces.append(InterfaceDefinition(
@@ -96,7 +96,7 @@ def create_beamsplitter_cube_50_50(
         pbs_transmission_axis_deg=pbs_axis_deg,
         name="BS Coating"
     ))
-    
+
     # Interface 4: Right edge (exit surface for transmitted beam)
     # Glass (n=n_glass) -> Air (n=1.0)
     interfaces.append(InterfaceDefinition(
@@ -107,7 +107,7 @@ def create_beamsplitter_cube_50_50(
         n2=1.0,  # Air
         name="Right Edge"
     ))
-    
+
     # Interface 5: Top edge (exit surface for reflected beam)
     # Glass (n=n_glass) -> Air (n=1.0)
     interfaces.append(InterfaceDefinition(
@@ -118,7 +118,7 @@ def create_beamsplitter_cube_50_50(
         n2=1.0,  # Air
         name="Top Edge"
     ))
-    
+
     return ComponentParams(
         x_mm=center_x,
         y_mm=center_y,
@@ -142,20 +142,20 @@ def create_pbs_cube(
 ) -> ComponentParams:
     """
     Create a Polarizing Beam Splitter (PBS) cube.
-    
+
     A PBS cube transmits p-polarization and reflects s-polarization.
     Otherwise identical to regular beam splitter cube.
-    
+
     Args:
         size_mm: Side length of the cube in mm
         center_x: X position of cube center
-        center_y: Y position of cube center  
+        center_y: Y position of cube center
         rotation_deg: Rotation angle in degrees (45° typical)
         pbs_axis_deg: Transmission axis angle in lab frame (0° = horizontal)
         n_glass: Refractive index of glass
         image_path: Optional path to cube image
         name: Optional component name
-    
+
     Returns:
         ComponentParams configured as PBS
     """
@@ -185,9 +185,9 @@ def create_prism(
 ) -> ComponentParams:
     """
     Create a simple triangular prism (45-45-90 triangle).
-    
+
     Useful for demonstrating dispersion and refraction effects.
-    
+
     Args:
         base_mm: Base width of triangle
         height_mm: Height of triangle
@@ -197,16 +197,16 @@ def create_prism(
         n_glass: Refractive index
         image_path: Optional image
         name: Optional name
-    
+
     Returns:
         ComponentParams for prism
     """
     interfaces = []
-    
+
     # Triangle vertices (centered at origin)
     half_base = base_mm / 2.0
     half_height = height_mm / 2.0
-    
+
     # Bottom edge
     interfaces.append(InterfaceDefinition(
         element_type="refractive_interface",
@@ -215,7 +215,7 @@ def create_prism(
         n1=1.0, n2=n_glass,
         name="Bottom Edge"
     ))
-    
+
     # Right edge (hypotenuse)
     interfaces.append(InterfaceDefinition(
         element_type="refractive_interface",
@@ -224,7 +224,7 @@ def create_prism(
         n1=1.0, n2=n_glass,
         name="Right Edge"
     ))
-    
+
     # Left edge (hypotenuse)
     interfaces.append(InterfaceDefinition(
         element_type="refractive_interface",
@@ -233,7 +233,7 @@ def create_prism(
         n1=1.0, n2=n_glass,
         name="Left Edge"
     ))
-    
+
     return ComponentParams(
         x_mm=center_x,
         y_mm=center_y,
@@ -243,4 +243,6 @@ def create_prism(
         image_path=image_path or "",
         name=name or "Prism"
     )
+
+
 

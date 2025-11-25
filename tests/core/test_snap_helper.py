@@ -38,24 +38,24 @@ def test_snap_helper_initialization():
 def test_snap_to_center_horizontal(qtbot):
     """Test center-to-center snap on horizontal axis."""
     scene = QtWidgets.QGraphicsScene()
-    
+
     # Create a fixed lens at (100, 200)
     fixed = LensItem(LensParams(x_mm=100, y_mm=200))
     scene.addItem(fixed)
-    
+
     # Create moving lens near the same Y coordinate
     moving = LensItem(LensParams(x_mm=300, y_mm=204))  # 4px offset
     scene.addItem(moving)
-    
+
     helper = SnapHelper(tolerance_px=10.0)
-    
+
     # Try to snap at position (300, 204)
     result = helper.calculate_snap(
         QtCore.QPointF(300, 204),
         moving,
         scene
     )
-    
+
     # Should snap Y to 200 (center of fixed item)
     assert result.snapped
     assert result.position.x() == 300  # X unchanged
@@ -66,24 +66,24 @@ def test_snap_to_center_horizontal(qtbot):
 def test_snap_to_center_vertical(qtbot):
     """Test center-to-center snap on vertical axis."""
     scene = QtWidgets.QGraphicsScene()
-    
+
     # Create a fixed mirror at (100, 200)
     fixed = MirrorItem(MirrorParams(x_mm=100, y_mm=200))
     scene.addItem(fixed)
-    
+
     # Create moving mirror near the same X coordinate
     moving = MirrorItem(MirrorParams(x_mm=103, y_mm=400))  # 3px offset
     scene.addItem(moving)
-    
+
     helper = SnapHelper(tolerance_px=10.0)
-    
+
     # Try to snap at position (103, 400)
     result = helper.calculate_snap(
         QtCore.QPointF(103, 400),
         moving,
         scene
     )
-    
+
     # Should snap X to 100 (center of fixed item)
     assert result.snapped
     assert result.position.x() == 100  # X snapped
@@ -94,24 +94,24 @@ def test_snap_to_center_vertical(qtbot):
 def test_snap_both_axes(qtbot):
     """Test simultaneous snap on both axes."""
     scene = QtWidgets.QGraphicsScene()
-    
+
     # Create a fixed lens at (100, 200)
     fixed = LensItem(LensParams(x_mm=100, y_mm=200))
     scene.addItem(fixed)
-    
+
     # Create moving lens near the same position
     moving = LensItem(LensParams(x_mm=105, y_mm=205))
     scene.addItem(moving)
-    
+
     helper = SnapHelper(tolerance_px=10.0)
-    
+
     # Try to snap at position (105, 205)
     result = helper.calculate_snap(
         QtCore.QPointF(105, 205),
         moving,
         scene
     )
-    
+
     # Should snap both X and Y
     assert result.snapped
     assert result.position.x() == 100
@@ -123,24 +123,24 @@ def test_snap_both_axes(qtbot):
 def test_no_snap_beyond_tolerance(qtbot):
     """Test that no snap occurs beyond tolerance distance."""
     scene = QtWidgets.QGraphicsScene()
-    
+
     # Create a fixed lens at (100, 200)
     fixed = LensItem(LensParams(x_mm=100, y_mm=200))
     scene.addItem(fixed)
-    
+
     # Create moving lens far from fixed
     moving = LensItem(LensParams(x_mm=300, y_mm=250))
     scene.addItem(moving)
-    
+
     helper = SnapHelper(tolerance_px=10.0)
-    
+
     # Try to snap at position too far away (50px difference)
     result = helper.calculate_snap(
         QtCore.QPointF(300, 250),
         moving,
         scene
     )
-    
+
     # Should NOT snap
     assert not result.snapped
     assert result.position.x() == 300
@@ -151,20 +151,20 @@ def test_no_snap_beyond_tolerance(qtbot):
 def test_snap_ignores_moving_item(qtbot):
     """Test that snap doesn't consider the moving item itself."""
     scene = QtWidgets.QGraphicsScene()
-    
+
     # Create only one lens
     moving = LensItem(LensParams(x_mm=100, y_mm=200))
     scene.addItem(moving)
-    
+
     helper = SnapHelper(tolerance_px=10.0)
-    
+
     # Try to snap with only itself in the scene
     result = helper.calculate_snap(
         QtCore.QPointF(105, 205),
         moving,
         scene
     )
-    
+
     # Should NOT snap (no other items)
     assert not result.snapped
     assert result.position.x() == 105
@@ -174,26 +174,26 @@ def test_snap_ignores_moving_item(qtbot):
 def test_snap_multiple_candidates_closest(qtbot):
     """Test that snap chooses the closest candidate."""
     scene = QtWidgets.QGraphicsScene()
-    
+
     # Create two fixed items at different Y positions
     fixed1 = LensItem(LensParams(x_mm=100, y_mm=200))
     fixed2 = LensItem(LensParams(x_mm=200, y_mm=210))
     scene.addItem(fixed1)
     scene.addItem(fixed2)
-    
+
     # Create moving item closer to fixed1
     moving = LensItem(LensParams(x_mm=300, y_mm=203))
     scene.addItem(moving)
-    
+
     helper = SnapHelper(tolerance_px=10.0)
-    
+
     # Try to snap
     result = helper.calculate_snap(
         QtCore.QPointF(300, 203),
         moving,
         scene
     )
-    
+
     # Should snap to 200 (closer) not 210
     assert result.snapped
     assert result.position.y() == 200
@@ -203,20 +203,20 @@ def test_snap_with_view_transform(qtbot):
     """Test that snap calculations work with view zoom/transform."""
     scene = QtWidgets.QGraphicsScene()
     view = QtWidgets.QGraphicsView(scene)
-    
+
     # Zoom in 2x
     view.scale(2.0, 2.0)
-    
+
     # Create fixed item
     fixed = LensItem(LensParams(x_mm=100, y_mm=200))
     scene.addItem(fixed)
-    
+
     # Create moving item
     moving = LensItem(LensParams(x_mm=300, y_mm=205))
     scene.addItem(moving)
-    
+
     helper = SnapHelper(tolerance_px=10.0)
-    
+
     # Try to snap - should work in scene coordinates
     result = helper.calculate_snap(
         QtCore.QPointF(300, 205),
@@ -224,8 +224,10 @@ def test_snap_with_view_transform(qtbot):
         scene,
         view
     )
-    
+
     # Should still snap (tolerance is in view pixels, converted to scene)
     assert result.snapped
     assert result.position.y() == 200
+
+
 

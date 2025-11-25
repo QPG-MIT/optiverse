@@ -10,10 +10,12 @@ from __future__ import annotations
 def get_rotate_commands():
     """
     Get rotation command classes for undo/redo.
-    
+
     Returns:
         Tuple of (RotateItemCommand, RotateItemsCommand)
     """
     from ..core.undo_commands import RotateItemCommand, RotateItemsCommand
     return RotateItemCommand, RotateItemsCommand
+
+
 

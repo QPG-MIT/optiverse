@@ -10,3 +10,5 @@ def test_library_dock_smoke(qtbot):
     assert w.libraryDock.isVisible()
 
 
+
+

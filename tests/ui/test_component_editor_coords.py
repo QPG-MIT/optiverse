@@ -7,21 +7,21 @@ def test_image_canvas_drag_points(qtbot):
     """Test dragging points in ImageCanvas."""
     from PyQt6 import QtCore, QtGui
     from optiverse.objects.views.image_canvas import ImageCanvas
-    
+
     canvas = ImageCanvas()
     qtbot.addWidget(canvas)
-    
+
     # Create a simple test image
     pix = QtGui.QPixmap(400, 300)
     pix.fill(QtCore.Qt.GlobalColor.white)
     canvas.set_pixmap(pix, None)
-    
+
     # Set initial points
     canvas.set_points((100.0, 100.0), (200.0, 200.0))
     p1, p2 = canvas.get_points()
     assert p1 == (100.0, 100.0)
     assert p2 == (200.0, 200.0)
-    
+
     # Simulate dragging point 1
     # Note: This is a simplified test - actual mouse dragging would require
     # more complex event simulation
@@ -36,15 +36,15 @@ def test_image_canvas_points_changed_signal(qtbot):
     """Test that pointsChanged signal is emitted."""
     from PyQt6 import QtCore, QtGui
     from optiverse.objects.views.image_canvas import ImageCanvas
-    
+
     canvas = ImageCanvas()
     qtbot.addWidget(canvas)
-    
+
     # Create a simple test image
     pix = QtGui.QPixmap(400, 300)
     pix.fill(QtCore.Qt.GlobalColor.white)
     canvas.set_pixmap(pix, None)
-    
+
     # Connect signal spy
     with qtbot.waitSignal(canvas.pointsChanged, timeout=1000):
         canvas.set_points((100.0, 100.0), (200.0, 200.0))
@@ -54,24 +54,24 @@ def test_image_canvas_hover_detection(qtbot):
     """Test hover detection near points."""
     from PyQt6 import QtCore, QtGui
     from optiverse.objects.views.image_canvas import ImageCanvas
-    
+
     canvas = ImageCanvas()
     qtbot.addWidget(canvas)
-    
+
     # Create a simple test image
     pix = QtGui.QPixmap(400, 300)
     pix.fill(QtCore.Qt.GlobalColor.white)
     canvas.set_pixmap(pix, None)
     canvas.resize(400, 300)
-    
+
     # Set points
     canvas.set_points((100.0, 100.0), (200.0, 200.0))
-    
+
     # Test _get_point_at_screen_pos
     # This will depend on the scale, but we can test the logic
     canvas._scale_fit = 1.0
     pixrect = canvas._target_rect()
-    
+
     # Position near point 1
     test_pos = QtCore.QPoint(
         int(pixrect.x() + 100),
@@ -91,25 +91,25 @@ def test_image_canvas_screen_to_image_coords(qtbot):
     """Test screen to image coordinate conversion."""
     from PyQt6 import QtCore, QtGui, QtWidgets
     from optiverse.objects.views.image_canvas import ImageCanvas
-    
+
     canvas = ImageCanvas()
     qtbot.addWidget(canvas)
-    
+
     # Create a simple test image
     pix = QtGui.QPixmap(400, 300)
     pix.fill(QtCore.Qt.GlobalColor.white)
     canvas.set_pixmap(pix, None)
     canvas.resize(800, 600)
     canvas.show()
-    
+
     # Force layout
     QtWidgets.QApplication.processEvents()
-    
+
     # Test coordinate conversion
     pixrect = canvas._target_rect()
     test_pos = QtCore.QPoint(pixrect.x() + 50, pixrect.y() + 50)
     coords = canvas._screen_to_image_coords(test_pos)
-    
+
     assert coords is not None
     x, y = coords
     assert 0 <= x <= pix.width()
@@ -118,4 +118,6 @@ def test_image_canvas_screen_to_image_coords(qtbot):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
 

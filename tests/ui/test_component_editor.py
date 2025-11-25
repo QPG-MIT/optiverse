@@ -76,10 +76,10 @@ def test_component_editor_has_toolbar_actions(qtbot):
     # Check that editor has actions
     actions = editor.actions()
     assert len(actions) > 0, "Component editor should have toolbar actions"
-    
+
     # Check for key action texts (more robust)
     action_texts = [a.text().lower() for a in actions if a.text()]
-    
+
     # Component editor should have save/new/open actions
     assert any("save" in t or "new" in t or "open" in t for t in action_texts), \
         f"Expected save/new/open actions, found: {action_texts}"
@@ -112,7 +112,7 @@ def test_component_editor_has_notes_field(qtbot):
 
     assert hasattr(editor, "notes")
     assert editor.notes is not None
-    
+
     # Test notes can be set
     editor.notes.setPlainText("Test notes")
     assert editor.notes.toPlainText() == "Test notes"
@@ -156,7 +156,7 @@ def test_open_editor_from_mainmenu(qtbot):
     w = MainWindow()
     qtbot.addWidget(w)
     w.show()
-    
+
     # Ensure open_component_editor method exists
     assert hasattr(w, "open_component_editor")
 
@@ -170,6 +170,8 @@ def test_component_editor_backward_compat_name(qtbot):
     # Should be able to import and instantiate with old name
     editor = ComponentEditorDialog(storage=StorageService())
     qtbot.addWidget(editor)
-    
+
     assert editor is not None
     assert hasattr(editor, "saved")  # New feature should be present
+
+

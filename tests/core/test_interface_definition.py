@@ -35,10 +35,10 @@ def test_interface_definition_serialization():
         efl_mm=50.0,
         name="Test Lens"
     )
-    
+
     data = iface.to_dict()
     iface2 = InterfaceDefinition.from_dict(data)
-    
+
     assert iface2.x1_mm == iface.x1_mm
     assert iface2.element_type == "lens"
     assert iface2.efl_mm == 50.0
@@ -49,19 +49,19 @@ def test_interface_colors():
     """Test color coding for different interface types."""
     lens = InterfaceDefinition(element_type="lens")
     assert lens.get_color() == (0, 180, 180)  # Cyan
-    
+
     mirror = InterfaceDefinition(element_type="mirror")
     assert mirror.get_color() == (255, 140, 0)  # Orange
-    
+
     bs = InterfaceDefinition(element_type="beam_splitter")
     assert bs.get_color() == (0, 150, 120)  # Green
-    
+
     pbs = InterfaceDefinition(element_type="beam_splitter", is_polarizing=True)
     assert pbs.get_color() == (150, 0, 150)  # Purple
-    
+
     dichroic = InterfaceDefinition(element_type="dichroic")
     assert dichroic.get_color() == (255, 0, 255)  # Magenta
-    
+
     refr = InterfaceDefinition(element_type="refractive_interface", n1=1.0, n2=1.5)
     assert refr.get_color() == (100, 100, 255)  # Blue
 
@@ -93,14 +93,14 @@ def test_interface_angle():
         x2_mm=10.0, y2_mm=0.0
     )
     assert h_iface.angle_deg() == pytest.approx(0.0)
-    
+
     # Vertical line
     v_iface = InterfaceDefinition(
         x1_mm=0.0, y1_mm=0.0,
         x2_mm=0.0, y2_mm=10.0
     )
     assert v_iface.angle_deg() == pytest.approx(90.0)
-    
+
     # 45 degree line
     d_iface = InterfaceDefinition(
         x1_mm=0.0, y1_mm=0.0,
@@ -125,20 +125,20 @@ def test_interface_labels():
     lens = InterfaceDefinition(element_type="lens", efl_mm=100.0)
     assert "100.0" in lens.get_label()
     assert "Lens" in lens.get_label()
-    
+
     mirror = InterfaceDefinition(element_type="mirror")
     assert "Mirror" in mirror.get_label()
-    
+
     bs = InterfaceDefinition(element_type="beam_splitter", split_T=60.0, split_R=40.0)
     label = bs.get_label()
     assert "60" in label and "40" in label
-    
+
     pbs = InterfaceDefinition(element_type="beam_splitter", is_polarizing=True)
     assert "PBS" in pbs.get_label()
-    
+
     dichroic = InterfaceDefinition(element_type="dichroic", cutoff_wavelength_nm=550.0)
     assert "550" in dichroic.get_label()
-    
+
     refr = InterfaceDefinition(element_type="refractive_interface", n1=1.0, n2=1.517)
     label = refr.get_label()
     assert "1.000" in label and "1.517" in label
@@ -162,14 +162,14 @@ def test_interface_copy():
         efl_mm=75.0,
         name="Original"
     )
-    
+
     copy = original.copy()
-    
+
     assert copy.element_type == original.element_type
     assert copy.x1_mm == original.x1_mm
     assert copy.efl_mm == original.efl_mm
     assert copy.name == original.name
-    
+
     # Verify it's a separate object
     copy.name = "Copy"
     assert original.name == "Original"
@@ -179,10 +179,12 @@ def test_interface_copy():
 def test_interface_all_element_types():
     """Test creating interfaces of all supported types."""
     types = ['lens', 'mirror', 'beam_splitter', 'dichroic', 'refractive_interface']
-    
+
     for elem_type in types:
         iface = InterfaceDefinition(element_type=elem_type)
         assert iface.element_type == elem_type
         assert len(iface.get_color()) == 3  # Valid RGB tuple
         assert len(iface.get_label()) > 0  # Has a label
+
+
 

@@ -105,7 +105,7 @@ class TestObjectsImports:
             from optiverse.objects.mirrors import MirrorItem
             from optiverse.objects.beamsplitters import BeamsplitterItem
             from optiverse.objects.sources import SourceItem
-            
+
             assert LensItem is not None
             assert MirrorItem is not None
             assert BeamsplitterItem is not None
@@ -137,7 +137,7 @@ class TestObjectsImports:
                 ComponentSprite,
                 ImageCanvas,
             )
-            
+
             # All should be defined
             assert all([
                 BaseObj, LensItem, MirrorItem, BeamsplitterItem,
@@ -146,4 +146,6 @@ class TestObjectsImports:
             ])
         except ImportError as e:
             pytest.fail(f"Circular import or import error detected: {e}")
+
+
 

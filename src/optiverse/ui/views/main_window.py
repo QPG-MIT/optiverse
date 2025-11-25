@@ -66,7 +66,7 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
         self.setWindowTitle("2D Ray Optics Sandbox — Top View (mm/cm grid)")
         self.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
-        
+
         # Set window icon
         icon_path = _get_icon_path("optiverse.png")
         if os.path.exists(icon_path):
@@ -83,20 +83,20 @@ class MainWindow(QtWidgets.QMainWindow):
         # Connect drop signal instead of circular reference
         self.view.componentDropped.connect(self.on_drop_component)
         self.setCentralWidget(self.view)
-        
+
         # Initialize OpenGL ray overlay for hardware-accelerated rendering
         self.view._create_ray_overlay()
 
         # State variables
         self.snap_to_grid = False
         self.ray_items: list[QtWidgets.QGraphicsPathItem] = []
-        
+
         # Centralized editor state (replaces scattered boolean flags)
         self._editor_state = EditorState()
-        
+
         # Cache standard component templates for toolbar placement
         self._component_templates = {}
-        
+
         # Snap helper for magnetic alignment
         self._snap_helper = SnapHelper(tolerance_px=MAGNETIC_SNAP_TOLERANCE_PX)
 
@@ -110,23 +110,23 @@ class MainWindow(QtWidgets.QMainWindow):
         self.collaboration_manager = CollaborationManager(self)
         self.log_service = get_log_service()
         self.log_service.debug("MainWindow.__init__ called", "Init")
-        
+
         # Load saved preferences
         self.magnetic_snap = self.settings_service.get_value("magnetic_snap", True, bool)
-        
+
         # Load dark mode preference and apply theme to match
         dark_mode_saved = self.settings_service.get_value("dark_mode", self.view.is_dark_mode(), bool)
         self.view.set_dark_mode(dark_mode_saved)
         # Apply theme to ensure app-wide styling matches the saved preference
         from ..theme_manager import apply_theme
         apply_theme(dark_mode_saved)
-        
+
         # Initialize extracted handlers
         self._init_handlers()
 
         # Build library dock first (needed before menus reference libDock)
         self._build_library_dock()
-        
+
         # Tool mode controller - manages inspect, path measure, angle measure, placement modes
         self.tool_controller = ToolModeController(
             editor_state=self._editor_state,
@@ -136,25 +136,25 @@ class MainWindow(QtWidgets.QMainWindow):
             placement_handler=self.placement_handler,
             parent=self,
         )
-        
+
         # Build UI using ActionBuilder
         action_builder = ActionBuilder(self)
         action_builder.build_all()
-        
+
         # Initialize handlers that need actions (after action_builder creates them)
         self._init_event_handlers()
 
         # Install event filter for snap and ruler placement
         self.scene.installEventFilter(self)
-        
+
         # Check for autosave recovery on startup
         QtCore.QTimer.singleShot(100, self.file_controller.check_autosave_recovery)
-    
+
     def _init_handlers(self):
         """Initialize extracted handler classes."""
         # Ray renderer for rendering traced paths
         self.ray_renderer = RayRenderer(self.scene, self.view)
-        
+
         # Raytracing controller - manages ray tracing, debouncing, and ray data
         self.raytracing_controller = RaytracingController(
             scene=self.scene,
@@ -162,7 +162,7 @@ class MainWindow(QtWidgets.QMainWindow):
             log_service=self.log_service,
             parent=self,
         )
-        
+
         # File controller - handles save/load/autosave with UI
         self.file_controller = FileController(
             scene=self.scene,
@@ -175,7 +175,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Connect file controller signals
         self.file_controller.traceRequested.connect(self._schedule_retrace)
         self.file_controller.windowTitleChanged.connect(self.setWindowTitle)
-        
+
         # Collaboration controller - handles hosting/joining sessions
         self.collab_controller = CollaborationController(
             collaboration_manager=self.collaboration_manager,
@@ -183,14 +183,14 @@ class MainWindow(QtWidgets.QMainWindow):
             parent_widget=self,
         )
         # Status updates are connected via ActionBuilder to status label
-        
+
         # Inspect tool handler
         self.inspect_handler = InspectToolHandler(
             view=self.view,
             get_ray_data=self._get_ray_data,
             parent_widget=self,
         )
-        
+
         # Path measure tool handler
         self.path_measure_handler = PathMeasureToolHandler(
             scene=self.scene,
@@ -200,7 +200,7 @@ class MainWindow(QtWidgets.QMainWindow):
             parent_widget=self,
             on_complete=self._on_path_measure_complete,
         )
-        
+
         # Angle measure tool handler
         self.angle_measure_handler = AngleMeasureToolHandler(
             scene=self.scene,
@@ -209,7 +209,7 @@ class MainWindow(QtWidgets.QMainWindow):
             parent_widget=self,
             on_complete=self._on_angle_measure_complete,
         )
-        
+
         # Item drag handler - tracks positions/rotations for undo/redo
         self.drag_handler = ItemDragHandler(
             scene=self.scene,
@@ -218,7 +218,7 @@ class MainWindow(QtWidgets.QMainWindow):
             snap_to_grid_getter=self._get_snap_to_grid,
             schedule_retrace=self._schedule_retrace,
         )
-        
+
         # Component operations handler - copy, paste, delete, drop
         self.component_ops = ComponentOperationsHandler(
             scene=self.scene,
@@ -231,7 +231,7 @@ class MainWindow(QtWidgets.QMainWindow):
             set_paste_enabled=self._set_paste_enabled,
             parent_widget=self,
         )
-        
+
         # Note: PlacementHandler is initialized after _build_library_dock()
         # because it needs _component_templates which is populated by populate_library()
 
@@ -245,7 +245,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.libraryTree = LibraryTree(self)
         self.libDock.setWidget(self.libraryTree)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.libDock)
-        
+
         # Initialize library manager
         self.library_manager = LibraryManager(
             library_tree=self.libraryTree,
@@ -256,7 +256,7 @@ class MainWindow(QtWidgets.QMainWindow):
             parent_widget=self,
         )
         self._component_templates = self.library_manager.populate()
-        
+
         # Initialize PlacementHandler now that component_templates is populated
         self.placement_handler = PlacementHandler(
             scene=self.scene,
@@ -269,7 +269,7 @@ class MainWindow(QtWidgets.QMainWindow):
             schedule_retrace=self._schedule_retrace,
             broadcast_add_item=self.collaboration_manager.broadcast_add_item,
         )
-    
+
     def _init_event_handlers(self):
         """Initialize handlers that require actions to be created first."""
         # Ruler placement handler
@@ -281,7 +281,7 @@ class MainWindow(QtWidgets.QMainWindow):
             get_ruler_action=lambda: self.act_add_ruler,
             finish_ruler_mode=self.tool_controller.finish_ruler_placement,
         )
-        
+
         # Scene event handler - routes events to appropriate handlers
         self.scene_event_handler = SceneEventHandler(
             editor_state=self._editor_state,
@@ -303,16 +303,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self._component_templates = self.library_manager.populate()
         # Update placement handler with new templates (always exists after _build_library_dock)
         self.placement_handler.component_templates = self._component_templates
-    
+
     def _connect_item_signals(self, item):
         """Connect standard signals for a new item (edited, commandCreated)."""
         from ...objects import BaseObj
-        
+
         # Connect edited signal for retrace and collaboration
         if isinstance(item, Editable):
             item.edited.connect(self._maybe_retrace)
             item.edited.connect(partial(self.collaboration_manager.broadcast_update_item, item))
-        
+
         # Connect commandCreated signal for undo/redo
         # BaseObj and RulerItem both have commandCreated signal
         if isinstance(item, BaseObj):
@@ -338,7 +338,7 @@ class MainWindow(QtWidgets.QMainWindow):
         cursor_global = QtGui.QCursor.pos()
         cursor_view = self.view.mapFromGlobal(cursor_global)
         cursor_scene = self.view.mapToScene(cursor_view)
-        
+
         self.component_ops.paste_items(cursor_scene)
 
     def _do_undo(self):
@@ -354,7 +354,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _toggle_ruler_placement(self, on: bool):
         """Toggle ruler placement mode (delegated to RulerPlacementHandler)."""
         self.ruler_handler.toggle(on, self.tool_controller._cancel_other_modes)
-    
+
     def start_place_ruler(self):
         """Enter ruler placement mode (delegated to RulerPlacementHandler)."""
         self.ruler_handler.start(self.tool_controller._cancel_other_modes)
@@ -379,50 +379,50 @@ class MainWindow(QtWidgets.QMainWindow):
     def _maybe_retrace(self):
         """Retrace if autotrace is enabled (with debouncing)."""
         self._schedule_retrace()
-    
+
     # Properties to maintain backward compatibility
     @property
     def ray_data(self) -> list:
         """Get ray data from controller."""
         return self.raytracing_controller.ray_data
-    
+
     @property
     def autotrace(self) -> bool:
         """Get autotrace enabled state from controller."""
         return self.raytracing_controller.autotrace
-    
+
     @autotrace.setter
     def autotrace(self, value: bool) -> None:
         """Set autotrace enabled state on controller."""
         self.raytracing_controller.autotrace = value
-    
+
     @property
     def _ray_width_px(self) -> float:
         """Get ray width from controller."""
         return self.raytracing_controller.ray_width_px
-    
+
     @_ray_width_px.setter
     def _ray_width_px(self, value: float) -> None:
         """Set ray width on controller."""
         self.raytracing_controller.ray_width_px = value
-    
+
     # ----- Getter methods for handlers (replaces lambda callbacks) -----
     def _get_ray_data(self) -> list:
         """Get ray data - used by handlers instead of lambda."""
         return self.raytracing_controller.ray_data
-    
+
     def _get_snap_to_grid(self) -> bool:
         """Get snap to grid state - used by handlers instead of lambda."""
         return self.snap_to_grid
-    
+
     def _set_paste_enabled(self, enabled: bool) -> None:
         """Set paste action enabled state - used by handlers instead of lambda."""
         self.act_paste.setEnabled(enabled)
-    
+
     def _on_path_measure_complete(self) -> None:
         """Called when path measure tool completes - used instead of lambda."""
         self.act_measure_path.setChecked(False)
-    
+
     def _on_angle_measure_complete(self) -> None:
         """Called when angle measure tool completes - used instead of lambda."""
         self.act_measure_angle.setChecked(False)
@@ -431,7 +431,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def save_assembly(self):
         """Quick save (delegated to file controller)."""
         self.file_controller.save_assembly()
-    
+
     def save_assembly_as(self):
         """Save As (delegated to file controller)."""
         self.file_controller.save_assembly_as()
@@ -454,7 +454,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _toggle_snap(self, on: bool):
         """Toggle snap to grid."""
         self.snap_to_grid = on
-    
+
     def _toggle_magnetic_snap(self, on: bool):
         """Toggle magnetic snap."""
         self.magnetic_snap = on
@@ -462,7 +462,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Clear guides if turning off
         if not on:
             self.view.clear_snap_guides()
-    
+
     def _toggle_dark_mode(self, on: bool):
         """Toggle dark mode."""
         self.view.set_dark_mode(on)
@@ -472,17 +472,17 @@ class MainWindow(QtWidgets.QMainWindow):
         apply_theme(on)
         # Refresh library to update category colors
         self.populate_library()
-    
+
     def _zoom_in(self):
         """Zoom in by ZOOM_FACTOR."""
         self.view.scale(ZOOM_FACTOR, ZOOM_FACTOR)
         self.view.zoomChanged.emit()
-    
+
     def _zoom_out(self):
         """Zoom out by ZOOM_FACTOR."""
         self.view.scale(1 / ZOOM_FACTOR, 1 / ZOOM_FACTOR)
         self.view.zoomChanged.emit()
-    
+
     def _fit_scene(self):
         """Fit scene contents in view."""
         self.view.fitInView(
@@ -490,7 +490,7 @@ class MainWindow(QtWidgets.QMainWindow):
             QtCore.Qt.AspectRatioMode.KeepAspectRatio
         )
         self.view.zoomChanged.emit()
-    
+
     def _recenter_view(self):
         """Reset view to default position (centered at origin) and zoom level (1:1)."""
         # Reset transform to identity (removes any zoom/pan/rotation)
@@ -501,15 +501,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view.centerOn(0, 0)
         # Emit zoom changed signal to update UI
         self.view.zoomChanged.emit()
-    
+
     def _toggle_inspect(self, on: bool):
         """Toggle inspect tool mode (delegated to ToolModeController)."""
         self.tool_controller.toggle_inspect(on)
-    
+
     def _toggle_path_measure(self, on: bool):
         """Toggle path measure tool mode (delegated to ToolModeController)."""
         self.tool_controller.toggle_path_measure(on)
-    
+
     def _toggle_angle_measure(self, on: bool):
         """Toggle angle measure tool mode (delegated to ToolModeController)."""
         self.tool_controller.toggle_angle_measure(on)
@@ -517,7 +517,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _toggle_placement_mode(self, component_type: str, on: bool):
         """Toggle component placement mode (delegated to ToolModeController)."""
         self.tool_controller.toggle_placement(component_type, on)
-    
+
     def _cancel_placement_mode(self, except_type: str | None = None):
         """Cancel placement mode (delegated to ToolModeController)."""
         self.tool_controller.cancel_placement(except_type=except_type)
@@ -541,7 +541,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def open_component_editor(self, component_data: dict = None):
         """
         Open component editor dialog, optionally with pre-loaded data.
-        
+
         Args:
             component_data: Optional dict to load into the editor
         """
@@ -558,15 +558,15 @@ class MainWindow(QtWidgets.QMainWindow):
         if component_data is not None:
             self._comp_editor._load_from_dict(component_data)
         self._comp_editor.show()
-    
+
     def open_user_library_folder(self):
         """Open the user library folder in the system file explorer."""
         from ...platform.paths import get_user_library_root
         import subprocess
         import sys
-        
+
         library_path = get_user_library_root()
-        
+
         try:
             if sys.platform == "win32":
                 os.startfile(str(library_path))
@@ -581,24 +581,24 @@ class MainWindow(QtWidgets.QMainWindow):
                 f"User library location:\n{library_path}\n\n"
                 f"(Could not open folder automatically: {str(e)})"
             )
-    
-    
+
+
     def open_preferences(self):
         """Open preferences/settings dialog."""
         from .settings_dialog import SettingsDialog
-        
+
         dialog = SettingsDialog(self.settings_service, self)
         dialog.settings_changed.connect(self._on_settings_changed)
         dialog.exec()
-    
+
     def _on_settings_changed(self):
         """Handle settings changes."""
         # Reload library to pick up new library paths
         self.populate_library()
-        
+
         # Log the change
         self.log_service.info("Settings updated - library reloaded", "Settings")
-    
+
     def import_component_library(self):
         """Import components from another library folder (delegated to library manager)."""
         if self.library_manager.import_library():
@@ -611,7 +611,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if result is not None:
             return result
         return super().eventFilter(obj, ev)
-    
+
     def keyPressEvent(self, ev):
         """Handle key press events (delegated to SceneEventHandler)."""
         if self.scene_event_handler.handle_key_press(ev):
@@ -624,7 +624,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """Show the application log window."""
         log_window = LogWindow(self)
         log_window.show()
-    
+
     # ----- Collaboration (delegated to CollaborationController) -----
     def open_collaboration_dialog(self):
         """Open dialog to connect to or host a collaboration session."""
@@ -632,13 +632,13 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.collab_controller.is_connected:
             self.act_disconnect.setEnabled(True)
             self.act_collaborate.setEnabled(False)
-    
+
     def disconnect_collaboration(self):
         """Disconnect from collaboration session."""
         self.collab_controller.disconnect()
         self.act_disconnect.setEnabled(False)
         self.act_collaborate.setEnabled(True)
-    
+
     # ensure clean shutdown
     def closeEvent(self, e: QtGui.QCloseEvent):
         # Check for unsaved changes
@@ -647,11 +647,11 @@ class MainWindow(QtWidgets.QMainWindow):
             if reply == QtWidgets.QMessageBox.StandardButton.Cancel:
                 e.ignore()  # Don't close the window
                 return
-        
+
         try:
             # Clear autosave on clean exit
             self.file_controller.file_manager.clear_autosave()
-            
+
             # Close component editor if it was opened
             if getattr(self, "_comp_editor", None) is not None:
                 self._comp_editor.close()
@@ -661,3 +661,5 @@ class MainWindow(QtWidgets.QMainWindow):
             # Ignore cleanup errors during shutdown
             pass
         super().closeEvent(e)
+
+

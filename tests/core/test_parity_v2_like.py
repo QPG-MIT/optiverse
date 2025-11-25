@@ -53,3 +53,5 @@ def test_mirror_reflection_angle_parity():
     assert v_norm[1] > 0.7  # strong upward component
 
 
+
+

@@ -22,7 +22,7 @@ def test_zemax_surface():
         glass="N-BK7",
         diameter=12.7
     )
-    
+
     assert surf.number == 1
     assert surf.curvature == 0.015
     assert abs(surf.radius_mm - 66.67) < 0.1
@@ -34,18 +34,18 @@ def test_glass_catalog():
     """Test glass catalog."""
     print("Testing GlassCatalog...")
     catalog = GlassCatalog()
-    
+
     # Test BK7
     n_bk7 = catalog.get_refractive_index("N-BK7", 0.5876)
     assert n_bk7 is not None
     assert 1.51 < n_bk7 < 1.52
     print(f"  ✓ BK7 index: {n_bk7:.4f}")
-    
+
     # Test air
     n_air = catalog.get_refractive_index("", 0.55)
     assert n_air == 1.0
     print(f"  ✓ Air index: {n_air:.4f}")
-    
+
     print("  ✓ GlassCatalog works")
 
 
@@ -58,44 +58,44 @@ def test_curved_interface():
         is_curved=True,
         radius_of_curvature_mm=100.0
     )
-    
+
     assert not iface.is_flat()
     assert iface.radius_of_curvature_mm == 100.0
-    
+
     # Test center of curvature
     center_x, center_y = iface.center_of_curvature_mm()
     assert center_x == 100.0
     print(f"  ✓ Center of curvature: ({center_x:.1f}, {center_y:.1f})")
-    
+
     # Test surface sag
     sag = iface.surface_sag_at_y(5.0)
     assert sag > 0  # Convex
     print(f"  ✓ Surface sag at edge: {sag:.4f} mm")
-    
+
     # Test serialization
     data = iface.to_dict()
     assert data['is_curved'] == True
     assert data['radius_of_curvature_mm'] == 100.0
-    
+
     iface2 = InterfaceDefinition.from_dict(data)
     assert iface2.is_curved
     assert iface2.radius_of_curvature_mm == 100.0
     print("  ✓ Serialization works")
-    
+
     print("  ✓ Curved InterfaceDefinition works")
 
 
 def test_zemax_converter():
     """Test Zemax to Interface conversion."""
     print("Testing ZemaxToInterfaceConverter...")
-    
+
     # Create a simple Zemax file
     zmx = ZemaxFile(
         name="Test Doublet",
         wavelengths_um=[0.5876],
         primary_wavelength_idx=1
     )
-    
+
     # Add surfaces
     zmx.surfaces = [
         ZemaxSurface(number=0),  # Object
@@ -122,19 +122,19 @@ def test_zemax_converter():
         ),
         ZemaxSurface(number=4),  # Image
     ]
-    
+
     # Convert
     catalog = GlassCatalog()
     converter = ZemaxToInterfaceConverter(catalog)
     component = converter.convert(zmx)
-    
+
     # Verify
     assert component.name == "Test Doublet"
     assert component.kind == "multi_element"
     assert component.object_height_mm == 12.7
     assert len(component.interfaces_v2) == 3
     print(f"  ✓ Converted to {len(component.interfaces_v2)} interfaces")
-    
+
     # Check first interface
     iface1 = component.interfaces_v2[0]
     assert iface1.n1 == 1.0  # Air
@@ -142,7 +142,7 @@ def test_zemax_converter():
     assert iface1.is_curved
     assert iface1.radius_of_curvature_mm > 0  # Convex
     print(f"  ✓ Interface 1: n={iface1.n1:.3f}→{iface1.n2:.3f}, R={iface1.radius_of_curvature_mm:.1f}mm")
-    
+
     print("  ✓ ZemaxToInterfaceConverter works")
 
 
@@ -152,7 +152,7 @@ def main():
     print("ZEMAX IMPORT FUNCTIONALITY TESTS")
     print("=" * 70)
     print()
-    
+
     try:
         test_zemax_surface()
         print()
@@ -178,4 +178,6 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
 

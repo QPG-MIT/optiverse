@@ -13,7 +13,7 @@ def test_angle_measure_handler_activation():
     undo_stack = Mock()
     parent_widget = Mock()
     on_complete = Mock()
-    
+
     handler = AngleMeasureToolHandler(
         scene=scene,
         view=view,
@@ -21,15 +21,15 @@ def test_angle_measure_handler_activation():
         parent_widget=parent_widget,
         on_complete=on_complete
     )
-    
+
     # Initially not active
     assert not handler.is_active()
-    
+
     # Activate
     handler.activate()
     assert handler.is_active()
     assert handler._state == 'waiting_point1'
-    
+
     # Deactivate
     handler.deactivate()
     assert not handler.is_active()
@@ -44,7 +44,7 @@ def test_angle_measure_handler_escape():
     undo_stack = Mock()
     parent_widget = Mock()
     on_complete = Mock()
-    
+
     handler = AngleMeasureToolHandler(
         scene=scene,
         view=view,
@@ -52,10 +52,10 @@ def test_angle_measure_handler_escape():
         parent_widget=parent_widget,
         on_complete=on_complete
     )
-    
+
     # Activate and start measurement
     handler.activate()
-    
+
     # Escape should work
     result = handler.handle_escape()
     assert result is True
@@ -72,7 +72,7 @@ def test_angle_measure_handler_escape_not_active():
     undo_stack = Mock()
     parent_widget = Mock()
     on_complete = Mock()
-    
+
     handler = AngleMeasureToolHandler(
         scene=scene,
         view=view,
@@ -80,7 +80,7 @@ def test_angle_measure_handler_escape_not_active():
         parent_widget=parent_widget,
         on_complete=on_complete
     )
-    
+
     # Escape should return False when not active
     result = handler.handle_escape()
     assert result is False
@@ -96,7 +96,7 @@ def test_angle_measure_handler_click_workflow():
     undo_stack = Mock()
     parent_widget = Mock()
     on_complete = Mock()
-    
+
     handler = AngleMeasureToolHandler(
         scene=scene,
         view=view,
@@ -104,28 +104,28 @@ def test_angle_measure_handler_click_workflow():
         parent_widget=parent_widget,
         on_complete=on_complete
     )
-    
+
     handler.activate()
-    
+
     # First click: set point1
     handler.handle_click(QtCore.QPointF(0, 0))
     assert handler._state == 'waiting_vertex'
     assert handler._point1 is not None
-    
+
     # Second click: set vertex
     handler.handle_click(QtCore.QPointF(50, 50))
     assert handler._state == 'waiting_point2'
     assert handler._vertex is not None
-    
+
     # Third click: set point2 and create measurement
     handler.handle_click(QtCore.QPointF(100, 0))
-    
+
     # Should have reset state
     assert handler._state is None
-    
+
     # Should have pushed command to undo stack
     undo_stack.push.assert_called()
-    
+
     # Should have called completion callback
     on_complete.assert_called_once()
 
@@ -141,7 +141,7 @@ def test_path_measure_handler_activation():
     get_ray_data = Mock(return_value=[])
     parent_widget = Mock()
     on_complete = Mock()
-    
+
     handler = PathMeasureToolHandler(
         scene=scene,
         view=view,
@@ -150,15 +150,15 @@ def test_path_measure_handler_activation():
         parent_widget=parent_widget,
         on_complete=on_complete
     )
-    
+
     # Initially not active
     assert not handler.is_active()
-    
+
     # Activate
     handler.activate()
     assert handler.is_active()
     assert handler._state == 'waiting_first_click'
-    
+
     # Deactivate
     handler.deactivate()
     assert not handler.is_active()
@@ -174,7 +174,7 @@ def test_path_measure_handler_escape():
     get_ray_data = Mock(return_value=[])
     parent_widget = Mock()
     on_complete = Mock()
-    
+
     handler = PathMeasureToolHandler(
         scene=scene,
         view=view,
@@ -183,10 +183,10 @@ def test_path_measure_handler_escape():
         parent_widget=parent_widget,
         on_complete=on_complete
     )
-    
+
     # Activate
     handler.activate()
-    
+
     # Escape should work
     result = handler.handle_escape()
     assert result is True
@@ -204,7 +204,7 @@ def test_path_measure_handler_escape_not_active():
     get_ray_data = Mock(return_value=[])
     parent_widget = Mock()
     on_complete = Mock()
-    
+
     handler = PathMeasureToolHandler(
         scene=scene,
         view=view,
@@ -213,7 +213,7 @@ def test_path_measure_handler_escape_not_active():
         parent_widget=parent_widget,
         on_complete=on_complete
     )
-    
+
     # Escape should return False when not active
     result = handler.handle_escape()
     assert result is False
@@ -228,20 +228,20 @@ def test_angle_measure_handler_cleanup_on_deactivate():
     view = Mock()
     undo_stack = Mock()
     parent_widget = Mock()
-    
+
     handler = AngleMeasureToolHandler(
         scene=scene,
         view=view,
         undo_stack=undo_stack,
         parent_widget=parent_widget
     )
-    
+
     handler.activate()
-    
+
     # First click creates preview line
     handler.handle_click(QtCore.QPointF(0, 0))
     assert handler._preview_line is not None
-    
+
     # Deactivate should clean up
     handler.deactivate()
     assert handler._preview_line is None
@@ -256,7 +256,7 @@ def test_path_measure_handler_handle_item_delete():
     undo_stack = Mock()
     get_ray_data = Mock(return_value=[])
     parent_widget = Mock()
-    
+
     handler = PathMeasureToolHandler(
         scene=scene,
         view=view,
@@ -264,14 +264,14 @@ def test_path_measure_handler_handle_item_delete():
         get_ray_data=get_ray_data,
         parent_widget=parent_widget
     )
-    
+
     # Create mock item with scene
     mock_item = Mock()
     mock_item.scene.return_value = scene
-    
+
     # Call delete handler
     handler._handle_item_delete(mock_item)
-    
+
     # Should have pushed a RemoveItemCommand
     undo_stack.push.assert_called_once()
 
@@ -284,21 +284,23 @@ def test_angle_measure_handler_handle_item_delete():
     view = Mock()
     undo_stack = Mock()
     parent_widget = Mock()
-    
+
     handler = AngleMeasureToolHandler(
         scene=scene,
         view=view,
         undo_stack=undo_stack,
         parent_widget=parent_widget
     )
-    
+
     # Create mock item with scene
     mock_item = Mock()
     mock_item.scene.return_value = scene
-    
+
     # Call delete handler
     handler._handle_item_delete(mock_item)
-    
+
     # Should have pushed a RemoveItemCommand
     undo_stack.push.assert_called_once()
+
+
 

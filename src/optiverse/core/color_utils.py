@@ -7,11 +7,11 @@ from PyQt6 import QtGui
 def qcolor_from_hex(h: str, fallback: str = "#DC143C") -> QtGui.QColor:
     """
     Convert hex color string to QColor.
-    
+
     Args:
         h: Hex color string (e.g., "#DC143C")
         fallback: Fallback hex string if h is invalid
-        
+
     Returns:
         QColor instance
     """
@@ -25,10 +25,10 @@ def qcolor_from_hex(h: str, fallback: str = "#DC143C") -> QtGui.QColor:
 def hex_from_qcolor(c: QtGui.QColor) -> str:
     """
     Convert QColor to hex color string.
-    
+
     Args:
         c: QColor instance
-        
+
     Returns:
         Hex color string in format "#RRGGBB"
     """
@@ -38,22 +38,22 @@ def hex_from_qcolor(c: QtGui.QColor) -> str:
 def wavelength_to_rgb(wavelength_nm: float) -> tuple[int, int, int]:
     """
     Convert wavelength in nanometers to RGB color.
-    
+
     Uses a physically-inspired approximation of the visible spectrum.
     Based on the CIE color matching functions approximation.
-    
+
     Args:
         wavelength_nm: Wavelength in nanometers (typically 380-750 nm)
-        
+
     Returns:
         RGB tuple with values 0-255
-        
+
     References:
         Approximation based on Dan Bruton's algorithm with improvements
     """
     # Clamp to visible range
     wl = float(wavelength_nm)
-    
+
     # Define the visible spectrum boundaries
     if wl < 380:
         # UV -> violet
@@ -93,22 +93,22 @@ def wavelength_to_rgb(wavelength_nm: float) -> tuple[int, int, int]:
     else:
         # IR -> deep red
         return (139, 0, 0)  # Dark red
-    
+
     # Convert to 0-255 range
     R = int(np.clip(r * 255, 0, 255))
     G = int(np.clip(g * 255, 0, 255))
     B = int(np.clip(b * 255, 0, 255))
-    
+
     return (R, G, B)
 
 
 def wavelength_to_hex(wavelength_nm: float) -> str:
     """
     Convert wavelength to hex color string.
-    
+
     Args:
         wavelength_nm: Wavelength in nanometers
-        
+
     Returns:
         Hex color string in format "#RRGGBB"
     """
@@ -119,10 +119,10 @@ def wavelength_to_hex(wavelength_nm: float) -> str:
 def wavelength_to_qcolor(wavelength_nm: float) -> QtGui.QColor:
     """
     Convert wavelength to QColor.
-    
+
     Args:
         wavelength_nm: Wavelength in nanometers
-        
+
     Returns:
         QColor instance
     """
@@ -143,4 +143,6 @@ LASER_WAVELENGTHS = {
     "IR (808nm diode)": 808.0,
     "IR (1064nm Nd:YAG)": 1064.0,
 }
+
+
 

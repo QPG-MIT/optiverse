@@ -20,12 +20,12 @@ from optiverse.objects import SourceItem, MirrorItem, WaveplateItem, Beamsplitte
 
 def setup_test_scene(window: MainWindow):
     """Create a simple optical setup for testing the inspect tool."""
-    
+
     # Clear any existing items
     window.scene.clear()
     window.ray_items.clear()
     window.ray_data.clear()
-    
+
     # Add a source at the origin
     source_params = SourceParams(
         x_mm=0,
@@ -42,7 +42,7 @@ def setup_test_scene(window: MainWindow):
     source = SourceItem(source_params)
     window.scene.addItem(source)
     source.edited.connect(window._maybe_retrace)
-    
+
     # Add a quarter-wave plate at x=150mm (vertical fast axis, will convert to circular)
     qwp_params = WaveplateParams(
         x_mm=150,
@@ -56,7 +56,7 @@ def setup_test_scene(window: MainWindow):
     qwp = WaveplateItem(qwp_params)
     window.scene.addItem(qwp)
     qwp.edited.connect(window._maybe_retrace)
-    
+
     # Add a polarizing beamsplitter at x=300mm, y=0
     pbs_params = BeamsplitterParams(
         x_mm=300,
@@ -72,7 +72,7 @@ def setup_test_scene(window: MainWindow):
     pbs = BeamsplitterItem(pbs_params)
     window.scene.addItem(pbs)
     pbs.edited.connect(window._maybe_retrace)
-    
+
     # Add a mirror to catch the reflected beam
     mirror_params = MirrorParams(
         x_mm=300,
@@ -84,16 +84,16 @@ def setup_test_scene(window: MainWindow):
     mirror = MirrorItem(mirror_params)
     window.scene.addItem(mirror)
     mirror.edited.connect(window._maybe_retrace)
-    
+
     # Retrace to show the rays
     window.retrace()
-    
+
     # Fit the view to show all elements
     window.view.fitInView(
         window.scene.itemsBoundingRect(),
         QtCore.Qt.AspectRatioMode.KeepAspectRatio
     )
-    
+
     # Show instructions
     QtWidgets.QMessageBox.information(
         window,
@@ -122,17 +122,19 @@ Have fun exploring! 🔬"""
 def main():
     """Run the test application."""
     app = QtWidgets.QApplication(sys.argv)
-    
+
     # Create main window
     window = MainWindow()
     window.show()
-    
+
     # Setup test scene after a short delay to ensure window is ready
     QtCore.QTimer.singleShot(100, lambda: setup_test_scene(window))
-    
+
     sys.exit(app.exec())
 
 
 if __name__ == "__main__":
     main()
+
+
 

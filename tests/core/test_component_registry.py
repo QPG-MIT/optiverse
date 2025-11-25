@@ -117,15 +117,15 @@ class TestComponentRegistry:
     def test_get_components_by_category(self):
         """get_components_by_category() should organize components."""
         from optiverse.objects.component_registry import ComponentRegistry
-        
+
         by_category = ComponentRegistry.get_components_by_category()
-        
+
         assert isinstance(by_category, dict)
         assert "Lenses" in by_category
         assert "Mirrors" in by_category
         assert "Beamsplitters" in by_category
         assert "Sources" in by_category
-        
+
         # Each category should have at least one component
         assert len(by_category["Lenses"]) >= 1
         assert len(by_category["Mirrors"]) >= 1
@@ -136,9 +136,9 @@ class TestComponentRegistry:
         """All component parameters should be JSON-serializable."""
         import json
         from optiverse.objects.component_registry import ComponentRegistry
-        
+
         components = ComponentRegistry.get_standard_components()
-        
+
         json_str = json.dumps(components)
         assert len(json_str) > 0
 
@@ -155,4 +155,6 @@ class TestComponentRegistry:
                 assert isinstance(iface.get("x2_mm"), (int, float))
                 assert isinstance(iface.get("y2_mm"), (int, float))
                 assert isinstance(iface.get("element_type"), str)
+
+
 

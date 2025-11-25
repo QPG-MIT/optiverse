@@ -4,23 +4,25 @@ Beamsplitter element implementation.
 Implements partial reflection and transmission, with optional polarization dependence (PBS).
 """
 from typing import List, Tuple
+
 import numpy as np
 
-from .base import IOpticalElement
-from ..ray import RayState
 from ...core.raytracing_math import (
-    normalize, reflect_vec,
-    transform_polarization_beamsplitter
+    normalize,
+    reflect_vec,
+    transform_polarization_beamsplitter,
 )
+from ..ray import RayState
+from .base import IOpticalElement
 
 
 class BeamsplitterElement(IOpticalElement):
     """
     Beamsplitter element with configurable split ratio.
-    
+
     Can be non-polarizing (splits by intensity) or polarizing (PBS).
     """
-    
+
     def __init__(
         self,
         p1: np.ndarray,
@@ -32,7 +34,7 @@ class BeamsplitterElement(IOpticalElement):
     ):
         """
         Initialize beamsplitter element.
-        
+
         Args:
             p1: Start point of beamsplitter line segment [x, y] in mm
             p2: End point of beamsplitter line segment [x, y] in mm
@@ -47,11 +49,11 @@ class BeamsplitterElement(IOpticalElement):
         self.reflection = reflection
         self.is_polarizing = is_polarizing
         self.polarization_axis_deg = polarization_axis_deg
-    
+
     def get_geometry(self) -> Tuple[np.ndarray, np.ndarray]:
         """Get beamsplitter line segment"""
         return self.p1, self.p2
-    
+
     def interact(
         self,
         ray: RayState,
@@ -61,7 +63,7 @@ class BeamsplitterElement(IOpticalElement):
     ) -> List[RayState]:
         """
         Split ray into transmitted and reflected components.
-        
+
         Physics:
         - Non-polarizing BS: Split by intensity only
         - Polarizing BS (PBS): Split by polarization
@@ -78,7 +80,7 @@ class BeamsplitterElement(IOpticalElement):
             self.polarization_axis_deg,
             is_transmitted=True
         )
-        
+
         polarization_reflected, intensity_factor_reflected = transform_polarization_beamsplitter(
             ray.polarization,
             ray.direction,
@@ -88,7 +90,7 @@ class BeamsplitterElement(IOpticalElement):
             self.polarization_axis_deg,
             is_transmitted=False
         )
-        
+
         # Determine split ratios
         if self.is_polarizing:
             # PBS: split determined by polarization
@@ -98,15 +100,15 @@ class BeamsplitterElement(IOpticalElement):
             # Non-polarizing: use configured ratios
             T = self.transmission
             R = self.reflection
-        
+
         output_rays = []
         EPS_ADV = 1e-3
         MIN_INTENSITY = 0.02
-        
+
         # Transmitted ray
         if T > MIN_INTENSITY / ray.intensity:
             direction_transmitted = normalize(ray.direction)
-            
+
             transmitted_ray = RayState(
                 position=hit_point + direction_transmitted * EPS_ADV,
                 direction=direction_transmitted,
@@ -117,11 +119,11 @@ class BeamsplitterElement(IOpticalElement):
                 events=ray.events + 1
             )
             output_rays.append(transmitted_ray)
-        
+
         # Reflected ray
         if R > MIN_INTENSITY / ray.intensity:
             direction_reflected = normalize(reflect_vec(ray.direction, normal))
-            
+
             reflected_ray = RayState(
                 position=hit_point + direction_reflected * EPS_ADV,
                 direction=direction_reflected,
@@ -132,12 +134,14 @@ class BeamsplitterElement(IOpticalElement):
                 events=ray.events + 1
             )
             output_rays.append(reflected_ray)
-        
+
         return output_rays
-    
+
     def get_bounding_box(self) -> Tuple[np.ndarray, np.ndarray]:
         """Get axis-aligned bounding box"""
         min_corner = np.minimum(self.p1, self.p2)
         max_corner = np.maximum(self.p1, self.p2)
         return min_corner, max_corner
+
+
 

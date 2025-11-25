@@ -53,6 +53,17 @@ jobs:
         ruff check --fix .
         ruff format .
     
+    - name: Fix unfixable linting errors with heuristics
+      if: steps.ruff-check.outputs.has_errors == 'true'
+      run: |
+        echo "🤖 Fixing unfixable linting errors using pattern matching and heuristics..."
+        python tools/fix_unfixable_lints.py || echo "⚠️  Some issues may require manual review"
+        
+        # Check if any files were modified by the fix script
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "✅ Fixed additional linting issues!"
+        fi
+    
     - name: Check for changes
       id: verify-changed-files
       if: steps.ruff-check.outputs.has_errors == 'true'

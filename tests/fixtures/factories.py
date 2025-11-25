@@ -21,7 +21,7 @@ def create_source_item(
 ) -> "SourceItem":
     """
     Create a SourceItem with specified parameters.
-    
+
     Args:
         x_mm: X position in mm
         y_mm: Y position in mm
@@ -29,13 +29,13 @@ def create_source_item(
         num_rays: Number of rays to emit
         divergence_deg: Angular spread of rays
         wavelength_nm: Wavelength in nanometers
-        
+
     Returns:
         Configured SourceItem
     """
     from optiverse.core.models import SourceParams
     from optiverse.objects import SourceItem
-    
+
     params = SourceParams(
         x_mm=x_mm,
         y_mm=y_mm,
@@ -56,21 +56,21 @@ def create_lens_item(
 ) -> "ComponentItem":
     """
     Create a ComponentItem with lens interface.
-    
+
     Args:
         x_mm: X position in mm
         y_mm: Y position in mm
         angle_deg: Orientation angle in degrees (90 = vertical)
         object_height_mm: Height of the lens in mm
         efl_mm: Effective focal length in mm
-        
+
     Returns:
         Configured ComponentItem with lens interface
     """
     from optiverse.core.models import ComponentParams
     from optiverse.core.interface_definition import InterfaceDefinition
     from optiverse.objects import ComponentItem
-    
+
     # Create lens interface
     half_height = object_height_mm / 2.0
     interface = InterfaceDefinition(
@@ -81,7 +81,7 @@ def create_lens_item(
         element_type="lens",
         efl_mm=efl_mm,
     )
-    
+
     params = ComponentParams(
         x_mm=x_mm,
         y_mm=y_mm,
@@ -100,20 +100,20 @@ def create_mirror_item(
 ) -> "ComponentItem":
     """
     Create a ComponentItem with mirror interface.
-    
+
     Args:
         x_mm: X position in mm
         y_mm: Y position in mm
         angle_deg: Orientation angle in degrees
         object_height_mm: Height of the mirror in mm
-        
+
     Returns:
         Configured ComponentItem with mirror interface
     """
     from optiverse.core.models import ComponentParams
     from optiverse.core.interface_definition import InterfaceDefinition
     from optiverse.objects import ComponentItem
-    
+
     # Create mirror interface
     half_height = object_height_mm / 2.0
     interface = InterfaceDefinition(
@@ -124,7 +124,7 @@ def create_mirror_item(
         element_type="mirror",
         reflectivity=100.0,
     )
-    
+
     params = ComponentParams(
         x_mm=x_mm,
         y_mm=y_mm,
@@ -145,7 +145,7 @@ def create_component_item(
 ) -> "ComponentItem":
     """
     Create a generic ComponentItem with specified parameters.
-    
+
     Args:
         name: Component name
         x_mm: X position in mm
@@ -153,13 +153,13 @@ def create_component_item(
         angle_deg: Orientation angle in degrees
         object_height_mm: Height of the component in mm
         interfaces: Optional list of InterfaceDefinition objects
-        
+
     Returns:
         Configured ComponentItem
     """
     from optiverse.core.models import ComponentParams
     from optiverse.objects.generic import ComponentItem
-    
+
     params = ComponentParams(
         name=name,
         x_mm=x_mm,
@@ -174,22 +174,22 @@ def create_component_item(
 def create_component_from_params(params) -> "ComponentItem":
     """
     Create a ComponentItem from legacy params (LensParams, MirrorParams, etc.).
-    
+
     This is a compatibility helper for tests that use legacy params classes.
-    
+
     Args:
         params: LensParams, MirrorParams, BeamsplitterParams, etc.
-        
+
     Returns:
         ComponentItem with appropriate interfaces
     """
     from optiverse.core.models import ComponentParams
     from optiverse.core.interface_definition import InterfaceDefinition
     from optiverse.objects import ComponentItem
-    
+
     # Determine component type and create appropriate interface
     half_height = params.object_height_mm / 2.0
-    
+
     if hasattr(params, 'efl_mm'):
         # LensParams
         interface = InterfaceDefinition(
@@ -249,7 +249,7 @@ def create_component_from_params(params) -> "ComponentItem":
     else:
         # Unknown - create empty component
         interface = None
-    
+
     component_params = ComponentParams(
         x_mm=params.x_mm,
         y_mm=params.y_mm,
@@ -268,15 +268,15 @@ def create_scene_with_items(
 ) -> QtWidgets.QGraphicsScene:
     """
     Create a QGraphicsScene with optional pre-added items.
-    
+
     Args:
         items: Optional list of items to add to the scene
-        
+
     Returns:
         QGraphicsScene with items added
     """
     from optiverse.core.constants import SCENE_SIZE_MM, SCENE_MIN_COORD
-    
+
     scene = QtWidgets.QGraphicsScene()
     scene.setSceneRect(
         SCENE_MIN_COORD,
@@ -284,25 +284,27 @@ def create_scene_with_items(
         SCENE_SIZE_MM,
         SCENE_SIZE_MM,
     )
-    
+
     if items:
         for item in items:
             scene.addItem(item)
-    
+
     return scene
 
 
 def create_basic_optical_setup() -> tuple:
     """
     Create a basic optical setup: source -> lens -> mirror.
-    
+
     Returns:
         Tuple of (scene, source, lens, mirror)
     """
     source = create_source_item(x_mm=-100, y_mm=0, angle_deg=0)
     lens = create_lens_item(x_mm=0, y_mm=0, angle_deg=90, efl_mm=50)
     mirror = create_mirror_item(x_mm=100, y_mm=0, angle_deg=45)
-    
+
     scene = create_scene_with_items([source, lens, mirror])
     return scene, source, lens, mirror
+
+
 

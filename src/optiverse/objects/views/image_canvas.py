@@ -42,17 +42,17 @@ class ImageCanvas(QtWidgets.QLabel):
             img = pix.toImage()
             img.setDevicePixelRatio(1.0)
             pix = QtGui.QPixmap.fromImage(img)
-        
+
         self._pix = pix
         self._src_path = source_path
         self._pt1 = None
         self._pt2 = None
-        
+
         # If source is SVG, store renderer and pre-render cache
         self._svg_renderer = None
         self._svg_cache_pixmap = None
         self._svg_cache_size = QtCore.QSize()
-        
+
         if source_path and source_path.lower().endswith('.svg') and HAVE_QTSVG:
             try:
                 renderer = QtSvg.QSvgRenderer(source_path)
@@ -62,7 +62,7 @@ class ImageCanvas(QtWidgets.QLabel):
                     self._update_svg_cache()
             except (OSError, RuntimeError):
                 pass  # SVG may be invalid or file inaccessible
-        
+
         self.update()
 
     def source_path(self) -> Optional[str]:
@@ -99,7 +99,7 @@ class ImageCanvas(QtWidgets.QLabel):
         pixrect = self._target_rect()
         if not pixrect.contains(screen_pos):
             return None
-        
+
         # Check point 2 first (so it takes priority if overlapping)
         if self._pt2:
             x2, y2 = self._pt2
@@ -109,7 +109,7 @@ class ImageCanvas(QtWidgets.QLabel):
             dy = screen_pos.y() - Y2
             if (dx*dx + dy*dy) <= threshold*threshold:
                 return 2
-        
+
         # Check point 1
         if self._pt1:
             x1, y1 = self._pt1
@@ -119,7 +119,7 @@ class ImageCanvas(QtWidgets.QLabel):
             dy = screen_pos.y() - Y1
             if (dx*dx + dy*dy) <= threshold*threshold:
                 return 1
-        
+
         return None
 
     def _screen_to_image_coords(self, screen_pos: QtCore.QPoint) -> Optional[Tuple[float, float]]:
@@ -146,7 +146,7 @@ class ImageCanvas(QtWidgets.QLabel):
                 self._dragging_point = point_idx
                 self.setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
                 return
-            
+
             # Otherwise, place new point
             coords = self._screen_to_image_coords(e.pos())
             if coords is None:
@@ -166,7 +166,7 @@ class ImageCanvas(QtWidgets.QLabel):
     def mouseMoveEvent(self, e: QtGui.QMouseEvent):
         if not self._pix:
             return
-        
+
         # Handle dragging
         if self._dragging_point is not None:
             coords = self._screen_to_image_coords(e.pos())
@@ -178,7 +178,7 @@ class ImageCanvas(QtWidgets.QLabel):
                 self.pointsChanged.emit()
                 self.update()
             return
-        
+
         # Handle hover cursor
         point_idx = self._get_point_at_screen_pos(e.pos())
         if point_idx != self._hover_point:
@@ -260,14 +260,14 @@ class ImageCanvas(QtWidgets.QLabel):
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
         if self._pix:
             tgt = self._target_rect()
-            
+
             # Use cached SVG pixmap if available for better performance
             if self._svg_renderer is not None and self._svg_cache_pixmap is not None:
                 # Check if we need to update cache due to significant resize
                 if tgt.width() > self._svg_cache_size.width() * 1.2 or \
                    tgt.height() > self._svg_cache_size.height() * 1.2:
                     self._update_svg_cache()
-                
+
                 # Draw cached pixmap with smooth transformation
                 p.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform, True)
                 p.drawPixmap(tgt, self._svg_cache_pixmap)
@@ -315,12 +315,12 @@ class ImageCanvas(QtWidgets.QLabel):
         """Update the cached SVG pixmap at optimal resolution."""
         if not self._svg_renderer or not self._pix:
             return
-        
+
         # Calculate target size (2x current display size for quality)
         tgt = self._target_rect()
         target_width = max(tgt.width() * 2, 800)
         target_height = max(tgt.height() * 2, 600)
-        
+
         # Get SVG aspect ratio
         default_size = self._svg_renderer.defaultSize()
         if default_size.width() > 0 and default_size.height() > 0:
@@ -330,19 +330,19 @@ class ImageCanvas(QtWidgets.QLabel):
                 target_width = int(target_height * aspect)
             else:
                 target_height = int(target_width / aspect)
-        
+
         cache_size = QtCore.QSize(int(target_width), int(target_height))
-        
+
         # Render SVG to cache
         self._svg_cache_pixmap = QtGui.QPixmap(cache_size)
         self._svg_cache_pixmap.fill(QtCore.Qt.GlobalColor.transparent)
-        
+
         painter = QtGui.QPainter(self._svg_cache_pixmap)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform, True)
         self._svg_renderer.render(painter)
         painter.end()
-        
+
         self._svg_cache_size = cache_size
 
     @staticmethod
@@ -368,5 +368,7 @@ class ImageCanvas(QtWidgets.QLabel):
             return QtGui.QPixmap.fromImage(img)
         except (OSError, RuntimeError):
             return None
+
+
 
 

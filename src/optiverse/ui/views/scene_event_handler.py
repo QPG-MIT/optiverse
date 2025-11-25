@@ -5,7 +5,7 @@ Extracts eventFilter and keyPressEvent logic from MainWindow.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Callable
+from typing import TYPE_CHECKING, Callable, Optional
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -20,11 +20,11 @@ if TYPE_CHECKING:
 class SceneEventHandler(QtCore.QObject):
     """
     Handles scene events and routes them to appropriate handlers.
-    
+
     This consolidates all the eventFilter and keyPressEvent logic
     that was previously in MainWindow.
     """
-    
+
     def __init__(
         self,
         editor_state: "EditorState",
@@ -42,7 +42,7 @@ class SceneEventHandler(QtCore.QObject):
     ):
         """
         Initialize the scene event handler.
-        
+
         Args:
             editor_state: The editor state manager
             placement_handler: Handler for component placement
@@ -58,7 +58,7 @@ class SceneEventHandler(QtCore.QObject):
             parent: Parent QObject
         """
         super().__init__(parent)
-        
+
         self._editor_state = editor_state
         self._placement_handler = placement_handler
         self._inspect_handler = inspect_handler
@@ -70,21 +70,21 @@ class SceneEventHandler(QtCore.QObject):
         self._get_inspect_action = get_inspect_action
         self._get_path_measure_action = get_path_measure_action
         self._get_angle_measure_action = get_angle_measure_action
-    
+
     def handle_event(self, obj: QtCore.QObject, ev: QtCore.QEvent) -> Optional[bool]:
         """
         Handle scene events and route to appropriate handlers.
-        
+
         Args:
             obj: The object that received the event
             ev: The event
-            
+
         Returns:
             True if event was consumed, False to continue processing,
             None to defer to parent eventFilter
         """
         et = ev.type()
-        
+
         # --- Component placement mode ---
         if self._placement_handler.is_active:
             if et == QtCore.QEvent.Type.GraphicsSceneMouseMove:
@@ -92,19 +92,19 @@ class SceneEventHandler(QtCore.QObject):
                 scene_pt = mev.scenePos()
                 self._placement_handler.handle_mouse_move(scene_pt)
                 return True
-            
+
             elif et == QtCore.QEvent.Type.GraphicsSceneMousePress:
                 mev = ev  # QGraphicsSceneMouseEvent
                 scene_pt = mev.scenePos()
-                
+
                 if mev.button() == QtCore.Qt.MouseButton.LeftButton:
                     self._placement_handler.handle_click(scene_pt, mev.button())
                     return True
-                
+
                 elif mev.button() == QtCore.Qt.MouseButton.RightButton:
                     self._cancel_placement_mode()
                     return True
-        
+
         # --- Inspect tool ---
         if self._editor_state.is_inspect and et == QtCore.QEvent.Type.GraphicsSceneMousePress:
             mev = ev  # QGraphicsSceneMouseEvent
@@ -112,7 +112,7 @@ class SceneEventHandler(QtCore.QObject):
                 scene_pt = mev.scenePos()
                 self._inspect_handler.handle_click(scene_pt)
                 return True
-        
+
         # --- Path Measure tool ---
         if self._editor_state.is_path_measure and et == QtCore.QEvent.Type.GraphicsSceneMousePress:
             mev = ev  # QGraphicsSceneMouseEvent
@@ -120,7 +120,7 @@ class SceneEventHandler(QtCore.QObject):
                 scene_pt = mev.scenePos()
                 self._path_measure_handler.handle_click(scene_pt)
                 return True
-        
+
         # --- Angle Measure tool ---
         if self._editor_state.is_angle_measure:
             if et == QtCore.QEvent.Type.GraphicsSceneMousePress:
@@ -134,7 +134,7 @@ class SceneEventHandler(QtCore.QObject):
                 scene_pt = mev.scenePos()
                 self._angle_measure_handler.handle_mouse_move(scene_pt)
                 return True
-        
+
         # --- Ruler multi-segment placement ---
         if self._ruler_handler.is_active:
             if et == QtCore.QEvent.Type.GraphicsSceneMousePress:
@@ -145,24 +145,24 @@ class SceneEventHandler(QtCore.QObject):
                 mev = ev  # QGraphicsSceneMouseEvent
                 if self._ruler_handler.handle_mouse_move(mev.scenePos()):
                     return True
-        
+
         # --- Track item positions and rotations on mouse press ---
         if et == QtCore.QEvent.Type.GraphicsSceneMousePress:
             self._drag_handler.handle_mouse_press(ev)
-        
+
         # --- Snap to grid and create move/rotate commands on mouse release ---
         if et == QtCore.QEvent.Type.GraphicsSceneMouseRelease:
             self._drag_handler.handle_mouse_release()
-        
+
         return None  # Defer to parent
-    
+
     def handle_key_press(self, ev: QtGui.QKeyEvent) -> bool:
         """
         Handle key press events for mode cancellation and special keys.
-        
+
         Args:
             ev: The key event
-            
+
         Returns:
             True if the event was consumed, False otherwise
         """
@@ -171,31 +171,33 @@ class SceneEventHandler(QtCore.QObject):
             if self._editor_state.is_placement:
                 self._cancel_placement_mode()
                 return True
-            
+
             elif self._ruler_handler.is_active:
                 self._ruler_handler.handle_escape()
                 return True
-            
+
             elif self._editor_state.is_inspect:
                 self._get_inspect_action().setChecked(False)
                 return True
-            
+
             elif self._editor_state.is_path_measure:
                 self._path_measure_handler.handle_escape()
                 self._get_path_measure_action().setChecked(False)
                 return True
-            
+
             elif self._editor_state.is_angle_measure:
                 self._angle_measure_handler.handle_escape()
                 self._get_angle_measure_action().setChecked(False)
                 return True
-        
+
         # Handle 'A' key for adding bend during ruler placement (only if no modifiers)
-        if (ev.key() == QtCore.Qt.Key.Key_A and 
+        if (ev.key() == QtCore.Qt.Key.Key_A and
             self._ruler_handler.is_active and
             ev.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier):
             if self._ruler_handler.handle_add_bend():
                 return True
-        
+
         return False
+
+
 

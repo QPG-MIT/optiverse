@@ -4,12 +4,13 @@ Mirror element implementation.
 Implements perfect reflection according to the law of reflection.
 """
 from typing import List, Tuple
+
 import numpy as np
 
-from .base import IOpticalElement
-from ..ray import RayState
-from ...core.raytracing_math import normalize, reflect_vec
 from ...core.models import Polarization
+from ...core.raytracing_math import normalize, reflect_vec
+from ..ray import RayState
+from .base import IOpticalElement
 
 
 def transform_polarization_mirror(pol: Polarization, v_in: np.ndarray, n_hat: np.ndarray) -> Polarization:
@@ -21,14 +22,14 @@ def transform_polarization_mirror(pol: Polarization, v_in: np.ndarray, n_hat: np
 class MirrorElement(IOpticalElement):
     """
     Mirror element with configurable reflectivity.
-    
+
     Implements the law of reflection: angle of incidence = angle of reflection
     """
-    
+
     def __init__(self, p1: np.ndarray, p2: np.ndarray, reflectivity: float = 1.0):
         """
         Initialize mirror element.
-        
+
         Args:
             p1: Start point of mirror line segment [x, y] in mm
             p2: End point of mirror line segment [x, y] in mm
@@ -37,11 +38,11 @@ class MirrorElement(IOpticalElement):
         self.p1 = np.array(p1, dtype=float)
         self.p2 = np.array(p2, dtype=float)
         self.reflectivity = reflectivity
-    
+
     def get_geometry(self) -> Tuple[np.ndarray, np.ndarray]:
         """Get mirror line segment"""
         return self.p1, self.p2
-    
+
     def interact(
         self,
         ray: RayState,
@@ -51,7 +52,7 @@ class MirrorElement(IOpticalElement):
     ) -> List[RayState]:
         """
         Reflect ray according to law of reflection.
-        
+
         Physics:
         - Angle of incidence = angle of reflection
         - Intensity reduced by reflectivity
@@ -59,14 +60,14 @@ class MirrorElement(IOpticalElement):
         """
         # Compute reflected direction
         direction_reflected = normalize(reflect_vec(ray.direction, normal))
-        
+
         # Transform polarization
         polarization_reflected = transform_polarization_mirror(
             ray.polarization,
             ray.direction,
             normal
         )
-        
+
         # Create reflected ray
         EPS_ADV = 1e-3  # Small advancement to avoid self-intersection
         reflected_ray = RayState(
@@ -78,12 +79,14 @@ class MirrorElement(IOpticalElement):
             path=ray.path + [hit_point],
             events=ray.events + 1
         )
-        
+
         return [reflected_ray]
-    
+
     def get_bounding_box(self) -> Tuple[np.ndarray, np.ndarray]:
         """Get axis-aligned bounding box"""
         min_corner = np.minimum(self.p1, self.p2)
         max_corner = np.maximum(self.p1, self.p2)
         return min_corner, max_corner
+
+
 

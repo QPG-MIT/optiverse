@@ -28,13 +28,13 @@ from ...core.ui_constants import (
 class RulerItem(QtWidgets.QGraphicsObject):
     """
     Draggable multi-segment ruler that shows the distance in mm.
-    
+
     Features:
     - Drag endpoint bars to measure; drag elsewhere to move as a whole.
     - Right-click → Delete, Add Bend, or Delete Point (for bends).
     - Supports multiple segments with bends.
     - Undo/redo support via commandCreated signal.
-    
+
     Public API for point manipulation:
     - get_points(): Get a copy of all points
     - set_point(index, pos): Set a specific point's position
@@ -43,13 +43,13 @@ class RulerItem(QtWidgets.QGraphicsObject):
     - remove_preview_point(): Remove the last (preview) point
     - point_count(): Get number of points
     """
-    
+
     # Signal emitted when an undo command is created
     commandCreated = QtCore.pyqtSignal(object)
-    
+
     # Signal emitted when item requests deletion (for undoable delete)
     requestDelete = QtCore.pyqtSignal(object)  # Emits self
-    
+
     def __init__(
         self,
         p1: QtCore.QPointF = QtCore.QPointF(-50, 0),
@@ -60,7 +60,7 @@ class RulerItem(QtWidgets.QGraphicsObject):
         super().__init__()
         # Generate or use provided UUID for collaboration
         self.item_uuid = item_uuid if item_uuid else str(uuid.uuid4())
-        
+
         self.setFlags(
             QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable
             | QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
@@ -75,35 +75,35 @@ class RulerItem(QtWidgets.QGraphicsObject):
             self._points = [QtCore.QPointF(p) for p in points]
         else:
             self._points = [QtCore.QPointF(p1), QtCore.QPointF(p2)]
-        
+
         # Ensure at least 2 points
         if len(self._points) < 2:
             self._points = [QtCore.QPointF(-50, 0), QtCore.QPointF(50, 0)]
-        
+
         # Interaction state
         self._grab: Optional[int] = None  # index of grabbed point, or None
         self._initial_points: Optional[List[QtCore.QPointF]] = None  # Track for undo
 
     # ========== Public API for Point Manipulation ==========
-    
+
     def get_points(self) -> List[QtCore.QPointF]:
         """Return a copy of all points."""
         return [QtCore.QPointF(p) for p in self._points]
-    
+
     def set_point(self, index: int, pos: QtCore.QPointF) -> None:
         """Set a specific point's position."""
         if 0 <= index < len(self._points):
             self.prepareGeometryChange()
             self._points[index] = QtCore.QPointF(pos)
             self.update()
-    
+
     def set_preview_point(self, pos: QtCore.QPointF) -> None:
         """Update the last point (preview during placement)."""
         if len(self._points) >= 2:
             self.prepareGeometryChange()
             self._points[-1] = QtCore.QPointF(pos)
             self.update()
-    
+
     def finalize_segment(self, pos: QtCore.QPointF) -> None:
         """Finalize current segment and add new preview point."""
         if len(self._points) >= 2:
@@ -111,11 +111,11 @@ class RulerItem(QtWidgets.QGraphicsObject):
             self._points[-1] = QtCore.QPointF(pos)
             self._points.append(QtCore.QPointF(pos))
             self.update()
-    
+
     def remove_preview_point(self) -> bool:
         """
         Remove the last (preview) point.
-        
+
         Returns:
             True if ruler still valid (has >= 2 points after removal)
         """
@@ -124,11 +124,11 @@ class RulerItem(QtWidgets.QGraphicsObject):
             self._points.pop()
             self.update()
         return len(self._points) >= 2
-    
+
     def point_count(self) -> int:
         """Return number of points."""
         return len(self._points)
-    
+
     def add_point(self, pos: QtCore.QPointF, insert_after_index: int | None = None) -> None:
         """Add a new point. If insert_after_index is None, append at end."""
         self.prepareGeometryChange()
@@ -139,11 +139,11 @@ class RulerItem(QtWidgets.QGraphicsObject):
         self.update()
 
     # ========== Geometry Calculation Helpers ==========
-    
+
     def _compute_segment_data(self) -> Tuple[List[float], float]:
         """
         Compute segment lengths and total length.
-        
+
         Returns:
             Tuple of (segment_lengths list, total_length)
         """
@@ -156,7 +156,7 @@ class RulerItem(QtWidgets.QGraphicsObject):
             segment_lengths.append(seg_len)
             total_length += seg_len
         return segment_lengths, total_length
-    
+
     def _compute_total_label_position(self) -> QtCore.QPointF:
         """Compute position for total length label (multi-segment rulers)."""
         last_start = self._points[-2]
@@ -164,22 +164,22 @@ class RulerItem(QtWidgets.QGraphicsObject):
         dx = last_end.x() - last_start.x()
         dy = last_end.y() - last_start.y()
         length = math.hypot(dx, dy) or 1.0
-        
+
         # Perpendicular and along-segment unit vectors
         perp_x, perp_y = -dy / length, dx / length
         along_x, along_y = dx / length, dy / length
-        
+
         return QtCore.QPointF(
             last_end.x() + perp_x * RULER_TOTAL_LABEL_PERP_OFFSET + along_x * RULER_TOTAL_LABEL_ALONG_OFFSET,
             last_end.y() + perp_y * RULER_TOTAL_LABEL_PERP_OFFSET + along_y * RULER_TOTAL_LABEL_ALONG_OFFSET
         )
-    
+
     def _get_label_bounding_rect(self, pos: QtCore.QPointF, text: str) -> QtCore.QRectF:
         """Calculate bounding rectangle for a label (for hit testing)."""
         fm = QtGui.QFontMetrics(QtGui.QFont())
         w = fm.horizontalAdvance(text) + 12
         h = fm.height() + 6
-        
+
         # Use larger box to account for rotation
         padding = RULER_BAR_HEIGHT / 2.0 + RULER_LABEL_PADDING
         max_dim = max(w, h) + padding
@@ -191,11 +191,11 @@ class RulerItem(QtWidgets.QGraphicsObject):
         )
 
     # ========== Qt Graphics Item Methods ==========
-    
+
     def boundingRect(self) -> QtCore.QRectF:
         if not self._points:
             return QtCore.QRectF()
-        
+
         min_x = min(p.x() for p in self._points)
         max_x = max(p.x() for p in self._points)
         min_y = min(p.y() for p in self._points)
@@ -208,7 +208,7 @@ class RulerItem(QtWidgets.QGraphicsObject):
         path = QtGui.QPainterPath()
         if len(self._points) < 2:
             return path
-        
+
         # Add the line path with stroke width for hit testing
         line_path = QtGui.QPainterPath()
         line_path.moveTo(self._points[0])
@@ -217,17 +217,17 @@ class RulerItem(QtWidgets.QGraphicsObject):
         stroker = QtGui.QPainterPathStroker()
         stroker.setWidth(max(RULER_MIN_STROKE_WIDTH_PX, RULER_BAR_HEIGHT))
         path.addPath(stroker.createStroke(line_path))
-        
+
         # Add label areas for hit testing
         segment_lengths, total_length = self._compute_segment_data()
-        
+
         if len(self._points) > 2:
             # Multi-segment: add per-segment labels
             for i in range(len(self._points) - 1):
                 seg_mid = (self._points[i] + self._points[i + 1]) * 0.5
                 seg_txt = f"{segment_lengths[i]:.1f} mm"
                 path.addRect(self._get_label_bounding_rect(seg_mid, seg_txt))
-            
+
             # Add total label
             total_pos = self._compute_total_label_position()
             total_txt = f"Total: {total_length:.1f} mm"
@@ -237,11 +237,11 @@ class RulerItem(QtWidgets.QGraphicsObject):
             mid = (self._points[0] + self._points[1]) * 0.5
             total_txt = f"{total_length:.1f} mm"
             path.addRect(self._get_label_bounding_rect(mid, total_txt))
-        
+
         return path
 
     # ========== Paint Helpers ==========
-    
+
     def _draw_bar(
         self,
         painter: QtGui.QPainter,
@@ -256,20 +256,20 @@ class RulerItem(QtWidgets.QGraphicsObject):
         cx, cy = center.x(), center.y()
         hw = RULER_BAR_WIDTH / 2.0   # half-width along direction
         hh = RULER_BAR_HEIGHT / 2.0  # half-height along perpendicular
-        
+
         pts = [
             QtCore.QPointF(cx + (-hw * dir_x + -hh * perp_x), cy + (-hw * dir_y + -hh * perp_y)),
             QtCore.QPointF(cx + (hw * dir_x + -hh * perp_x), cy + (hw * dir_y + -hh * perp_y)),
             QtCore.QPointF(cx + (hw * dir_x + hh * perp_x), cy + (hw * dir_y + hh * perp_y)),
             QtCore.QPointF(cx + (-hw * dir_x + hh * perp_x), cy + (-hw * dir_y + hh * perp_y)),
         ]
-        
+
         painter.save()
         painter.setPen(QtGui.QPen(color, 1))
         painter.setBrush(color)
         painter.drawPolygon(QtGui.QPolygonF(pts))
         painter.restore()
-    
+
     def _draw_label(
         self,
         painter: QtGui.QPainter,
@@ -285,18 +285,18 @@ class RulerItem(QtWidgets.QGraphicsObject):
         if seg_dx < 0:
             dx_calc, dy_calc = -seg_dx, -seg_dy
         angle = math.degrees(math.atan2(dy_calc, dx_calc))
-        
+
         painter.save()
         painter.translate(pos)
         painter.rotate(angle)
         # Compensate for view's Y-axis inversion
         painter.scale(1.0, -1.0)
-        
+
         fm = QtGui.QFontMetrics(painter.font())
         w = fm.horizontalAdvance(text) + 12
         h = fm.height() + 6
         y_off = -(RULER_BAR_HEIGHT / 2.0 + RULER_LABEL_PADDING + h)
-        
+
         # Background and text colors
         if is_selected:
             bg_color = QtGui.QColor(255, 255, 255, RULER_LABEL_BG_ALPHA_SELECTED)
@@ -304,28 +304,28 @@ class RulerItem(QtWidgets.QGraphicsObject):
         else:
             bg_color = QtGui.QColor(255, 255, 255, RULER_LABEL_BG_ALPHA)
             text_color = QtGui.QColor(20, 20, 20)
-        
+
         # Draw background
         painter.setPen(QtCore.Qt.PenStyle.NoPen)
         painter.setBrush(bg_color)
         label_rect = QtCore.QRectF(-w / 2.0, y_off, float(w), float(h))
         painter.drawRoundedRect(label_rect, RULER_LABEL_CORNER_RADIUS, RULER_LABEL_CORNER_RADIUS)
-        
+
         # Draw text
         painter.setPen(QtGui.QPen(text_color))
         painter.drawText(label_rect, QtCore.Qt.AlignmentFlag.AlignCenter, text)
-        
+
         painter.restore()
 
     def paint(self, painter: QtGui.QPainter, opt, widget=None):
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QtGui.QPainter.RenderHint.TextAntialiasing, True)
-        
+
         if len(self._points) < 2:
             return
-        
+
         is_selected = self.isSelected()
-        
+
         # Line appearance based on selection
         if is_selected:
             base_color = QtGui.QColor(0, 120, 215)  # Blue for selection
@@ -333,17 +333,17 @@ class RulerItem(QtWidgets.QGraphicsObject):
         else:
             base_color = QtGui.QColor(30, 30, 30)
             line_width = RULER_LINE_WIDTH
-        
+
         base_pen = QtGui.QPen(base_color, line_width)
         base_pen.setCosmetic(True)
         base_pen.setCapStyle(QtCore.Qt.PenCapStyle.FlatCap)
         base_pen.setJoinStyle(QtCore.Qt.PenJoinStyle.MiterJoin)
         painter.setPen(base_pen)
         painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
-        
+
         # Calculate segment data once
         segment_lengths, total_length = self._compute_segment_data()
-        
+
         # Draw lines between consecutive points
         for i in range(len(self._points) - 1):
             painter.drawLine(self._points[i], self._points[i + 1])
@@ -365,11 +365,11 @@ class RulerItem(QtWidgets.QGraphicsObject):
                 dy2 = self._points[i + 1].y() - self._points[i].y()
                 dx = (dx1 + dx2) / 2.0
                 dy = (dy1 + dy2) / 2.0
-            
+
             length = math.hypot(dx, dy) or 1.0
             dir_x, dir_y = dx / length, dy / length
             perp_x, perp_y = -dir_y, dir_x
-            
+
             bar_color = base_color if is_selected else QtGui.QColor(QtCore.Qt.GlobalColor.black)
             self._draw_bar(painter, self._points[i], dir_x, dir_y, perp_x, perp_y, bar_color)
 
@@ -382,7 +382,7 @@ class RulerItem(QtWidgets.QGraphicsObject):
                 seg_dy = self._points[i + 1].y() - self._points[i].y()
                 seg_txt = f"{segment_lengths[i]:.1f} mm"
                 self._draw_label(painter, seg_mid, seg_txt, seg_dx, seg_dy, is_selected)
-            
+
             # Total length label
             total_pos = self._compute_total_label_position()
             total_txt = f"Total: {total_length:.1f} mm"
@@ -396,7 +396,7 @@ class RulerItem(QtWidgets.QGraphicsObject):
             self._draw_label(painter, mid, total_txt, seg_dx, seg_dy, is_selected)
 
     # ========== Mouse Event Handling ==========
-    
+
     def _nearest_point(self, pos: QtCore.QPointF) -> Optional[int]:
         """Check if pos is near any point, return index if found."""
         min_dist = float('inf')
@@ -407,19 +407,19 @@ class RulerItem(QtWidgets.QGraphicsObject):
                 min_dist = dist
                 nearest_idx = i
         return nearest_idx
-    
+
     def _emit_property_change_command(self, before_state: Dict[str, Any], after_state: Dict[str, Any]) -> None:
         """Create and emit a property change command for undo/redo."""
         from ...core.undo_commands import PropertyChangeCommand
         cmd = PropertyChangeCommand(self, before_state, after_state)
         self.commandCreated.emit(cmd)
-    
+
     def mousePressEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
         if ev.button() == QtCore.Qt.MouseButton.RightButton:
             self._handle_context_menu(ev)
             ev.accept()
             return
-        
+
         which = self._nearest_point(ev.pos())
         if ev.button() == QtCore.Qt.MouseButton.LeftButton and which is not None:
             self._grab = which
@@ -427,36 +427,36 @@ class RulerItem(QtWidgets.QGraphicsObject):
             self._initial_points = [QtCore.QPointF(p) for p in self._points]
             ev.accept()
             return
-        
+
         self._grab = None
         self._initial_points = None
         super().mousePressEvent(ev)
-    
+
     def _handle_context_menu(self, ev: QtWidgets.QGraphicsSceneMouseEvent) -> None:
         """Handle right-click context menu."""
         nearest_idx = self._nearest_point(ev.pos())
         is_bend_point = nearest_idx is not None and 0 < nearest_idx < len(self._points) - 1
-        
+
         m = QtWidgets.QMenu()
         act_del = m.addAction("Delete")
-        
+
         # Add "Delete Point" option for bend points
         act_del_point = None
         if is_bend_point:
             act_del_point = m.addAction("Delete Point")
             m.addSeparator()
-        
+
         act_add_bend = m.addAction("Add Bend")
-        
+
         # Z-order options
         m.addSeparator()
         act_bring_to_front = m.addAction("Bring to Front")
         act_bring_forward = m.addAction("Bring Forward")
         act_send_backward = m.addAction("Send Backward")
         act_send_to_back = m.addAction("Send to Back")
-        
+
         action = m.exec(ev.screenPos())
-        
+
         if action == act_del:
             # Emit signal for undoable deletion
             self.requestDelete.emit(self)
@@ -472,34 +472,34 @@ class RulerItem(QtWidgets.QGraphicsObject):
                 act_send_backward: "send_backward",
                 act_send_to_back: "send_to_back",
             })
-    
+
     def _delete_bend_point(self, index: int) -> None:
         """Delete a bend point with undo support."""
         if len(self._points) <= 2:
             return
-        
+
         before_state = self.capture_state()
         self.prepareGeometryChange()
         self._points.pop(index)
         self.update()
         after_state = self.capture_state()
-        
+
         self._emit_property_change_command(before_state, after_state)
-    
+
     def _add_bend_at_nearest_segment(self, click_pos: QtCore.QPointF) -> None:
         """Add a bend point at the midpoint of the nearest segment."""
         if len(self._points) < 2:
             return
-        
+
         # Find nearest segment
         min_dist = float('inf')
         insert_idx = 0
-        
+
         for i in range(len(self._points) - 1):
             seg_start = self._points[i]
             seg_end = self._points[i + 1]
             seg_len = QtCore.QLineF(seg_start, seg_end).length()
-            
+
             if seg_len > 0:
                 # Project click point onto segment
                 seg_vec = seg_end - seg_start
@@ -507,20 +507,20 @@ class RulerItem(QtWidgets.QGraphicsObject):
                 t = max(0, min(1, (click_vec.x() * seg_vec.x() + click_vec.y() * seg_vec.y()) / (seg_len * seg_len)))
                 proj_point = seg_start + t * seg_vec
                 dist = QtCore.QLineF(click_pos, proj_point).length()
-                
+
                 if dist < min_dist:
                     min_dist = dist
                     insert_idx = i
-        
+
         # Insert point at midpoint of nearest segment
         midpoint = (self._points[insert_idx] + self._points[insert_idx + 1]) * 0.5
-        
+
         before_state = self.capture_state()
         self.add_point(midpoint, insert_idx)
         after_state = self.capture_state()
-        
+
         self._emit_property_change_command(before_state, after_state)
-    
+
     def mouseMoveEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
         if self._grab is not None and 0 <= self._grab < len(self._points):
             self.prepareGeometryChange()
@@ -529,12 +529,12 @@ class RulerItem(QtWidgets.QGraphicsObject):
             ev.accept()
             return
         super().mouseMoveEvent(ev)
-    
+
     def mouseReleaseEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
         # Create undo command if points were changed
         if self._grab is not None and self._initial_points is not None:
             points_changed = self._check_points_changed()
-            
+
             if points_changed:
                 before_state = {
                     'points': [[float(p.x()), float(p.y())] for p in self._initial_points],
@@ -542,32 +542,32 @@ class RulerItem(QtWidgets.QGraphicsObject):
                 }
                 after_state = self.capture_state()
                 self._emit_property_change_command(before_state, after_state)
-        
+
         self._grab = None
         self._initial_points = None
         super().mouseReleaseEvent(ev)
-    
+
     def _check_points_changed(self) -> bool:
         """Check if points have changed from initial state."""
         if self._initial_points is None:
             return False
         if len(self._points) != len(self._initial_points):
             return True
-        
+
         for old_pt, new_pt in zip(self._initial_points, self._points):
             if QtCore.QLineF(old_pt, new_pt).length() > RULER_POINT_CHANGE_THRESHOLD:
                 return True
         return False
 
     # ========== State Management (Undo/Redo) ==========
-    
+
     def capture_state(self) -> Dict[str, Any]:
         """Capture current state for undo/redo."""
         return {
             'points': [[float(p.x()), float(p.y())] for p in self._points],
             'pos': {'x': float(self.pos().x()), 'y': float(self.pos().y())},
         }
-    
+
     def apply_state(self, state: Dict[str, Any]) -> None:
         """Apply a previously captured state."""
         if 'points' in state:
@@ -578,19 +578,19 @@ class RulerItem(QtWidgets.QGraphicsObject):
             self.setPos(QtCore.QPointF(float(state['pos']['x']), float(state['pos']['y'])))
 
     # ========== Serialization ==========
-    
+
     def clone(self, offset_mm: tuple[float, float] = (20.0, 20.0)) -> 'RulerItem':
         """Create a deep copy of this ruler with optional position offset."""
         # Get scene coordinates of all points
         points_scene = [self.mapToScene(p) for p in self._points]
-        
+
         # Create new ruler with offset positions
         new_points = [QtCore.QPointF(p.x() + offset_mm[0], p.y() + offset_mm[1]) for p in points_scene]
         new_ruler = RulerItem(points=new_points, item_uuid=str(uuid.uuid4()))
         new_ruler.setZValue(self.zValue())
-        
+
         return new_ruler
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Serialize ruler to dictionary."""
         # Save absolute points in scene space so reopening is exact
@@ -601,12 +601,12 @@ class RulerItem(QtWidgets.QGraphicsObject):
             "item_uuid": self.item_uuid,
             "z_value": float(self.zValue()),
         }
-    
+
     @staticmethod
     def from_dict(d: Dict[str, Any]) -> "RulerItem":
         """Deserialize ruler from dictionary."""
         item_uuid = d.get("item_uuid")
-        
+
         # Support both old format (p1/p2) and new format (points)
         if "points" in d:
             points = [QtCore.QPointF(float(p[0]), float(p[1])) for p in d["points"]]
@@ -616,8 +616,10 @@ class RulerItem(QtWidgets.QGraphicsObject):
             p1 = QtCore.QPointF(float(d["p1"][0]), float(d["p1"][1]))
             p2 = QtCore.QPointF(float(d["p2"][0]), float(d["p2"][1]))
             item = RulerItem(p1, p2, item_uuid)
-        
+
         if "z_value" in d:
             item.setZValue(float(d["z_value"]))
-        
+
         return item
+
+

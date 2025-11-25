@@ -19,7 +19,7 @@ if os.path.isdir(src) and src not in sys.path:
 
 import numpy as np
 from optiverse.core.models import (
-    Polarization, SourceParams, OpticalElement, 
+    Polarization, SourceParams, OpticalElement,
     BeamsplitterParams, MirrorParams
 )
 
@@ -29,7 +29,7 @@ def demo_polarization_states():
     print("=" * 60)
     print("POLARIZATION STATES DEMO")
     print("=" * 60)
-    
+
     states = [
         ("Horizontal", Polarization.horizontal()),
         ("Vertical", Polarization.vertical()),
@@ -39,14 +39,14 @@ def demo_polarization_states():
         ("Left Circular", Polarization.circular_left()),
         ("30° Linear", Polarization.linear(30.0)),
     ]
-    
+
     for name, pol in states:
         jones = pol.jones_vector
         intensity = pol.intensity()
         print(f"\n{name}:")
         print(f"  Jones vector: [{jones[0]:.3f}, {jones[1]:.3f}]")
         print(f"  Intensity: {intensity:.3f}")
-        
+
         # Show real and imaginary parts for complex values
         if abs(jones[0].imag) > 1e-6 or abs(jones[1].imag) > 1e-6:
             print(f"  Ex: {jones[0].real:.3f} + {jones[0].imag:.3f}j")
@@ -58,7 +58,7 @@ def demo_source_configuration():
     print("\n" + "=" * 60)
     print("SOURCE POLARIZATION CONFIGURATION")
     print("=" * 60)
-    
+
     configs = [
         ("Default (horizontal)", {"polarization_type": "horizontal"}),
         ("Vertical", {"polarization_type": "vertical"}),
@@ -71,7 +71,7 @@ def demo_source_configuration():
             "custom_jones_ey_imag": 1.0
         }),
     ]
-    
+
     for name, kwargs in configs:
         src = SourceParams(**kwargs)
         pol = src.get_polarization()
@@ -87,28 +87,28 @@ def demo_pbs_simulation():
     print("\n" + "=" * 60)
     print("POLARIZING BEAM SPLITTER (PBS) SIMULATION")
     print("=" * 60)
-    
+
     from optiverse.core.geometry import transform_polarization_beamsplitter
-    
+
     # PBS with horizontal transmission axis
     pbs_axis = 0.0
-    
+
     test_cases = [
         ("Horizontal input", Polarization.horizontal()),
         ("Vertical input", Polarization.vertical()),
         ("+45° input", Polarization.diagonal_plus_45()),
         ("Circular input", Polarization.circular_right()),
     ]
-    
+
     v_in = np.array([1.0, 0.0])  # Ray direction
     n_hat = np.array([0.0, 1.0])  # Surface normal
     t_hat = np.array([1.0, 0.0])  # Surface tangent
-    
+
     for name, pol_in in test_cases:
         print(f"\n{name}:")
         print(f"  Input Jones: {pol_in.jones_vector}")
         print(f"  Input intensity: {pol_in.intensity():.3f}")
-        
+
         # Transmitted beam
         pol_t, int_t = transform_polarization_beamsplitter(
             pol_in, v_in, n_hat, t_hat,
@@ -116,7 +116,7 @@ def demo_pbs_simulation():
             pbs_axis_deg=pbs_axis,
             is_transmitted=True
         )
-        
+
         # Reflected beam
         pol_r, int_r = transform_polarization_beamsplitter(
             pol_in, v_in, n_hat, t_hat,
@@ -124,7 +124,7 @@ def demo_pbs_simulation():
             pbs_axis_deg=pbs_axis,
             is_transmitted=False
         )
-        
+
         print(f"  Transmitted:")
         print(f"    Jones: {pol_t.jones_vector}")
         print(f"    Intensity factor: {int_t:.3f}")
@@ -139,22 +139,22 @@ def demo_mirror_reflection():
     print("\n" + "=" * 60)
     print("MIRROR REFLECTION POLARIZATION TRANSFORMATION")
     print("=" * 60)
-    
+
     from optiverse.core.geometry import transform_polarization_mirror
-    
+
     # Vertical mirror
     v_in = np.array([1.0, 0.0])  # Ray traveling right
     n_hat = np.array([1.0, 0.0])  # Mirror normal pointing right
-    
+
     test_cases = [
         ("Horizontal (s-polarization)", Polarization.horizontal()),
         ("Vertical (p-polarization)", Polarization.vertical()),
         ("+45°", Polarization.diagonal_plus_45()),
     ]
-    
+
     for name, pol_in in test_cases:
         pol_out = transform_polarization_mirror(pol_in, v_in, n_hat)
-        
+
         print(f"\n{name}:")
         print(f"  Input Jones: {pol_in.jones_vector}")
         print(f"  Output Jones: {pol_out.jones_vector}")
@@ -166,23 +166,23 @@ def demo_serialization():
     print("\n" + "=" * 60)
     print("POLARIZATION SERIALIZATION")
     print("=" * 60)
-    
+
     # Create a complex polarization state
     pol = Polarization(np.array([1.0 + 0.5j, 0.8 - 0.3j], dtype=complex))
     print(f"\nOriginal polarization:")
     print(f"  Jones vector: {pol.jones_vector}")
-    
+
     # Serialize
     data = pol.to_dict()
     print(f"\nSerialized data:")
     for key, val in data.items():
         print(f"  {key}: {val}")
-    
+
     # Deserialize
     pol_restored = Polarization.from_dict(data)
     print(f"\nRestored polarization:")
     print(f"  Jones vector: {pol_restored.jones_vector}")
-    
+
     # Verify
     match = np.allclose(pol.jones_vector, pol_restored.jones_vector)
     print(f"\nSerialization successful: {match}")
@@ -194,14 +194,14 @@ def main():
     print("╔" + "=" * 58 + "╗")
     print("║" + " " * 10 + "OPTIVERSE POLARIZATION DEMO" + " " * 21 + "║")
     print("╚" + "=" * 58 + "╝")
-    
+
     try:
         demo_polarization_states()
         demo_source_configuration()
         demo_pbs_simulation()
         demo_mirror_reflection()
         demo_serialization()
-        
+
         print("\n" + "=" * 60)
         print("All demos completed successfully! ✓")
         print("=" * 60)
@@ -210,16 +210,18 @@ def main():
         print("2. Double-click a beamsplitter to enable PBS mode")
         print("3. Enable ray tracing to see the results")
         print("\n")
-        
+
     except Exception as e:
         print(f"\n❌ Demo failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
-    
+
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
 

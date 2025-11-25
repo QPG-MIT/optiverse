@@ -26,3 +26,5 @@ def test_trace_renders_paths(qtbot):
     assert len(path_items) >= 1
 
 
+
+

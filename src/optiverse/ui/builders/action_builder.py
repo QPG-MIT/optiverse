@@ -49,23 +49,23 @@ _TOOLBAR_STYLESHEET = """
 class ActionBuilder:
     """
     Builds actions, menus, and toolbars for MainWindow.
-    
+
     This class encapsulates all the UI construction logic that was previously
     in MainWindow._build_actions(), _build_toolbar(), and _build_menubar().
-    
+
     The builder receives a MainWindow instance and attaches the built actions
     and menus to it.
     """
-    
+
     def __init__(self, window: "MainWindow"):
         """
         Initialize the action builder.
-        
+
         Args:
             window: The MainWindow instance to build actions for
         """
         self.window = window
-    
+
     def build_all(self) -> None:
         """Build all actions, toolbar, and menubar."""
         self.build_actions()
@@ -73,11 +73,11 @@ class ActionBuilder:
         self.build_menubar()
         self.register_shortcuts()
         self._register_tool_controller_actions()
-    
+
     def build_actions(self) -> None:
         """Build all menu actions and attach them to the window."""
         w = self.window
-        
+
         # --- File Actions ---
         w.act_open = QtGui.QAction("Open Assembly…", w)
         w.act_open.setShortcut(QtGui.QKeySequence.StandardKey.Open)
@@ -269,7 +269,7 @@ class ActionBuilder:
     def build_toolbar(self) -> None:
         """Build the component toolbar with icons."""
         w = self.window
-        
+
         toolbar = QtWidgets.QToolBar("Components")
         toolbar.setObjectName("component_toolbar")
         toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
@@ -400,49 +400,49 @@ class ActionBuilder:
         # Add collaboration status to status bar
         w.collab_status_label = QtWidgets.QLabel("Not connected")
         w.statusBar().addPermanentWidget(w.collab_status_label)
-        
+
         # Connect collab controller status signal
         w.collab_controller.statusChanged.connect(w.collab_status_label.setText)
 
     def register_shortcuts(self) -> None:
         """Register actions with shortcuts to main window for global access."""
         w = self.window
-        
+
         # File actions
         w.addAction(w.act_open)
         w.addAction(w.act_save)
         w.addAction(w.act_save_as)
-        
+
         # Edit actions
         w.addAction(w.act_undo)
         w.addAction(w.act_redo)
         w.addAction(w.act_delete)
         w.addAction(w.act_copy)
         w.addAction(w.act_paste)
-        
+
         # View actions
         w.addAction(w.act_zoom_in)
         w.addAction(w.act_zoom_out)
         w.addAction(w.act_fit)
         w.addAction(w.act_recenter)
-        
+
         # Tools actions
         w.addAction(w.act_retrace)
         w.addAction(w.act_editor)
         w.addAction(w.act_show_log)
-        
+
         # Collaboration actions
         w.addAction(w.act_collaborate)
 
     def _register_tool_controller_actions(self) -> None:
         """Register actions with ToolModeController for mutual exclusion."""
         w = self.window
-        
+
         # Register inspect and path measure actions
         w.tool_controller.set_action_inspect(w.act_inspect)
         w.tool_controller.set_action_measure_path(w.act_measure_path)
         w.tool_controller.set_action_measure_angle(w.act_measure_angle)
-        
+
         # Register placement actions
         w.tool_controller.set_placement_actions({
             ComponentType.SOURCE: w.act_add_source,
@@ -452,3 +452,5 @@ class ActionBuilder:
             ComponentType.TEXT: w.act_add_text,
             ComponentType.RECTANGLE: w.act_add_rectangle,
         })
+
+

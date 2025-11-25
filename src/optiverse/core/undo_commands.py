@@ -27,11 +27,11 @@ class Command(ABC):
     def undo(self) -> None:
         """Undo the command."""
         pass
-    
+
     def id(self) -> int:
         """Return command ID for merging. Return -1 to disable merging."""
         return -1
-    
+
     def merge_with(self, other: 'Command') -> bool:
         """Attempt to merge with another command. Return True if successful."""
         return False
@@ -125,11 +125,11 @@ class MoveItemCommand(Command):
         self.item.setPos(self.old_pos)
         # Force Qt to update cached transforms (fixes BeamsplitterItem position tracking)
         self.item.setTransform(self.item.transform())
-    
+
     def id(self) -> int:
         """Return unique ID for this item to enable command merging."""
         return id(self.item)
-    
+
     def merge_with(self, other: 'Command') -> bool:
         """Merge with another MoveItemCommand for the same item."""
         if not isinstance(other, MoveItemCommand):
@@ -259,14 +259,14 @@ class PropertyChangeCommand(Command):
     def undo(self) -> None:
         """Restore the before state to the item."""
         self._apply_state(self.before_state)
-    
+
     def _apply_state(self, state: Dict[str, Any]) -> None:
         """Apply a state dictionary to the item."""
         # Try custom apply_state method first (Undoable protocol)
         if isinstance(self.item, Undoable):
             self.item.apply_state(state)
             return
-        
+
         # Fallback: apply each key-value pair
         for key, value in state.items():
             if key == 'pos':
@@ -277,7 +277,7 @@ class PropertyChangeCommand(Command):
                 # For items with params dataclass
                 if hasattr(self.item.params, key):
                     setattr(self.item.params, key, value)
-        
+
         # Trigger updates
         if isinstance(self.item, HasParams):
             self.item._sync_params_from_item()

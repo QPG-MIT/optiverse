@@ -21,7 +21,7 @@ def test_all_types_defined():
     """Test that all expected interface types are defined."""
     expected_types = ['lens', 'mirror', 'beam_splitter', 'dichroic', 'refractive_interface']
     type_names = get_all_type_names()
-    
+
     for expected in expected_types:
         assert expected in type_names
 
@@ -31,7 +31,7 @@ def test_get_type_info():
     lens_info = get_type_info('lens')
     assert lens_info['name'] == 'Lens'
     assert 'efl_mm' in lens_info['properties']
-    
+
     # Unknown type returns empty dict
     unknown = get_type_info('unknown_type')
     assert unknown == {}
@@ -48,7 +48,7 @@ def test_get_property_label():
     """Test getting property labels."""
     label = get_property_label('lens', 'efl_mm')
     assert label == 'Effective Focal Length'
-    
+
     # Unknown property returns property name
     unknown = get_property_label('lens', 'unknown_prop')
     assert unknown == 'unknown_prop'
@@ -66,10 +66,10 @@ def test_get_property_range():
     """Test getting property ranges."""
     efl_range = get_property_range('lens', 'efl_mm')
     assert efl_range == (-10000.0, 10000.0)
-    
+
     split_range = get_property_range('beam_splitter', 'split_T')
     assert split_range == (0.0, 100.0)
-    
+
     # Unknown property returns wide range
     unknown_range = get_property_range('lens', 'unknown_prop')
     assert unknown_range[0] < -1e9
@@ -106,12 +106,12 @@ def test_get_type_properties():
     """Test getting property lists."""
     lens_props = get_type_properties('lens')
     assert 'efl_mm' in lens_props
-    
+
     bs_props = get_type_properties('beam_splitter')
     assert 'split_T' in bs_props
     assert 'split_R' in bs_props
     assert 'is_polarizing' in bs_props
-    
+
     refr_props = get_type_properties('refractive_interface')
     assert 'n1' in refr_props
     assert 'n2' in refr_props
@@ -122,15 +122,15 @@ def test_validate_property_value():
     # Valid values
     assert validate_property_value('lens', 'efl_mm', 100.0) == True
     assert validate_property_value('beam_splitter', 'split_T', 50.0) == True
-    
+
     # Out of range values
     assert validate_property_value('beam_splitter', 'split_T', 150.0) == False
     assert validate_property_value('beam_splitter', 'split_T', -10.0) == False
-    
+
     # Edge cases
     assert validate_property_value('beam_splitter', 'split_T', 0.0) == True
     assert validate_property_value('beam_splitter', 'split_T', 100.0) == True
-    
+
     # Non-numeric values (always valid)
     assert validate_property_value('dichroic', 'pass_type', 'longpass') == True
 
@@ -138,16 +138,16 @@ def test_validate_property_value():
 def test_interface_types_completeness():
     """Test that all types have required metadata fields."""
     required_fields = ['name', 'description', 'color', 'emoji', 'properties']
-    
+
     for type_name, type_info in INTERFACE_TYPES.items():
         for field in required_fields:
             assert field in type_info, f"Type '{type_name}' missing field '{field}'"
-        
+
         # Check that color is valid RGB tuple
         color = type_info['color']
         assert len(color) == 3
         assert all(0 <= c <= 255 for c in color)
-        
+
         # Check that properties have corresponding labels
         for prop in type_info['properties']:
             assert prop in type_info.get('property_labels', {}), \
@@ -161,14 +161,16 @@ def test_all_properties_have_metadata():
             # Every property should have a label
             assert prop in type_info.get('property_labels', {}), \
                 f"{type_name}.{prop} has no label"
-            
+
             # Every property should have a default (may be None)
             assert prop in type_info.get('property_defaults', {}), \
                 f"{type_name}.{prop} has no default"
-            
+
             # Numeric properties should have ranges
             default = type_info['property_defaults'][prop]
             if isinstance(default, (int, float)):
                 assert prop in type_info.get('property_ranges', {}), \
                     f"{type_name}.{prop} has no range"
+
+
 

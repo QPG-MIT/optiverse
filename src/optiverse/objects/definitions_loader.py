@@ -20,10 +20,10 @@ def _library_root() -> Path:
 def _iter_component_json_files(library_path: Optional[Path] = None) -> List[Path]:
     """
     Find all component.json files one level under the library root.
-    
+
     Args:
         library_path: Optional custom library path. If None, uses built-in library.
-    
+
     Returns:
         List of Path objects to component folders
     """
@@ -37,23 +37,23 @@ def load_component_records(library_path: Optional[Path] = None, settings_service
     """
     Load components from per-object folders into typed ComponentRecord objects.
     Skips invalid or unreadable component definitions.
-    
+
     Args:
         library_path: Optional custom library path. If None, uses built-in library.
         settings_service: Optional SettingsService for path resolution
-    
+
     Returns:
         List of ComponentRecord objects
     """
     records: List[ComponentRecord] = []
     is_builtin = library_path is None
-    
+
     for folder in _iter_component_json_files(library_path):
         json_path = folder / "component.json"
         try:
             with open(json_path, "r", encoding="utf-8") as f:
                 data: Dict[str, Any] = json.load(f)
-            
+
             # Resolve image_path
             image_path = data.get("image_path")
             if isinstance(image_path, str) and image_path and not os.path.isabs(image_path):
@@ -66,7 +66,7 @@ def load_component_records(library_path: Optional[Path] = None, settings_service
                     # For user/custom libraries, make path absolute relative to component folder
                     abs_path = (folder / image_path).resolve()
                     data["image_path"] = str(abs_path)
-            
+
             rec = deserialize_component(data, settings_service)
             if rec is not None:
                 records.append(rec)
@@ -79,15 +79,15 @@ def load_component_records(library_path: Optional[Path] = None, settings_service
 def load_component_records_from_multiple(library_paths: List[Union[str, Path]], settings_service=None) -> List[ComponentRecord]:
     """
     Load components from multiple library paths.
-    
+
     Args:
         library_paths: List of library directory paths
-    
+
     Returns:
         Combined list of ComponentRecord objects from all libraries
     """
     all_records: List[ComponentRecord] = []
-    
+
     for lib_path in library_paths:
         try:
             path = Path(lib_path) if isinstance(lib_path, str) else lib_path
@@ -97,20 +97,20 @@ def load_component_records_from_multiple(library_paths: List[Union[str, Path]], 
         except OSError as e:
             _logger.warning("Failed to load library from %s: %s", lib_path, e)
             continue
-    
+
     return all_records
 
 
 def load_component_dicts(library_path: Optional[Path] = None) -> List[Dict[str, Any]]:
     """
     Load components and return them as JSON-serializable dicts.
-    
+
     Note: Unlike serialize_component(), this preserves absolute image paths
     so that the library UI can load thumbnail icons.
-    
+
     Args:
         library_path: Optional custom library path. If None, uses built-in library.
-    
+
     Returns:
         List of component dictionaries
     """
@@ -126,15 +126,15 @@ def load_component_dicts(library_path: Optional[Path] = None) -> List[Dict[str, 
                 "angle_deg": float(rec.angle_deg),
                 "notes": rec.notes or "",
             }
-            
+
             # Include category if present
             if rec.category:
                 component_dict["category"] = rec.category
-            
+
             # Serialize interfaces
             if rec.interfaces:
                 component_dict["interfaces"] = [iface.to_dict() for iface in rec.interfaces]
-            
+
             result.append(component_dict)
         except (json.JSONDecodeError, OSError, KeyError, TypeError, ValueError) as e:
             _logger.warning("Failed to load component dict from %s: %s", folder, e)
@@ -145,15 +145,15 @@ def load_component_dicts(library_path: Optional[Path] = None) -> List[Dict[str, 
 def load_component_dicts_from_multiple(library_paths: List[Union[str, Path]]) -> List[Dict[str, Any]]:
     """
     Load components from multiple library paths as dictionaries.
-    
+
     Args:
         library_paths: List of library directory paths
-    
+
     Returns:
         Combined list of component dictionaries from all libraries
     """
     all_dicts: List[Dict[str, Any]] = []
-    
+
     for lib_path in library_paths:
         try:
             path = Path(lib_path) if isinstance(lib_path, str) else lib_path
@@ -163,7 +163,9 @@ def load_component_dicts_from_multiple(library_paths: List[Union[str, Path]]) ->
         except OSError as e:
             _logger.warning("Failed to load library dicts from %s: %s", lib_path, e)
             continue
-    
+
     return all_dicts
+
+
 
 

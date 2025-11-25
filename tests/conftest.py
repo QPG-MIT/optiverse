@@ -43,7 +43,7 @@ def _ensure_src_on_path() -> Generator[None, None, None]:
 def qapp() -> Generator["QApplication", None, None]:
     """
     Create a QApplication instance for tests.
-    
+
     Session-scoped to avoid creating multiple QApplications.
     """
     from PyQt6.QtWidgets import QApplication
@@ -58,7 +58,7 @@ def qapp() -> Generator["QApplication", None, None]:
 def qtbot(qapp: "QApplication") -> Generator["QtBotType", None, None]:
     """
     Provides a QtBot object for Qt widget testing.
-    
+
     Requires qapp fixture to ensure QApplication exists.
     """
     from pytestqt.qtbot import QtBot
@@ -74,12 +74,12 @@ def qtbot(qapp: "QApplication") -> Generator["QtBotType", None, None]:
 def scene(qapp: "QApplication") -> Generator["QGraphicsScene", None, None]:
     """
     Create a QGraphicsScene with proper size and automatic cleanup.
-    
+
     The scene is automatically cleared after the test.
     """
     from PyQt6 import QtWidgets
     from optiverse.core.constants import SCENE_SIZE_MM, SCENE_MIN_COORD
-    
+
     s = QtWidgets.QGraphicsScene()
     s.setSceneRect(
         SCENE_MIN_COORD,
@@ -98,11 +98,11 @@ def view(
 ) -> Generator["GraphicsView", None, None]:
     """
     Create a GraphicsView attached to a scene.
-    
+
     The view is automatically deleted after the test.
     """
     from optiverse.objects import GraphicsView
-    
+
     v = GraphicsView()
     v.setScene(scene)
     yield v
@@ -151,7 +151,7 @@ def mock_log_service() -> "MockLogService":
 def source_factory() -> Callable[..., "SourceItem"]:
     """
     Provide a factory function for creating SourceItems.
-    
+
     Usage:
         def test_something(source_factory):
             source = source_factory(x_mm=100, num_rays=10)
@@ -189,11 +189,11 @@ def component_factory() -> Callable[..., "ComponentItem"]:
 def undo_stack() -> Generator["UndoStack", None, None]:
     """
     Provide a fresh UndoStack for testing.
-    
+
     The stack is automatically cleared after the test.
     """
     from optiverse.core.undo_stack import UndoStack
-    
+
     stack = UndoStack()
     yield stack
     stack.clear()
@@ -209,18 +209,20 @@ def basic_optical_setup(
 ) -> Generator[Tuple["SourceItem", "ComponentItem", "ComponentItem"], None, None]:
     """
     Provide a basic optical setup: source -> lens -> mirror.
-    
+
     Returns:
         Tuple of (source, lens, mirror) items already added to scene
     """
     from tests.fixtures.factories import create_source_item, create_lens_item, create_mirror_item
-    
+
     source = create_source_item(x_mm=-100, y_mm=0, angle_deg=0)
     lens = create_lens_item(x_mm=0, y_mm=0, angle_deg=90, efl_mm=50)
     mirror = create_mirror_item(x_mm=100, y_mm=0, angle_deg=45)
-    
+
     scene.addItem(source)
     scene.addItem(lens)
     scene.addItem(mirror)
-    
+
     yield source, lens, mirror
+
+

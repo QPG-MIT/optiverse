@@ -10,3 +10,5 @@ def test_settings_roundtrip(qtbot, monkeypatch, tmp_path):
     assert s.get_value("ui/ray_width_px", 0.0) == 2.5
 
 
+
+

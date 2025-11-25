@@ -17,3 +17,5 @@ class LogCategory:
     COMPONENT = "Component"
     SESSION = "Session"
 
+
+

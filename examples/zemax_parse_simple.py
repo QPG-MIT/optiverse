@@ -18,27 +18,27 @@ def parse_zemax_simple(filepath):
     name = ""
     wavelengths = []
     primary_wl_idx = 1
-    
+
     with open(filepath, 'r') as f:
         lines = f.readlines()
-    
+
     current_surface = None
     surf_num = None
-    
+
     for line in lines:
         line_stripped = line.strip()
-        
+
         if line_stripped.startswith('NAME '):
             name = line_stripped[5:].strip()
-        
+
         elif line_stripped.startswith('WAVM '):
             parts = line_stripped[5:].split()
             if len(parts) >= 2:
                 wavelengths.append(float(parts[1]))
-        
+
         elif line_stripped.startswith('PWAV '):
             primary_wl_idx = int(line_stripped[5:].strip())
-        
+
         elif line_stripped.startswith('SURF '):
             if current_surface:
                 surfaces.append(current_surface)
@@ -52,7 +52,7 @@ def parse_zemax_simple(filepath):
                 'coating': '',
                 'comment': ''
             }
-        
+
         elif current_surface and line.startswith('  '):  # Check indentation before stripping
             if line_stripped.startswith('CURV '):
                 try:
@@ -83,12 +83,12 @@ def parse_zemax_simple(filepath):
                     pass
             elif line_stripped.startswith('COMM '):
                 current_surface['comment'] = line_stripped[5:].strip()
-    
+
     if current_surface:
         surfaces.append(current_surface)
-    
+
     primary_wl_um = wavelengths[primary_wl_idx - 1] if wavelengths else 0.55
-    
+
     return {
         'name': name,
         'surfaces': surfaces,
@@ -117,39 +117,39 @@ def main():
     if len(sys.argv) < 2:
         print("Usage: python zemax_parse_simple.py <path_to_zmx_file>")
         return
-    
+
     filepath = sys.argv[1]
-    
+
     print("="*70)
     print("ZEMAX FILE PARSER - Simple Demonstration")
     print("="*70)
     print()
-    
+
     # Parse
     data = parse_zemax_simple(filepath)
-    
+
     print(f"Name: {data['name']}")
     print(f"Primary wavelength: {data['primary_wavelength_um'] * 1000:.1f} nm")
     print(f"Number of surfaces: {len(data['surfaces'])}")
     print()
-    
+
     print("-"*70)
     print("SURFACES:")
     print("-"*70)
-    
+
     cumulative_x = 0.0
     current_material = ""
-    
+
     for surf in data['surfaces']:
         num = surf['number']
         curv = surf['curvature']
         thick = surf['thickness']
         glass = surf['glass']
         diam = surf['diameter']
-        
+
         radius = 1.0 / curv if abs(curv) > 1e-10 else float('inf')
         radius_str = f"{radius:.2f}" if radius != float('inf') else "∞"
-        
+
         print(f"\nSurface {num}:")
         if num == 0:
             print(f"  Type: Object surface (at infinity)")
@@ -158,14 +158,14 @@ def main():
             print(f"  Thickness to next: {thick:.2f} mm")
             print(f"  Material: {glass if glass else 'Air'}")
             print(f"  Diameter: {diam:.2f} mm")
-            
+
             # Show as interface
             if num > 0 and num < len(data['surfaces']) - 1:
                 n1 = get_index(current_material)
                 n2 = get_index(glass)
                 mat1 = current_material if current_material else "Air"
                 mat2 = glass if glass else "Air"
-                
+
                 # Calculate sag for curved surfaces
                 is_curved = radius != float('inf')
                 sag = 0.0
@@ -176,7 +176,7 @@ def main():
                         sag = R_abs - (R_abs**2 - h**2)**0.5
                         if radius < 0:
                             sag = -sag
-                
+
                 print(f"\n  → OptiVerse Interface:")
                 print(f"     Position: x={cumulative_x:.2f} mm (vertex)")
                 print(f"     Height: {diam:.2f} mm (±{diam/2:.2f} mm from axis)")
@@ -187,47 +187,47 @@ def main():
                     print(f"     Type: curved refractive_interface")
                 else:
                     print(f"     Type: flat refractive_interface")
-                
+
                 cumulative_x += thick
                 current_material = glass
-    
+
     print()
     print("="*70)
     print("MAPPING TO OPTIVERSE")
     print("="*70)
     print()
-    
+
     print("This Zemax file defines a multi-element lens system that maps to")
     print("OptiVerse's interface-based component model as follows:")
     print()
-    
+
     # Count real interfaces (exclude object and image)
     real_surfaces = [s for s in data['surfaces'] if 0 < s['number'] < len(data['surfaces']) - 1]
-    
+
     print(f"ComponentRecord(")
     print(f"  name=\"{data['name']}\",")
     print(f"  kind=\"multi_element\",")
     print(f"  object_height_mm={real_surfaces[0]['diameter'] if real_surfaces else 25.4:.2f},")
     print(f"  interfaces_v2=[")
-    
+
     cumulative_x = 0.0
     current_material = ""
-    
+
     for surf in data['surfaces']:
         if surf['number'] == 0 or surf['number'] >= len(data['surfaces']) - 1:
             continue
-        
+
         n1 = get_index(current_material)
         n2 = get_index(surf['glass'])
         half_diam = surf['diameter'] / 2.0
-        
+
         mat1 = current_material if current_material else "Air"
         mat2 = surf['glass'] if surf['glass'] else "Air"
-        
+
         # Get radius info
         radius = 1.0 / surf['curvature'] if abs(surf['curvature']) > 1e-10 else float('inf')
         is_curved = radius != float('inf')
-        
+
         print(f"    InterfaceDefinition(")
         print(f"      x1_mm={cumulative_x:.2f}, y1_mm={-half_diam:.2f},")
         print(f"      x2_mm={cumulative_x:.2f}, y2_mm={half_diam:.2f},")
@@ -240,14 +240,14 @@ def main():
         else:
             print(f"      is_curved=False")
         print(f"    ),")
-        
+
         cumulative_x += surf['thickness']
         current_material = surf['glass']
-    
+
     print(f"  ]")
     print(f")")
     print()
-    
+
     print("="*70)
     print("NEXT STEPS")
     print("="*70)
@@ -263,4 +263,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 

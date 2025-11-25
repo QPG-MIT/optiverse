@@ -28,7 +28,7 @@ async def echo_handler(websocket, path):
     """
     client_id = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
     print(f"[{client_id}] Connected")
-    
+
     try:
         async for message in websocket:
             print(f"[{client_id}] Received: {message[:50]}...")
@@ -46,10 +46,10 @@ async def echo_handler(websocket, path):
 async def main():
     """Start the minimal test server."""
     global server
-    
+
     host = "localhost"
     port = 8765
-    
+
     print("=" * 60)
     print("MINIMAL WEBSOCKET TEST SERVER")
     print("=" * 60)
@@ -60,7 +60,7 @@ async def main():
     print("  - Simple echo handler")
     print("  - Press Ctrl+C to stop")
     print("=" * 60)
-    
+
     # Create server with minimal configuration
     # This is the simplest possible setup for Qt compatibility
     server = await serve(
@@ -73,10 +73,10 @@ async def main():
         close_timeout=10,       # Give time for clean shutdown
         compression=None,       # No compression
     )
-    
+
     print(f"✓ Server ready and listening on ws://{host}:{port}")
     print("Waiting for connections...")
-    
+
     # Run forever
     await asyncio.Future()
 
@@ -102,7 +102,7 @@ def signal_handler(sig, frame):
 if __name__ == "__main__":
     # Register signal handler for clean shutdown
     signal.signal(signal.SIGINT, signal_handler)
-    
+
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
@@ -112,4 +112,6 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         cleanup()
+
+
 

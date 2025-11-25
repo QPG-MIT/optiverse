@@ -54,3 +54,5 @@ def test_snap_selected_to_grid(qtbot):
     assert int(p.y()) == round(9.3)
 
 
+
+

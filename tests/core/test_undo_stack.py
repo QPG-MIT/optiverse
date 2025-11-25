@@ -35,7 +35,7 @@ class TestUndoStack:
         """Pushing a command should enable undo."""
         item = SourceItem(SourceParams())
         cmd = AddItemCommand(scene, item)
-        
+
         stack.push(cmd)
         assert stack.can_undo()
         assert not stack.can_redo()
@@ -44,7 +44,7 @@ class TestUndoStack:
         """Pushing a command should execute it."""
         item = SourceItem(SourceParams())
         cmd = AddItemCommand(scene, item)
-        
+
         assert item not in scene.items()
         stack.push(cmd)
         assert item in scene.items()
@@ -53,10 +53,10 @@ class TestUndoStack:
         """Undo should reverse the last command."""
         item = SourceItem(SourceParams())
         cmd = AddItemCommand(scene, item)
-        
+
         stack.push(cmd)
         assert item in scene.items()
-        
+
         stack.undo()
         assert item not in scene.items()
 
@@ -64,10 +64,10 @@ class TestUndoStack:
         """After undo, redo should be available."""
         item = SourceItem(SourceParams())
         cmd = AddItemCommand(scene, item)
-        
+
         stack.push(cmd)
         stack.undo()
-        
+
         assert not stack.can_undo()
         assert stack.can_redo()
 
@@ -75,11 +75,11 @@ class TestUndoStack:
         """Redo should reapply the undone command."""
         item = SourceItem(SourceParams())
         cmd = AddItemCommand(scene, item)
-        
+
         stack.push(cmd)
         stack.undo()
         assert item not in scene.items()
-        
+
         stack.redo()
         assert item in scene.items()
 
@@ -87,14 +87,14 @@ class TestUndoStack:
         """Pushing a new command after undo should clear redo history."""
         item1 = SourceItem(SourceParams(x_mm=0, y_mm=0))
         item2 = SourceItem(SourceParams(x_mm=10, y_mm=10))
-        
+
         cmd1 = AddItemCommand(scene, item1)
         cmd2 = AddItemCommand(scene, item2)
-        
+
         stack.push(cmd1)
         stack.undo()
         assert stack.can_redo()
-        
+
         stack.push(cmd2)
         assert not stack.can_redo()
 
@@ -103,21 +103,21 @@ class TestUndoStack:
         item1 = SourceItem(SourceParams(x_mm=0, y_mm=0))
         item2 = SourceItem(SourceParams(x_mm=10, y_mm=10))
         item3 = SourceItem(SourceParams(x_mm=20, y_mm=20))
-        
+
         stack.push(AddItemCommand(scene, item1))
         stack.push(AddItemCommand(scene, item2))
         stack.push(AddItemCommand(scene, item3))
-        
+
         assert len(scene.items()) == 3
-        
+
         stack.undo()
         assert len(scene.items()) == 2
         assert item3 not in scene.items()
-        
+
         stack.undo()
         assert len(scene.items()) == 1
         assert item2 not in scene.items()
-        
+
         stack.undo()
         assert len(scene.items()) == 0
         assert item1 not in scene.items()
@@ -126,18 +126,18 @@ class TestUndoStack:
         """Should support multiple redo operations."""
         item1 = SourceItem(SourceParams(x_mm=0, y_mm=0))
         item2 = SourceItem(SourceParams(x_mm=10, y_mm=10))
-        
+
         stack.push(AddItemCommand(scene, item1))
         stack.push(AddItemCommand(scene, item2))
-        
+
         stack.undo()
         stack.undo()
         assert len(scene.items()) == 0
-        
+
         stack.redo()
         assert len(scene.items()) == 1
         assert item1 in scene.items()
-        
+
         stack.redo()
         assert len(scene.items()) == 2
         assert item2 in scene.items()
@@ -157,9 +157,9 @@ class TestUndoStack:
         item = SourceItem(SourceParams())
         stack.push(AddItemCommand(scene, item))
         stack.undo()
-        
+
         assert stack.can_redo()
-        
+
         stack.clear()
         assert not stack.can_undo()
         assert not stack.can_redo()
@@ -169,33 +169,35 @@ class TestUndoStack:
         # UndoStack should emit canUndoChanged and canRedoChanged signals
         assert hasattr(stack, "canUndoChanged")
         assert hasattr(stack, "canRedoChanged")
-        
+
         with qtbot.waitSignal(stack.canUndoChanged):
             item = SourceItem(SourceParams())
             stack.push(AddItemCommand(scene, item))
-        
+
         with qtbot.waitSignal(stack.canRedoChanged):
             stack.undo()
 
     def test_move_command_undo_redo(self, stack, scene):
         """Test undo/redo with move commands."""
         from PyQt6.QtCore import QPointF
-        
+
         item = SourceItem(SourceParams())
         scene.addItem(item)
-        
+
         old_pos = QPointF(0, 0)
         new_pos = QPointF(50, 50)
         item.setPos(old_pos)
-        
+
         cmd = MoveItemCommand(item, old_pos, new_pos)
         stack.push(cmd)
-        
+
         assert item.pos() == new_pos
-        
+
         stack.undo()
         assert item.pos() == old_pos
-        
+
         stack.redo()
         assert item.pos() == new_pos
+
+
 

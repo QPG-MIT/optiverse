@@ -4,11 +4,12 @@ Ray data structures for raytracing.
 Pure data structures with no UI dependencies.
 """
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import List, Tuple
+
 import numpy as np
 
-# Import Polarization from core (reuse existing implementation)
 from ..core.models import Polarization
 
 
@@ -16,7 +17,7 @@ from ..core.models import Polarization
 class RayState:
     """
     Complete state of a ray during propagation.
-    
+
     This is a pure data structure with no methods that modify state.
     Immutable pattern: methods return new RayState objects.
     """
@@ -31,19 +32,19 @@ class RayState:
     remaining_length: float = 1000.0  # Maximum remaining propagation length in mm
     base_rgb: Tuple[int, int, int] = (220, 20, 60)  # Base color as RGB tuple
     path_points: List[np.ndarray] = field(default_factory=list)  # List of points for visualization
-    
+
     def advance(self, distance: float) -> 'RayState':
         """
         Create new RayState advanced along direction by distance.
-        
+
         Args:
             distance: Distance to advance in mm
-            
+
         Returns:
             New RayState at advanced position
         """
         new_position = self.position + self.direction * distance
-        
+
         return RayState(
             position=new_position,
             direction=self.direction,
@@ -53,7 +54,7 @@ class RayState:
             path=self.path + [new_position],
             events=self.events
         )
-    
+
     def with_direction(self, new_direction: np.ndarray) -> 'RayState':
         """Create new RayState with different direction"""
         return RayState(
@@ -65,7 +66,7 @@ class RayState:
             path=self.path,
             events=self.events
         )
-    
+
     def with_intensity(self, new_intensity: float) -> 'RayState':
         """Create new RayState with different intensity"""
         return RayState(
@@ -77,7 +78,7 @@ class RayState:
             path=self.path,
             events=self.events
         )
-    
+
     def with_polarization(self, new_polarization: Polarization) -> 'RayState':
         """Create new RayState with different polarization"""
         return RayState(
@@ -89,7 +90,7 @@ class RayState:
             path=self.path,
             events=self.events
         )
-    
+
     def increment_events(self) -> 'RayState':
         """Create new RayState with events incremented"""
         return RayState(
@@ -107,7 +108,7 @@ class RayState:
 class RayPath:
     """
     Complete path of a ray for visualization.
-    
+
     This is the final output format from raytracing.
     """
     points: List[np.ndarray]          # Sequence of points along path
@@ -118,4 +119,6 @@ class RayPath:
 
 # Alias for backward compatibility and simpler imports
 Ray = RayState
+
+
 

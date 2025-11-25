@@ -259,7 +259,7 @@ def test_roundtrip_serialization():
     )
     data = serialize_component(original)
     restored = deserialize_component(data)
-    
+
     assert restored.name == original.name
     assert restored.kind == original.kind
     assert restored.image_path == original.image_path
@@ -268,4 +268,6 @@ def test_roundtrip_serialization():
     assert restored.length_mm == pytest.approx(original.length_mm)
     assert restored.split_TR == original.split_TR
     assert restored.notes == original.notes
+
+
 
