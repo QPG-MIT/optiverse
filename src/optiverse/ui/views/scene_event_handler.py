@@ -181,10 +181,12 @@ class SceneEventHandler(QtCore.QObject):
                 return True
             
             elif self._editor_state.is_path_measure:
+                self._path_measure_handler.handle_escape()
                 self._get_path_measure_action().setChecked(False)
                 return True
             
             elif self._editor_state.is_angle_measure:
+                self._angle_measure_handler.handle_escape()
                 self._get_angle_measure_action().setChecked(False)
                 return True
         

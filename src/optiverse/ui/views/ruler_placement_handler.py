@@ -152,14 +152,18 @@ class RulerPlacementHandler:
             ruler_in_progress = self._editor_state.ruler_in_progress
             
             if ruler_in_progress is None:
-                # Cancel placement if no ruler started
+                # Cancel placement mode if no ruler started
                 self.finish()
                 return True
             else:
-                # Add bend at current mouse position
+                # Finalize ruler at current mouse position (like pressing Escape)
+                # This is more intuitive than adding a bend on right-click
                 item_pt = ruler_in_progress.mapFromScene(scene_pt)
                 if ruler_in_progress.point_count() >= 2:
-                    ruler_in_progress.finalize_segment(item_pt)
+                    # Update the last point to current position
+                    ruler_in_progress.set_preview_point(item_pt)
+                # Finalize the ruler (same as handle_escape)
+                self.handle_escape()
                 return True
         
         return False
@@ -206,8 +210,9 @@ class RulerPlacementHandler:
                 # Remove from scene temporarily (it was added for preview)
                 if ruler_in_progress.scene() is not None:
                     self._scene.removeItem(ruler_in_progress)
-                # Connect commandCreated signal for future undo operations
+                # Connect signals for undo support
                 ruler_in_progress.commandCreated.connect(self._undo_stack.push)
+                ruler_in_progress.requestDelete.connect(self._handle_item_delete)
                 # Finalize ruler with undo command
                 cmd = AddItemCommand(self._scene, ruler_in_progress)
                 self._undo_stack.push(cmd)
@@ -222,6 +227,13 @@ class RulerPlacementHandler:
         
         self.finish()
         return True
+    
+    def _handle_item_delete(self, item) -> None:
+        """Handle delete request from item's context menu."""
+        from ...core.undo_commands import RemoveItemCommand
+        if item.scene():
+            cmd = RemoveItemCommand(item.scene(), item)
+            self._undo_stack.push(cmd)
     
     def handle_add_bend(self) -> bool:
         """

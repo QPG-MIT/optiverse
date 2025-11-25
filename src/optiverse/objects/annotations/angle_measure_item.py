@@ -12,6 +12,19 @@ from typing import Optional, Dict, Any
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.zorder_utils import handle_z_order_from_menu
+from ...core.ui_constants import (
+    ANGLE_MEASURE_LINE_WIDTH,
+    ANGLE_MEASURE_ARC_WIDTH,
+    ANGLE_MEASURE_ARC_RADIUS,
+    ANGLE_MEASURE_ENDPOINT_RADIUS,
+    ANGLE_MEASURE_LINE_COLOR,
+    ANGLE_MEASURE_ARC_COLOR,
+    ANGLE_MEASURE_LABEL_BG_COLOR,
+    ANGLE_MEASURE_LABEL_TEXT_COLOR,
+    ANGLE_MEASURE_ENDPOINT_COLOR,
+    ANGLE_MEASURE_ENDPOINT_SELECTED_COLOR,
+    SELECTION_INDICATOR_COLOR,
+)
 
 
 class AngleMeasureItem(QtWidgets.QGraphicsObject):
@@ -23,7 +36,14 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
     - Arc showing the angle
     - Label displaying angle in degrees
     - Draggable endpoints
+    - Undo/redo support via commandCreated signal
     """
+    
+    # Signal emitted when an undo command is created
+    commandCreated = QtCore.pyqtSignal(object)
+    
+    # Signal emitted when item requests deletion (for undoable delete)
+    requestDelete = QtCore.pyqtSignal(object)  # Emits self
     
     def __init__(
         self,
@@ -68,15 +88,15 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         self._dragging_point: Optional[str] = None  # 'vertex', 'point1', 'point2', or None
         self._initial_points: Optional[Dict[str, QtCore.QPointF]] = None
         
-        # Appearance
-        self._line_color = QtGui.QColor(0, 150, 255, 200)  # Blue
-        self._arc_color = QtGui.QColor(0, 150, 255, 180)
-        self._line_width = 2.0
-        self._arc_width = 2.0
-        self._arc_radius = 30.0  # Radius of angle arc
-        self._endpoint_radius = 5.0
-        self._label_bg_color = QtGui.QColor(0, 150, 255, 240)
-        self._label_text_color = QtGui.QColor(255, 255, 255)
+        # Appearance (from constants)
+        self._line_color = QtGui.QColor(*ANGLE_MEASURE_LINE_COLOR)
+        self._arc_color = QtGui.QColor(*ANGLE_MEASURE_ARC_COLOR)
+        self._line_width = ANGLE_MEASURE_LINE_WIDTH
+        self._arc_width = ANGLE_MEASURE_ARC_WIDTH
+        self._arc_radius = ANGLE_MEASURE_ARC_RADIUS
+        self._endpoint_radius = ANGLE_MEASURE_ENDPOINT_RADIUS
+        self._label_bg_color = QtGui.QColor(*ANGLE_MEASURE_LABEL_BG_COLOR)
+        self._label_text_color = QtGui.QColor(*ANGLE_MEASURE_LABEL_TEXT_COLOR)
     
     @property
     def vertex(self) -> QtCore.QPointF:
@@ -92,6 +112,11 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
     def point2(self) -> QtCore.QPointF:
         """Get second point in scene coordinates."""
         return self.mapToScene(self._point2)
+    
+    @property
+    def angle(self) -> float:
+        """Get the measured angle in degrees."""
+        return self._calculate_angle()
     
     def _calculate_angle(self) -> float:
         """Calculate inner angle in degrees between the two lines (always < 180°)."""
@@ -247,7 +272,10 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         
         # Draw endpoint markers
         painter.setPen(QtCore.Qt.PenStyle.NoPen)
-        endpoint_color = QtGui.QColor(255, 255, 0, 200) if not is_selected else QtGui.QColor(0, 150, 255, 255)
+        endpoint_color = (
+            QtGui.QColor(*ANGLE_MEASURE_ENDPOINT_SELECTED_COLOR) if is_selected 
+            else QtGui.QColor(*ANGLE_MEASURE_ENDPOINT_COLOR)
+        )
         painter.setBrush(QtGui.QBrush(endpoint_color))
         painter.drawEllipse(self._point1, self._endpoint_radius, self._endpoint_radius)
         painter.drawEllipse(self._point2, self._endpoint_radius, self._endpoint_radius)
@@ -309,7 +337,7 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
     
     def _draw_selection_indicator(self, painter: QtGui.QPainter):
         """Draw dashed outline when selected."""
-        pen = QtGui.QPen(QtGui.QColor(255, 255, 0, 200), 2.0)
+        pen = QtGui.QPen(QtGui.QColor(*SELECTION_INDICATOR_COLOR), 2.0)
         pen.setCosmetic(True)
         pen.setStyle(QtCore.Qt.PenStyle.DashLine)
         painter.setPen(pen)
@@ -364,8 +392,9 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
             
             action = menu.exec(event.screenPos())
             
-            if action == act_delete and self.scene():
-                self.scene().removeItem(self)
+            if action == act_delete:
+                # Emit signal for undoable deletion
+                self.requestDelete.emit(self)
             else:
                 # Handle z-order actions via utility
                 handle_z_order_from_menu(self, action, {
@@ -417,14 +446,19 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
     def mouseReleaseEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent):
         """Handle end of dragging and create undo command."""
         if self._dragging_point and self._initial_points:
-            # Check if points actually changed
+            # Check if points actually changed (compare scene coordinates)
             points_changed = False
             if self._dragging_point == 'vertex':
-                points_changed = (self._vertex - self._initial_points['vertex']).manhattanLength() > 0.1
+                # self.pos() is the vertex in scene coordinates
+                points_changed = (self.pos() - self._initial_points['vertex']).manhattanLength() > 0.1
             elif self._dragging_point == 'point1':
-                points_changed = (self._point1 - self._initial_points['point1']).manhattanLength() > 0.1
+                # Convert current item coords to scene coords for comparison
+                current_point1_scene = self.mapToScene(self._point1)
+                points_changed = (current_point1_scene - self._initial_points['point1']).manhattanLength() > 0.1
             elif self._dragging_point == 'point2':
-                points_changed = (self._point2 - self._initial_points['point2']).manhattanLength() > 0.1
+                # Convert current item coords to scene coords for comparison
+                current_point2_scene = self.mapToScene(self._point2)
+                points_changed = (current_point2_scene - self._initial_points['point2']).manhattanLength() > 0.1
             
             if points_changed:
                 # Create undo command for point changes
@@ -439,16 +473,7 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
                 after_state = self.capture_state()
                 
                 cmd = PropertyChangeCommand(self, before_state, after_state)
-                # Try to get undo stack from scene
-                if self.scene():
-                    # Look for undo stack in scene's parent or main window
-                    scene_parent = self.scene().parent()
-                    if scene_parent and hasattr(scene_parent, 'undo_stack'):
-                        scene_parent.undo_stack.push(cmd)
-                    elif hasattr(self.scene(), 'views') and self.scene().views():
-                        view = self.scene().views()[0]
-                        if hasattr(view, 'parent') and view.parent() and hasattr(view.parent(), 'undo_stack'):
-                            view.parent().undo_stack.push(cmd)
+                self.commandCreated.emit(cmd)
         
         self._dragging_point = None
         self._initial_points = None

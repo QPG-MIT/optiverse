@@ -90,3 +90,36 @@ RULER_LABEL_BG_ALPHA_SELECTED = 250
 # Change detection threshold for undo (in scene units)
 RULER_POINT_CHANGE_THRESHOLD = 0.1
 
+# ========== Angle Measure Constants ==========
+
+# Line appearance
+ANGLE_MEASURE_LINE_WIDTH = 2.0
+ANGLE_MEASURE_ARC_WIDTH = 2.0
+ANGLE_MEASURE_ARC_RADIUS = 30.0
+ANGLE_MEASURE_ENDPOINT_RADIUS = 5.0
+
+# Colors (RGBA tuples)
+ANGLE_MEASURE_LINE_COLOR = (0, 150, 255, 200)  # Blue
+ANGLE_MEASURE_ARC_COLOR = (0, 150, 255, 180)
+ANGLE_MEASURE_LABEL_BG_COLOR = (0, 150, 255, 240)
+ANGLE_MEASURE_LABEL_TEXT_COLOR = (255, 255, 255)
+ANGLE_MEASURE_ENDPOINT_COLOR = (255, 255, 0, 200)  # Yellow
+ANGLE_MEASURE_ENDPOINT_SELECTED_COLOR = (0, 150, 255, 255)
+
+# ========== Path Measure Constants ==========
+
+# Line appearance
+PATH_MEASURE_LINE_WIDTH = 4.0
+PATH_MEASURE_ENDPOINT_RADIUS = 6.0
+
+# Colors (RGBA tuples)
+PATH_MEASURE_HIGHLIGHT_COLOR = (0, 200, 100, 180)  # Green
+PATH_MEASURE_LABEL_BG_COLOR = (0, 200, 100, 240)
+PATH_MEASURE_LABEL_TEXT_COLOR = (255, 255, 255)
+PATH_MEASURE_ENDPOINT_COLOR = (255, 255, 0, 200)  # Yellow
+
+# ========== Shared Selection Indicator ==========
+
+# Selection indicator color (shared across measurement items)
+SELECTION_INDICATOR_COLOR = (255, 255, 0, 200)  # Yellow dashed outline
+

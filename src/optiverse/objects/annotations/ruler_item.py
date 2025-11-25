@@ -47,6 +47,9 @@ class RulerItem(QtWidgets.QGraphicsObject):
     # Signal emitted when an undo command is created
     commandCreated = QtCore.pyqtSignal(object)
     
+    # Signal emitted when item requests deletion (for undoable delete)
+    requestDelete = QtCore.pyqtSignal(object)  # Emits self
+    
     def __init__(
         self,
         p1: QtCore.QPointF = QtCore.QPointF(-50, 0),
@@ -454,8 +457,9 @@ class RulerItem(QtWidgets.QGraphicsObject):
         
         action = m.exec(ev.screenPos())
         
-        if action == act_del and self.scene():
-            self.scene().removeItem(self)
+        if action == act_del:
+            # Emit signal for undoable deletion
+            self.requestDelete.emit(self)
         elif action == act_del_point and is_bend_point and nearest_idx is not None:
             self._delete_bend_point(nearest_idx)
         elif action == act_add_bend:

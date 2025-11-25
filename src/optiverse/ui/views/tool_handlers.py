@@ -285,6 +285,25 @@ class AngleMeasureToolHandler:
         """Check if the tool is currently active."""
         return self._state is not None
     
+    def handle_escape(self) -> bool:
+        """
+        Handle escape key to cancel angle measurement.
+        
+        Returns:
+            True if the event was consumed, False otherwise
+        """
+        if not self.is_active():
+            return False
+        
+        # Clean up any temporary items
+        self.deactivate()
+        
+        # Call completion callback (will deactivate the mode)
+        if self.on_complete:
+            self.on_complete()
+        
+        return True
+    
     def handle_click(self, scene_pos: QtCore.QPointF) -> bool:
         """
         Handle click in angle measure mode.
@@ -373,6 +392,12 @@ class AngleMeasureToolHandler:
             point2=point2
         )
         
+        # Connect commandCreated signal for undo support
+        angle_item.commandCreated.connect(self.undo_stack.push)
+        
+        # Connect requestDelete signal for undoable deletion
+        angle_item.requestDelete.connect(self._handle_item_delete)
+        
         # Add via undo stack
         cmd = AddItemCommand(self.scene, angle_item)
         self.undo_stack.push(cmd)
@@ -381,7 +406,7 @@ class AngleMeasureToolHandler:
         angle_item.setSelected(True)
         
         # Show result tooltip
-        angle = angle_item._calculate_angle()
+        angle = angle_item.angle
         QtWidgets.QToolTip.showText(
             QtGui.QCursor.pos(),
             f"Angle measurement: {angle:.1f}°"
@@ -397,6 +422,13 @@ class AngleMeasureToolHandler:
             self.on_complete()
         
         return True
+    
+    def _handle_item_delete(self, item) -> None:
+        """Handle delete request from item's context menu."""
+        from ...core.undo_commands import RemoveItemCommand
+        if item.scene():
+            cmd = RemoveItemCommand(item.scene(), item)
+            self.undo_stack.push(cmd)
     
     def handle_mouse_move(self, scene_pos: QtCore.QPointF) -> None:
         """Handle mouse move to update preview."""
@@ -469,6 +501,25 @@ class PathMeasureToolHandler:
         """Check if the tool is currently active."""
         return self._state is not None
     
+    def handle_escape(self) -> bool:
+        """
+        Handle escape key to cancel path measurement.
+        
+        Returns:
+            True if the event was consumed, False otherwise
+        """
+        if not self.is_active():
+            return False
+        
+        # Clean up any temporary items
+        self.deactivate()
+        
+        # Call completion callback (will deactivate the mode)
+        if self.on_complete:
+            self.on_complete()
+        
+        return True
+
     def handle_click(self, scene_pos: QtCore.QPointF) -> bool:
         """
         Handle click in path measure mode.
@@ -650,6 +701,9 @@ class PathMeasureToolHandler:
             end_param=end_param,
             ray_index=best_ray_index
         )
+        # Connect signals for undo support
+        path_measure.commandCreated.connect(self.undo_stack.push)
+        path_measure.requestDelete.connect(self._handle_item_delete)
         
         # Beam splitter auto-detection: collect all items to add
         items_to_add = [path_measure]
@@ -664,6 +718,9 @@ class PathMeasureToolHandler:
                             end_param=end_param,
                             ray_index=sibling_idx
                         )
+                        # Connect signals for undo support
+                        sibling_measure.commandCreated.connect(self.undo_stack.push)
+                        sibling_measure.requestDelete.connect(self._handle_item_delete)
                         items_to_add.append(sibling_measure)
         
         # Add items via undo stack
@@ -686,7 +743,7 @@ class PathMeasureToolHandler:
         tip_text = (
             f"Created {len(items_to_add)} measurements (beam splitter)"
             if len(items_to_add) > 1
-            else f"Path measurement: {path_measure._segment_length:.2f} mm"
+            else f"Path measurement: {path_measure.segment_length:.2f} mm"
         )
         QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), tip_text)
         
@@ -695,6 +752,13 @@ class PathMeasureToolHandler:
             self.on_complete()
         
         return True
+    
+    def _handle_item_delete(self, item) -> None:
+        """Handle delete request from item's context menu."""
+        from ...core.undo_commands import RemoveItemCommand
+        if item.scene():
+            cmd = RemoveItemCommand(item.scene(), item)
+            self.undo_stack.push(cmd)
     
     def _param_to_position(
         self, ray_data_list: List["RayPath"], ray_index: int, param: float

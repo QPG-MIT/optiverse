@@ -14,6 +14,15 @@ import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.zorder_utils import handle_z_order_from_menu
+from ...core.ui_constants import (
+    PATH_MEASURE_LINE_WIDTH,
+    PATH_MEASURE_ENDPOINT_RADIUS,
+    PATH_MEASURE_HIGHLIGHT_COLOR,
+    PATH_MEASURE_LABEL_BG_COLOR,
+    PATH_MEASURE_LABEL_TEXT_COLOR,
+    PATH_MEASURE_ENDPOINT_COLOR,
+    SELECTION_INDICATOR_COLOR,
+)
 
 
 class PathMeasureItem(QtWidgets.QGraphicsObject):
@@ -25,7 +34,14 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
     - Distance calculation including reflections/refractions
     - Visual highlighting with segment markers
     - Displays total optical path length
+    - Undo/redo support via commandCreated signal
     """
+    
+    # Signal emitted when an undo command is created
+    commandCreated = QtCore.pyqtSignal(object)
+    
+    # Signal emitted when item requests deletion (for undoable delete)
+    requestDelete = QtCore.pyqtSignal(object)  # Emits self
     
     def __init__(
         self, 
@@ -88,13 +104,14 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         
         # Dragging state
         self._dragging_endpoint = None  # 'start' or 'end' when dragging
+        self._initial_params: Optional[Dict[str, float]] = None  # For undo tracking
         
-        # Appearance
-        self._highlight_color = QtGui.QColor(0, 200, 100, 180)  # Green with transparency
-        self._line_width = 4.0  # Thicker than normal rays
-        self._endpoint_radius = 6.0  # Yellow endpoint markers
-        self._label_bg_color = QtGui.QColor(0, 200, 100, 240)
-        self._label_text_color = QtGui.QColor(255, 255, 255)
+        # Appearance (from constants)
+        self._highlight_color = QtGui.QColor(*PATH_MEASURE_HIGHLIGHT_COLOR)
+        self._line_width = PATH_MEASURE_LINE_WIDTH
+        self._endpoint_radius = PATH_MEASURE_ENDPOINT_RADIUS
+        self._label_bg_color = QtGui.QColor(*PATH_MEASURE_LABEL_BG_COLOR)
+        self._label_text_color = QtGui.QColor(*PATH_MEASURE_LABEL_TEXT_COLOR)
         
     @staticmethod
     def _calculate_path_length(points: List[np.ndarray]) -> float:
@@ -282,7 +299,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         
         # Draw yellow endpoint markers
         painter.setPen(QtCore.Qt.PenStyle.NoPen)
-        painter.setBrush(QtGui.QBrush(QtGui.QColor(255, 255, 0, 200)))
+        painter.setBrush(QtGui.QBrush(QtGui.QColor(*PATH_MEASURE_ENDPOINT_COLOR)))
         
         start_pos = segment_points[0]
         end_pos = segment_points[-1]
@@ -433,7 +450,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
     
     def _draw_selection_indicator(self, painter: QtGui.QPainter, segment_points: List[np.ndarray]):
         """Draw dashed outline when selected."""
-        pen = QtGui.QPen(QtGui.QColor(255, 255, 0, 200), 2.0)
+        pen = QtGui.QPen(QtGui.QColor(*SELECTION_INDICATOR_COLOR), 2.0)
         pen.setCosmetic(True)
         pen.setStyle(QtCore.Qt.PenStyle.DashLine)
         painter.setPen(pen)
@@ -467,8 +484,9 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
             
             if action == act_edit_length:
                 self._show_edit_length_dialog()
-            elif action == act_delete and self.scene():
-                self.scene().removeItem(self)
+            elif action == act_delete:
+                # Emit signal for undoable deletion
+                self.requestDelete.emit(self)
             else:
                 # Handle z-order actions via utility
                 handle_z_order_from_menu(self, action, {
@@ -485,6 +503,11 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
             # Check if clicking on endpoint
             self._dragging_endpoint = self._endpoint_at_pos(event.scenePos())
             if self._dragging_endpoint:
+                # Store initial params for undo
+                self._initial_params = {
+                    'start_param': self.start_param,
+                    'end_param': self.end_param,
+                }
                 event.accept()
                 self.setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
                 return
@@ -516,9 +539,27 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         super().mouseMoveEvent(event)
     
     def mouseReleaseEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent):
-        """Handle end of dragging."""
-        if self._dragging_endpoint:
+        """Handle end of dragging and create undo command if changed."""
+        if self._dragging_endpoint and self._initial_params:
+            # Check if params actually changed
+            params_changed = (
+                abs(self.start_param - self._initial_params['start_param']) > 0.001 or
+                abs(self.end_param - self._initial_params['end_param']) > 0.001
+            )
+            
+            if params_changed:
+                # Create undo command
+                from ...core.undo_commands import PropertyChangeCommand
+                before_state = {
+                    'start_param': self._initial_params['start_param'],
+                    'end_param': self._initial_params['end_param'],
+                }
+                after_state = self.capture_state()
+                cmd = PropertyChangeCommand(self, before_state, after_state)
+                self.commandCreated.emit(cmd)
+            
             self._dragging_endpoint = None
+            self._initial_params = None
             self.unsetCursor()
             event.accept()
             return
@@ -577,6 +618,27 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
     def set_label_prefix(self, prefix: str):
         """Update label prefix and refresh rendering."""
         self._label_prefix = prefix
+        self.update()
+    
+    def capture_state(self) -> Dict[str, Any]:
+        """Capture current state for undo/redo."""
+        return {
+            'start_param': float(self.start_param),
+            'end_param': float(self.end_param),
+        }
+    
+    def apply_state(self, state: Dict[str, Any]) -> None:
+        """Apply a previously captured state."""
+        if 'start_param' in state:
+            self.start_param = float(state['start_param'])
+        if 'end_param' in state:
+            self.end_param = float(state['end_param'])
+        
+        # Recalculate segment length
+        segment_points = self._get_segment_points()
+        self._segment_length = self._calculate_path_length(segment_points)
+        
+        self.prepareGeometryChange()
         self.update()
     
     def to_dict(self) -> Dict[str, Any]:
