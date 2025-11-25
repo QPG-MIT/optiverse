@@ -310,7 +310,7 @@ class InterfaceRenderer:
             img_rect: Image rectangle for bounds
         """
         # Convert radius to screen pixels
-        radius_px = abs(radius_mm) * self._coord_system.px_per_mm
+        radius_px = self._coord_system.mm_to_screen_radius(radius_mm)
         
         # Calculate chord properties
         dx = x2 - x1

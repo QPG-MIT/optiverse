@@ -128,6 +128,35 @@ python -m optiverse.app.main
 4. **Trace Rays**: Real-time visualization updates automatically
 5. **Save/Load**: Save your optical systems as JSON files
 
+### Keyboard Shortcuts
+
+| Action | Windows/Linux | macOS |
+|--------|---------------|-------|
+| **File** | | |
+| Open Assembly | `Ctrl+O` | `⌘O` |
+| Save | `Ctrl+S` | `⌘S` |
+| Save As | `Ctrl+Shift+S` | `⌘⇧S` |
+| **Edit** | | |
+| Undo | `Ctrl+Z` | `⌘Z` |
+| Redo | `Ctrl+Y` | `⌘Y` |
+| Copy | `Ctrl+C` | `⌘C` |
+| Paste | `Ctrl+V` | `⌘V` |
+| Delete | `Delete` / `Backspace` | `Delete` / `⌫` |
+| Preferences | `Ctrl+,` | `⌘,` |
+| **View** | | |
+| Zoom In | `Ctrl++` | `⌘+` |
+| Zoom Out | `Ctrl+-` | `⌘-` |
+| Fit Scene | `Ctrl+0` | `⌘0` |
+| Recenter View | `Ctrl+Shift+0` | `⌘⇧0` |
+| **Tools** | | |
+| Retrace Rays | `Space` | `Space` |
+| Component Editor | `Ctrl+E` | `⌘E` |
+| Show Log Window | `Ctrl+L` | `⌘L` |
+| **Collaboration** | | |
+| Connect/Host Session | `Ctrl+Shift+C` | `⌘⇧C` |
+| **General** | | |
+| Cancel Current Tool | `Esc` | `Esc` |
+
 ### Component Editor
 
 Create custom optical components:
