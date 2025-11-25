@@ -10,7 +10,12 @@ from unittest.mock import Mock, MagicMock
 import pytest
 from PyQt6 import QtCore, QtWidgets, QtGui
 
-from optiverse.objects import GraphicsView, LensItem, MirrorItem, BeamsplitterItem
+from optiverse.objects import GraphicsView, ComponentItem
+from tests.helpers.ui_test_helpers import (
+    is_lens_component,
+    is_mirror_component,
+    is_beamsplitter_component,
+)
 
 
 @pytest.fixture
@@ -171,8 +176,9 @@ class TestGhostPreviewComponentTypes:
         graphics_view._make_ghost(sample_lens_record, scene_pos)
         
         ghost = graphics_view._ghost_item
-        assert isinstance(ghost, LensItem)
-        assert ghost.params.efl_mm == 100.0
+        assert is_lens_component(ghost)
+        assert len(ghost.params.interfaces) > 0
+        assert ghost.params.interfaces[0].efl_mm == 100.0
     
     def test_make_ghost_for_mirror(self, graphics_view, sample_mirror_record):
         """Should create MirrorItem ghost."""
@@ -180,7 +186,7 @@ class TestGhostPreviewComponentTypes:
         graphics_view._make_ghost(sample_mirror_record, scene_pos)
         
         ghost = graphics_view._ghost_item
-        assert isinstance(ghost, MirrorItem)
+        assert is_mirror_component(ghost)
     
     def test_make_ghost_for_beamsplitter(self, graphics_view, sample_beamsplitter_record):
         """Should create BeamsplitterItem ghost."""
@@ -188,9 +194,10 @@ class TestGhostPreviewComponentTypes:
         graphics_view._make_ghost(sample_beamsplitter_record, scene_pos)
         
         ghost = graphics_view._ghost_item
-        assert isinstance(ghost, BeamsplitterItem)
-        assert ghost.params.split_T == 50.0
-        assert ghost.params.split_R == 50.0
+        assert is_beamsplitter_component(ghost)
+        assert len(ghost.params.interfaces) > 0
+        assert ghost.params.interfaces[0].split_T == 50.0
+        assert ghost.params.interfaces[0].split_R == 50.0
 
 
 class TestGhostPreviewDragEvents:
@@ -221,7 +228,7 @@ class TestGhostPreviewDragEvents:
         
         # Ghost should now exist
         assert graphics_view._ghost_item is not None
-        assert isinstance(graphics_view._ghost_item, LensItem)
+        assert is_lens_component(graphics_view._ghost_item)
     
     def test_drag_move_updates_ghost_position(self, graphics_view, sample_lens_record):
         """dragMoveEvent should move existing ghost."""

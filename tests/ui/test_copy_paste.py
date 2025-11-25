@@ -3,6 +3,10 @@ Tests for copy/paste functionality in the main window.
 """
 
 import pytest
+from tests.helpers.ui_test_helpers import (
+    is_lens_component,
+    is_mirror_component,
+)
 
 
 @pytest.fixture
@@ -52,12 +56,13 @@ def test_copy_paste_single_source(main_window, qtbot):
 def test_copy_paste_multiple_items(main_window, qtbot):
     """Test copying and pasting multiple items at once."""
     from optiverse.core.models import SourceParams, LensParams, MirrorParams
-    from optiverse.objects import SourceItem, LensItem, MirrorItem
+    from optiverse.objects import SourceItem
+    from tests.fixtures.factories import create_component_from_params
     
     # Add multiple items
     source = SourceItem(SourceParams(x_mm=0.0, y_mm=0.0))
-    lens = LensItem(LensParams(x_mm=100.0, y_mm=0.0))
-    mirror = MirrorItem(MirrorParams(x_mm=200.0, y_mm=0.0))
+    lens = create_component_from_params(LensParams(x_mm=100.0, y_mm=0.0))
+    mirror = create_component_from_params(MirrorParams(x_mm=200.0, y_mm=0.0))
     
     main_window.scene.addItem(source)
     main_window.scene.addItem(lens)
@@ -76,9 +81,9 @@ def test_copy_paste_multiple_items(main_window, qtbot):
     initial_sources = len([item for item in main_window.scene.items() 
                           if isinstance(item, SourceItem)])
     initial_lenses = len([item for item in main_window.scene.items() 
-                         if isinstance(item, LensItem)])
+                         if is_lens_component(item)])
     initial_mirrors = len([item for item in main_window.scene.items() 
-                          if isinstance(item, MirrorItem)])
+                          if is_mirror_component(item)])
     
     # Paste
     main_window.paste_items()
@@ -87,9 +92,9 @@ def test_copy_paste_multiple_items(main_window, qtbot):
     new_sources = len([item for item in main_window.scene.items() 
                       if isinstance(item, SourceItem)])
     new_lenses = len([item for item in main_window.scene.items() 
-                     if isinstance(item, LensItem)])
+                     if is_lens_component(item)])
     new_mirrors = len([item for item in main_window.scene.items() 
-                      if isinstance(item, MirrorItem)])
+                      if is_mirror_component(item)])
     
     assert new_sources == initial_sources + 1
     assert new_lenses == initial_lenses + 1

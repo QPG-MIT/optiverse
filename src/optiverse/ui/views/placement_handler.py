@@ -386,4 +386,44 @@ class PlacementHandler:
         
         # Force Qt to update its internal mouse position tracking
         self._send_synthetic_mouse_move()
+    
+    def place_component_at(self, component_type: Union[str, ComponentType], scene_pos: QtCore.QPointF) -> Optional[QtWidgets.QGraphicsItem]:
+        """
+        Public method to programmatically place a component at a position.
+        
+        Useful for testing and programmatic component addition.
+        
+        Args:
+            component_type: Type of component to place (ComponentType enum or string)
+            scene_pos: Position in scene coordinates where to place the component
+            
+        Returns:
+            The created item, or None if creation failed
+        """
+        # Store original state
+        original_active = self._active
+        original_type = self._component_type
+        
+        # Temporarily set state for placement
+        self._component_type = component_type
+        self._active = True
+        
+        # Get item before placement (to find the new one)
+        items_before = set(self.scene.items())
+        
+        # Place the component
+        self._place_component(scene_pos)
+        
+        # Find the newly added item
+        items_after = set(self.scene.items())
+        new_items = items_after - items_before
+        
+        # Restore original state
+        self._active = original_active
+        self._component_type = original_type
+        
+        # Return the new item if found
+        if new_items:
+            return list(new_items)[0]
+        return None
 

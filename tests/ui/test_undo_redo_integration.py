@@ -15,12 +15,18 @@ from PyQt6 import QtCore, QtWidgets
 from optiverse.ui.views.main_window import MainWindow
 from optiverse.objects import (
     SourceItem,
-    LensItem,
-    MirrorItem,
-    BeamsplitterItem,
+    ComponentItem,
     RulerItem,
     TextNoteItem,
     BaseObj,
+)
+from tests.helpers.ui_test_helpers import (
+    add_source_to_window,
+    add_lens_to_window,
+    add_mirror_to_window,
+    is_lens_component,
+    is_mirror_component,
+    is_beamsplitter_component,
 )
 
 
@@ -48,7 +54,7 @@ class TestUndoRedoIntegration:
 
     def test_undo_enabled_after_add_source(self, main_window):
         """Test that undo is enabled after adding a source."""
-        main_window.add_source()
+        add_source_to_window(main_window)
         assert main_window.act_undo.isEnabled()
         assert not main_window.act_redo.isEnabled()
 
@@ -56,7 +62,7 @@ class TestUndoRedoIntegration:
         """Test undoing source addition."""
         initial_count = len([it for it in main_window.scene.items() if isinstance(it, SourceItem)])
         
-        main_window.add_source()
+        add_source_to_window(main_window)
         after_add = len([it for it in main_window.scene.items() if isinstance(it, SourceItem)])
         assert after_add == initial_count + 1
         
@@ -70,8 +76,8 @@ class TestUndoRedoIntegration:
         initial_ray_count = len(main_window.ray_items)
         
         # Add source and lens - this should create rays
-        main_window.add_source()
-        main_window.add_lens()
+        add_source_to_window(main_window)
+        add_lens_to_window(main_window)
         
         # Verify rays were created
         after_add_rays = len(main_window.ray_items)
@@ -89,8 +95,8 @@ class TestUndoRedoIntegration:
         main_window.autotrace = True
         
         # Add source and lens
-        main_window.add_source()
-        main_window.add_lens()
+        add_source_to_window(main_window)
+        add_lens_to_window(main_window)
         
         # Undo the lens
         main_window._do_undo()
@@ -106,7 +112,7 @@ class TestUndoRedoIntegration:
         """Test redoing source addition."""
         initial_count = len([it for it in main_window.scene.items() if isinstance(it, SourceItem)])
         
-        main_window.add_source()
+        add_source_to_window(main_window)
         main_window.undo_stack.undo()
         
         assert main_window.act_redo.isEnabled()
@@ -117,45 +123,48 @@ class TestUndoRedoIntegration:
 
     def test_undo_add_lens(self, main_window):
         """Test undoing lens addition."""
-        initial_count = len([it for it in main_window.scene.items() if isinstance(it, LensItem)])
+        initial_count = len([it for it in main_window.scene.items() if is_lens_component(it)])
         
-        main_window.add_lens()
-        after_add = len([it for it in main_window.scene.items() if isinstance(it, LensItem)])
+        add_lens_to_window(main_window)
+        after_add = len([it for it in main_window.scene.items() if is_lens_component(it)])
         assert after_add == initial_count + 1
         
         main_window.undo_stack.undo()
-        after_undo = len([it for it in main_window.scene.items() if isinstance(it, LensItem)])
+        after_undo = len([it for it in main_window.scene.items() if is_lens_component(it)])
         assert after_undo == initial_count
 
     def test_undo_add_mirror(self, main_window):
         """Test undoing mirror addition."""
-        initial_count = len([it for it in main_window.scene.items() if isinstance(it, MirrorItem)])
+        initial_count = len([it for it in main_window.scene.items() if is_mirror_component(it)])
         
-        main_window.add_mirror()
-        after_add = len([it for it in main_window.scene.items() if isinstance(it, MirrorItem)])
+        add_mirror_to_window(main_window)
+        after_add = len([it for it in main_window.scene.items() if is_mirror_component(it)])
         assert after_add == initial_count + 1
         
         main_window.undo_stack.undo()
-        after_undo = len([it for it in main_window.scene.items() if isinstance(it, MirrorItem)])
+        after_undo = len([it for it in main_window.scene.items() if is_mirror_component(it)])
         assert after_undo == initial_count
 
     def test_undo_add_beamsplitter(self, main_window):
         """Test undoing beamsplitter addition."""
-        initial_count = len([it for it in main_window.scene.items() if isinstance(it, BeamsplitterItem)])
+        from optiverse.core.component_types import ComponentType
+        from PyQt6 import QtCore
+        initial_count = len([it for it in main_window.scene.items() if is_beamsplitter_component(it)])
         
-        main_window.add_bs()
-        after_add = len([it for it in main_window.scene.items() if isinstance(it, BeamsplitterItem)])
+        main_window.placement_handler.place_component_at(ComponentType.BEAMSPLITTER, QtCore.QPointF(0, 0))
+        after_add = len([it for it in main_window.scene.items() if is_beamsplitter_component(it)])
         assert after_add == initial_count + 1
         
         main_window.undo_stack.undo()
-        after_undo = len([it for it in main_window.scene.items() if isinstance(it, BeamsplitterItem)])
+        after_undo = len([it for it in main_window.scene.items() if is_beamsplitter_component(it)])
         assert after_undo == initial_count
 
     def test_undo_add_text(self, main_window):
         """Test undoing text addition."""
+        from PyQt6 import QtCore
         initial_count = len([it for it in main_window.scene.items() if isinstance(it, TextNoteItem)])
         
-        main_window.add_text()
+        main_window.placement_handler.place_component_at("text", QtCore.QPointF(0, 0))
         after_add = len([it for it in main_window.scene.items() if isinstance(it, TextNoteItem)])
         assert after_add == initial_count + 1
         
@@ -165,13 +174,13 @@ class TestUndoRedoIntegration:
 
     def test_multiple_undos(self, main_window):
         """Test multiple undo operations."""
-        main_window.add_source()
-        main_window.add_lens()
-        main_window.add_mirror()
+        add_source_to_window(main_window)
+        add_lens_to_window(main_window)
+        add_mirror_to_window(main_window)
         
         sources = [it for it in main_window.scene.items() if isinstance(it, SourceItem)]
-        lenses = [it for it in main_window.scene.items() if isinstance(it, LensItem)]
-        mirrors = [it for it in main_window.scene.items() if isinstance(it, MirrorItem)]
+        lenses = [it for it in main_window.scene.items() if is_lens_component(it)]
+        mirrors = [it for it in main_window.scene.items() if is_mirror_component(it)]
         
         assert len(sources) >= 1
         assert len(lenses) >= 1
@@ -179,12 +188,12 @@ class TestUndoRedoIntegration:
         
         # Undo mirror
         main_window.undo_stack.undo()
-        mirrors_after = [it for it in main_window.scene.items() if isinstance(it, MirrorItem)]
+        mirrors_after = [it for it in main_window.scene.items() if is_mirror_component(it)]
         assert len(mirrors_after) == len(mirrors) - 1
         
         # Undo lens
         main_window.undo_stack.undo()
-        lenses_after = [it for it in main_window.scene.items() if isinstance(it, LensItem)]
+        lenses_after = [it for it in main_window.scene.items() if is_lens_component(it)]
         assert len(lenses_after) == len(lenses) - 1
         
         # Undo source
@@ -194,7 +203,7 @@ class TestUndoRedoIntegration:
 
     def test_undo_delete(self, main_window):
         """Test undoing item deletion."""
-        main_window.add_source()
+        add_source_to_window(main_window)
         sources = [it for it in main_window.scene.items() if isinstance(it, SourceItem)]
         item = sources[-1]
         item.setSelected(True)
@@ -207,7 +216,7 @@ class TestUndoRedoIntegration:
 
     def test_undo_move(self, main_window):
         """Test undoing item movement."""
-        main_window.add_source()
+        add_source_to_window(main_window)
         sources = [it for it in main_window.scene.items() if isinstance(it, SourceItem)]
         item = sources[-1]
         
@@ -238,13 +247,13 @@ class TestUndoRedoIntegration:
 
     def test_undo_clears_redo_stack(self, main_window):
         """Test that new actions clear redo stack."""
-        main_window.add_source()
-        main_window.add_lens()
+        add_source_to_window(main_window)
+        add_lens_to_window(main_window)
         
         main_window.undo_stack.undo()
         assert main_window.act_redo.isEnabled()
         
-        main_window.add_mirror()
+        add_mirror_to_window(main_window)
         assert not main_window.act_redo.isEnabled()
 
     def test_delete_action_exists(self, main_window):
@@ -269,7 +278,7 @@ class TestUndoRedoIntegration:
 
     def test_open_assembly_clears_undo_stack(self, main_window, tmp_path):
         """Test that opening an assembly clears undo history."""
-        main_window.add_source()
+        add_source_to_window(main_window)
         assert main_window.undo_stack.can_undo()
         
         # Create a temporary assembly file

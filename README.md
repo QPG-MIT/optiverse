@@ -355,8 +355,19 @@ MIT License - see pyproject.toml for details.
 - OpenGL for hardware-accelerated rendering
 - WebSockets for real-time collaboration
 
+## Documentation
+
+Comprehensive documentation is available in the [`docs/`](docs/) directory:
+
+- **[Documentation Index](docs/README.md)** - Complete guide to all available documentation
+- **[Getting Started](docs/MACOS_SETUP.md)** - Installation and setup guides
+- **[User Guides](docs/README.md#-user-guides)** - Component editor, Zemax import, collaboration
+- **[Physics & Optics](docs/README.md#-physics--optics)** - Dichroic mirrors, polarization, waveplates
+- **[Architecture & Development](docs/README.md#️-architecture--development)** - Testing, error handling, system architecture
+- **[Performance](docs/README.md#-performance)** - Parallel raytracing, optimizations
+
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/QPG-MIT/optiverse/issues)
-- **Documentation**: See `docs/` folder for detailed guides
+- **Documentation**: [Complete Documentation Index](docs/README.md)
 - **Examples**: Check `examples/` for demo assemblies

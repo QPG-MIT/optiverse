@@ -582,6 +582,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 f"(Could not open folder automatically: {str(e)})"
             )
     
+    
     def open_preferences(self):
         """Open preferences/settings dialog."""
         from .settings_dialog import SettingsDialog

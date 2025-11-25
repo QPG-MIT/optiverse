@@ -3,8 +3,9 @@ from PyQt6 import QtCore, QtWidgets
 
 def test_trace_renders_paths(qtbot):
     from optiverse.ui.views.main_window import MainWindow
-    from optiverse.widgets.source_item import SourceItem
-    from optiverse.widgets.lens_item import LensItem
+    from optiverse.objects import SourceItem
+    from optiverse.core.models import SourceParams, LensParams
+    from optiverse.objects import ComponentItem
 
     w = MainWindow()
     qtbot.addWidget(w)
@@ -12,8 +13,9 @@ def test_trace_renders_paths(qtbot):
     qtbot.waitExposed(w)
 
     # add a source and a lens, then retrace
-    s = SourceItem(); s.setPos(-200, 0)
-    L = LensItem(); L.setPos(0, 0)
+    s = SourceItem(SourceParams(x_mm=-200, y_mm=0))
+    params = LensParams(x_mm=0, y_mm=0, object_height_mm=50.0, efl_mm=100.0)
+    L = ComponentItem(params)
     w.scene.addItem(s)
     w.scene.addItem(L)
 

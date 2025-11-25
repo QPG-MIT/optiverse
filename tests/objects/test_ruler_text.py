@@ -277,8 +277,7 @@ def test_ruler_command_created_signal(qtbot):
 
 def test_text_note_item_smoke(qtbot):
     """Basic smoke test for TextNoteItem."""
-    from optiverse.widgets.text_note_item import TextNoteItem
-    from optiverse.widgets.graphics_view import GraphicsView
+    from optiverse.objects import TextNoteItem, GraphicsView
 
     scene = QtWidgets.QGraphicsScene()
     view = GraphicsView(scene)

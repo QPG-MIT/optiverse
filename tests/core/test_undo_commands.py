@@ -13,8 +13,8 @@ from optiverse.core.undo_commands import (
     RemoveItemCommand,
     MoveItemCommand,
 )
-from optiverse.objects import SourceItem, LensItem
-from optiverse.core.models import SourceParams, LensParams
+from optiverse.objects import SourceItem
+from optiverse.core.models import SourceParams
 
 
 class TestCommand:
@@ -70,7 +70,8 @@ class TestAddItemCommand:
 
     def test_add_lens_item(self, scene):
         """Should work with different item types."""
-        lens = LensItem(LensParams())
+        from tests.fixtures.factories import create_lens_item
+        lens = create_lens_item()
         cmd = AddItemCommand(scene, lens)
         
         cmd.execute()

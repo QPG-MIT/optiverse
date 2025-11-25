@@ -6,8 +6,9 @@ from PyQt6 import QtCore
 def test_autotrace_debouncing_prevents_multiple_retraces(qtbot):
     """Test that multiple rapid schedule_retrace calls only trigger one actual retrace."""
     from optiverse.ui.views.main_window import MainWindow
-    from optiverse.widgets.source_item import SourceItem
-    from optiverse.widgets.lens_item import LensItem
+    from optiverse.objects import SourceItem
+    from optiverse.core.models import LensParams
+    from optiverse.objects import ComponentItem
 
     w = MainWindow()
     qtbot.addWidget(w)
@@ -15,10 +16,10 @@ def test_autotrace_debouncing_prevents_multiple_retraces(qtbot):
     qtbot.waitExposed(w)
 
     # Add items to scene
-    s = SourceItem()
-    s.setPos(-200, 0)
-    L = LensItem()
-    L.setPos(0, 0)
+    from optiverse.core.models import SourceParams
+    s = SourceItem(SourceParams(x_mm=-200, y_mm=0))
+    params = LensParams(x_mm=0, y_mm=0, object_height_mm=50.0, efl_mm=100.0)
+    L = ComponentItem(params)
     w.scene.addItem(s)
     w.scene.addItem(L)
 

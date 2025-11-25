@@ -3,16 +3,18 @@ from PyQt6 import QtCore
 
 def test_autotrace_triggers_on_scene_change(qtbot):
     from optiverse.ui.views.main_window import MainWindow
-    from optiverse.widgets.source_item import SourceItem
-    from optiverse.widgets.lens_item import LensItem
+    from optiverse.objects import SourceItem
+    from optiverse.core.models import SourceParams, LensParams
+    from optiverse.objects import ComponentItem
 
     w = MainWindow()
     qtbot.addWidget(w)
     w.show()
     qtbot.waitExposed(w)
 
-    s = SourceItem(); s.setPos(-200, 0)
-    L = LensItem(); L.setPos(0, 0)
+    s = SourceItem(SourceParams(x_mm=-200, y_mm=0))
+    params = LensParams(x_mm=0, y_mm=0, object_height_mm=50.0, efl_mm=100.0)
+    L = ComponentItem(params)
     w.scene.addItem(s)
     w.scene.addItem(L)
 
@@ -32,14 +34,16 @@ def test_autotrace_triggers_on_scene_change(qtbot):
 
 def test_snap_selected_to_grid(qtbot):
     from optiverse.ui.views.main_window import MainWindow
-    from optiverse.widgets.lens_item import LensItem
+    from optiverse.core.models import LensParams
+    from optiverse.objects import ComponentItem
 
     w = MainWindow()
     qtbot.addWidget(w)
     w.show()
     qtbot.waitExposed(w)
 
-    L = LensItem(); L.setPos(10.7, 9.3)
+    params = LensParams(x_mm=10.7, y_mm=9.3, object_height_mm=50.0, efl_mm=100.0)
+    L = ComponentItem(params)
     w.scene.addItem(L)
     L.setSelected(True)
 

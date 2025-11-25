@@ -2,7 +2,7 @@ from PyQt6 import QtCore, QtGui
 
 
 def test_image_canvas_click_and_line(qtbot):
-    from optiverse.widgets.image_canvas import ImageCanvas
+    from optiverse.objects import ImageCanvas
 
     w = ImageCanvas()
     qtbot.addWidget(w)

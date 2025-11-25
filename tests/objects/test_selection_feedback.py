@@ -16,7 +16,7 @@ class TestSelectionFeedback:
     
     def test_sprite_has_paint_method(self):
         """ComponentSprite should have a paint method."""
-        from optiverse.widgets.component_sprite import ComponentSprite
+        from optiverse.objects import ComponentSprite
         
         # Check that paint method exists
         assert hasattr(ComponentSprite, 'paint')

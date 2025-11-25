@@ -23,15 +23,16 @@ from optiverse.core.models import (
 )
 from optiverse.objects import (
     SourceItem,
-    LensItem,
-    MirrorItem,
-    BeamsplitterItem,
-    DichroicItem,
-    WaveplateItem,
-    SLMItem,
+    ComponentItem,
     RulerItem,
     TextNoteItem,
 )
+from tests.helpers.ui_test_helpers import (
+    is_lens_component,
+    is_mirror_component,
+    is_beamsplitter_component,
+)
+from tests.fixtures.factories import create_component_from_params
 from optiverse.ui.views.main_window import MainWindow
 
 
@@ -114,7 +115,7 @@ class TestSaveLoadAssembly:
             object_height_mm=40.0,
             name="Test Lens",
         )
-        lens = LensItem(params)
+        lens = create_component_from_params(params)
         main_window.scene.addItem(lens)
         
         # Save and load
@@ -134,14 +135,15 @@ class TestSaveLoadAssembly:
             main_window.open_assembly()
         
         # Verify lens was loaded
-        lenses = [item for item in main_window.scene.items() if isinstance(item, LensItem)]
+        lenses = [item for item in main_window.scene.items() if is_lens_component(item)]
         assert len(lenses) == 1
         
         loaded_lens = lenses[0]
         assert abs(loaded_lens.params.x_mm - 50.0) < 0.01
         assert abs(loaded_lens.params.y_mm - 75.0) < 0.01
         assert abs(loaded_lens.params.angle_deg - 90.0) < 0.01
-        assert abs(loaded_lens.params.efl_mm - 150.0) < 0.01
+        assert len(loaded_lens.params.interfaces) > 0
+        assert abs(loaded_lens.params.interfaces[0].efl_mm - 150.0) < 0.01
         assert abs(loaded_lens.params.object_height_mm - 40.0) < 0.01
         assert loaded_lens.params.name == "Test Lens"
     
@@ -154,7 +156,7 @@ class TestSaveLoadAssembly:
             object_height_mm=50.0,
             name="Test Mirror",
         )
-        mirror = MirrorItem(params)
+        mirror = create_component_from_params(params)
         main_window.scene.addItem(mirror)
         
         # Save and load
@@ -174,7 +176,7 @@ class TestSaveLoadAssembly:
             main_window.open_assembly()
         
         # Verify mirror was loaded
-        mirrors = [item for item in main_window.scene.items() if isinstance(item, MirrorItem)]
+        mirrors = [item for item in main_window.scene.items() if is_mirror_component(item)]
         assert len(mirrors) == 1
         
         loaded_mirror = mirrors[0]
@@ -197,7 +199,7 @@ class TestSaveLoadAssembly:
             is_polarizing=False,
             name="Test BS",
         )
-        bs = BeamsplitterItem(params)
+        bs = create_component_from_params(params)
         main_window.scene.addItem(bs)
         
         # Test PBS
@@ -212,7 +214,7 @@ class TestSaveLoadAssembly:
             pbs_transmission_axis_deg=30.0,
             name="Test PBS",
         )
-        pbs = BeamsplitterItem(pbs_params)
+        pbs = create_component_from_params(pbs_params)
         main_window.scene.addItem(pbs)
         
         # Save and load
@@ -232,7 +234,7 @@ class TestSaveLoadAssembly:
             main_window.open_assembly()
         
         # Verify beamsplitters were loaded
-        beamsplitters = [item for item in main_window.scene.items() if isinstance(item, BeamsplitterItem)]
+        beamsplitters = [item for item in main_window.scene.items() if is_beamsplitter_component(item)]
         assert len(beamsplitters) == 2
         
         # Find the regular BS and PBS
@@ -240,8 +242,9 @@ class TestSaveLoadAssembly:
         pbs_item = next(bs for bs in beamsplitters if bs.params.is_polarizing)
         
         # Verify regular BS
-        assert abs(regular_bs.params.split_T - 70.0) < 0.01
-        assert abs(regular_bs.params.split_R - 30.0) < 0.01
+        assert len(regular_bs.params.interfaces) > 0
+        assert abs(regular_bs.params.interfaces[0].split_T - 70.0) < 0.01
+        assert abs(regular_bs.params.interfaces[0].split_R - 30.0) < 0.01
         assert regular_bs.params.is_polarizing is False
         assert regular_bs.params.name == "Test BS"
         
@@ -262,7 +265,7 @@ class TestSaveLoadAssembly:
             pass_type="shortpass",
             name="Test Dichroic",
         )
-        dichroic = DichroicItem(params)
+        dichroic = create_component_from_params(params)
         main_window.scene.addItem(dichroic)
         
         # Save and load
@@ -307,7 +310,7 @@ class TestSaveLoadAssembly:
             fast_axis_deg=45.0,
             name="Test QWP",
         )
-        qwp = WaveplateItem(qwp_params)
+        qwp = create_component_from_params(qwp_params)
         main_window.scene.addItem(qwp)
         
         # Test half waveplate
@@ -320,7 +323,7 @@ class TestSaveLoadAssembly:
             fast_axis_deg=22.5,
             name="Test HWP",
         )
-        hwp = WaveplateItem(hwp_params)
+        hwp = create_component_from_params(hwp_params)
         main_window.scene.addItem(hwp)
         
         # Save and load
@@ -368,7 +371,7 @@ class TestSaveLoadAssembly:
             object_height_mm=100.0,
             name="Test SLM",
         )
-        slm = SLMItem(params)
+        slm = create_component_from_params(params)
         main_window.scene.addItem(slm)
         
         # Save and load
@@ -402,12 +405,12 @@ class TestSaveLoadAssembly:
         """Test saving and loading a complete assembly with all component types."""
         # Add one of each component type
         source = SourceItem(SourceParams(x_mm=-400.0, y_mm=0.0))
-        lens = LensItem(LensParams(x_mm=-200.0, y_mm=0.0))
-        mirror = MirrorItem(MirrorParams(x_mm=0.0, y_mm=100.0))
-        bs = BeamsplitterItem(BeamsplitterParams(x_mm=100.0, y_mm=0.0))
-        dichroic = DichroicItem(DichroicParams(x_mm=200.0, y_mm=100.0))
-        waveplate = WaveplateItem(WaveplateParams(x_mm=300.0, y_mm=0.0))
-        slm = SLMItem(SLMParams(x_mm=400.0, y_mm=0.0))
+        lens = create_component_from_params(LensParams(x_mm=-200.0, y_mm=0.0))
+        mirror = create_component_from_params(MirrorParams(x_mm=0.0, y_mm=100.0))
+        bs = create_component_from_params(BeamsplitterParams(x_mm=100.0, y_mm=0.0))
+        dichroic = create_component_from_params(DichroicParams(x_mm=200.0, y_mm=100.0))
+        waveplate = create_component_from_params(WaveplateParams(x_mm=300.0, y_mm=0.0))
+        slm = create_component_from_params(SLMParams(x_mm=400.0, y_mm=0.0))
         
         for item in [source, lens, mirror, bs, dichroic, waveplate, slm]:
             main_window.scene.addItem(item)
@@ -545,7 +548,7 @@ class TestSaveLoadAssembly:
         
         # Verify components were loaded with default values for missing fields
         sources = [item for item in main_window.scene.items() if isinstance(item, SourceItem)]
-        beamsplitters = [item for item in main_window.scene.items() if isinstance(item, BeamsplitterItem)]
+        beamsplitters = [item for item in main_window.scene.items() if is_beamsplitter_component(item)]
         
         assert len(sources) == 1
         assert len(beamsplitters) == 1
