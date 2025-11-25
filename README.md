@@ -2,6 +2,9 @@
 
 **A modern 2D ray-optics simulation and component editor built with PyQt6**
 
+[![CI](https://github.com/QPG-MIT/optiverse/actions/workflows/ci.yml/badge.svg)](https://github.com/QPG-MIT/optiverse/actions/workflows/ci.yml)
+[![Copilot Instructions](https://github.com/QPG-MIT/optiverse/actions/workflows/copilot-review.yml/badge.svg)](https://github.com/QPG-MIT/optiverse/actions/workflows/copilot-review.yml)
+
 Optiverse is a powerful, interactive tool for designing and simulating optical systems. Create complex setups with mirrors, lenses, beamsplitters, and custom components, then visualize ray propagation in real-time with hardware-accelerated rendering.
 
 ## Features
