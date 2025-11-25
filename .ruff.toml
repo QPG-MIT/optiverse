@@ -3,4 +3,3 @@ line-length = 100
 [lint]
 select = ["E", "F", "I", "UP", "B", "Q", "W"]
 ignore = ["E203"]
-fix = false
