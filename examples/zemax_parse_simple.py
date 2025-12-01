@@ -179,9 +179,8 @@ def main():
                 print(f"     Indices: n₁={n1:.3f} ({mat1}) → n₂={n2:.3f} ({mat2})")
                 if is_curved:
                     print(f"     Curvature: R={radius_str} mm")
-                    print(
-                        f"     Sag (edge): {abs(sag):.3f} mm {'(convex)' if radius > 0 else '(concave)'}"
-                    )
+                    convex_concave = "(convex)" if radius > 0 else "(concave)"
+                    print(f"     Sag (edge): {abs(sag):.3f} mm {convex_concave}")
                     print("     Type: curved refractive_interface")
                 else:
                     print("     Type: flat refractive_interface")

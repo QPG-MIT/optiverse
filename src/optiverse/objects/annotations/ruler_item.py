@@ -52,14 +52,19 @@ class RulerItem(QtWidgets.QGraphicsObject):
 
     def __init__(
         self,
-        p1: QtCore.QPointF = QtCore.QPointF(-50, 0),
-        p2: QtCore.QPointF = QtCore.QPointF(50, 0),
+        p1: QtCore.QPointF | None = None,
+        p2: QtCore.QPointF | None = None,
         item_uuid: str | None = None,
         points: list[QtCore.QPointF] | None = None,
     ):
         super().__init__()
         # Generate or use provided UUID for collaboration
         self.item_uuid = item_uuid if item_uuid else str(uuid.uuid4())
+        # Handle default values for p1 and p2
+        if p1 is None:
+            p1 = QtCore.QPointF(-50, 0)
+        if p2 is None:
+            p2 = QtCore.QPointF(50, 0)
 
         self.setFlags(
             QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable

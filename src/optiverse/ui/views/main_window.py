@@ -23,6 +23,7 @@ from ...core.ui_constants import (
 from ...core.undo_stack import UndoStack
 from ...objects import (
     GraphicsView,
+    RulerItem,
 )
 from ...services.collaboration_manager import CollaborationManager
 from ...services.log_service import get_log_service

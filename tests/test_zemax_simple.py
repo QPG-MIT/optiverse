@@ -119,7 +119,8 @@ def test_zemax_converter():
     assert iface1.is_curved
     assert iface1.radius_of_curvature_mm > 0  # Convex
     print(
-        f"  ✓ Interface 1: n={iface1.n1:.3f}→{iface1.n2:.3f}, R={iface1.radius_of_curvature_mm:.1f}mm"
+        f"  ✓ Interface 1: n={iface1.n1:.3f}→{iface1.n2:.3f}, "
+        f"R={iface1.radius_of_curvature_mm:.1f}mm"
     )
 
     print("  ✓ ZemaxToInterfaceConverter works")

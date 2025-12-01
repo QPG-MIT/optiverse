@@ -7,8 +7,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
-_logger = logging.getLogger(__name__)
-
 from .color_utils import qcolor_from_hex
 from .models import OpticalElement, Polarization, RayPath, SourceParams
 from .raytracing_math import (
@@ -26,6 +24,8 @@ from .raytracing_math import (
     transform_polarization_mirror,
     transform_polarization_waveplate,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 def _endpoints(elements: list[OpticalElement]):
@@ -50,7 +50,8 @@ def _trace_single_ray_worker(args):
     # Unpack ray initial state
     P_init, V_init, remaining_init, pol_init, wl_init, base_rgb = ray_state
 
-    # Unpack element lists (each is a list of (obj, p1, p2) tuples or (p1, p2, interface) for refractive)
+    # Unpack element lists (each is a list of (obj, p1, p2) tuples
+    # or (p1, p2, interface) for refractive)
     mirrors, lenses, bss, waveplates, dichroics, refractive_interfaces, blocks = element_lists
 
     # Unpack configuration
@@ -61,7 +62,8 @@ def _trace_single_ray_worker(args):
     # Trace this ray
     paths: list[RayPath] = []
 
-    # Stack: (points, position, velocity, remaining, last_obj, events, intensity, polarization, wavelength)
+    # Stack: (points, position, velocity, remaining, last_obj, events,
+    #         intensity, polarization, wavelength)
     stack: list[
         tuple[
             list[np.ndarray], np.ndarray, np.ndarray, float, object, int, float, Polarization, float
@@ -82,10 +84,10 @@ def _trace_single_ray_worker(args):
     )
 
     while stack:
-        pts, P, V, remaining, last_obj, events, I, pol, wl = stack.pop()
-        if remaining <= 0 or events >= max_events or I < MIN_I:
+        pts, P, V, remaining, last_obj, events, intensity, pol, wl = stack.pop()
+        if remaining <= 0 or events >= max_events or intensity < MIN_I:
             if len(pts) >= 2:
-                a = int(255 * max(0.0, min(1.0, I)))
+                a = int(255 * max(0.0, min(1.0, intensity)))
                 paths.append(RayPath(pts, (base_rgb[0], base_rgb[1], base_rgb[2], a), pol, wl))
             continue
 
@@ -222,7 +224,7 @@ def _trace_single_ray_worker(args):
         if X is None:
             P2 = P + V * (remaining / max(1e-12, vnorm))
             pts2 = pts + [P2.copy()]
-            a = int(255 * max(0.0, min(1.0, I)))
+            a = int(255 * max(0.0, min(1.0, intensity)))
             paths.append(RayPath(pts2, (base_rgb[0], base_rgb[1], base_rgb[2], a), pol, wl))
             continue
 
@@ -307,7 +309,7 @@ def _trace_single_ray_worker(args):
 
             Vt = normalize(V)
             Pt = P + Vt * EPS_ADV
-            It = I * T
+            It = intensity * T
             if It >= MIN_I:
                 stack.append(
                     (
@@ -325,7 +327,7 @@ def _trace_single_ray_worker(args):
 
             Vr = normalize(reflect_vec(V, n_hat))
             Pr = P + Vr * EPS_ADV
-            Ir = I * R
+            Ir = intensity * R
             if Ir >= MIN_I:
                 stack.append(
                     (
@@ -366,7 +368,7 @@ def _trace_single_ray_worker(args):
             # Create a RayPath for the segment UP TO the waveplate with OLD polarization
             # This ensures the inspect tool shows correct polarization before the waveplate
             if len(pts) >= 2:
-                a = int(255 * max(0.0, min(1.0, I)))
+                a = int(255 * max(0.0, min(1.0, intensity)))
                 paths.append(RayPath(pts, (base_rgb[0], base_rgb[1], base_rgb[2], a), pol, wl))
 
             # Apply waveplate transformation
@@ -377,7 +379,7 @@ def _trace_single_ray_worker(args):
             P2 = P + V2 * EPS_ADV
             # Start new segment with just P2 (not all previous points)
             stack.append(
-                ([P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, I, pol2, wl)
+                ([P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, intensity, pol2, wl)
             )
             continue
 
@@ -393,7 +395,7 @@ def _trace_single_ray_worker(args):
 
             Vt = normalize(V)
             Pt = P + Vt * EPS_ADV
-            It = I * T
+            It = intensity * T
             if It >= MIN_I:
                 stack.append(
                     (
@@ -411,7 +413,7 @@ def _trace_single_ray_worker(args):
 
             Vr = normalize(reflect_vec(V, n_hat))
             Pr = P + Vr * EPS_ADV
-            Ir = I * R
+            Ir = intensity * R
             if Ir >= MIN_I:
                 pol_r = transform_polarization_mirror(pol, V, n_hat)
                 stack.append(
@@ -432,7 +434,7 @@ def _trace_single_ray_worker(args):
         if kind == "block":
             # Absorber: terminate the ray at hit point (pts already includes P)
             if len(pts) >= 2:
-                a = int(255 * max(0.0, min(1.0, I)))
+                a = int(255 * max(0.0, min(1.0, intensity)))
                 paths.append(RayPath(pts, (base_rgb[0], base_rgb[1], base_rgb[2], a), pol, wl))
             continue
 
@@ -464,7 +466,7 @@ def _trace_single_ray_worker(args):
                 # Transmitted ray (no refraction for beam splitter coating)
                 Vt = normalize(V)
                 Pt = P + Vt * EPS_ADV
-                It = I * T
+                It = intensity * T
                 if It >= MIN_I:
                     stack.append(
                         (
@@ -483,7 +485,7 @@ def _trace_single_ray_worker(args):
                 # Reflected ray
                 Vr = normalize(reflect_vec(V, n_hat))
                 Pr = P + Vr * EPS_ADV
-                Ir = I * R
+                Ir = intensity * R
                 if Ir >= MIN_I:
                     stack.append(
                         (
@@ -529,7 +531,7 @@ def _trace_single_ray_worker(args):
                         remaining - EPS_ADV,
                         iface,
                         events + 1,
-                        I,
+                        intensity,
                         pol_r,
                         wl,
                     )
@@ -542,7 +544,7 @@ def _trace_single_ray_worker(args):
                 # Transmitted (refracted) ray
                 Vt = normalize(V_refracted)
                 Pt = P + Vt * EPS_ADV
-                It = I * T
+                It = intensity * T
                 if It >= MIN_I:
                     # Polarization approximately preserved through refraction (simplified)
                     stack.append(
@@ -562,7 +564,7 @@ def _trace_single_ray_worker(args):
                 # Reflected ray (Fresnel reflection)
                 Vr = normalize(reflect_vec(V, n_hat_ref))
                 Pr = P + Vr * EPS_ADV
-                Ir = I * R
+                Ir = intensity * R
                 if Ir >= MIN_I:
                     pol_r = transform_polarization_mirror(pol, V, n_hat_ref)
                     stack.append(

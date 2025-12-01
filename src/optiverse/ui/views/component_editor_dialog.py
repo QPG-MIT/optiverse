@@ -714,7 +714,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.information(
                 self,
                 "No interfaces",
-                "This component has no interfaces defined. It will be saved as a decorative/background item with no optical properties.",
+                "This component has no interfaces defined. "
+                "It will be saved as a decorative/background item "
+                "with no optical properties.",
             )
             # Continue without returning None - allow saving as decorative item
 

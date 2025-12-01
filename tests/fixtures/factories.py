@@ -7,7 +7,12 @@ avoiding the need to manually construct items with all their parameters.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from PyQt6 import QtWidgets
+
+if TYPE_CHECKING:
+    from optiverse.objects import ComponentItem, SourceItem
 
 
 def create_source_item(
@@ -52,7 +57,7 @@ def create_lens_item(
     angle_deg: float = 90.0,
     object_height_mm: float = 60.0,
     efl_mm: float = 50.0,
-) -> ComponentItem:
+) -> ComponentItem:  # type: ignore[valid-type]
     """
     Create a ComponentItem with lens interface.
 
@@ -96,7 +101,7 @@ def create_mirror_item(
     y_mm: float = 0.0,
     angle_deg: float = 45.0,
     object_height_mm: float = 80.0,
-) -> ComponentItem:
+) -> ComponentItem:  # type: ignore[valid-type]
     """
     Create a ComponentItem with mirror interface.
 
@@ -141,7 +146,7 @@ def create_component_item(
     angle_deg: float = 0.0,
     object_height_mm: float = 60.0,
     interfaces: list | None = None,
-) -> ComponentItem:
+) -> ComponentItem:  # type: ignore[valid-type]
     """
     Create a generic ComponentItem with specified parameters.
 
@@ -170,7 +175,7 @@ def create_component_item(
     return ComponentItem(params)
 
 
-def create_component_from_params(params) -> ComponentItem:
+def create_component_from_params(params) -> ComponentItem:  # type: ignore[valid-type]
     """
     Create a ComponentItem from legacy params (LensParams, MirrorParams, etc.).
 

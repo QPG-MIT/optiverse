@@ -360,7 +360,8 @@ def resolve_library_relative_path(
 
     Args:
         rel_path: Library-relative path starting with @library/
-        library_roots: Optional list of library roots to search. If None, uses all configured libraries.
+        library_roots: Optional list of library roots to search.
+            If None, uses all configured libraries.
 
     Returns:
         Absolute path if library is found, None if library not found
@@ -453,7 +454,8 @@ def resolve_component_path(
 
     Args:
         component_path: Component-relative path starting with @component/
-        library_roots: Optional list of library roots to search. If None, uses all configured libraries.
+        library_roots: Optional list of library roots to search.
+            If None, uses all configured libraries.
 
     Returns:
         Absolute path if component found, None if not found in any library

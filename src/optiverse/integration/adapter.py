@@ -14,8 +14,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-_logger = logging.getLogger(__name__)
-
 # Phase 1: Unified interface model
 from ..data import OpticalInterface
 from ..data.optical_properties import (
@@ -38,9 +36,11 @@ from ..raytracing.elements import (
     Waveplate,
 )
 
+_logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
     from ..core.interface_definition import InterfaceDefinition
-    from ..core.models import RefractiveInterface
+    from ..core.models import OpticalElement, RefractiveInterface
 
 
 def create_polymorphic_element(optical_iface: OpticalInterface) -> IOpticalElement:
@@ -204,7 +204,8 @@ def create_legacy_optical_element_from_interface(
     """
     Create a legacy OpticalElement from an interface.
 
-    This is the OLD conversion path (what currently exists in MainWindow._create_element_from_interface).
+    This is the OLD conversion path (what currently exists in
+    MainWindow._create_element_from_interface).
     We keep this for backward compatibility during the migration period.
 
     Args:

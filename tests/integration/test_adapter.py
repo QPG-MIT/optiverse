@@ -1,5 +1,6 @@
 """
-Integration tests for the adapter layer that connects legacy interfaces to the new polymorphic system.
+Integration tests for the adapter layer that connects legacy interfaces
+to the new polymorphic system.
 
 Test Strategy:
 1. Legacy InterfaceDefinition → OpticalInterface (Phase 1)

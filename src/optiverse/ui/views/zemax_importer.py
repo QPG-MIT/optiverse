@@ -59,7 +59,8 @@ class ZemaxImporter:
                 QtWidgets.QMessageBox.critical(
                     self.parent,
                     "Import Error",
-                    "Failed to parse Zemax file. The file may be corrupted or in an unsupported format.",
+                    "Failed to parse Zemax file. "
+                    "The file may be corrupted or in an unsupported format.",
                 )
                 return None
 

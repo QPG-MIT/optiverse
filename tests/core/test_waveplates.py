@@ -96,7 +96,10 @@ def test_qwp_forward_horizontal_to_circular():
 
 
 def test_qwp_backward_horizontal_to_circular():
-    """QWP backward at 45° converts horizontal to circular polarization (opposite handedness from forward)."""
+    """
+    QWP backward at 45° converts horizontal to circular polarization
+    (opposite handedness from forward).
+    """
     pol_in = Polarization.horizontal()
     pol_out = transform_polarization_waveplate(
         pol_in,

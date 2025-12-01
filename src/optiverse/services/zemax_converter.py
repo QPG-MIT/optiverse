@@ -151,7 +151,8 @@ class ZemaxToInterfaceConverter:
                     sag = -sag  # Concave from left
 
         # Position of interface center (vertex)
-        # For 2D cross-section, we show the interface as a line from -half_diameter to +half_diameter
+        # For 2D cross-section, we show the interface as a line
+        # from -half_diameter to +half_diameter
         # The x-position represents the vertex (center point) of the curved surface
 
         # Generate descriptive name

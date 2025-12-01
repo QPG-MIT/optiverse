@@ -272,7 +272,8 @@ class TestRaytracingIntegration:
         assert len(transmitted_paths) >= 1
 
         # Check that the transmitted ray bent toward the normal
-        # Normal points LEFT (negative X), so transmitted ray should bend left (negative X component)
+        # Normal points LEFT (negative X),
+        # so transmitted ray should bend left (negative X component)
         transmitted_path = transmitted_paths[0]
         if len(transmitted_path.points) >= 2:
             # Get direction after refraction

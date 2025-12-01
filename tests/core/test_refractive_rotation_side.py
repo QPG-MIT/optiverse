@@ -22,7 +22,8 @@ def _path_last_direction(points: list[np.ndarray]) -> np.ndarray:
 def _directions_after_first_event(
     elements: list[OpticalElement], source: SourceParams
 ) -> list[np.ndarray]:
-    # Limit to one interaction so the last segment reflects/transmits immediately after the interface
+    # Limit to one interaction so the last segment reflects/transmits
+    # immediately after the interface
     paths = trace_rays(elements, [source], max_events=1)
     dirs: list[np.ndarray] = []
     for p in paths:

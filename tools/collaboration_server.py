@@ -103,7 +103,8 @@ async def handler(websocket):
                     session_state[session_id]["state"] = state
                     session_state[session_id]["version"] = state.get("version", 0)
                     logger.info(
-                        f"📦 Stored session state from host {user_id} (version {state.get('version', 0)})"
+                        f"📦 Stored session state from host {user_id} "
+                        f"(version {state.get('version', 0)})"
                     )
 
                 # Broadcast to other users
@@ -137,7 +138,8 @@ async def handler(websocket):
                 action = command.get("action", "")
                 item_type = command.get("item_type", "")
                 logger.info(
-                    f"📤 Broadcasting {action} ({item_type}) from {user_id} to {len(connections) - 1} other(s)"
+                    f"📤 Broadcasting {action} ({item_type}) from {user_id} "
+                    f"to {len(connections) - 1} other(s)"
                 )
 
                 for other_id, other_ws in connections.items():
@@ -157,7 +159,7 @@ async def handler(websocket):
         logger.info(f"User {user_id} disconnected")
 
         # Notify other users
-        for other_id, other_ws in connections.items():
+        for _other_id, other_ws in connections.items():
             try:
                 await other_ws.send(json.dumps({"type": "user:left", "user_id": user_id}))
             except Exception:

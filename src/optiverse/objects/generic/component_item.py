@@ -11,7 +11,7 @@ from ...core.raytracing_math import qt_angle_to_user, user_angle_to_qt
 from ...ui.widgets.interface_properties_widget import InterfacePropertiesWidget
 from ...ui.widgets.smart_spinbox import SmartDoubleSpinBox
 from ..base_obj import BaseObj
-from ..component_sprite import create_component_sprite
+from ..component_sprite import ComponentSprite, create_component_sprite
 from ..type_registry import deserialize_item, register_type, serialize_item
 
 
@@ -70,7 +70,8 @@ class ComponentItem(BaseObj):
             all_y = []
             for iface in self.params.interfaces:
                 # Apply picked line offset transformation
-                # Interfaces are stored relative to image center, but item (0,0) is at picked line center
+                # Interfaces are stored relative to image center,
+                # but item (0,0) is at picked line center
                 all_x.extend([iface.x1_mm - offset_x, iface.x2_mm - offset_x])
                 all_y.extend([iface.y1_mm - offset_y, iface.y2_mm - offset_y])
 
@@ -134,7 +135,8 @@ class ComponentItem(BaseObj):
             )
             self._actual_length_mm = self._sprite.picked_line_length_mm
 
-            # Store offset: interfaces are at image center, but item (0,0) is at reference line center
+            # Store offset: interfaces are at image center,
+            # but item (0,0) is at reference line center
             self._picked_line_offset_mm = (cx, cy)
 
             self._update_geom()

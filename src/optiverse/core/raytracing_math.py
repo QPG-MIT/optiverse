@@ -79,7 +79,11 @@ def qt_angle_to_user(qt_deg: float) -> float:
 
 @jit(nopython=True, cache=True)
 def reflect_vec(v: np.ndarray, n_hat: np.ndarray) -> np.ndarray:
-    """Reflect vector v across normal n_hat. JIT-compiled for performance when numba is available."""
+    """
+    Reflect vector v across normal n_hat.
+
+    JIT-compiled for performance when numba is available.
+    """
     dot_product = v[0] * n_hat[0] + v[1] * n_hat[1]
     return v - 2.0 * dot_product * n_hat
 
@@ -451,7 +455,8 @@ def refract_vector_snell(
 
     Returns:
         Tuple of (refracted_direction, is_total_reflection)
-        - refracted_direction: Refracted ray direction (normalized), or None if total internal reflection
+        - refracted_direction: Refracted ray direction (normalized),
+          or None if total internal reflection
         - is_total_reflection: True if total internal reflection occurs
 
     Physics:

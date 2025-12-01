@@ -8,6 +8,7 @@ are correctly saved to and loaded from JSON files.
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING
 
 import pytest
 from PyQt6 import QtWidgets
@@ -24,6 +25,17 @@ from optiverse.core.models import (
 from optiverse.objects import (
     SourceItem,
 )
+
+if TYPE_CHECKING:
+    # Legacy item types - these may not exist anymore but kept for test compatibility
+    from optiverse.objects import (
+        BeamsplitterItem,
+        DichroicItem,
+        LensItem,
+        MirrorItem,
+        SLMItem,
+        WaveplateItem,
+    )
 from optiverse.ui.views.main_window import MainWindow
 from tests.fixtures.factories import create_component_from_params
 from tests.helpers.ui_test_helpers import (
@@ -285,7 +297,13 @@ class TestSaveLoadAssembly:
             main_window.open_assembly()
 
         # Verify dichroic was loaded
-        dichroics = [item for item in main_window.scene.items() if isinstance(item, DichroicItem)]
+        from optiverse.objects import ComponentItem
+
+        dichroics = [
+            item
+            for item in main_window.scene.items()
+            if isinstance(item, ComponentItem) and item.params.element_type == "dichroic"
+        ]
         assert len(dichroics) == 1
 
         loaded_dichroic = dichroics[0]
@@ -343,7 +361,13 @@ class TestSaveLoadAssembly:
             main_window.open_assembly()
 
         # Verify waveplates were loaded
-        waveplates = [item for item in main_window.scene.items() if isinstance(item, WaveplateItem)]
+        from optiverse.objects import ComponentItem
+
+        waveplates = [
+            item
+            for item in main_window.scene.items()
+            if isinstance(item, ComponentItem) and item.params.element_type == "waveplate"
+        ]
         assert len(waveplates) == 2
 
         # Find QWP and HWP
@@ -391,7 +415,13 @@ class TestSaveLoadAssembly:
             main_window.open_assembly()
 
         # Verify SLM was loaded
-        slms = [item for item in main_window.scene.items() if isinstance(item, SLMItem)]
+        from optiverse.objects import ComponentItem
+
+        slms = [
+            item
+            for item in main_window.scene.items()
+            if isinstance(item, ComponentItem) and item.params.element_type == "slm"
+        ]
         assert len(slms) == 1
 
         loaded_slm = slms[0]

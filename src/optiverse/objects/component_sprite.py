@@ -441,7 +441,8 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
                 if not pix.isNull():
                     file_size_mb = cache_file.stat().st_size / (1024 * 1024)
                     logging.debug(
-                        f"SVG cache hit: {cache_file.name} ({pix.width()}x{pix.height()}, {file_size_mb:.1f}MB)"
+                        f"SVG cache hit: {cache_file.name} "
+                        f"({pix.width()}x{pix.height()}, {file_size_mb:.1f}MB)"
                     )
                     return pix
                 else:
@@ -490,7 +491,8 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
             if success:
                 file_size_mb = cache_file.stat().st_size / (1024 * 1024)
                 logging.debug(
-                    f"SVG cached successfully: {cache_file.name} ({pixmap.width()}x{pixmap.height()}, {file_size_mb:.1f}MB)"
+                    f"SVG cached successfully: {cache_file.name} "
+                    f"({pixmap.width()}x{pixmap.height()}, {file_size_mb:.1f}MB)"
                 )
             else:
                 logging.error(f"Failed to save SVG cache file: {cache_file}")

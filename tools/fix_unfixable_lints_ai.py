@@ -104,7 +104,9 @@ Code context:
 {error_context}
 ```
 
-Please provide the fixed code for the affected section. Only return the fixed code, maintaining the same structure and functionality."""
+Please provide the fixed code for the affected section. "
+                "Only return the fixed code, maintaining the same structure "
+                "and functionality."""
 
         client = openai.OpenAI(api_key=api_key)
         response = client.chat.completions.create(
@@ -112,7 +114,10 @@ Please provide the fixed code for the affected section. Only return the fixed co
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a Python code fixer that fixes linting errors while preserving functionality.",
+                    "content": (
+                        "You are a Python code fixer that fixes linting errors "
+                        "while preserving functionality."
+                    ),
                 },
                 {"role": "user", "content": prompt},
             ],

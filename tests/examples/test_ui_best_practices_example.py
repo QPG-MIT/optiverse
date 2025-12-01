@@ -330,7 +330,3 @@ class TestUIBestPractices:
         # Verify params updated
         assert abs(lens.params.x_mm - 200) < 0.01
         assert abs(lens.params.y_mm - 200) < 0.01
-
-
-# Import needed for type hints
-from optiverse.objects import SourceItem

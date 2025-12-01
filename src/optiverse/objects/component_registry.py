@@ -82,7 +82,8 @@ class ComponentRegistry:
         Get the category name for a component based on its interface element_type.
 
         Args:
-            element_type: Element type from interface ('lens', 'mirror', 'beam_splitter', 'dichroic', 'waveplate', etc.)
+            element_type: Element type from interface
+                ('lens', 'mirror', 'beam_splitter', 'dichroic', 'waveplate', etc.)
             name: Optional component name to distinguish special cases (e.g., objectives)
 
         Returns:

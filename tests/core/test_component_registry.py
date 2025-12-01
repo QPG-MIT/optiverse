@@ -41,7 +41,8 @@ class TestComponentRegistry:
             assert "name" in comp, "Component must have 'name'"
             assert "image_path" in comp, "Component must have 'image_path'"
             assert "object_height_mm" in comp, "Component must have 'object_height_mm'"
-            # Either interfaces are present or it's a non-interface element (e.g., source/background)
+            # Either interfaces are present or it's a non-interface element
+            # (e.g., source/background)
             assert "interfaces" in comp, "Component should export 'interfaces' list"
             # No legacy keys
             assert "schema_version" not in comp

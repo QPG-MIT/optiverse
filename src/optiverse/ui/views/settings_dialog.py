@@ -96,10 +96,12 @@ class SettingsDialog(QtWidgets.QDialog):
 
         # Future categories can be added here:
         # self._build_appearance_page()
-        # self._add_category("Appearance", "Theme, colors, and UI preferences", self.appearance_page)
+        # self._add_category("Appearance", "Theme, colors, and UI preferences",
+        #                   self.appearance_page)
 
         # self._build_performance_page()
-        # self._add_category("Performance", "Raytracing and rendering options", self.performance_page)
+        # self._add_category("Performance", "Raytracing and rendering options",
+        #                   self.performance_page)
 
     def _add_category(self, name: str, description: str, page: QtWidgets.QWidget):
         """Add a category to the list."""

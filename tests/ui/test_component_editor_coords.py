@@ -82,9 +82,12 @@ def test_image_canvas_hover_detection(qtbot):
 
 
 # DEPRECATED TESTS REMOVED:
-# - test_component_editor_manual_coords: Tests deprecated legacy coordinate spinboxes (p1_x, p1_y, p2_x, p2_y)
-# - test_component_editor_coords_sync: Tests deprecated legacy coordinate spinboxes
-# Component editor now uses interface-based system. Legacy coordinate spinboxes are no longer part of the active API.
+# - test_component_editor_manual_coords: Tests deprecated legacy coordinate
+#   spinboxes (p1_x, p1_y, p2_x, p2_y)
+# - test_component_editor_coords_sync: Tests deprecated legacy coordinate
+#   spinboxes
+# Component editor now uses interface-based system. Legacy coordinate spinboxes
+# are no longer part of the active API.
 
 
 def test_image_canvas_screen_to_image_coords(qtbot):

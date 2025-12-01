@@ -12,11 +12,8 @@ from dataclasses import fields
 from typing import Any
 
 from ..core.exceptions import UnknownTypeError
-from ..core.protocols import HasSettings, Serializable
-
-_logger = logging.getLogger(__name__)
-
 from ..core.interface_definition import InterfaceDefinition
+from ..core.protocols import HasSettings, Serializable
 from ..platform.paths import (
     get_all_library_roots,
     make_component_relative,
@@ -24,6 +21,8 @@ from ..platform.paths import (
     to_absolute_path,
     to_relative_path,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 class TypeRegistry:

@@ -9,15 +9,21 @@ from __future__ import annotations
 
 import unittest.mock as mock
 from pathlib import Path
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 from pytestqt.qtbot import QtBot
 
+if TYPE_CHECKING:
+    from optiverse.objects import ComponentItem, SourceItem
+    from optiverse.ui.views.component_editor_dialog import ComponentEditor
+    from optiverse.ui.views.main_window import MainWindow
+    from optiverse.ui.views.main_window import EditorMode
+
 T = TypeVar("T")
 
 
-def create_main_window(qtbot: QtBot) -> MainWindow:
+def create_main_window(qtbot: QtBot) -> MainWindow:  # type: ignore[valid-type]
     """
     Create and show a MainWindow for testing.
 
@@ -36,7 +42,7 @@ def create_main_window(qtbot: QtBot) -> MainWindow:
     return window
 
 
-def create_component_editor(qtbot: QtBot) -> ComponentEditor:
+def create_component_editor(qtbot: QtBot) -> ComponentEditor:  # type: ignore[valid-type]
     """
     Create and show a ComponentEditor for testing.
 
@@ -56,7 +62,7 @@ def create_component_editor(qtbot: QtBot) -> ComponentEditor:
     return editor
 
 
-def add_source_to_window(window: MainWindow, x_mm: float = 0.0, y_mm: float = 0.0):
+def add_source_to_window(window: MainWindow, x_mm: float = 0.0, y_mm: float = 0.0):  # type: ignore[valid-type]
     """
     Add a source to a MainWindow (for testing).
 
@@ -77,7 +83,7 @@ def add_source_to_window(window: MainWindow, x_mm: float = 0.0, y_mm: float = 0.
     )
 
 
-def add_lens_to_window(window: MainWindow, x_mm: float = 0.0, y_mm: float = 0.0):
+def add_lens_to_window(window: MainWindow, x_mm: float = 0.0, y_mm: float = 0.0):  # type: ignore[valid-type]
     """
     Add a lens to a MainWindow (for testing).
 
@@ -98,7 +104,7 @@ def add_lens_to_window(window: MainWindow, x_mm: float = 0.0, y_mm: float = 0.0)
     )
 
 
-def add_mirror_to_window(window: MainWindow, x_mm: float = 0.0, y_mm: float = 0.0):
+def add_mirror_to_window(window: MainWindow, x_mm: float = 0.0, y_mm: float = 0.0):  # type: ignore[valid-type]
     """
     Add a mirror to a MainWindow (for testing).
 
@@ -350,7 +356,8 @@ def assert_widget_enabled(widget: QtWidgets.QWidget, enabled: bool = True) -> No
         enabled: Expected enabled state
     """
     assert widget.isEnabled() == enabled, (
-        f"Widget {widget.__class__.__name__} enabled state: expected {enabled}, got {widget.isEnabled()}"
+        f"Widget {widget.__class__.__name__} enabled state: "
+        f"expected {enabled}, got {widget.isEnabled()}"
     )
 
 
@@ -363,7 +370,8 @@ def assert_widget_visible(widget: QtWidgets.QWidget, visible: bool = True) -> No
         visible: Expected visible state
     """
     assert widget.isVisible() == visible, (
-        f"Widget {widget.__class__.__name__} visible state: expected {visible}, got {widget.isVisible()}"
+        f"Widget {widget.__class__.__name__} visible state: "
+        f"expected {visible}, got {widget.isVisible()}"
     )
 
 
@@ -456,7 +464,7 @@ class UIStateChecker:
         """
         self.window = main_window
 
-    def assert_mode(self, expected_mode: EditorMode) -> None:
+    def assert_mode(self, expected_mode: EditorMode) -> None:  # type: ignore[valid-type]
         """Assert current editor mode."""
         assert self.window.editor_state.mode == expected_mode, (
             f"Expected mode {expected_mode}, got {self.window.editor_state.mode}"

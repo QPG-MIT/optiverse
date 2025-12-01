@@ -82,8 +82,10 @@ class CachedRayLayer(QtWidgets.QGraphicsItemGroup):
         super().__init__()
 
         # PERFORMANCE: No caching - Qt keeps invalidating cache anyway on pan/zoom
-        # Ray rendering is fast enough (3ms for 5000+ segments) that caching overhead hurts more than helps
-        # Uncached vector rendering = smooth 60fps, cached = constant invalidation = stuttering
+        # Ray rendering is fast enough (3ms for 5000+ segments)
+        # that caching overhead hurts more than helps
+        # Uncached vector rendering = smooth 60fps,
+        # cached = constant invalidation = stuttering
         self.setCacheMode(QtWidgets.QGraphicsItem.CacheMode.NoCache)
 
         # Set z-value to draw rays above components but below annotations
@@ -283,7 +285,8 @@ class CachedRayLayer(QtWidgets.QGraphicsItemGroup):
             self._last_paint_time = paint_start
 
             _logger.debug(
-                "PAINT #%d: avg=%.2fms, min=%.2fms, max=%.2fms, 30 frames took %.0fms. Children: %d ray items",
+                "PAINT #%d: avg=%.2fms, min=%.2fms, max=%.2fms, "
+                "30 frames took %.0fms. Children: %d ray items",
                 self._paint_count,
                 avg_time,
                 min_time,

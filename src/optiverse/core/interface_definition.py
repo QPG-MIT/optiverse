@@ -32,7 +32,8 @@ class InterfaceDefinition:
     y2_mm: float = 0.0
 
     # Element type
-    element_type: str = "refractive_interface"  # lens, mirror, beam_splitter, dichroic, polarizing_interface, refractive_interface
+    # Options: lens, mirror, beam_splitter, dichroic, polarizing_interface, refractive_interface
+    element_type: str = "refractive_interface"
 
     # Common properties
     name: str = ""  # Optional user-defined name

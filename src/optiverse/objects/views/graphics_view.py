@@ -13,16 +13,16 @@ try:
 except ImportError:
     OPENGL_AVAILABLE = False
 
+from ...core.constants import MIME_OPTICS_COMPONENT
+from ...platform.paths import is_macos
+from ...services.error_handler import ErrorContext
+
 try:
-    from .ray_opengl_widget import RayOpenGLWidget
+    from .ray_opengl_widget import RayOpenGLWidget  # noqa: F401
 
     RAY_OPENGL_AVAILABLE = True
 except ImportError:
     RAY_OPENGL_AVAILABLE = False
-
-from ...core.constants import MIME_OPTICS_COMPONENT
-from ...platform.paths import is_macos
-from ...services.error_handler import ErrorContext
 
 
 class GraphicsView(QtWidgets.QGraphicsView):
@@ -184,7 +184,8 @@ class GraphicsView(QtWidgets.QGraphicsView):
                     factor = max(0.5, min(2.0, factor))  # Limit zoom per event
 
                     # Zoom centered on mouse cursor using scrollbar adjustment
-                    # Use actual cursor position instead of event position to avoid stale cache issues
+                    # Use actual cursor position instead of event position
+                    # to avoid stale cache issues
                     cursor_pos = self.mapFromGlobal(QtGui.QCursor.pos())
                     self._zoom_at_point(cursor_pos, factor)
 

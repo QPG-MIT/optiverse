@@ -34,7 +34,7 @@ QStatusBar { background-color: #1a1c21; color: white; }
 QDockWidget { background-color: #1a1c21; color: white; }
 QTreeWidget { background-color: #1a1c21; color: white; border: 1px solid #3d3f46; }
 QPushButton { background-color: #2d2f36; color: white; border: 1px solid #3d3f46; padding: 5px 15px; border-radius: 3px; }
-QLineEdit, QComboBox { background-color: #2d2f36; color: white; border: 1px solid #3d3f46; padding: 3px; border-radius: 3px; }
+QLineEdit, QComboBox { background-color: #2d2f36; color: white; border: 1px solid #3d3f46; padding: 3px; border-radius: 3px; }  # noqa: E501
 QLabel { color: white; }
 QDialog { background-color: #1a1c21; color: white; }
 """
@@ -48,7 +48,7 @@ QStatusBar { background-color: #f0f0f0; color: black; }
 QDockWidget { background-color: white; color: black; }
 QTreeWidget { background-color: white; color: black; border: 1px solid #c0c0c0; }
 QPushButton { background-color: #f0f0f0; color: black; border: 1px solid #c0c0c0; padding: 5px 15px; border-radius: 3px; }
-QLineEdit, QComboBox { background-color: white; color: black; border: 1px solid #c0c0c0; padding: 3px; border-radius: 3px; }
+QLineEdit, QComboBox { background-color: white; color: black; border: 1px solid #c0c0c0; padding: 3px; border-radius: 3px; }  # noqa: E501
 QLabel { color: black; }
 QDialog { background-color: white; color: black; }
 """

@@ -6,8 +6,7 @@ import pytest
 # They may be skipped if dependencies are missing
 
 try:
-    from PyQt6 import QtCore, QtGui, QtSvg, QtWidgets
-    from PyQt6.QtSvgWidgets import QGraphicsSvgItem
+    from PyQt6 import QtCore, QtGui, QtWidgets
 
     HAVE_PYQT6 = True
     HAVE_SVG = True

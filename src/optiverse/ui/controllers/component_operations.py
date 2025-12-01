@@ -148,7 +148,8 @@ class ComponentOperationsHandler:
             QtWidgets.QMessageBox.warning(
                 self.parent_widget,
                 "Locked Items",
-                f"Cannot delete {locked_count} locked item(s).\nUnlock them first in the edit dialog.",
+                f"Cannot delete {locked_count} locked item(s).\n"
+                f"Unlock them first in the edit dialog.",
             )
 
         # Use a single command for all deletions

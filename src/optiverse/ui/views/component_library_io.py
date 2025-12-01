@@ -275,7 +275,8 @@ class ComponentLibraryIO:
                 QtWidgets.QMessageBox.warning(
                     self.parent,
                     "Invalid Library",
-                    "The selected file does not contain a valid component library (expected JSON array).",
+                    "The selected file does not contain a valid component library "
+                    "(expected JSON array).",
                 )
                 return False
 

@@ -176,7 +176,8 @@ class CollaborationDialog(QtWidgets.QDialog):
             info_bg = "#f0f0f0"
             info_border = "#d0d0d0"
         self.info_label.setStyleSheet(
-            f"QLabel {{ background-color: {info_bg}; padding: 8px; border-radius: 4px; border: 1px solid {info_border}; }}"
+            f"QLabel {{ background-color: {info_bg}; padding: 8px; "
+            f"border-radius: 4px; border: 1px solid {info_border}; }}"
         )
         layout.addWidget(self.info_label)
 

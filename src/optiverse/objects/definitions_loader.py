@@ -141,7 +141,7 @@ def load_component_dicts(library_path: Path | None = None) -> list[dict[str, Any
 
             result.append(component_dict)
         except (json.JSONDecodeError, OSError, KeyError, TypeError, ValueError) as e:
-            _logger.warning("Failed to load component dict from %s: %s", folder, e)
+            _logger.warning("Failed to load component dict from %s: %s", file_path, e)
             continue
     return result
 

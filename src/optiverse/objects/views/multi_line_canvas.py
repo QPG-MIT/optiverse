@@ -246,7 +246,11 @@ class MultiLineCanvas(QtWidgets.QLabel):
         self.linesChanged.emit()
 
     def get_selected_line_index(self) -> int:
-        """Get currently selected line index (-1 if none). Returns first selected for backward compatibility."""
+        """
+        Get currently selected line index (-1 if none).
+
+        Returns first selected for backward compatibility.
+        """
         if len(self._selected_lines) > 0:
             return min(self._selected_lines)
         return -1
@@ -610,7 +614,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
 
         return result
 
-    def mousePressEvent(self, e: QtMouseEvent):
+    def mousePressEvent(self, e: QtGui.QMouseEvent):
         """Handle mouse press."""
         if not self._pix or e.button() != QtCore.Qt.MouseButton.LeftButton:
             return

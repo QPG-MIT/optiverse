@@ -11,13 +11,13 @@ This script shows how to:
 import os
 import sys
 
+import numpy as np
+
 # Add src to path if running standalone
 root = os.path.dirname(os.path.dirname(__file__))
 src = os.path.join(root, "src")
 if os.path.isdir(src) and src not in sys.path:
     sys.path.insert(0, src)
-
-import numpy as np
 
 from optiverse.core.models import (
     Polarization,

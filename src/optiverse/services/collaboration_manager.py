@@ -84,7 +84,8 @@ class CollaborationManager(QObject):
         Args:
             session_id: Session ID to create
             user_id: Your user ID/name
-            use_current_canvas: If True, share current canvas state; if False, start with empty canvas
+            use_current_canvas: If True, share current canvas state;
+                if False, start with empty canvas
         """
         self.role = "host"
         self.session_id = session_id
@@ -553,7 +554,8 @@ class CollaborationManager(QObject):
 
         if has_conflict and self.role == "client":
             self.log.warning(
-                f"Version conflict detected: local={self.session_version}, remote={state.get('version', 0)}",
+                f"Version conflict detected: local={self.session_version}, "
+                f"remote={state.get('version', 0)}",
                 LogCategory.COLLABORATION,
             )
             self.log.info(
