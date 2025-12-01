@@ -46,12 +46,14 @@ class RulerWidget(QtWidgets.QWidget):
             )
 
         # Styling
-        self.setStyleSheet("""
+        self.setStyleSheet(
+            """
             RulerWidget {
                 background-color: #E8E8E8;
                 border: 1px solid #999;
             }
-        """)
+        """
+        )
 
     def set_cursor_position(self, pos_mm: float | None):
         """Set cursor position in mm (or None to hide indicator)."""
@@ -283,9 +285,7 @@ class RulerWidget(QtWidgets.QWidget):
 class CanvasWithRulers(QtWidgets.QWidget):
     """Container widget that wraps a canvas with rulers."""
 
-    def __init__(
-        self, canvas_widget: QtWidgets.QWidget, parent: QtWidgets.QWidget | None = None
-    ):
+    def __init__(self, canvas_widget: QtWidgets.QWidget, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
 
         self.canvas = canvas_widget

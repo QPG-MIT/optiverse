@@ -377,9 +377,7 @@ class ComponentItem(BaseObj):
         initial_length = self.params.object_height_mm
 
         # Save initial interface states (use .copy() method to preserve type)
-        (
-            [iface.copy() for iface in self.params.interfaces] if self.params.interfaces else []
-        )
+        ([iface.copy() for iface in self.params.interfaces] if self.params.interfaces else [])
 
         x = SmartDoubleSpinBox()
         x.setRange(-1e6, 1e6)

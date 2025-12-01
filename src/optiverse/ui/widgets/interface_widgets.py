@@ -128,12 +128,14 @@ class ColoredCircleLabel(QtWidgets.QLabel):
     def __init__(self, color: str, size: int = 12, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
         self.setFixedSize(size, size)
-        self.setStyleSheet(f"""
+        self.setStyleSheet(
+            f"""
             QLabel {{
                 background-color: {color};
                 border-radius: {size // 2}px;
             }}
-        """)
+        """
+        )
 
 
 class PropertyListWidget(QtWidgets.QWidget):

@@ -30,9 +30,7 @@ class SettingsDialog(QtWidgets.QDialog):
 
     settings_changed = QtCore.pyqtSignal()
 
-    def __init__(
-        self, settings_service: SettingsService, parent: QtWidgets.QWidget | None = None
-    ):
+    def __init__(self, settings_service: SettingsService, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
         self.settings_service = settings_service
 

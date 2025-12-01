@@ -40,9 +40,9 @@ def test_autotrace_debouncing_prevents_multiple_retraces(qtbot):
     qtbot.wait(100)
 
     # Should only have triggered ONE actual retrace due to debouncing
-    assert retrace_count["n"] == initial_count + 1, (
-        f"Expected 1 retrace, got {retrace_count['n'] - initial_count}"
-    )
+    assert (
+        retrace_count["n"] == initial_count + 1
+    ), f"Expected 1 retrace, got {retrace_count['n'] - initial_count}"
 
     # Restore to avoid callbacks after teardown
     w.retrace = _orig  # type: ignore[assignment]

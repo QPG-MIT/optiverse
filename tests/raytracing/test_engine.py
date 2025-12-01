@@ -514,15 +514,15 @@ class TestRaySeparationRotation:
 
         # Dot product should be ~0 (perpendicular)
         dot_product = np.dot(separation_vector, ray_dir)
-        assert abs(dot_product) < 0.01, (
-            f"Separation should be perpendicular to ray direction, dot={dot_product}"
-        )
+        assert (
+            abs(dot_product) < 0.01
+        ), f"Separation should be perpendicular to ray direction, dot={dot_product}"
 
         # Separation magnitude should be ~10mm (size_mm)
         separation_magnitude = np.linalg.norm(separation_vector)
-        assert abs(separation_magnitude - 10.0) < 0.01, (
-            f"Expected 10mm separation, got {separation_magnitude}"
-        )
+        assert (
+            abs(separation_magnitude - 10.0) < 0.01
+        ), f"Expected 10mm separation, got {separation_magnitude}"
 
     def test_ray_separation_perpendicular_at_180_degrees(self):
         """At 180°, rays should be separated vertically."""
@@ -589,13 +589,13 @@ class TestRaySeparationRotation:
             separation_magnitude = np.linalg.norm(separation_vector)
 
             # Should be 20mm (aperture size)
-            assert abs(separation_magnitude - 20.0) < 0.01, (
-                f"At {angle}°: Expected 20mm separation, got {separation_magnitude}"
-            )
+            assert (
+                abs(separation_magnitude - 20.0) < 0.01
+            ), f"At {angle}°: Expected 20mm separation, got {separation_magnitude}"
 
             # Verify perpendicular to ray direction
             ray_dir = np.array([np.cos(np.radians(angle)), np.sin(np.radians(angle))])
             dot_product = np.dot(separation_vector, ray_dir)
-            assert abs(dot_product) < 0.01, (
-                f"At {angle}°: Separation should be perpendicular, dot={dot_product}"
-            )
+            assert (
+                abs(dot_product) < 0.01
+            ), f"At {angle}°: Separation should be perpendicular, dot={dot_product}"

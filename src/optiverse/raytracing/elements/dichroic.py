@@ -4,7 +4,6 @@ Dichroic mirror element implementation.
 Implements wavelength-dependent reflection and transmission.
 """
 
-
 import numpy as np
 
 from ...core.raytracing_math import (

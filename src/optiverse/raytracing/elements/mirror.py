@@ -4,7 +4,6 @@ Mirror element implementation.
 Implements perfect reflection according to the law of reflection.
 """
 
-
 import numpy as np
 
 from ...core.models import Polarization

@@ -39,9 +39,9 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         self._interfaces: list[InterfaceDefinition] = []
         self._tree_items: list[QtWidgets.QTreeWidgetItem] = []
         self._property_widgets: list[PropertyListWidget] = []
-        self._child_items: list[
-            QtWidgets.QTreeWidgetItem
-        ] = []  # Store child items for size updates
+        self._child_items: list[QtWidgets.QTreeWidgetItem] = (
+            []
+        )  # Store child items for size updates
 
         self._setup_ui()
 
@@ -94,12 +94,14 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         self._tree.setUniformRowHeights(False)  # Allow variable height items
 
         # Custom styling to keep text readable when selected
-        self._tree.setStyleSheet("""
+        self._tree.setStyleSheet(
+            """
             QTreeWidget::item:selected {
                 background-color: #d0d0d0;
                 color: black;
             }
-        """)
+        """
+        )
 
         self._tree.itemClicked.connect(self._on_item_clicked)
         self._tree.itemExpanded.connect(self._on_item_expanded)

@@ -194,9 +194,9 @@ def assert_item_count(
     """
     items = get_scene_items_by_type(scene, item_type)
     actual_count = len(items)
-    assert abs(actual_count - expected_count) <= tolerance, (
-        f"Expected {expected_count}±{tolerance} {item_type.__name__} items, got {actual_count}"
-    )
+    assert (
+        abs(actual_count - expected_count) <= tolerance
+    ), f"Expected {expected_count}±{tolerance} {item_type.__name__} items, got {actual_count}"
 
 
 def simulate_drag_and_drop(
@@ -266,13 +266,13 @@ def assert_property_matches(
     actual_value = getattr(item, property_name)
 
     if tolerance is not None and isinstance(expected_value, (int, float)):
-        assert abs(actual_value - expected_value) <= tolerance, (
-            f"{property_name}: expected {expected_value}±{tolerance}, got {actual_value}"
-        )
+        assert (
+            abs(actual_value - expected_value) <= tolerance
+        ), f"{property_name}: expected {expected_value}±{tolerance}, got {actual_value}"
     else:
-        assert actual_value == expected_value, (
-            f"{property_name}: expected {expected_value}, got {actual_value}"
-        )
+        assert (
+            actual_value == expected_value
+        ), f"{property_name}: expected {expected_value}, got {actual_value}"
 
 
 def assert_params_match(item: object, expected_params: dict, tolerance: float = 0.01) -> None:
@@ -464,16 +464,16 @@ class UIStateChecker:
 
     def assert_mode(self, expected_mode: EditorMode) -> None:  # type: ignore[valid-type]
         """Assert current editor mode."""
-        assert self.window.editor_state.mode == expected_mode, (
-            f"Expected mode {expected_mode}, got {self.window.editor_state.mode}"
-        )
+        assert (
+            self.window.editor_state.mode == expected_mode
+        ), f"Expected mode {expected_mode}, got {self.window.editor_state.mode}"
 
     def assert_selection_count(self, expected_count: int) -> None:
         """Assert number of selected items."""
         selected = self.window.scene.selectedItems()
-        assert len(selected) == expected_count, (
-            f"Expected {expected_count} selected items, got {len(selected)}"
-        )
+        assert (
+            len(selected) == expected_count
+        ), f"Expected {expected_count} selected items, got {len(selected)}"
 
     def assert_undo_enabled(self, enabled: bool = True) -> None:
         """Assert undo action enabled state."""

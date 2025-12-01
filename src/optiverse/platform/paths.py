@@ -260,9 +260,7 @@ def to_relative_path(image_path: str | None) -> str | None:
         return image_path
 
 
-def to_absolute_path(
-    image_path: str | None, library_roots: list[Path] | None = None
-) -> str | None:
+def to_absolute_path(image_path: str | None, library_roots: list[Path] | None = None) -> str | None:
     """
     Convert a relative image path to absolute, assuming it's relative to package root.
     If already absolute, verify it exists or leave as-is.
@@ -397,9 +395,7 @@ def resolve_library_relative_path(
     return None
 
 
-def make_library_relative(
-    abs_path: str, library_roots: list[Path] | None = None
-) -> str | None:
+def make_library_relative(abs_path: str, library_roots: list[Path] | None = None) -> str | None:
     """
     Convert an absolute path to library-relative format if it's within a library.
 
@@ -498,9 +494,7 @@ def resolve_component_path(
     return None
 
 
-def make_component_relative(
-    abs_path: str, library_roots: list[Path] | None = None
-) -> str | None:
+def make_component_relative(abs_path: str, library_roots: list[Path] | None = None) -> str | None:
     """
     Convert an absolute path to component-relative format if it's within a library.
 

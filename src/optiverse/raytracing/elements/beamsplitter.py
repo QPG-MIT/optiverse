@@ -4,7 +4,6 @@ Beamsplitter element implementation.
 Implements partial reflection and transmission, with optional polarization dependence (PBS).
 """
 
-
 import numpy as np
 
 from ...core.raytracing_math import (

@@ -129,11 +129,13 @@ class ComponentEditor(QtWidgets.QMainWindow):
         tb.setMovable(False)
 
         # Ensure toolbar text is visible in light mode on Mac
-        tb.setStyleSheet("""
+        tb.setStyleSheet(
+            """
             QToolBar QToolButton {
                 color: palette(window-text);
             }
-        """)
+        """
+        )
 
         act_new = QtGui.QAction("New", self)
         act_new.triggered.connect(self._new_component)

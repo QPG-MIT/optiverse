@@ -285,9 +285,9 @@ class TestRaytracingIntegration:
             # Ray should still be going generally right (positive X), but bent slightly left
             # For air→glass at near-normal incidence, bending is subtle
             # Original direction was (1, 0), after bending toward LEFT normal should be ~(0.9+, <0)
-            assert direction_after[0] > 0.5, (
-                f"Ray should still go right, got direction {direction_after}"
-            )
+            assert (
+                direction_after[0] > 0.5
+            ), f"Ray should still go right, got direction {direction_after}"
 
             # The key test: with n1=1.0 (air, right) and n2=1.5 (glass, left),
             # ray going right should bend LEFT (negative Y component slightly)

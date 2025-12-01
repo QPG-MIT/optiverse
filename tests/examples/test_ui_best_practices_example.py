@@ -40,9 +40,9 @@ def get_scene_items_by_type(scene, item_type: type[T]) -> list[T]:
 
 def assert_item_count(scene, item_type: type[T], expected_count: int):
     items = get_scene_items_by_type(scene, item_type)
-    assert len(items) == expected_count, (
-        f"Expected {expected_count} {item_type.__name__}, got {len(items)}"
-    )
+    assert (
+        len(items) == expected_count
+    ), f"Expected {expected_count} {item_type.__name__}, got {len(items)}"
 
 
 def assert_params_match(item, expected_params: dict, tolerance: float = 0.01):
@@ -50,13 +50,13 @@ def assert_params_match(item, expected_params: dict, tolerance: float = 0.01):
     for param_name, expected_value in expected_params.items():
         actual_value = getattr(params, param_name)
         if isinstance(expected_value, (int, float)):
-            assert abs(actual_value - expected_value) <= tolerance, (
-                f"{param_name}: expected {expected_value}±{tolerance}, got {actual_value}"
-            )
+            assert (
+                abs(actual_value - expected_value) <= tolerance
+            ), f"{param_name}: expected {expected_value}±{tolerance}, got {actual_value}"
         else:
-            assert actual_value == expected_value, (
-                f"{param_name}: expected {expected_value}, got {actual_value}"
-            )
+            assert (
+                actual_value == expected_value
+            ), f"{param_name}: expected {expected_value}, got {actual_value}"
 
 
 def simulate_keyboard_shortcut(qtbot, widget, key, modifier):

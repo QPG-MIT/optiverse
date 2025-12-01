@@ -31,9 +31,9 @@ class InterfacePropertiesWidget(QtWidgets.QWidget):
     ):
         super().__init__(parent)
         self.interfaces = interfaces
-        self._property_widgets: dict[
-            int, dict[str, QtWidgets.QWidget]
-        ] = {}  # interface_index -> {prop_name -> widget}
+        self._property_widgets: dict[int, dict[str, QtWidgets.QWidget]] = (
+            {}
+        )  # interface_index -> {prop_name -> widget}
         self._updating = False
 
         self._setup_ui()

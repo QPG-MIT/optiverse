@@ -53,16 +53,16 @@ def test_graphics_view_configuration(app):
 
     if is_macos():
         expected_mode = QtWidgets.QGraphicsView.ViewportUpdateMode.MinimalViewportUpdate
-        assert update_mode == expected_mode, (
-            f"Expected MinimalViewportUpdate on Mac, got {update_mode.name}"
-        )
+        assert (
+            update_mode == expected_mode
+        ), f"Expected MinimalViewportUpdate on Mac, got {update_mode.name}"
         print("✓ Mac-optimized viewport update mode (MinimalViewportUpdate)")
         print("  (Updates only changed items, avoids grid artifacts)")
     else:
         expected_mode = QtWidgets.QGraphicsView.ViewportUpdateMode.FullViewportUpdate
-        assert update_mode == expected_mode, (
-            f"Expected FullViewportUpdate on non-Mac, got {update_mode.name}"
-        )
+        assert (
+            update_mode == expected_mode
+        ), f"Expected FullViewportUpdate on non-Mac, got {update_mode.name}"
         print("✓ Standard viewport update mode (FullViewportUpdate)")
 
     print()

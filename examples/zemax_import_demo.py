@@ -163,9 +163,11 @@ def demo_zemax_import(zmx_filepath: str):
         "kind": component_dict["kind"],
         "object_height_mm": component_dict["object_height_mm"],
         "num_interfaces": len(component_dict.get("interfaces_v2", [])),
-        "first_interface": component_dict.get("interfaces_v2", [{}])[0]
-        if component_dict.get("interfaces_v2")
-        else {},
+        "first_interface": (
+            component_dict.get("interfaces_v2", [{}])[0]
+            if component_dict.get("interfaces_v2")
+            else {}
+        ),
     }
 
     print(json.dumps(excerpt, indent=2))
