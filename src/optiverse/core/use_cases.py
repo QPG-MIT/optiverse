@@ -255,7 +255,7 @@ def _trace_single_ray_worker(args):
                     remaining - EPS_ADV,
                     obj,
                     events + 1,
-                    I,
+                    intensity,
                     pol2,
                     wl,
                 )
@@ -281,7 +281,7 @@ def _trace_single_ray_worker(args):
                     remaining - EPS_ADV,
                     obj,
                     events + 1,
-                    I,
+                    intensity,
                     pol2,
                     wl,
                 )
@@ -379,7 +379,17 @@ def _trace_single_ray_worker(args):
             P2 = P + V2 * EPS_ADV
             # Start new segment with just P2 (not all previous points)
             stack.append(
-                ([P2.copy()], P2.copy(), V2, remaining - EPS_ADV, obj, events + 1, intensity, pol2, wl)
+                (
+                    [P2.copy()],
+                    P2.copy(),
+                    V2,
+                    remaining - EPS_ADV,
+                    obj,
+                    events + 1,
+                    intensity,
+                    pol2,
+                    wl,
+                )
             )
             continue
 

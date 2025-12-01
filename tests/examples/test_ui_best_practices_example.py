@@ -15,14 +15,13 @@ from typing import TypeVar
 
 import pytest
 from PyQt6 import QtCore, QtWidgets
-
-T = TypeVar("T")
-
-# Import helper functions
+from optiverse.objects import SourceItem
 from tests.helpers.ui_test_helpers import (
     add_source_to_window,
     create_main_window,
 )
+
+T = TypeVar("T")
 
 
 def mock_file_dialog_save(file_path):

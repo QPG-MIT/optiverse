@@ -4,6 +4,10 @@ import logging
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
+from ...core.constants import MIME_OPTICS_COMPONENT
+from ...platform.paths import is_macos
+from ...services.error_handler import ErrorContext
+
 _logger = logging.getLogger(__name__)
 
 try:
@@ -12,10 +16,6 @@ try:
     OPENGL_AVAILABLE = True
 except ImportError:
     OPENGL_AVAILABLE = False
-
-from ...core.constants import MIME_OPTICS_COMPONENT
-from ...platform.paths import is_macos
-from ...services.error_handler import ErrorContext
 
 try:
     from .ray_opengl_widget import RayOpenGLWidget  # noqa: F401

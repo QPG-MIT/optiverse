@@ -15,10 +15,8 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from pytestqt.qtbot import QtBot
 
 if TYPE_CHECKING:
-    from optiverse.objects import ComponentItem, SourceItem
     from optiverse.ui.views.component_editor_dialog import ComponentEditor
-    from optiverse.ui.views.main_window import MainWindow
-    from optiverse.ui.views.main_window import EditorMode
+    from optiverse.ui.views.main_window import EditorMode, MainWindow
 
 T = TypeVar("T")
 

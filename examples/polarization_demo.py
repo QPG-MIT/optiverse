@@ -19,7 +19,8 @@ src = os.path.join(root, "src")
 if os.path.isdir(src) and src not in sys.path:
     sys.path.insert(0, src)
 
-from optiverse.core.models import (
+# Import after path manipulation (required for standalone execution)
+from optiverse.core.models import (  # noqa: E402
     Polarization,
     SourceParams,
 )
