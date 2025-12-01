@@ -261,7 +261,8 @@ def get_property_range(element_type: str, prop_name: str) -> tuple[float, float]
         Tuple of (min, max) values
     """
     type_info = get_type_info(element_type)
-    return cast(tuple[float, float], type_info.get("property_ranges", {}).get(prop_name, (-1e10, 1e10)))
+    ranges = type_info.get("property_ranges", {})
+    return cast(tuple[float, float], ranges.get(prop_name, (-1e10, 1e10)))
 
 
 def get_property_default(element_type: str, prop_name: str) -> Any:

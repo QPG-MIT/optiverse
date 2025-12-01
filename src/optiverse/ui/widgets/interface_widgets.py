@@ -307,7 +307,10 @@ class PropertyListWidget(QtWidgets.QWidget):
             return
 
         try:
-            text = line_edit.text() if isinstance(line_edit, QtWidgets.QLineEdit) else line_edit.currentText()
+            if isinstance(line_edit, QtWidgets.QLineEdit):
+                text = line_edit.text()
+            else:
+                text = line_edit.currentText()
             value = float(text)
 
             if coord_name == "X₁":

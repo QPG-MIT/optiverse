@@ -165,7 +165,10 @@ class CollaborationService(QObject):
         # Convert enum to int for comparison
         # PyQt6 returns QWebSocketProtocol.CloseCode enum
         try:
-            close_code = close_code_enum.value if hasattr(close_code_enum, 'value') else int(close_code_enum)
+            if hasattr(close_code_enum, "value"):
+                close_code = close_code_enum.value
+            else:
+                close_code = int(close_code_enum)
         except (ValueError, TypeError, AttributeError):
             close_code = 0
 

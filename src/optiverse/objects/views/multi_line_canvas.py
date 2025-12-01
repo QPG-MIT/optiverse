@@ -660,7 +660,10 @@ class MultiLineCanvas(QtWidgets.QLabel):
             # Start dragging entire line(s)
             self._dragging_entire_lines = True
             pos = e.pos()
-            self._drag_start_pos = QtCore.QPointF(pos.x(), pos.y()).toPointF() if hasattr(e.pos(), 'toPointF') else QtCore.QPointF(e.pos())
+            if hasattr(e.pos(), "toPointF"):
+                self._drag_start_pos = QtCore.QPointF(pos.x(), pos.y()).toPointF()
+            else:
+                self._drag_start_pos = QtCore.QPointF(e.pos())
 
             # Store initial positions of all selected lines for undo
             self._drag_initial_lines.clear()
@@ -875,12 +878,10 @@ class MultiLineCanvas(QtWidgets.QLabel):
                 if path.lower().endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif", ".svg")):
                     if path.lower().endswith(".svg") and HAVE_QTSVG:
                         pix = self._render_svg_to_pixmap(path)
-                        if pix is None:
-                            continue
                     else:
                         pix = QtGui.QPixmap(path)
 
-                    if pix and not pix.isNull():
+                    if pix is not None and not pix.isNull():
                         self.imageDropped.emit(pix, path)
 
     def _update_svg_cache(self):
