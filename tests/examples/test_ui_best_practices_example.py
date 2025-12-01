@@ -7,14 +7,12 @@ Use this as a reference when writing new UI tests.
 
 from __future__ import annotations
 
-# Import test helpers
-# Note: These helpers should be imported from tests.helpers once the module is set up
-# For now, we'll define minimal versions inline for the example
 import unittest.mock as mock
 from typing import TypeVar
 
 import pytest
 from PyQt6 import QtCore, QtWidgets
+
 from optiverse.objects import SourceItem
 from tests.helpers.ui_test_helpers import (
     add_source_to_window,
