@@ -148,9 +148,9 @@ def _trace_single_ray(
     # Stack for ray processing (enables beam splitting)
     # Each stack item is a Ray object
     stack = [ray]
-    last_element_for_ray: dict[
-        int, IOpticalElement
-    ] = {}  # Track last interacted element to prevent re-intersection (keyed by ray id)
+    last_element_for_ray: dict[int, IOpticalElement] = (
+        {}
+    )  # Track last interacted element to prevent re-intersection (keyed by ray id)
 
     while stack:
         current_ray = stack.pop()

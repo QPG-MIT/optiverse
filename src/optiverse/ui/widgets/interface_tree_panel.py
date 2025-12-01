@@ -41,9 +41,9 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         self._interfaces: list[InterfaceDefinition] = []
         self._tree_items: list[QtWidgets.QTreeWidgetItem] = []
         self._property_widgets: list[PropertyListWidget] = []
-        self._child_items: list[
-            QtWidgets.QTreeWidgetItem | None
-        ] = []  # Store child items for size updates
+        self._child_items: list[QtWidgets.QTreeWidgetItem | None] = (
+            []
+        )  # Store child items for size updates
 
         self._setup_ui()
 
