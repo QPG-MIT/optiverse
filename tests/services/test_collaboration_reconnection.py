@@ -8,17 +8,12 @@ Tests for:
 4. Re-sync after reconnection
 """
 
-import sys
 import unittest
 import uuid
 from datetime import datetime, timedelta
 from unittest.mock import Mock
 
-from PyQt6.QtWidgets import QApplication, QGraphicsScene
-
-# Ensure QApplication exists for tests
-if not QApplication.instance():
-    app = QApplication(sys.argv)
+from PyQt6.QtWidgets import QGraphicsScene
 
 
 class TestDisconnectionDetection(unittest.TestCase):

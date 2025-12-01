@@ -4,10 +4,10 @@ Tests for Zemax file import functionality.
 
 import pytest
 
-from src.optiverse.core.interface_definition import InterfaceDefinition
-from src.optiverse.services.glass_catalog import GlassCatalog
-from src.optiverse.services.zemax_converter import ZemaxToInterfaceConverter
-from src.optiverse.services.zemax_parser import ZemaxFile, ZemaxSurface
+from optiverse.core.interface_definition import InterfaceDefinition
+from optiverse.services.glass_catalog import GlassCatalog
+from optiverse.services.zemax_converter import ZemaxToInterfaceConverter
+from optiverse.services.zemax_parser import ZemaxFile, ZemaxSurface
 
 
 class TestZemaxParser:

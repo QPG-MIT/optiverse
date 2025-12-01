@@ -44,20 +44,8 @@ def _ensure_src_on_path() -> Generator[None, None, None]:
     yield
 
 
-@pytest.fixture(scope="session")
-def qapp() -> Generator[QApplication, None, None]:
-    """
-    Create a QApplication instance for tests.
-
-    Session-scoped to avoid creating multiple QApplications.
-    """
-    from PyQt6.QtWidgets import QApplication
-
-    app = QApplication.instance()
-    if app is None:
-        # Pass empty list to avoid issues with command line args
-        app = QApplication([])
-    yield app
+# Use pytest-qt's built-in qapp fixture instead of custom one
+# This avoids QApplication initialization issues on macOS
 
 
 @pytest.fixture

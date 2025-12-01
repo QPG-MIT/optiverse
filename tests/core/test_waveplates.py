@@ -6,7 +6,7 @@ Verifies that quarter and half waveplates correctly transform polarization state
 
 import numpy as np
 import pytest
-from optiverse.core.geometry import transform_polarization_waveplate
+from optiverse.core.raytracing_math import transform_polarization_waveplate
 
 from optiverse.core.models import Polarization
 

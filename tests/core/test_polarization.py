@@ -3,7 +3,7 @@ Tests for polarization functionality.
 """
 
 import numpy as np
-from optiverse.core.geometry import (
+from optiverse.core.raytracing_math import (
     transform_polarization_beamsplitter,
     transform_polarization_lens,
     transform_polarization_mirror,

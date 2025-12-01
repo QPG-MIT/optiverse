@@ -4,7 +4,7 @@ Test collaboration connection lifecycle to identify disconnect issue.
 
 from PyQt6.QtTest import QTest
 
-from src.optiverse.services.collaboration_service import CollaborationService
+from optiverse.services.collaboration_service import CollaborationService
 
 
 class TestCollaborationConnection:

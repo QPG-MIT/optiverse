@@ -5,15 +5,8 @@ Tests the full flow from broadcast to reception with real components.
 """
 
 import json
-import sys
 import unittest
 from unittest.mock import Mock
-
-from PyQt6.QtWidgets import QApplication
-
-# Ensure QApplication exists
-if not QApplication.instance():
-    app = QApplication(sys.argv)
 
 
 class TestCollaborationFullFlow(unittest.TestCase):

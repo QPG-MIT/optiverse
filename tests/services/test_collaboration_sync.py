@@ -7,16 +7,11 @@ Test-driven development approach:
 3. Verify all tests pass
 """
 
-import sys
 import unittest
 import uuid
 from unittest.mock import Mock
 
-from PyQt6.QtWidgets import QApplication, QGraphicsScene
-
-# Ensure QApplication exists for tests
-if not QApplication.instance():
-    app = QApplication(sys.argv)
+from PyQt6.QtWidgets import QGraphicsScene
 
 
 class TestCollaborationBroadcast(unittest.TestCase):

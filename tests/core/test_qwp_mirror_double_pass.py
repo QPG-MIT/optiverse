@@ -1,5 +1,5 @@
 import numpy as np
-from optiverse.core.geometry import (
+from optiverse.core.raytracing_math import (
     deg2rad,
     transform_polarization_mirror,
     transform_polarization_waveplate,
