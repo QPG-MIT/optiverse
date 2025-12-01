@@ -40,6 +40,8 @@ class ComponentItem(BaseObj):
     - ComponentSprite handles Y-up to Y-down conversion for Qt display
     """
 
+    type_name: str = "component"
+
     def __init__(self, params: ComponentParams, item_uuid: str | None = None):
         super().__init__(item_uuid)
         self.params = params
@@ -176,6 +178,8 @@ class ComponentItem(BaseObj):
         offset_x, offset_y = getattr(self, "_picked_line_offset_mm", (0.0, 0.0))
 
         # Add all interfaces to shape
+        if self.params.interfaces is None:
+            return path
         for iface in self.params.interfaces:
             # Transform from image-center coords to picked-line-center coords
             p1 = QtCore.QPointF(iface.x1_mm - offset_x, iface.y1_mm - offset_y)
@@ -205,8 +209,10 @@ class ComponentItem(BaseObj):
         }
         return color_map.get(element_type, QtGui.QColor(150, 100, 255))  # Purple default
 
-    def paint(self, p: QtGui.QPainter, opt, widget=None):
+    def paint(self, p: QtGui.QPainter | None, opt, widget=None):
         """Paint all interfaces with appropriate colors."""
+        if p is None:
+            return
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
 
         # If no interfaces and no sprite, draw placeholder (for background items)
@@ -232,6 +238,8 @@ class ComponentItem(BaseObj):
         # Get picked line offset for coordinate transformation
         offset_x, offset_y = getattr(self, "_picked_line_offset_mm", (0.0, 0.0))
 
+        if self.params.interfaces is None:
+            return
         for iface in self.params.interfaces:
             # Get color based on element type
             color = self._get_interface_color(iface.element_type)
@@ -492,4 +500,7 @@ class ComponentItem(BaseObj):
     @staticmethod
     def from_dict(d: dict[str, Any]) -> ComponentItem:
         """Static factory method: deserialize from dictionary and return new ComponentItem."""
-        return deserialize_item(d)
+        item = deserialize_item(d)
+        if not isinstance(item, ComponentItem):
+            raise TypeError(f"Expected ComponentItem, got {type(item)}")
+        return item

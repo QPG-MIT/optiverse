@@ -92,7 +92,7 @@ class ZemaxImporter:
         # Determine component type from interfaces
         if num_interfaces > 1:
             component_type = f"Multi-element ({num_interfaces} interfaces)"
-        elif num_interfaces == 1:
+        elif num_interfaces == 1 and component.interfaces:
             element_type = component.interfaces[0].element_type.replace("_", " ").title()
             component_type = element_type
         else:

@@ -38,7 +38,7 @@ class EditorState:
     """
 
     def __init__(self):
-        self._mode = EditorMode.DEFAULT
+        self._mode: EditorMode = EditorMode.DEFAULT
 
         # Placement-specific state (only valid when mode == PLACEMENT)
         self._placement_type: str | None = None

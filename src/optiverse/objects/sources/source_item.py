@@ -28,6 +28,8 @@ class SourceItem(BaseObj):
     - Serialization support
     """
 
+    type_name: str = "source"
+
     def __init__(self, params: SourceParams, item_uuid: str | None = None):
         super().__init__(item_uuid)
         self.params = params
@@ -67,7 +69,9 @@ class SourceItem(BaseObj):
         s.setWidth(10)
         return s.createStroke(self._bar).united(self._arrow)
 
-    def paint(self, p: QtGui.QPainter, opt, widget=None):
+    def paint(self, p: QtGui.QPainter | None, opt, widget=None):
+        if p is None:
+            return
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
         pen1 = QtGui.QPen(self._color, 7)
         pen1.setCosmetic(True)
@@ -387,4 +391,7 @@ class SourceItem(BaseObj):
     @staticmethod
     def from_dict(d: dict[str, Any]) -> SourceItem:
         """Static factory method: deserialize from dictionary and return new SourceItem."""
-        return deserialize_item(d)
+        item = deserialize_item(d)
+        if not isinstance(item, SourceItem):
+            raise TypeError(f"Expected SourceItem, got {type(item)}")
+        return item

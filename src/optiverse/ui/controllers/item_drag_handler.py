@@ -6,7 +6,7 @@ Extracts position/rotation tracking and undo command creation from MainWindow.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -27,8 +27,8 @@ class ItemDragHandler:
         scene: QtWidgets.QGraphicsScene,
         view: QtWidgets.QGraphicsView,
         undo_stack: UndoStack,
-        snap_to_grid_getter: callable,
-        schedule_retrace: callable,
+        snap_to_grid_getter: Callable[[], bool],
+        schedule_retrace: Callable[[], None],
     ):
         """
         Initialize the drag handler.
@@ -77,7 +77,12 @@ class ItemDragHandler:
         ]
 
         # Also track the item under the mouse cursor (may not be selected yet)
-        clicked_item = self.scene.itemAt(event.scenePos(), QtGui.QTransform())
+        # QMouseEvent doesn't have scenePos, use pos() mapped to scene
+        if hasattr(self.view, "mapToScene"):
+            scene_pos: QtCore.QPointF = self.view.mapToScene(event.pos())
+        else:
+            scene_pos = QtCore.QPointF(event.pos())
+        clicked_item = self.scene.itemAt(scene_pos, QtGui.QTransform())
 
         # Walk up parent hierarchy to find the actual draggable item
         while clicked_item is not None:
@@ -118,7 +123,8 @@ class ItemDragHandler:
         from ...objects import BaseObj, RectangleItem
 
         # Clear snap guides
-        self.view.clear_snap_guides()
+        if hasattr(self.view, "clear_snap_guides"):
+            self.view.clear_snap_guides()  # type: ignore[attr-defined]
 
         commands_created = False
 
@@ -136,8 +142,8 @@ class ItemDragHandler:
                 old_pos = self._item_positions[it]
                 new_pos = it.pos()
                 if old_pos != new_pos:
-                    cmd = MoveItemCommand(it, old_pos, new_pos)
-                    self.undo_stack.push(cmd)
+                    move_cmd = MoveItemCommand(it, old_pos, new_pos)
+                    self.undo_stack.push(move_cmd)
                     commands_created = True
 
         # Handle rotation commands
@@ -146,8 +152,8 @@ class ItemDragHandler:
             for it, old_rotation in self._item_rotations.items():
                 new_rotation = it.rotation()
                 if abs(new_rotation - old_rotation) > 0.01:
-                    cmd = RotateItemCommand(it, old_rotation, new_rotation)
-                    self.undo_stack.push(cmd)
+                    rot_cmd: RotateItemCommand = RotateItemCommand(it, old_rotation, new_rotation)
+                    self.undo_stack.push(rot_cmd)
                     commands_created = True
 
         elif was_group_rotation:
@@ -173,10 +179,32 @@ class ItemDragHandler:
             if position_changed or rotation_changed:
                 rotatable_items = [it for it in items if isinstance(it, (BaseObj, RectangleItem))]
                 if rotatable_items:
-                    cmd = RotateItemsCommand(
-                        rotatable_items, old_positions, new_positions, old_rotations, new_rotations
+                    # Convert to QGraphicsItem types for RotateItemsCommand
+                    from PyQt6.QtWidgets import QGraphicsItem
+
+                    rotatable_items_typed: list[QGraphicsItem] = [
+                        it for it in rotatable_items
+                    ]  # type: ignore[list-item]
+                    old_positions_typed: dict[QGraphicsItem, QtCore.QPointF] = {
+                        it: old_positions[it] for it in rotatable_items if it in old_positions
+                    }  # type: ignore[dict-item]
+                    new_positions_typed: dict[QGraphicsItem, QtCore.QPointF] = {
+                        it: new_positions[it] for it in rotatable_items if it in new_positions
+                    }  # type: ignore[dict-item]
+                    old_rotations_typed: dict[QGraphicsItem, float] = {
+                        it: old_rotations[it] for it in rotatable_items if it in old_rotations
+                    }  # type: ignore[dict-item]
+                    new_rotations_typed: dict[QGraphicsItem, float] = {
+                        it: new_rotations[it] for it in rotatable_items if it in new_rotations
+                    }  # type: ignore[dict-item]
+                    rot_items_cmd: RotateItemsCommand = RotateItemsCommand(
+                        rotatable_items_typed,
+                        old_positions_typed,
+                        new_positions_typed,
+                        old_rotations_typed,
+                        new_rotations_typed,
                     )
-                    self.undo_stack.push(cmd)
+                    self.undo_stack.push(rot_items_cmd)
                     commands_created = True
 
         # Clear tracking state

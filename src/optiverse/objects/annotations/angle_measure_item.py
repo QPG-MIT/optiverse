@@ -238,8 +238,10 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
         stroker.setWidth(10.0)
         return stroker.createStroke(path)
 
-    def paint(self, painter: QtGui.QPainter, option, widget=None):
+    def paint(self, painter: QtGui.QPainter | None, option, widget=None):
         """Render the angle measurement."""
+        if painter is None:
+            return
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QtGui.QPainter.RenderHint.TextAntialiasing, True)
 
@@ -377,8 +379,10 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
 
         return None
 
-    def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent):
+    def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent | None):
         """Handle mouse press for dragging points or context menu."""
+        if event is None:
+            return
         if event.button() == QtCore.Qt.MouseButton.RightButton:
             # Show context menu
             menu = QtWidgets.QMenu()
@@ -428,8 +432,10 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
 
         super().mousePressEvent(event)
 
-    def mouseMoveEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent):
+    def mouseMoveEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent | None):
         """Handle dragging points."""
+        if event is None:
+            return
         if self._dragging_point:
             item_pos = self.mapFromScene(event.scenePos())
 
@@ -448,8 +454,10 @@ class AngleMeasureItem(QtWidgets.QGraphicsObject):
 
         super().mouseMoveEvent(event)
 
-    def mouseReleaseEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent):
+    def mouseReleaseEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent | None):
         """Handle end of dragging and create undo command."""
+        if event is None:
+            return
         if self._dragging_point and self._initial_points:
             # Check if points actually changed (compare scene coordinates)
             points_changed = False

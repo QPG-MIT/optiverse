@@ -194,7 +194,10 @@ class CollaborationManager(QObject):
         self._increment_version()
 
         # Log the broadcast (all QGraphicsItems have x/y)
-        pos = (item.x(), item.y())
+        if hasattr(item, "x") and hasattr(item, "y") and callable(item.x) and callable(item.y):
+            pos = (item.x(), item.y())
+        else:
+            pos = (0.0, 0.0)
         self.log.info(
             f"Broadcasting ADD: {item_type} at ({pos[0]:.0f}, {pos[1]:.0f})",
             LogCategory.COLLABORATION,
@@ -226,8 +229,14 @@ class CollaborationManager(QObject):
             return
 
         # Log the broadcast (all QGraphicsItems have x/y/rotation)
-        pos = (item.x(), item.y())
-        rot = item.rotation()
+        if hasattr(item, "x") and hasattr(item, "y") and callable(item.x) and callable(item.y):
+            pos = (item.x(), item.y())
+        else:
+            pos = (0.0, 0.0)
+        if hasattr(item, "rotation") and callable(item.rotation):
+            rot = item.rotation()
+        else:
+            rot = 0.0
         self.log.debug(
             f"Broadcasting MOVE: {item_type} to ({pos[0]:.0f}, {pos[1]:.0f}) rot={rot:.0f} deg",
             LogCategory.COLLABORATION,
@@ -421,6 +430,8 @@ class CollaborationManager(QObject):
             data_copy.pop("item_type", None)
 
             # Create appropriate params object with default values
+            params: ComponentParams | SourceParams | None = None
+            item: ComponentItem | SourceItem | RulerItem | TextNoteItem | None = None
             if item_type in [
                 "lens",
                 "mirror",
@@ -516,7 +527,8 @@ class CollaborationManager(QObject):
                 updated_item = deserialize_item(data_copy)
                 if updated_item:
                     # Copy state to existing item
-                    item.params = updated_item.params
+                    if hasattr(item, "params") and hasattr(updated_item, "params"):
+                        item.params = updated_item.params  # type: ignore[attr-defined]
                     item.setPos(updated_item.pos())
                     item.setRotation(updated_item.rotation())
                     item.setZValue(updated_item.zValue())
@@ -665,4 +677,4 @@ class CollaborationManager(QObject):
             True if versions conflict, False otherwise
         """
         remote_version = remote_state.get("version", 0)
-        return remote_version != self.session_version
+        return bool(remote_version != self.session_version)

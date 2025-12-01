@@ -31,7 +31,7 @@ class RulerPlacementHandler:
         view: QtWidgets.QGraphicsView,
         editor_state: EditorState,
         undo_stack: UndoStack,
-        get_ruler_action: Callable[[], QtWidgets.QAction],
+        get_ruler_action: Callable[[], QtGui.QAction],
         finish_ruler_mode: Callable[[], None],
     ):
         """

@@ -11,6 +11,9 @@ from ...core.component_types import ComponentType
 if TYPE_CHECKING:
     from ...core.undo_stack import UndoStack
     from ...objects import GraphicsView
+    from ...objects.annotations.rectangle_item import RectangleItem
+    from ...objects.annotations.text_note_item import TextNoteItem
+    from ...objects.base_obj import BaseObj
     from ...services.log_service import LogService
 
 
@@ -89,7 +92,9 @@ class PlacementHandler:
 
         # Enable mouse tracking to get move events without button press
         self.view.setMouseTracking(True)
-        self.view.viewport().setMouseTracking(True)
+        viewport = self.view.viewport()
+        if viewport is not None:
+            viewport.setMouseTracking(True)
 
         # Change cursor to crosshair
         self.view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
@@ -123,7 +128,9 @@ class PlacementHandler:
         self._send_synthetic_mouse_move()
         self.view.unsetCursor()
         self.view.setMouseTracking(False)
-        self.view.viewport().setMouseTracking(False)
+        viewport = self.view.viewport()
+        if viewport is not None:
+            viewport.setMouseTracking(False)
 
         return prev_type
 
@@ -141,11 +148,14 @@ class PlacementHandler:
                 # Aggressive viewport update to clear any rendering artifacts
                 self.scene.update(ghost_rect)
                 self.scene.invalidate(ghost_rect)
-                self.view.viewport().update()
-                # Schedule another update to catch any stragglers
-                QtCore.QTimer.singleShot(0, self.view.viewport().update)
+                viewport = self.view.viewport()
+                if viewport is not None:
+                    viewport.update()
+                    # Schedule another update to catch any stragglers
+                    QtCore.QTimer.singleShot(0, viewport.update)
             # Schedule deletion to ensure proper cleanup
-            self._ghost.deleteLater()
+            if hasattr(self._ghost, "deleteLater"):
+                self._ghost.deleteLater()
             self._ghost = None
 
     def _send_synthetic_mouse_move(self) -> None:
@@ -223,7 +233,7 @@ class PlacementHandler:
         self._cleanup_ghost()
 
         component_type = self._component_type
-        ghost = None
+        ghost: QtWidgets.QGraphicsItem | None = None
 
         # Normalize component type to enum for comparison
         if isinstance(component_type, str):
@@ -275,6 +285,9 @@ class PlacementHandler:
         else:
             return
 
+        if ghost is None:
+            return
+
         # Make it semi-transparent for ghost effect
         ghost.setOpacity(0.5)
 
@@ -318,7 +331,6 @@ class PlacementHandler:
             scene_pos = QtCore.QPointF(round(scene_pos.x()), round(scene_pos.y()))
 
         component_type = self._component_type
-        item = None
 
         # Normalize component type to enum for comparison
         if isinstance(component_type, str):
@@ -328,9 +340,11 @@ class PlacementHandler:
                 pass  # Keep as string for unknown types
 
         # Create the component based on type
+        placed_item: BaseObj | TextNoteItem | RectangleItem | None = None
+
         if component_type == ComponentType.SOURCE:
             params = SourceParams(x_mm=scene_pos.x(), y_mm=scene_pos.y())
-            item = SourceItem(params)
+            placed_item = SourceItem(params)
 
         elif component_type in (
             ComponentType.LENS,
@@ -347,38 +361,41 @@ class PlacementHandler:
             template_copy = dict(template)
             template_copy["image_path"] = ""  # Remove sprite to show interface lines only
 
-            item = ComponentFactory.create_item_from_dict(
+            created_item = ComponentFactory.create_item_from_dict(
                 template_copy, x_mm=scene_pos.x(), y_mm=scene_pos.y()
             )
-            if item is None:
+            if created_item is None:
                 self.log_service.error(
                     f"Failed to create component for type: {component_type}", "Placement"
                 )
                 return
+            placed_item = created_item
 
         elif component_type == "text":
-            item = TextNoteItem("Text")
-            item.setPos(scene_pos)
+            text_item = TextNoteItem("Text")
+            text_item.setPos(scene_pos)
+            placed_item = text_item
 
         elif component_type == "rectangle":
-            item = RectangleItem(width_mm=60.0, height_mm=40.0)
-            item.setPos(scene_pos)
+            rect_item = RectangleItem(width_mm=60.0, height_mm=40.0)
+            rect_item.setPos(scene_pos)
+            placed_item = rect_item
 
         else:
             return
 
         # Connect signals for optical components (skip annotations like text/rectangle)
         if component_type not in ("text", "rectangle"):
-            self._connect_item_signals(item)
+            self._connect_item_signals(placed_item)
 
         # Add to scene with undo support
-        cmd = AddItemCommand(self.scene, item)
+        cmd = AddItemCommand(self.scene, placed_item)
         self.undo_stack.push(cmd)
-        item.setSelected(True)
+        placed_item.setSelected(True)
 
         # Broadcast addition to collaboration (for optical components only)
         if component_type not in ("text", "rectangle"):
-            self._broadcast_add_item(item)
+            self._broadcast_add_item(placed_item)
 
         # Retrace if enabled (only for optical components)
         if component_type not in ("text", "rectangle"):

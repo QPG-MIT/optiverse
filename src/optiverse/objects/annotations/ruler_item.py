@@ -323,7 +323,9 @@ class RulerItem(QtWidgets.QGraphicsObject):
 
         painter.restore()
 
-    def paint(self, painter: QtGui.QPainter, opt, widget=None):
+    def paint(self, painter: QtGui.QPainter | None, opt, widget=None):
+        if painter is None:
+            return
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QtGui.QPainter.RenderHint.TextAntialiasing, True)
 
@@ -423,7 +425,9 @@ class RulerItem(QtWidgets.QGraphicsObject):
         cmd = PropertyChangeCommand(self, before_state, after_state)
         self.commandCreated.emit(cmd)
 
-    def mousePressEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
+    def mousePressEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent | None):
+        if ev is None:
+            return
         if ev.button() == QtCore.Qt.MouseButton.RightButton:
             self._handle_context_menu(ev)
             ev.accept()
@@ -541,7 +545,9 @@ class RulerItem(QtWidgets.QGraphicsObject):
 
         self._emit_property_change_command(before_state, after_state)
 
-    def mouseMoveEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
+    def mouseMoveEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent | None):
+        if ev is None:
+            return
         if self._grab is not None and 0 <= self._grab < len(self._points):
             self.prepareGeometryChange()
             self._points[self._grab] = ev.pos()
@@ -550,7 +556,7 @@ class RulerItem(QtWidgets.QGraphicsObject):
             return
         super().mouseMoveEvent(ev)
 
-    def mouseReleaseEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
+    def mouseReleaseEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent | None):
         # Create undo command if points were changed
         if self._grab is not None and self._initial_points is not None:
             points_changed = self._check_points_changed()

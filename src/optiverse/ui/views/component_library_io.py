@@ -76,7 +76,9 @@ class ComponentLibraryIO:
 
                 # Copy JSON to clipboard for convenience
                 serialized = serialize_component(rec, self.storage.settings_service)
-                QtWidgets.QApplication.clipboard().setText(json.dumps(serialized, indent=2))
+                clipboard = QtWidgets.QApplication.clipboard()
+                if clipboard is not None:
+                    clipboard.setText(json.dumps(serialized, indent=2))
 
                 # Show success message
                 library_path = self.storage.get_library_root()

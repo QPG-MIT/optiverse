@@ -73,6 +73,8 @@ class InterfaceRenderer:
 
         # Line color and width
         color = line.color
+        if color is None:
+            color = QtGui.QColor(100, 100, 255)  # Default blue
         if is_dimmed:
             # Dim non-locked lines
             color = QtGui.QColor(color.red(), color.green(), color.blue(), 80)
@@ -116,7 +118,10 @@ class InterfaceRenderer:
 
         # Draw endpoints
         if not is_dimmed:
-            point_color = line.color.lighter(120) if (is_selected or is_locked) else line.color
+            base_color = line.color
+            if base_color is None:
+                base_color = QtGui.QColor(100, 100, 255)  # Default blue
+            point_color = base_color.lighter(120) if (is_selected or is_locked) else base_color
             p.setPen(QtGui.QPen(point_color, 1))
             p.setBrush(QtGui.QBrush(point_color))
 
@@ -133,6 +138,8 @@ class InterfaceRenderer:
             interface = line.properties.get("interface")
             if interface and interface.element_type == "refractive_interface":
                 if abs(interface.n1 - interface.n2) > 0.01:
+                    # Ensure color is not None before passing
+                    label_color = color if color is not None else QtGui.QColor(100, 100, 255)
                     self._draw_refractive_index_labels(
                         p,
                         x1_screen,
@@ -141,7 +148,7 @@ class InterfaceRenderer:
                         y2_screen,
                         interface.n1,
                         interface.n2,
-                        color,
+                        label_color,
                     )
 
         # Draw label if exists

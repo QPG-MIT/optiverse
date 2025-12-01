@@ -221,10 +221,10 @@ def create_legacy_optical_element_from_interface(
     # Handle legacy RefractiveInterface objects
     if isinstance(iface, RefractiveInterface):
         elem = OpticalElement(kind="refractive_interface", p1=p1, p2=p2)
-        elem.n1 = iface.n1
-        elem.n2 = iface.n2
-        elem.is_beam_splitter = iface.is_beam_splitter
-        if elem.is_beam_splitter:
+        elem.n1 = iface.n1  # type: ignore[attr-defined]
+        elem.n2 = iface.n2  # type: ignore[attr-defined]
+        elem.is_beam_splitter = iface.is_beam_splitter  # type: ignore[attr-defined]
+        if elem.is_beam_splitter:  # type: ignore[attr-defined]
             elem.split_T = iface.split_T
             elem.split_R = iface.split_R
             elem.is_polarizing = iface.is_polarizing
@@ -267,7 +267,11 @@ def create_legacy_optical_element_from_interface(
             # Get angle_deg from parent item if available
             angle_deg = 0.0
             if hasattr(iface, "angle_deg"):
-                angle_deg = iface.angle_deg
+                angle_deg_val = iface.angle_deg
+                if callable(angle_deg_val):
+                    angle_deg = angle_deg_val()
+                else:
+                    angle_deg = float(angle_deg_val)
 
             return OpticalElement(
                 kind="waveplate",
@@ -298,12 +302,12 @@ def create_legacy_optical_element_from_interface(
 
     elif element_type == "refractive_interface":
         elem = OpticalElement(kind="refractive_interface", p1=p1, p2=p2)
-        elem.n1 = iface.n1
-        elem.n2 = iface.n2
-        elem.is_curved = getattr(iface, "is_curved", False)
-        elem.radius_of_curvature_mm = getattr(iface, "radius_of_curvature_mm", 0.0)
+        elem.n1 = iface.n1  # type: ignore[attr-defined]
+        elem.n2 = iface.n2  # type: ignore[attr-defined]
+        elem.is_curved = getattr(iface, "is_curved", False)  # type: ignore[attr-defined]
+        elem.radius_of_curvature_mm = getattr(iface, "radius_of_curvature_mm", 0.0)  # type: ignore[attr-defined]
         return elem
 
     else:
         # Unknown type - return None or raise error
-        return None
+        return None  # type: ignore[return-value]

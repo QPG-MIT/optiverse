@@ -66,16 +66,17 @@ class BeamsplitterElement(IOpticalElement):
             * p-polarization (parallel) transmits
         """
         # Transform polarization for both paths
-        polarization_transmitted, intensity_factor_transmitted = (
-            transform_polarization_beamsplitter(
-                ray.polarization,
-                ray.direction,
-                normal,
-                tangent,
-                self.is_polarizing,
-                self.polarization_axis_deg,
-                is_transmitted=True,
-            )
+        (
+            polarization_transmitted,
+            intensity_factor_transmitted,
+        ) = transform_polarization_beamsplitter(
+            ray.polarization,
+            ray.direction,
+            normal,
+            tangent,
+            self.is_polarizing,
+            self.polarization_axis_deg,
+            is_transmitted=True,
         )
 
         polarization_reflected, intensity_factor_reflected = transform_polarization_beamsplitter(

@@ -156,7 +156,7 @@ def serialize_component(rec: ComponentRecord, settings_service=None) -> dict[str
         Dictionary with serialized component data
     """
     # Determine best path format for image
-    image_path_serialized = ""
+    image_path_serialized: str = ""
     if rec.image_path:
         # Try library-relative first (makes assemblies portable)
         library_roots = get_all_library_roots(settings_service)
@@ -167,7 +167,11 @@ def serialize_component(rec: ComponentRecord, settings_service=None) -> dict[str
             image_path_serialized = library_relative
         else:
             # Fall back to package-relative (for built-in components)
-            image_path_serialized = to_relative_path(rec.image_path)
+            if rec.image_path:
+                rel_path = to_relative_path(rec.image_path)
+                image_path_serialized = rel_path if isinstance(rel_path, str) else str(rel_path)
+            else:
+                image_path_serialized = ""
 
     base = {
         "name": rec.name,
@@ -212,9 +216,11 @@ def deserialize_component(data: dict[str, Any], settings_service=None) -> Compon
     image_path_raw = str(data.get("image_path", ""))
 
     # Convert paths to absolute
+    image_path: str
     if image_path_raw:
         library_roots = get_all_library_roots(settings_service)
-        image_path = to_absolute_path(image_path_raw, library_roots)
+        abs_path = to_absolute_path(image_path_raw, library_roots)
+        image_path = abs_path if abs_path is not None else ""
     else:
         image_path = ""
 
@@ -521,7 +527,7 @@ class RefractiveObjectParams:
     y_mm: float = 0.0
     angle_deg: float = 45.0  # Component rotation
     object_height_mm: float = 80.0  # Physical size for rendering
-    interfaces: list[RefractiveInterface] = None  # List of refractive interfaces
+    interfaces: list[RefractiveInterface] | None = None  # List of refractive interfaces
     image_path: str | None = None
     mm_per_pixel: float = 0.1
     name: str | None = None

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from functools import partial
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -60,6 +61,47 @@ def to_np(p: QtCore.QPointF) -> np.ndarray:
 
 
 class MainWindow(QtWidgets.QMainWindow):
+    # Action attributes (initialized by ActionBuilder)
+    act_open: QtGui.QAction
+    act_save: QtGui.QAction
+    act_save_as: QtGui.QAction
+    act_undo: QtGui.QAction
+    act_redo: QtGui.QAction
+    act_delete: QtGui.QAction
+    act_copy: QtGui.QAction
+    act_paste: QtGui.QAction
+    act_preferences: QtGui.QAction
+    act_add_source: QtGui.QAction
+    act_add_lens: QtGui.QAction
+    act_add_mirror: QtGui.QAction
+    act_add_bs: QtGui.QAction
+    act_add_ruler: QtGui.QAction
+    act_add_text: QtGui.QAction
+    act_add_rectangle: QtGui.QAction
+    act_inspect: QtGui.QAction
+    act_measure_path: QtGui.QAction
+    act_measure_angle: QtGui.QAction
+    act_zoom_in: QtGui.QAction
+    act_zoom_out: QtGui.QAction
+    act_fit: QtGui.QAction
+    act_recenter: QtGui.QAction
+    act_autotrace: QtGui.QAction
+    act_snap: QtGui.QAction
+    act_magnetic_snap: QtGui.QAction
+    act_dark_mode: QtGui.QAction
+    menu_raywidth: QtWidgets.QMenu
+    _raywidth_group: QtGui.QActionGroup
+    act_retrace: QtGui.QAction
+    act_clear: QtGui.QAction
+    act_editor: QtGui.QAction
+    act_reload: QtGui.QAction
+    act_open_library_folder: QtGui.QAction
+    act_import_library: QtGui.QAction
+    act_show_log: QtGui.QAction
+    act_collaborate: QtGui.QAction
+    act_disconnect: QtGui.QAction
+    collab_status_label: QtWidgets.QLabel
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("2D Ray Optics Sandbox — Top View (mm/cm grid)")
@@ -381,14 +423,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # Properties to maintain backward compatibility
     @property
-    def ray_data(self) -> list:
+    def ray_data(self) -> list[Any]:
         """Get ray data from controller."""
-        return self.raytracing_controller.ray_data
+        return self.raytracing_controller.ray_data  # type: ignore[no-any-return]
 
     @property
     def autotrace(self) -> bool:
         """Get autotrace enabled state from controller."""
-        return self.raytracing_controller.autotrace
+        return self.raytracing_controller.autotrace  # type: ignore[no-any-return]
 
     @autotrace.setter
     def autotrace(self, value: bool) -> None:
@@ -398,7 +440,7 @@ class MainWindow(QtWidgets.QMainWindow):
     @property
     def _ray_width_px(self) -> float:
         """Get ray width from controller."""
-        return self.raytracing_controller.ray_width_px
+        return self.raytracing_controller.ray_width_px  # type: ignore[no-any-return]
 
     @_ray_width_px.setter
     def _ray_width_px(self, value: float) -> None:
@@ -406,13 +448,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.raytracing_controller.ray_width_px = value
 
     # ----- Getter methods for handlers (replaces lambda callbacks) -----
-    def _get_ray_data(self) -> list:
+    def _get_ray_data(self) -> list[Any]:
         """Get ray data - used by handlers instead of lambda."""
-        return self.raytracing_controller.ray_data
+        return self.raytracing_controller.ray_data  # type: ignore[no-any-return]
 
     def _get_snap_to_grid(self) -> bool:
         """Get snap to grid state - used by handlers instead of lambda."""
-        return self.snap_to_grid
+        return self.snap_to_grid  # type: ignore[no-any-return]
 
     def _set_paste_enabled(self, enabled: bool) -> None:
         """Set paste action enabled state - used by handlers instead of lambda."""
@@ -537,7 +579,7 @@ class MainWindow(QtWidgets.QMainWindow):
             for act in self._raywidth_group.actions():
                 act.setChecked(abs(float(act.text().split()[0]) - v) < 1e-9)
 
-    def open_component_editor(self, component_data: dict = None):
+    def open_component_editor(self, component_data: dict | None = None):
         """
         Open component editor dialog, optionally with pre-loaded data.
 
@@ -639,12 +681,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_collaborate.setEnabled(True)
 
     # ensure clean shutdown
-    def closeEvent(self, e: QtGui.QCloseEvent):
+    def closeEvent(self, e: QtGui.QCloseEvent | None):
         # Check for unsaved changes
         if self.file_controller.is_modified:
             reply = self.file_controller.prompt_save_changes()
             if reply == QtWidgets.QMessageBox.StandardButton.Cancel:
-                e.ignore()  # Don't close the window
+                if e is not None:
+                    e.ignore()  # Don't close the window
                 return
 
         try:

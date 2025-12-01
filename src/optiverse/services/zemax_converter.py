@@ -277,7 +277,7 @@ if __name__ == "__main__":
             num_ifaces = len(component.interfaces) if component.interfaces else 0
             if num_ifaces > 1:
                 _logger.info(f"Type: Multi-element ({num_ifaces} interfaces)")
-            elif num_ifaces == 1:
+            elif num_ifaces == 1 and component.interfaces:
                 _logger.info(f"Type: {component.interfaces[0].element_type}")
             else:
                 _logger.info("Type: Unknown")

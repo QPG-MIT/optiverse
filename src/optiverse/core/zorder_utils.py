@@ -175,7 +175,10 @@ def get_z_order_items_from_item(
 
     if item.isSelected():
         # All QGraphicsItems have setZValue, no filtering needed
-        return list(item.scene().selectedItems())
+        scene = item.scene()
+        if scene is None:
+            return [item]
+        return list(scene.selectedItems())
     else:
         return [item]
 
@@ -220,10 +223,13 @@ def handle_z_order_from_menu(
 
     # Get undo stack from main window
     undo_stack = None
-    views = item.scene().views()
+    scene = item.scene()
+    if scene is None:
+        return
+    views = scene.views()
     if views:
         main_window = views[0].window()
         if isinstance(main_window, HasUndoStack):
             undo_stack = main_window.undo_stack
 
-    apply_z_order_change(items, operation, item.scene(), undo_stack)
+    apply_z_order_change(items, operation, scene, undo_stack)

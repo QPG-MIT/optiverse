@@ -138,13 +138,20 @@ class ComponentSvgSprite(QGraphicsSvgItem):
         # Track parent selection state for cache invalidation
         self._parent_was_selected = False
 
-    def paint(self, p: QtGui.QPainter, opt, widget=None):
+    def paint(
+        self,
+        p: QtGui.QPainter | None,
+        opt: QtWidgets.QStyleOptionGraphicsItem | None,
+        widget: QtWidgets.QWidget | None = None,
+    ):
         """
         Paint sprite with selection feedback.
 
         When parent item is selected, draw a translucent blue overlay
         to provide clear visual feedback.
         """
+        if p is None:
+            return
         # Check if parent selection state changed
         par = self.parentItem()
         is_selected = par is not None and par.isSelected()
@@ -287,13 +294,20 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
         # Track parent selection state for cache invalidation
         self._parent_was_selected = False
 
-    def paint(self, p: QtGui.QPainter, opt, widget=None):
+    def paint(
+        self,
+        p: QtGui.QPainter | None,
+        opt: QtWidgets.QStyleOptionGraphicsItem | None,
+        widget: QtWidgets.QWidget | None = None,
+    ):
         """
         Paint sprite with selection feedback.
 
         When parent item is selected, draw a translucent blue overlay
         to provide clear visual feedback.
         """
+        if p is None:
+            return
         # Check if parent selection state changed
         par = self.parentItem()
         is_selected = par is not None and par.isSelected()
@@ -353,9 +367,7 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
 
         # Cache miss - show loading indicator and render
         logging.debug("Rendering SVG from scratch...")
-        app = QtWidgets.QApplication.instance()
-        if app:
-            app.setOverrideCursor(QtCore.Qt.CursorShape.WaitCursor)
+        QtGui.QGuiApplication.setOverrideCursor(QtCore.Qt.CursorShape.WaitCursor)
 
         try:
             renderer = QtSvg.QSvgRenderer(svg_path)
@@ -390,8 +402,7 @@ class ComponentSprite(QtWidgets.QGraphicsPixmapItem):
 
         finally:
             # Always restore cursor
-            if app:
-                app.restoreOverrideCursor()
+            QtGui.QGuiApplication.restoreOverrideCursor()
 
     @staticmethod
     def _get_cache_key(svg_path: str, target_height: int) -> str:

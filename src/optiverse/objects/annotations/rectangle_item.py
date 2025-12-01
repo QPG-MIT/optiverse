@@ -46,7 +46,9 @@ class RectangleItem(QtWidgets.QGraphicsObject):
         path.addRect(self.boundingRect())
         return path
 
-    def paint(self, p: QtGui.QPainter, opt, widget=None):
+    def paint(self, p: QtGui.QPainter | None, opt, widget=None):
+        if p is None:
+            return
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
         rect = self.boundingRect()
         # Fill 20% gray
@@ -63,7 +65,9 @@ class RectangleItem(QtWidgets.QGraphicsObject):
             p.setBrush(QtGui.QColor(30, 144, 255, 70))  # Translucent blue
             p.drawRect(rect)
 
-    def contextMenuEvent(self, ev: QtWidgets.QGraphicsSceneContextMenuEvent):
+    def contextMenuEvent(self, ev: QtWidgets.QGraphicsSceneContextMenuEvent | None):
+        if ev is None:
+            return
         m = QtWidgets.QMenu()
         act_edit = m.addAction("Edit")
         act_del = m.addAction("Delete")
@@ -78,8 +82,10 @@ class RectangleItem(QtWidgets.QGraphicsObject):
         a = m.exec(ev.screenPos())
         if a == act_edit:
             self.open_editor()
-        elif a == act_del and self.scene():
-            self.scene().removeItem(self)
+        elif a == act_del:
+            scene = self.scene()
+            if scene is not None:
+                scene.removeItem(self)
         else:
             # Handle z-order actions via utility
             handle_z_order_from_menu(
@@ -93,8 +99,10 @@ class RectangleItem(QtWidgets.QGraphicsObject):
                 },
             )
 
-    def mousePressEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
+    def mousePressEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent | None):
         """Handle mouse press for rotation mode (Ctrl+drag) or normal drag."""
+        if ev is None:
+            return
         if self.isSelected() and (ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
             # Enter rotation mode
             self._rotating = True
@@ -116,8 +124,10 @@ class RectangleItem(QtWidgets.QGraphicsObject):
             # Normal drag behavior
             super().mousePressEvent(ev)
 
-    def mouseMoveEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
+    def mouseMoveEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent | None):
         """Handle mouse move for rotation or normal drag."""
+        if ev is None:
+            return
         if self._rotating:
             # Get rotation center (item center in scene coordinates)
             center = self.mapToScene(self.transformOriginPoint())
@@ -145,8 +155,10 @@ class RectangleItem(QtWidgets.QGraphicsObject):
             # Normal drag behavior
             super().mouseMoveEvent(ev)
 
-    def mouseReleaseEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
+    def mouseReleaseEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent | None):
         """Handle mouse release to exit rotation mode."""
+        if ev is None:
+            return
         if self._rotating:
             self._rotating = False
             self.setCursor(QtCore.Qt.CursorShape.OpenHandCursor)
@@ -154,10 +166,12 @@ class RectangleItem(QtWidgets.QGraphicsObject):
         else:
             super().mouseReleaseEvent(ev)
 
-    def wheelEvent(self, ev: QtWidgets.QGraphicsSceneWheelEvent):
+    def wheelEvent(self, ev: QtWidgets.QGraphicsSceneWheelEvent | None):
         """Ctrl + wheel → rotate element."""
+        if ev is None:
+            return
         if self.isSelected() and (ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
-            dy = ev.angleDelta().y()
+            dy = ev.angleDelta().y()  # type: ignore[attr-defined]
             steps = dy / 120.0
             rotation_delta = 2.0 * steps
 
@@ -172,12 +186,9 @@ class RectangleItem(QtWidgets.QGraphicsObject):
         from PyQt6.QtCore import QPointF
 
         # Create new rectangle with same dimensions
-        new_item = RectangleItem(self._rect)
+        new_item = RectangleItem(self._w, self._h)
 
         # Copy properties
-        new_item._color = self._color
-        new_item._border_color = self._border_color
-        new_item._border_width = self._border_width
         new_item.setRotation(self.rotation())
         new_item.setZValue(self.zValue())
 

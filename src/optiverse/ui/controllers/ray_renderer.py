@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 if TYPE_CHECKING:
-    from ..objects import GraphicsView
-    from ..raytracing import RayPath
+    from ..objects import GraphicsView  # type: ignore[misc]
+    from ..raytracing import RayPath  # type: ignore[misc]
 
 
 class RayRenderer:
@@ -125,9 +125,11 @@ class RayRenderer:
 
             # Only boost HSV if OpenGL is used
             if self.view.has_ray_overlay():
-                s = min(HSV_MAX, int(s * SATURATION_BOOST_FACTOR))
-                v = min(HSV_MAX, int(v * VALUE_BOOST_FACTOR))
-                color.setHsv(h, s, v, alpha)
+                # getHsv() can return None for invalid colors, so ensure we have valid values
+                if h is not None and s is not None and v is not None and alpha is not None:
+                    s_boosted = min(HSV_MAX, int(s * SATURATION_BOOST_FACTOR))
+                    v_boosted = min(HSV_MAX, int(v * VALUE_BOOST_FACTOR))
+                    color.setHsv(h, s_boosted, v_boosted, alpha)
 
             pen = QtGui.QPen(color)
             # OpenGL viewport makes lines appear thinner, so increase width

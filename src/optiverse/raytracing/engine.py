@@ -148,7 +148,9 @@ def _trace_single_ray(
     # Stack for ray processing (enables beam splitting)
     # Each stack item is a Ray object
     stack = [ray]
-    last_element_for_ray = {}  # Track last interacted element to prevent re-intersection
+    last_element_for_ray: dict[
+        int, IOpticalElement
+    ] = {}  # Track last interacted element to prevent re-intersection (keyed by ray id)
 
     while stack:
         current_ray = stack.pop()
@@ -174,10 +176,10 @@ def _trace_single_ray(
 
         # Find nearest intersection
         # TODO Phase 4: Replace with BVH spatial index for O(log n)
-        nearest_element = None
+        nearest_element: IOpticalElement | None = None
         nearest_distance = float("inf")
-        nearest_intersection = None
-        last_elem = last_element_for_ray.get(id(current_ray), None)
+        nearest_intersection: RayIntersection | None = None
+        last_elem = last_element_for_ray.get(id(current_ray))
 
         for element in elements:
             # Skip the last element this ray interacted with
@@ -193,7 +195,9 @@ def _trace_single_ray(
 
                 if is_curved:
                     # Use curved intersection for curved surfaces
-                    from ...core.raytracing_math import ray_hit_curved_element
+                    from ...core.raytracing_math import (  # type: ignore[import-not-found]
+                        ray_hit_curved_element,
+                    )
 
                     result = ray_hit_curved_element(
                         current_ray.position,
@@ -258,6 +262,8 @@ def _trace_single_ray(
             continue
 
         # Add intersection point to path before interaction
+        if nearest_intersection is None:
+            continue
         current_ray.path_points.append(nearest_intersection.point)
 
         # Interact with element - POLYMORPHIC DISPATCH!
@@ -272,7 +278,9 @@ def _trace_single_ray(
 
         # Track last element and propagate engine-specific fields to output rays
         for out_ray in output_rays:
-            last_element_for_ray[id(out_ray)] = nearest_element
+            # Use ray object as key (Ray objects are hashable via id)
+            ray_id = id(out_ray)
+            last_element_for_ray[ray_id] = nearest_element
 
             # Propagate engine-specific fields that interact() doesn't know about
             if not hasattr(out_ray, "base_rgb") or out_ray.base_rgb is None:

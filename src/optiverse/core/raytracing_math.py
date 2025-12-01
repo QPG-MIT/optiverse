@@ -85,7 +85,7 @@ def reflect_vec(v: np.ndarray, n_hat: np.ndarray) -> np.ndarray:
     JIT-compiled for performance when numba is available.
     """
     dot_product = v[0] * n_hat[0] + v[1] * n_hat[1]
-    return v - 2.0 * dot_product * n_hat
+    return v - 2.0 * dot_product * n_hat  # type: ignore[no-any-return]
 
 
 def jones_matrix_rotation(angle_deg: float) -> np.ndarray:
@@ -744,9 +744,9 @@ def _point_on_arc_bounds(
     # Also check that the arc isn't too large (> π means we should use the other arc)
     if span > math.pi:
         # Use the complement arc
-        return not in_bounds
+        return not in_bounds  # type: ignore[no-any-return]
 
-    return in_bounds
+    return in_bounds  # type: ignore[no-any-return]
 
 
 def calculate_path_length(points: list[np.ndarray]) -> float:

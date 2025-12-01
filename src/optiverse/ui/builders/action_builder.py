@@ -138,42 +138,42 @@ class ActionBuilder:
         w.undo_stack.canRedoChanged.connect(w.act_redo.setEnabled)
 
         # --- Insert Actions (Placement Mode) ---
-        w.act_add_source = QtGui.QAction("Source", w, checkable=True)
+        w.act_add_source = QtGui.QAction("Source", w, checkable=True)  # type: ignore[call-overload]
         w.act_add_source.toggled.connect(partial(w._toggle_placement_mode, ComponentType.SOURCE))
 
-        w.act_add_lens = QtGui.QAction("Lens", w, checkable=True)
+        w.act_add_lens = QtGui.QAction("Lens", w, checkable=True)  # type: ignore[call-overload]
         w.act_add_lens.toggled.connect(partial(w._toggle_placement_mode, ComponentType.LENS))
 
-        w.act_add_mirror = QtGui.QAction("Mirror", w, checkable=True)
+        w.act_add_mirror = QtGui.QAction("Mirror", w, checkable=True)  # type: ignore[call-overload]
         w.act_add_mirror.toggled.connect(partial(w._toggle_placement_mode, ComponentType.MIRROR))
 
-        w.act_add_bs = QtGui.QAction("Beamsplitter", w, checkable=True)
+        w.act_add_bs = QtGui.QAction("Beamsplitter", w, checkable=True)  # type: ignore[call-overload]
         w.act_add_bs.toggled.connect(partial(w._toggle_placement_mode, ComponentType.BEAMSPLITTER))
 
-        w.act_add_ruler = QtGui.QAction("Ruler", w, checkable=True)
+        w.act_add_ruler = QtGui.QAction("Ruler", w, checkable=True)  # type: ignore[call-overload]
         w.act_add_ruler.setChecked(False)
         w.act_add_ruler.setShortcut("R")
         w.act_add_ruler.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         w.act_add_ruler.toggled.connect(w._toggle_ruler_placement)
 
-        w.act_add_text = QtGui.QAction("Text", w, checkable=True)
+        w.act_add_text = QtGui.QAction("Text", w, checkable=True)  # type: ignore[call-overload]
         w.act_add_text.toggled.connect(partial(w._toggle_placement_mode, ComponentType.TEXT))
 
-        w.act_add_rectangle = QtGui.QAction("Rectangle", w, checkable=True)
+        w.act_add_rectangle = QtGui.QAction("Rectangle", w, checkable=True)  # type: ignore[call-overload]
         w.act_add_rectangle.toggled.connect(
             partial(w._toggle_placement_mode, ComponentType.RECTANGLE)
         )
 
         # --- Tool Actions ---
-        w.act_inspect = QtGui.QAction("Inspect", w, checkable=True)
+        w.act_inspect = QtGui.QAction("Inspect", w, checkable=True)  # type: ignore[call-overload]
         w.act_inspect.setChecked(False)
         w.act_inspect.toggled.connect(w._toggle_inspect)
 
-        w.act_measure_path = QtGui.QAction("Path Measure", w, checkable=True)
+        w.act_measure_path = QtGui.QAction("Path Measure", w, checkable=True)  # type: ignore[call-overload]
         w.act_measure_path.setChecked(False)
         w.act_measure_path.toggled.connect(w._toggle_path_measure)
 
-        w.act_measure_angle = QtGui.QAction("Angle Measure", w, checkable=True)
+        w.act_measure_angle = QtGui.QAction("Angle Measure", w, checkable=True)  # type: ignore[call-overload]
         w.act_measure_angle.setChecked(False)
         w.act_measure_angle.toggled.connect(w._toggle_angle_measure)
 
@@ -199,19 +199,19 @@ class ActionBuilder:
         w.act_recenter.triggered.connect(w._recenter_view)
 
         # --- Checkable View Options ---
-        w.act_autotrace = QtGui.QAction("Auto-trace", w, checkable=True)
+        w.act_autotrace = QtGui.QAction("Auto-trace", w, checkable=True)  # type: ignore[call-overload]
         w.act_autotrace.setChecked(True)
         w.act_autotrace.toggled.connect(w._toggle_autotrace)
 
-        w.act_snap = QtGui.QAction("Snap to mm grid", w, checkable=True)
+        w.act_snap = QtGui.QAction("Snap to mm grid", w, checkable=True)  # type: ignore[call-overload]
         w.act_snap.setChecked(False)
         w.act_snap.toggled.connect(w._toggle_snap)
 
-        w.act_magnetic_snap = QtGui.QAction("Magnetic snap", w, checkable=True)
+        w.act_magnetic_snap = QtGui.QAction("Magnetic snap", w, checkable=True)  # type: ignore[call-overload]
         w.act_magnetic_snap.setChecked(w.magnetic_snap)
         w.act_magnetic_snap.toggled.connect(w._toggle_magnetic_snap)
 
-        w.act_dark_mode = QtGui.QAction("Dark mode", w, checkable=True)
+        w.act_dark_mode = QtGui.QAction("Dark mode", w, checkable=True)  # type: ignore[call-overload]
         w.act_dark_mode.setChecked(w.view.is_dark_mode())
         w.act_dark_mode.toggled.connect(w._toggle_dark_mode)
 
@@ -221,14 +221,16 @@ class ActionBuilder:
         w._raywidth_group.setExclusive(True)
         for v in [0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0]:
             a = w.menu_raywidth.addAction(f"{v:.1f} px")
-            a.setCheckable(True)
-            if abs(v - w._ray_width_px) < 1e-9:
-                a.setChecked(True)
-            a.triggered.connect(partial(w._set_ray_width, v))
-            w._raywidth_group.addAction(a)
+            if a is not None:
+                a.setCheckable(True)
+                if abs(v - w._ray_width_px) < 1e-9:
+                    a.setChecked(True)
+                a.triggered.connect(partial(w._set_ray_width, v))
+                w._raywidth_group.addAction(a)
         w.menu_raywidth.addSeparator()
         a_custom = w.menu_raywidth.addAction("Custom…")
-        a_custom.triggered.connect(w._choose_ray_width)
+        if a_custom is not None:
+            a_custom.triggered.connect(w._choose_ray_width)
 
         # --- Tools Menu Actions ---
         w.act_retrace = QtGui.QAction("Retrace", w)
@@ -330,15 +332,21 @@ class ActionBuilder:
         """Build the menu bar."""
         w = self.window
         mb = w.menuBar()
+        if mb is None:
+            return
 
         # File menu
         mFile = mb.addMenu("&File")
+        if mFile is None:
+            return
         mFile.addAction(w.act_open)
         mFile.addAction(w.act_save)
         mFile.addAction(w.act_save_as)
 
         # Edit menu
         mEdit = mb.addMenu("&Edit")
+        if mEdit is None:
+            return
         mEdit.addAction(w.act_undo)
         mEdit.addAction(w.act_redo)
         mEdit.addSeparator()
@@ -351,6 +359,8 @@ class ActionBuilder:
 
         # Insert menu
         mInsert = mb.addMenu("&Insert")
+        if mInsert is None:
+            return
         mInsert.addAction(w.act_add_source)
         mInsert.addAction(w.act_add_lens)
         mInsert.addAction(w.act_add_mirror)
@@ -362,6 +372,8 @@ class ActionBuilder:
 
         # View menu
         mView = mb.addMenu("&View")
+        if mView is None:
+            return
         mView.addAction(w.libDock.toggleViewAction())
         mView.addSeparator()
         mView.addAction(w.act_zoom_in)
@@ -379,6 +391,8 @@ class ActionBuilder:
 
         # Tools menu
         mTools = mb.addMenu("&Tools")
+        if mTools is None:
+            return
         mTools.addAction(w.act_retrace)
         mTools.addAction(w.act_clear)
         mTools.addSeparator()
@@ -396,12 +410,16 @@ class ActionBuilder:
 
         # Collaboration menu
         mCollab = mb.addMenu("&Collaboration")
+        if mCollab is None:
+            return
         mCollab.addAction(w.act_collaborate)
         mCollab.addAction(w.act_disconnect)
 
         # Add collaboration status to status bar
         w.collab_status_label = QtWidgets.QLabel("Not connected")
-        w.statusBar().addPermanentWidget(w.collab_status_label)
+        status_bar = w.statusBar()
+        if status_bar is not None:
+            status_bar.addPermanentWidget(w.collab_status_label)
 
         # Connect collab controller status signal
         w.collab_controller.statusChanged.connect(w.collab_status_label.setText)

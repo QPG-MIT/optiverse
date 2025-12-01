@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from PyQt6 import QtCore, QtWidgets
+from typing import cast
+
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core import interface_types
 from ...core.interface_definition import InterfaceDefinition
@@ -39,9 +41,9 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         self._interfaces: list[InterfaceDefinition] = []
         self._tree_items: list[QtWidgets.QTreeWidgetItem] = []
         self._property_widgets: list[PropertyListWidget] = []
-        self._child_items: list[QtWidgets.QTreeWidgetItem] = (
-            []
-        )  # Store child items for size updates
+        self._child_items: list[
+            QtWidgets.QTreeWidgetItem | None
+        ] = []  # Store child items for size updates
 
         self._setup_ui()
 
@@ -174,8 +176,8 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         # Create property list widget
         prop_widget = PropertyListWidget(interface)
         prop_widget.propertyChanged.connect(self.interfacesChanged.emit)
-        # Connect to geometry changed signal to update tree item size
-        prop_widget.geometryChanged = lambda: self._update_child_item_size(index)
+        # Note: Size updates are handled when the widget is shown or
+        # when update_child_item_size is called explicitly
 
         self._tree.addTopLevelItem(item)
 
@@ -302,11 +304,13 @@ class InterfaceTreePanel(QtWidgets.QWidget):
             for index in indices:
                 self.remove_interface(index)
 
-    def eventFilter(self, obj: QtCore.QObject, event: QtCore.QEvent) -> bool:
+    def eventFilter(self, obj: QtCore.QObject | None, event: QtCore.QEvent | None) -> bool:
         """Filter events to allow deselection by clicking on white space."""
+        if obj is None or event is None:
+            return super().eventFilter(obj, event)
         # Handle mouse clicks on viewport
         if obj == self._tree.viewport() and event.type() == QtCore.QEvent.Type.MouseButtonPress:
-            mouse_event = event
+            mouse_event = cast(QtGui.QMouseEvent, event)
             # Check if click is on empty space (no item at position)
             item = self._tree.itemAt(mouse_event.pos())
             if item is None:
@@ -464,7 +468,8 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         while item.parent() is not None:
             item = item.parent()
 
-        return self._tree.indexOfTopLevelItem(item)
+        result = self._tree.indexOfTopLevelItem(item)
+        return result if result >= 0 else -1
 
     def get_selected_indices(self) -> list[int]:
         """Get all selected interface indices."""

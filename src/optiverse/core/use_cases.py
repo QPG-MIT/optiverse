@@ -599,7 +599,7 @@ def trace_rays(
     elements: list[OpticalElement],
     sources: list[SourceParams],
     max_events: int = 80,
-    parallel: bool = None,
+    parallel: bool | None = None,
     parallel_threshold: int = 20,
 ) -> list[RayPath]:
     """
@@ -715,11 +715,11 @@ def trace_rays(
                 results = executor.map(_trace_single_ray_worker, ray_jobs)
 
             # Flatten results
-            paths: list[RayPath] = []
+            paths_result: list[RayPath] = []
             for ray_paths in results:
-                paths.extend(ray_paths)
+                paths_result.extend(ray_paths)
 
-            return paths
+            return paths_result
         except Exception as e:
             # If parallel processing fails, fall back to sequential
             _logger.warning(
@@ -734,3 +734,6 @@ def trace_rays(
             ray_paths = _trace_single_ray_worker(job)
             paths.extend(ray_paths)
         return paths
+
+    # This should never be reached, but mypy needs it
+    return []

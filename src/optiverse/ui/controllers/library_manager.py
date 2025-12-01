@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -102,7 +102,7 @@ class LibraryManager:
 
         # Load custom library components
         custom_library_paths = get_all_custom_library_roots()
-        user_records = load_component_dicts_from_multiple(custom_library_paths)
+        user_records = load_component_dicts_from_multiple([str(p) for p in custom_library_paths])
         for rec in user_records:
             rec["_source"] = "user"
 
@@ -135,7 +135,7 @@ class LibraryManager:
         """Organize records by category."""
         from ...objects.component_registry import ComponentRegistry
 
-        categories = {cat: [] for cat in CATEGORY_ORDER}
+        categories: dict[str, list[dict[str, Any]]] = {cat: [] for cat in CATEGORY_ORDER}
 
         for rec in records:
             name = rec.get("name", "")

@@ -216,11 +216,13 @@ class RulerWidget(QtWidgets.QWidget):
                 return
 
             # Draw triangle pointing down
-            points = QtGui.QPolygonF([
-                QtCore.QPointF(screen_x, 0),
-                QtCore.QPointF(screen_x - 5, 7),
-                QtCore.QPointF(screen_x + 5, 7),
-            ])
+            points = QtGui.QPolygonF(
+                [
+                    QtCore.QPointF(screen_x, 0),
+                    QtCore.QPointF(screen_x - 5, 7),
+                    QtCore.QPointF(screen_x + 5, 7),
+                ]
+            )
 
             painter.setBrush(QtGui.QBrush(QtGui.QColor("#FF4444")))
             painter.setPen(QtGui.QPen(QtGui.QColor("#CC0000"), 1))
@@ -234,11 +236,13 @@ class RulerWidget(QtWidgets.QWidget):
                 return
 
             # Draw triangle pointing right
-            points = QtGui.QPolygonF([
-                QtCore.QPointF(0, screen_y),
-                QtCore.QPointF(7, screen_y - 5),
-                QtCore.QPointF(7, screen_y + 5),
-            ])
+            points = QtGui.QPolygonF(
+                [
+                    QtCore.QPointF(0, screen_y),
+                    QtCore.QPointF(7, screen_y - 5),
+                    QtCore.QPointF(7, screen_y + 5),
+                ]
+            )
 
             painter.setBrush(QtGui.QBrush(QtGui.QColor("#FF4444")))
             painter.setPen(QtGui.QPen(QtGui.QColor("#CC0000"), 1))

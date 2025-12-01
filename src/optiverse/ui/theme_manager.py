@@ -216,6 +216,8 @@ def apply_theme(dark_mode: bool) -> None:
     # Force complete style refresh to override macOS system styling
     # This is critical on Mac where system dark mode can conflict with app theme
     for widget in app.allWidgets():
-        widget.style().unpolish(widget)
-        widget.style().polish(widget)
+        style = widget.style()
+        if style is not None:
+            style.unpolish(widget)
+            style.polish(widget)
         widget.update()

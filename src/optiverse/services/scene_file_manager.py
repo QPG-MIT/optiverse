@@ -12,7 +12,7 @@ import hashlib
 import json
 import os
 import tempfile
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from PyQt6 import QtWidgets
 
@@ -119,13 +119,13 @@ class SceneFileManager:
         from ..objects import BaseObj, RectangleItem
         from ..objects.annotations import RulerItem, TextNoteItem
 
-        data = {
+        data: dict[str, Any] = {
             "version": "2.0",
-            "items": [],
-            "rulers": [],
-            "texts": [],
-            "rectangles": [],
-            "path_measures": [],
+            "items": [],  # type: ignore[assignment]
+            "rulers": [],  # type: ignore[assignment]
+            "texts": [],  # type: ignore[assignment]
+            "rectangles": [],  # type: ignore[assignment]
+            "path_measures": [],  # type: ignore[assignment]
         }
 
         for it in self.scene.items():

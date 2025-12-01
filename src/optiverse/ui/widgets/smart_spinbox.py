@@ -211,6 +211,8 @@ class SmartSpinBox(QtWidgets.QSpinBox):
             return
 
         line_edit = self.lineEdit()
+        if line_edit is None:
+            return
         text = line_edit.text()
 
         # Use the last known cursor position (from when user was editing)

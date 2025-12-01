@@ -31,9 +31,16 @@ class InterfacePropertiesWidget(QtWidgets.QWidget):
     ):
         super().__init__(parent)
         self.interfaces = interfaces
-        self._property_widgets: dict[int, dict[str, QtWidgets.QWidget]] = (
-            {}
-        )  # interface_index -> {prop_name -> widget}
+        self._property_widgets: dict[
+            int,
+            dict[
+                str,
+                QtWidgets.QCheckBox
+                | QtWidgets.QComboBox
+                | QtWidgets.QLineEdit
+                | SmartDoubleSpinBox,
+            ],
+        ] = {}  # interface_index -> {prop_name -> widget}
         self._updating = False
 
         self._setup_ui()
@@ -109,52 +116,52 @@ class InterfacePropertiesWidget(QtWidgets.QWidget):
                 form.addRow(label_text, widget)
 
             elif isinstance(value, (int, float)):
-                widget: QtWidgets.QWidget = SmartDoubleSpinBox()
+                spinbox_widget = SmartDoubleSpinBox()
                 min_val, max_val = interface_types.get_property_range(
                     interface.element_type, prop_name
                 )
-                if isinstance(widget, SmartDoubleSpinBox):
-                    widget.setRange(min_val, max_val)
-                    widget.setDecimals(3)
-                    if unit:
-                        widget.setSuffix(f" {unit}")
-                    widget.setValue(float(value))
-                    widget.valueChanged.connect(
-                        lambda val, i=idx, p=prop_name: self._on_property_changed(i, p, val)
-                    )
-                self._property_widgets[idx][prop_name] = widget
-                form.addRow(label_text, widget)
+                spinbox_widget.setRange(min_val, max_val)
+                spinbox_widget.setDecimals(3)
+                if unit:
+                    spinbox_widget.setSuffix(f" {unit}")
+                spinbox_widget.setValue(float(value))
+                spinbox_widget.valueChanged.connect(
+                    lambda val, i=idx, p=prop_name: self._on_property_changed(i, p, val)
+                )
+                self._property_widgets[idx][prop_name] = spinbox_widget
+                form.addRow(label_text, spinbox_widget)
 
             elif isinstance(value, str):
-                widget: QtWidgets.QWidget
                 if prop_name == "pass_type":
-                    widget = QtWidgets.QComboBox()
-                    widget.addItems(["longpass", "shortpass"])
-                    idx_combo = widget.findText(value)
+                    combo_widget = QtWidgets.QComboBox()
+                    combo_widget.addItems(["longpass", "shortpass"])
+                    idx_combo = combo_widget.findText(value)
                     if idx_combo >= 0:
-                        widget.setCurrentIndex(idx_combo)
-                    widget.currentTextChanged.connect(
+                        combo_widget.setCurrentIndex(idx_combo)
+                    combo_widget.currentTextChanged.connect(
                         lambda v, i=idx, p=prop_name: self._on_property_changed(i, p, v)
                     )
-                    self._property_widgets[idx][prop_name] = widget
+                    self._property_widgets[idx][prop_name] = combo_widget
+                    form.addRow(label_text, combo_widget)
                 elif prop_name == "polarizer_subtype":
                     # Dropdown for polarizer subtype
-                    widget = QtWidgets.QComboBox()
-                    widget.addItems(["waveplate", "linear_polarizer", "faraday_rotator"])
-                    idx_combo = widget.findText(value)
+                    combo_widget = QtWidgets.QComboBox()
+                    combo_widget.addItems(["waveplate", "linear_polarizer", "faraday_rotator"])
+                    idx_combo = combo_widget.findText(value)
                     if idx_combo >= 0:
-                        widget.setCurrentIndex(idx_combo)
-                    widget.currentTextChanged.connect(
+                        combo_widget.setCurrentIndex(idx_combo)
+                    combo_widget.currentTextChanged.connect(
                         lambda v, i=idx, p=prop_name: self._on_property_changed(i, p, v)
                     )
-                    self._property_widgets[idx][prop_name] = widget
+                    self._property_widgets[idx][prop_name] = combo_widget
+                    form.addRow(label_text, combo_widget)
                 else:
-                    widget = QtWidgets.QLineEdit(value)
-                    widget.textChanged.connect(
+                    lineedit_widget = QtWidgets.QLineEdit(value)
+                    lineedit_widget.textChanged.connect(
                         lambda v, i=idx, p=prop_name: self._on_property_changed(i, p, v)
                     )
-                    self._property_widgets[idx][prop_name] = widget
-                form.addRow(label_text, widget)
+                    self._property_widgets[idx][prop_name] = lineedit_widget
+                    form.addRow(label_text, lineedit_widget)
 
         return group
 

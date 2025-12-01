@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.zorder_utils import handle_z_order_from_menu
 
@@ -46,7 +46,7 @@ class BaseMeasureItem(QtWidgets.QGraphicsObject):
         cmd = PropertyChangeCommand(self, before_state, after_state)
         self.commandCreated.emit(cmd)
 
-    def _build_context_menu(self) -> tuple[QtWidgets.QMenu, dict[str, QtWidgets.QAction]]:
+    def _build_context_menu(self) -> tuple[QtWidgets.QMenu, dict[str, QtGui.QAction]]:
         """
         Build a standard context menu with delete and z-order options.
 
@@ -55,20 +55,30 @@ class BaseMeasureItem(QtWidgets.QGraphicsObject):
             to their QAction objects.
         """
         menu = QtWidgets.QMenu()
-        actions = {}
+        actions: dict[str, QtGui.QAction] = {}
 
-        actions["delete"] = menu.addAction("Delete")
+        action = menu.addAction("Delete")
+        if action is not None:
+            actions["delete"] = action
 
         menu.addSeparator()
-        actions["bring_to_front"] = menu.addAction("Bring to Front")
-        actions["bring_forward"] = menu.addAction("Bring Forward")
-        actions["send_backward"] = menu.addAction("Send Backward")
-        actions["send_to_back"] = menu.addAction("Send to Back")
+        action = menu.addAction("Bring to Front")
+        if action is not None:
+            actions["bring_to_front"] = action
+        action = menu.addAction("Bring Forward")
+        if action is not None:
+            actions["bring_forward"] = action
+        action = menu.addAction("Send Backward")
+        if action is not None:
+            actions["send_backward"] = action
+        action = menu.addAction("Send to Back")
+        if action is not None:
+            actions["send_to_back"] = action
 
         return menu, actions
 
     def _handle_context_menu_action(
-        self, selected_action: QtWidgets.QAction | None, actions: dict[str, QtWidgets.QAction]
+        self, selected_action: QtGui.QAction | None, actions: dict[str, QtGui.QAction]
     ) -> bool:
         """
         Handle a context menu action.

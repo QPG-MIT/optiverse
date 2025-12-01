@@ -45,15 +45,15 @@ class LineSegment:
 
     def midpoint(self) -> np.ndarray:
         """Calculate midpoint coordinates"""
-        return 0.5 * (self.p1 + self.p2)
+        return 0.5 * (self.p1 + self.p2)  # type: ignore[no-any-return]
 
     def direction(self) -> np.ndarray:
         """Get normalized direction vector from p1 to p2"""
         vec = self.p2 - self.p1
         length = np.linalg.norm(vec)
         if length < 1e-12:
-            return np.array([1.0, 0.0])
-        return vec / length
+            return np.array([1.0, 0.0])  # type: ignore[no-any-return]
+        return vec / length  # type: ignore[no-any-return]
 
     def normal(self) -> np.ndarray:
         """
@@ -67,10 +67,10 @@ class LineSegment:
         vec = self.p1 - self.p2
         length = np.linalg.norm(vec)
         if length < 1e-12:
-            return np.array([0.0, 1.0])
+            return np.array([0.0, 1.0])  # type: ignore[no-any-return]
         direction_reversed = vec / length
         # Rotate 90° counterclockwise: (x, y) -> (-y, x)
-        return np.array([-direction_reversed[1], direction_reversed[0]])
+        return np.array([-direction_reversed[1], direction_reversed[0]])  # type: ignore[no-any-return]
 
     def tangent(self) -> np.ndarray:
         """Get normalized tangent vector (same as direction)"""
@@ -136,10 +136,10 @@ class CurvedSegment:
             Center point [x, y] in mm
         """
         # Midpoint between endpoints
-        mid = 0.5 * (self.p1 + self.p2)
+        mid: np.ndarray = 0.5 * (self.p1 + self.p2)  # type: ignore[assignment]
 
         # Direction from p1 to p2
-        chord = self.p2 - self.p1
+        chord: np.ndarray = self.p2 - self.p1  # type: ignore[assignment]
         chord_length = np.linalg.norm(chord)
 
         if chord_length < 1e-9:
@@ -157,18 +157,16 @@ class CurvedSegment:
         if r < half_chord:
             # Radius too small for this chord length
             # Return midpoint (degenerate to line)
-            return mid
+            return mid  # type: ignore[no-any-return]
 
         d = math.sqrt(r**2 - half_chord**2)
 
         # Direction depends on sign of radius
         # Positive radius: center on one side, negative: other side
         if self.radius_of_curvature_mm > 0:
-            center = mid + d * perp
+            return mid + d * perp  # type: ignore[no-any-return]
         else:
-            center = mid - d * perp
-
-        return center
+            return mid - d * perp  # type: ignore[no-any-return]
 
     def length(self) -> float:
         """Calculate arc length in mm"""
@@ -193,7 +191,7 @@ class CurvedSegment:
         """Calculate midpoint of the arc (point at half the arc angle)"""
         # For simplicity, return chord midpoint
         # (true arc midpoint would be on the circle at half the arc angle)
-        return 0.5 * (self.p1 + self.p2)
+        return 0.5 * (self.p1 + self.p2)  # type: ignore[no-any-return]
 
     def direction(self) -> np.ndarray:
         """Get average direction (tangent at midpoint)"""
@@ -210,8 +208,8 @@ class CurvedSegment:
 
         length = np.linalg.norm(tangent)
         if length < 1e-12:
-            return np.array([1.0, 0.0])
-        return tangent / length
+            return np.array([1.0, 0.0])  # type: ignore[no-any-return]
+        return tangent / length  # type: ignore[no-any-return]
 
     def normal(self) -> np.ndarray:
         """
@@ -225,14 +223,14 @@ class CurvedSegment:
 
         length = np.linalg.norm(radial)
         if length < 1e-12:
-            return np.array([0.0, 1.0])
+            return np.array([0.0, 1.0])  # type: ignore[no-any-return]
 
         # Normal direction reversed to match flat surface convention
         # Normal points inward toward center (for positive radius)
         if self.radius_of_curvature_mm > 0:
-            return -radial / length
+            return -radial / length  # type: ignore[no-any-return]
         else:
-            return radial / length
+            return radial / length  # type: ignore[no-any-return]
 
     def normal_at_point(self, point: np.ndarray) -> np.ndarray:
         """
@@ -248,14 +246,14 @@ class CurvedSegment:
         length = np.linalg.norm(radial)
 
         if length < 1e-12:
-            return np.array([0.0, 1.0])
+            return np.array([0.0, 1.0])  # type: ignore[no-any-return]
 
         # Normal direction reversed to match flat surface convention
         # Normal points inward toward center (for positive radius)
         if self.radius_of_curvature_mm > 0:
-            return -radial / length
+            return -radial / length  # type: ignore[no-any-return]
         else:
-            return radial / length
+            return radial / length  # type: ignore[no-any-return]
 
     def tangent(self) -> np.ndarray:
         """Get average tangent vector (same as direction)"""
@@ -274,11 +272,11 @@ class CurvedSegment:
         normal = self.normal_at_point(point)
         # Tangent is perpendicular to normal
         # Rotate 90° counterclockwise
-        return np.array([-normal[1], normal[0]])
+        return np.array([-normal[1], normal[0]])  # type: ignore[no-any-return]
 
     def get_center(self) -> np.ndarray:
         """Get the center of curvature"""
-        return self._center
+        return self._center  # type: ignore[no-any-return]
 
     def get_radius(self) -> float:
         """Get the absolute radius of curvature"""

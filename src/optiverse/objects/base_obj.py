@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, cast
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -14,6 +14,7 @@ from ..core.ui_constants import (
     SPRITE_BOUNDS_PADDING_PX,
     SPRITE_SHAPE_PADDING_PX,
 )
+from ..core.undo_stack import UndoStack
 from .rotation_handler import (
     GroupRotationHandler,
     SingleItemRotationHandler,
@@ -34,6 +35,8 @@ class BaseObj(QtWidgets.QGraphicsObject):
     - Sprite helper methods for clickable sprites
     - Serialization interface
     """
+
+    type_name: str = "base_obj"  # For Serializable protocol
 
     edited = QtCore.pyqtSignal()
     commandCreated = QtCore.pyqtSignal(object)  # Emits Command objects for undo/redo
@@ -184,7 +187,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
         if sp is None or not sp.isVisible():
             return None
         # parent == this item ⇒ returned rect is in *item-local* coords
-        return sp.mapRectToParent(sp.boundingRect())
+        return cast(QtCore.QRectF, sp.mapRectToParent(sp.boundingRect()))
 
     def _shape_union_sprite(self, shape_path: QtGui.QPainterPath) -> QtGui.QPainterPath:
         """
@@ -224,11 +227,12 @@ class BaseObj(QtWidgets.QGraphicsObject):
                 return views[0].window()
         return QtWidgets.QApplication.activeWindow()
 
-    def _get_undo_stack(self) -> QtWidgets.QUndoStack | None:
+    def _get_undo_stack(self) -> UndoStack | None:
         """Get the undo stack from main window (for WheelRotationTracker)."""
-        if not self.scene():
+        scene = self.scene()
+        if scene is None:
             return None
-        views = self.scene().views()
+        views = scene.views()
         if not views:
             return None
         main_window = views[0].window()
@@ -236,8 +240,10 @@ class BaseObj(QtWidgets.QGraphicsObject):
             return main_window.undo_stack
         return None
 
-    def mousePressEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
+    def mousePressEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent | None):
         """Handle mouse press for rotation mode (Ctrl+drag) or normal drag."""
+        if ev is None:
+            return
         # If locked, ignore event so rubber band selection can work
         if self._locked:
             ev.ignore()
@@ -248,9 +254,10 @@ class BaseObj(QtWidgets.QGraphicsObject):
             mouse_pos = ev.scenePos()
 
             # Check if this is a group rotation
-            if self.scene():
+            scene = self.scene()
+            if scene is not None:
                 selected_items = [
-                    item for item in self.scene().selectedItems() if isinstance(item, BaseObj)
+                    item for item in scene.selectedItems() if isinstance(item, BaseObj)
                 ]
 
                 if len(selected_items) > 1:
@@ -276,8 +283,10 @@ class BaseObj(QtWidgets.QGraphicsObject):
             # Normal drag behavior
             super().mousePressEvent(ev)
 
-    def mouseMoveEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
+    def mouseMoveEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent | None):
         """Handle mouse move for rotation or normal drag."""
+        if ev is None:
+            return
         mouse_pos = ev.scenePos()
         snap_to_45 = bool(ev.modifiers() & QtCore.Qt.KeyboardModifier.ShiftModifier)
 
@@ -295,8 +304,10 @@ class BaseObj(QtWidgets.QGraphicsObject):
             # Normal drag behavior
             super().mouseMoveEvent(ev)
 
-    def mouseReleaseEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
+    def mouseReleaseEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent | None):
         """Handle mouse release to exit rotation mode."""
+        if ev is None:
+            return
         if self._group_rotation and self._group_rotation.is_rotating:
             self._group_rotation.finish_rotation()
             self._group_rotation = None
@@ -311,22 +322,25 @@ class BaseObj(QtWidgets.QGraphicsObject):
         else:
             super().mouseReleaseEvent(ev)
 
-    def wheelEvent(self, ev: QtWidgets.QGraphicsSceneWheelEvent):
+    def wheelEvent(self, ev: QtWidgets.QGraphicsSceneWheelEvent | None):
         """Ctrl + wheel → rotate element(s)."""
+        if ev is None:
+            return
         # Block rotation if locked
         if self._locked and (ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
             ev.ignore()
             return
 
         if self.isSelected() and (ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier):
-            dy = ev.angleDelta().y()
+            dy = ev.angleDelta().y()  # type: ignore[attr-defined]
             steps = dy / QT_WHEEL_ANGLE_DELTA_PER_STEP
             rotation_delta = WHEEL_ROTATION_DEGREES_PER_STEP * steps
 
             # Check if multiple items are selected for group rotation
-            if self.scene():
+            scene = self.scene()
+            if scene is not None:
                 selected_items = [
-                    item for item in self.scene().selectedItems() if isinstance(item, BaseObj)
+                    item for item in scene.selectedItems() if isinstance(item, BaseObj)
                 ]
 
                 # Track for undo
@@ -349,8 +363,10 @@ class BaseObj(QtWidgets.QGraphicsObject):
         else:
             ev.ignore()
 
-    def contextMenuEvent(self, ev: QtWidgets.QGraphicsSceneContextMenuEvent):
+    def contextMenuEvent(self, ev: QtWidgets.QGraphicsSceneContextMenuEvent | None):
         """Right-click context menu with Edit, Delete, Lock, and Z-Order options."""
+        if ev is None:
+            return
         m = QtWidgets.QMenu()
         act_edit = m.addAction("Edit…")
         act_delete = m.addAction("Delete")
@@ -358,11 +374,12 @@ class BaseObj(QtWidgets.QGraphicsObject):
         # Add Lock action (checkable)
         m.addSeparator()
         act_lock = m.addAction("Lock")
-        act_lock.setCheckable(True)
-        act_lock.setChecked(self._locked)
+        if act_lock is not None:
+            act_lock.setCheckable(True)
+            act_lock.setChecked(self._locked)
 
         # Disable delete if locked
-        if self._locked:
+        if self._locked and act_delete is not None:
             act_delete.setEnabled(False)
             act_delete.setToolTip("Item is locked")
 
@@ -376,10 +393,12 @@ class BaseObj(QtWidgets.QGraphicsObject):
         a = m.exec(ev.screenPos())
         if a == act_edit:
             self.open_editor()
-        elif a == act_lock:
+        elif a == act_lock and act_lock is not None:
             self.set_locked(act_lock.isChecked())
-        elif a == act_delete and self.scene() and not self._locked:
-            self.scene().removeItem(self)
+        elif a == act_delete and act_delete is not None:
+            scene = self.scene()
+            if scene is not None and not self._locked:
+                scene.removeItem(self)
         elif a in (act_bring_to_front, act_bring_forward, act_send_backward, act_send_to_back):
             # Handle z-order changes
             self._handle_z_order_action(
@@ -448,8 +467,11 @@ class BaseObj(QtWidgets.QGraphicsObject):
             "z_value": float(self.zValue()),
         }
         # Capture params if available (using protocol for type safety)
-        if isinstance(self, HasParams) and dataclasses.is_dataclass(self.params):
-            state["params"] = dataclasses.asdict(self.params)
+        if isinstance(self, HasParams) and hasattr(self, "params") and self.params is not None:
+            import dataclasses
+
+            if dataclasses.is_dataclass(self.params):
+                state["params"] = dataclasses.asdict(self.params)  # type: ignore[arg-type]
         return state
 
     def apply_state(self, state: dict[str, Any]) -> None:
@@ -500,6 +522,8 @@ class BaseObj(QtWidgets.QGraphicsObject):
         import copy
 
         # Deep copy the params to get all nested structures (interfaces, etc.)
+        if not isinstance(self, HasParams):
+            raise TypeError("clone() requires HasParams protocol")
         new_params = copy.deepcopy(self.params)
 
         # Apply position offset

@@ -32,15 +32,19 @@ class TextNoteItem(QtWidgets.QGraphicsTextItem):
         # Apply scale(1, -1) to flip text back to readable orientation
         self.setTransform(QtGui.QTransform.fromScale(1.0, -1.0))
 
-    def mouseDoubleClickEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent):
+    def mouseDoubleClickEvent(self, ev: QtWidgets.QGraphicsSceneMouseEvent | None):
+        if ev is None:
+            return
         self.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextEditorInteraction)
         super().mouseDoubleClickEvent(ev)
 
-    def focusOutEvent(self, ev: QtGui.QFocusEvent):
+    def focusOutEvent(self, ev: QtGui.QFocusEvent | None):
+        if ev is None:
+            return
         super().focusOutEvent(ev)
         self.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.NoTextInteraction)
 
-    def contextMenuEvent(self, ev: QtWidgets.QGraphicsSceneContextMenuEvent):
+    def contextMenuEvent(self, ev: QtWidgets.QGraphicsSceneContextMenuEvent | None):
         """Right-click context menu with Edit, Delete, and Z-Order options."""
         m = QtWidgets.QMenu()
         act_edit = m.addAction("Edit")
@@ -53,6 +57,8 @@ class TextNoteItem(QtWidgets.QGraphicsTextItem):
         act_send_backward = m.addAction("Send Backward")
         act_send_to_back = m.addAction("Send to Back")
 
+        if ev is None:
+            return
         a = m.exec(ev.screenPos())
         if a == act_edit:
             self.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextEditorInteraction)
@@ -60,8 +66,10 @@ class TextNoteItem(QtWidgets.QGraphicsTextItem):
             cursor.movePosition(QtGui.QTextCursor.MoveOperation.End)
             self.setTextCursor(cursor)
             self.setFocus()
-        elif a == act_del and self.scene():
-            self.scene().removeItem(self)
+        elif a == act_del:
+            scene = self.scene()
+            if scene is not None:
+                scene.removeItem(self)
         else:
             # Handle z-order actions via utility
             handle_z_order_from_menu(

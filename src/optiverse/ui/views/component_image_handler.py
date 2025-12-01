@@ -89,7 +89,11 @@ class ComponentImageHandler:
             True if image was pasted successfully, False otherwise
         """
         cb = QtWidgets.QApplication.clipboard()
+        if cb is None:
+            return False
         mime = cb.mimeData()
+        if mime is None:
+            return False
 
         # 1) Direct bitmap/SVG bytes
         pix = self._pixmap_from_mime(mime)
@@ -118,7 +122,10 @@ class ComponentImageHandler:
                                 return True
 
         # 3) Plain text path
-        text = cb.text().strip()
+        text = cb.text()
+        if text is None:
+            return False
+        text = text.strip()
         if text and os.path.exists(text) and text.lower().endswith(self.IMAGE_EXTENSIONS):
             if text.lower().endswith(".svg"):
                 from ...objects.views import MultiLineCanvas
@@ -163,7 +170,24 @@ class ComponentImageHandler:
             from ...objects.views import MultiLineCanvas
 
             svg_bytes = mime.data("image/svg+xml")
-            pix = MultiLineCanvas._render_svg_to_pixmap(bytes(svg_bytes))
+            if svg_bytes is None:
+                return None
+            # Convert QByteArray to bytes
+            if hasattr(svg_bytes, "data"):
+                svg_data_bytes = svg_bytes.data()
+                svg_data = bytes(svg_data_bytes) if svg_data_bytes is not None else b""
+            else:
+                # QByteArray can be converted directly
+                if hasattr(svg_bytes, "data") and svg_bytes.data() is not None:
+                    svg_data = bytes(svg_bytes.data())  # type: ignore[call-overload]
+                else:
+                    svg_data = b""
+            if svg_data:
+                pix = MultiLineCanvas._render_svg_to_pixmap(
+                    svg_data.decode("utf-8", errors="ignore")
+                )
+            else:
+                pix = None
             if pix:
                 return pix
 

@@ -239,16 +239,17 @@ class ImageCanvas(QtWidgets.QLabel):
                     path = url.toLocalFile()
                     low = path.lower()
                     if low.endswith((".png", ".jpg", ".jpeg", ".tif", ".tiff", ".svg")):
+                        pix_file: QtGui.QPixmap | None
                         if low.endswith(".svg") and HAVE_QTSVG:
-                            pix = self._render_svg_to_pixmap(path)
-                            if pix:
-                                self.imageDropped.emit(pix, path)
+                            pix_file = self._render_svg_to_pixmap(path)
+                            if pix_file is not None:
+                                self.imageDropped.emit(pix_file, path)
                                 e.acceptProposedAction()
                                 return
                         else:
-                            pix = QtGui.QPixmap(path)
-                            if not pix.isNull():
-                                self.imageDropped.emit(pix, path)
+                            pix_file = QtGui.QPixmap(path)
+                            if not pix_file.isNull():
+                                self.imageDropped.emit(pix_file, path)
                                 e.acceptProposedAction()
                                 return
         e.ignore()

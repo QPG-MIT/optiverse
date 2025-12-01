@@ -9,9 +9,10 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Callable
 
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtCore
 
 from ..core.constants import WHEEL_ROTATION_FINALIZE_DELAY_MS
+from ..core.undo_stack import UndoStack
 
 if TYPE_CHECKING:
     from .base_obj import BaseObj
@@ -242,7 +243,7 @@ class WheelRotationTracker:
     Batches multiple wheel events into a single undo command.
     """
 
-    def __init__(self, get_undo_stack: Callable[[], QtWidgets.QUndoStack | None]):
+    def __init__(self, get_undo_stack: Callable[[], UndoStack | None]):
         """
         Initialize tracker.
 

@@ -7,6 +7,7 @@ import os
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.models import ComponentRecord, deserialize_component, serialize_component
+from ...core.undo_commands import Command
 from ...core.undo_stack import UndoStack
 from ...objects.views import InterfaceLine, MultiLineCanvas
 from ...services.storage_service import StorageService
@@ -19,7 +20,7 @@ from .zemax_importer import ZemaxImporter
 _logger = logging.getLogger(__name__)
 
 
-class MoveInterfaceCommand(QtGui.QUndoCommand):
+class MoveInterfaceCommand(Command):
     """Undo command for moving one or more interfaces."""
 
     def __init__(
@@ -118,9 +119,12 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self._build_toolbar()
         self._build_shortcuts()
 
-        self.statusBar().showMessage(
-            "Load image, enter object height (mm), then click two points on the optical element."
-        )
+        status_bar = self.statusBar()
+        if status_bar is not None:
+            status_bar.showMessage(
+                "Load image, enter object height (mm), "
+                "then click two points on the optical element."
+            )
 
     # ---------- UI Building ----------
     def _build_toolbar(self):
@@ -464,14 +468,16 @@ class ComponentEditor(QtWidgets.QMainWindow):
 
         # Update status message based on number of interfaces
         num_interfaces = self.interface_panel.count()
-        if num_interfaces == 0:
-            self.statusBar().showMessage(
-                "Image loaded! Add interfaces using the 'Add Interface' button."
-            )
-        else:
-            self.statusBar().showMessage(
-                "Image loaded! Drag interface endpoints to align with your optical elements."
-            )
+        status_bar = self.statusBar()
+        if status_bar is not None:
+            if num_interfaces == 0:
+                status_bar.showMessage(
+                    "Image loaded! Add interfaces using the 'Add Interface' button."
+                )
+            else:
+                status_bar.showMessage(
+                    "Image loaded! Drag interface endpoints to align with your optical elements."
+                )
 
     def _new_component(self):
         """Reset to new component state (v2 system)."""
@@ -483,7 +489,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.notes.clear()
 
         # Status message
-        self.statusBar().showMessage("Ready. Load an image and add interfaces to begin.")
+        status_bar = self.statusBar()
+        if status_bar is not None:
+            status_bar.showMessage("Ready. Load an image and add interfaces to begin.")
 
     # ---------- Canvas/Interface Synchronization ----------
 
@@ -505,6 +513,8 @@ class ComponentEditor(QtWidgets.QMainWindow):
 
     def _get_simple_component_color(self) -> QtGui.QColor:
         """Get color for simple component types."""
+        if not hasattr(self, "kind_combo") or self.kind_combo is None:
+            return QtGui.QColor(150, 150, 150)  # Default gray
         kind = self.kind_combo.currentText()
         colors = {
             "lens": QtGui.QColor(0, 180, 180),  # Cyan
@@ -661,7 +671,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
         if component:
             self._load_component_record(component)
             num_interfaces = len(component.interfaces) if component.interfaces else 0
-            self.statusBar().showMessage(f"Imported {num_interfaces} interfaces from Zemax")
+            status_bar = self.statusBar()
+            if status_bar is not None:
+                status_bar.showMessage(f"Imported {num_interfaces} interfaces from Zemax")
 
     def _load_component_record(self, component: ComponentRecord):
         """Load a ComponentRecord into the editor."""
@@ -682,9 +694,11 @@ class ComponentEditor(QtWidgets.QMainWindow):
             self._sync_interfaces_to_canvas()
 
             # Update status
-            self.statusBar().showMessage(
-                f"Loaded component with {len(component.interfaces)} interface(s)"
-            )
+            status_bar = self.statusBar()
+            if status_bar is not None:
+                status_bar.showMessage(
+                    f"Loaded component with {len(component.interfaces)} interface(s)"
+                )
 
     def paste_image(self):
         """Paste image from clipboard (delegated to image_handler)."""
@@ -760,11 +774,23 @@ class ComponentEditor(QtWidgets.QMainWindow):
             return
         payload = json.dumps(serialize_component(rec, self.storage.settings_service), indent=2)
         QtWidgets.QApplication.clipboard().setText(payload)
-        self.statusBar().showMessage("Component JSON copied to clipboard.", 2000)
+        status_bar = self.statusBar()
+        if status_bar is not None:
+            status_bar.showMessage("Component JSON copied to clipboard.", 2000)
 
     def paste_component_json(self):
         """Paste component from JSON."""
-        text = QtWidgets.QApplication.clipboard().text().strip()
+        clipboard = QtWidgets.QApplication.clipboard()
+        if clipboard is None:
+            QtWidgets.QMessageBox.information(
+                self, "Paste Component JSON", "Clipboard is not available."
+            )
+            return
+        text = clipboard.text()
+        if text is None:
+            QtWidgets.QMessageBox.information(self, "Paste Component JSON", "Clipboard is empty.")
+            return
+        text = text.strip()
         if not text:
             QtWidgets.QMessageBox.information(self, "Paste Component JSON", "Clipboard is empty.")
             return
@@ -776,7 +802,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
             return
 
         self._load_from_dict(data)
-        self.statusBar().showMessage("Component JSON pasted.", 2000)
+        status_bar = self.statusBar()
+        if status_bar is not None:
+            status_bar.showMessage("Component JSON pasted.", 2000)
 
     # ---------- Library ----------
     def _refresh_library_list(self):

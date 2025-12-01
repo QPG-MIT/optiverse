@@ -110,9 +110,9 @@ class MultiLineCanvas(QtWidgets.QLabel):
         self._dragging_point: int = 0  # 1 for start point, 2 for end point
         self._dragging_entire_lines: bool = False  # True when dragging whole line(s)
         self._drag_start_pos: QtCore.QPointF | None = None  # Initial drag position
-        self._drag_initial_lines: list[tuple[float, float, float, float]] = (
-            []
-        )  # Initial line positions
+        self._drag_initial_lines: list[
+            tuple[float, float, float, float]
+        ] = []  # Initial line positions
         self._drag_moved_indices: list[int] = []  # Indices of lines that were moved (for undo)
         self._hover_line: int = -1  # Line being hovered
         self._hover_point: int = 0  # Point being hovered (1 or 2)
@@ -660,10 +660,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
             # Start dragging entire line(s)
             self._dragging_entire_lines = True
             pos = e.pos()
-            if hasattr(e.pos(), "toPointF"):
-                self._drag_start_pos = QtCore.QPointF(pos.x(), pos.y()).toPointF()
-            else:
-                self._drag_start_pos = QtCore.QPointF(e.pos())
+            self._drag_start_pos = QtCore.QPointF(pos.x(), pos.y())
 
             # Store initial positions of all selected lines for undo
             self._drag_initial_lines.clear()
@@ -869,13 +866,14 @@ class MultiLineCanvas(QtWidgets.QLabel):
             if img_data is not None:
                 img = QtGui.QImage(img_data)
                 if not img.isNull():
-                    pix = QtGui.QPixmap.fromImage(img)
-                    self.imageDropped.emit(pix, "")
+                    pix_img = QtGui.QPixmap.fromImage(img)
+                    self.imageDropped.emit(pix_img, "")
         elif md.hasUrls():
             urls = md.urls()
             if urls:
                 path = urls[0].toLocalFile()
                 if path.lower().endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif", ".svg")):
+                    pix: QtGui.QPixmap | None
                     if path.lower().endswith(".svg") and HAVE_QTSVG:
                         pix = self._render_svg_to_pixmap(path)
                     else:

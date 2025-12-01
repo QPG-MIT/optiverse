@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -85,9 +86,11 @@ class GraphicsView(QtWidgets.QGraphicsView):
 
         # Enable gesture support for Mac trackpad
         if is_macos():
-            self.viewport().setAttribute(QtCore.Qt.WidgetAttribute.WA_AcceptTouchEvents, True)
-            self.viewport().grabGesture(QtCore.Qt.GestureType.PinchGesture)
-            self.viewport().grabGesture(QtCore.Qt.GestureType.PanGesture)
+            viewport = self.viewport()
+            if viewport is not None:
+                viewport.setAttribute(QtCore.Qt.WidgetAttribute.WA_AcceptTouchEvents, True)
+                viewport.grabGesture(QtCore.Qt.GestureType.PinchGesture)
+                viewport.grabGesture(QtCore.Qt.GestureType.PanGesture)
 
         # scale bar prefs
         self._sb_len_px = 120
@@ -135,7 +138,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
     def set_dark_mode(self, enabled: bool):
         """Set dark mode on/off."""
         self._dark_mode = enabled
-        self.viewport().update()
+        viewport = self.viewport()
+        if viewport is not None:
+            viewport.update()
 
     def is_dark_mode(self) -> bool:
         """Check if dark mode is enabled."""
@@ -160,13 +165,15 @@ class GraphicsView(QtWidgets.QGraphicsView):
         )
         QtWidgets.QApplication.sendEvent(self.viewport(), move_event)
 
-    def wheelEvent(self, e: QtGui.QWheelEvent):
+    def wheelEvent(self, e: QtGui.QWheelEvent | None):
         """Handle wheel events including Mac trackpad scrolling.
 
         Mac trackpads send:
         - pixelDelta() for smooth scrolling gestures (two-finger scroll)
         - angleDelta() for traditional wheel events
         """
+        if e is None:
+            return
         # Check for pixel-based scrolling (Mac trackpad two-finger scroll)
         pixel_delta = e.pixelDelta()
         angle_delta = e.angleDelta()
@@ -191,7 +198,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
 
                     self.zoomChanged.emit()
                     # Force viewport update for clean grid rendering
-                    self.viewport().update()
+                    viewport = self.viewport()
+                    if viewport is not None:
+                        viewport.update()
                     # Sync ray overlay transform
                     self._update_ray_gl_transform()
                     e.accept()
@@ -201,10 +210,14 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 # Use scrollbars for smooth panning
                 h_bar = self.horizontalScrollBar()
                 v_bar = self.verticalScrollBar()
-                h_bar.setValue(h_bar.value() - pixel_delta.x())
-                v_bar.setValue(v_bar.value() - pixel_delta.y())
+                if h_bar is not None:
+                    h_bar.setValue(h_bar.value() - pixel_delta.x())
+                if v_bar is not None:
+                    v_bar.setValue(v_bar.value() - pixel_delta.y())
                 # Force full viewport update to ensure grid redraws cleanly
-                self.viewport().update()
+                viewport = self.viewport()
+            if viewport is not None:
+                viewport.update()
                 e.accept()
                 return
 
@@ -220,7 +233,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 self._zoom_at_point(cursor_pos, factor)
 
                 self.zoomChanged.emit()
-                self.viewport().update()
+                viewport = self.viewport()
+            if viewport is not None:
+                viewport.update()
                 # Sync ray overlay transform
                 self._update_ray_gl_transform()
                 e.accept()
@@ -251,27 +266,41 @@ class GraphicsView(QtWidgets.QGraphicsView):
         # This keeps the scene point under the mouse cursor
         h_bar = self.horizontalScrollBar()
         v_bar = self.verticalScrollBar()
-        h_bar.setValue(h_bar.value() + delta.x())
-        v_bar.setValue(v_bar.value() + delta.y())
+        if h_bar is not None:
+            h_bar.setValue(h_bar.value() + delta.x())
+        if v_bar is not None:
+            v_bar.setValue(v_bar.value() + delta.y())
 
-    def resizeEvent(self, e: QtGui.QResizeEvent):
+    def resizeEvent(self, e: QtGui.QResizeEvent | None):
+        if e is None:
+            return
         super().resizeEvent(e)
         self.zoomChanged.emit()
-        self.viewport().update()
+        viewport = self.viewport()
+        if viewport is not None:
+            viewport.update()
         # Resize and sync ray overlay
         if self._ray_gl_widget is not None:
-            self._ray_gl_widget.setGeometry(self.viewport().rect())
+            viewport = self.viewport()
+            if viewport is not None:
+                self._ray_gl_widget.setGeometry(viewport.rect())
             self._update_ray_gl_transform()
 
-    def viewportEvent(self, event: QtCore.QEvent) -> bool:
+    def viewportEvent(self, event: QtCore.QEvent | None) -> bool:
         """Handle gesture events for Mac trackpad support."""
+        if event is None:
+            return super().viewportEvent(event)
         if event.type() == QtCore.QEvent.Type.Gesture:
             return self._handle_gesture_event(event)
         return super().viewportEvent(event)
 
-    def _handle_gesture_event(self, event: QtGui.QGestureEvent) -> bool:
+    def _handle_gesture_event(self, event: QtCore.QEvent) -> bool:
         """Process pinch and pan gestures from Mac trackpad."""
-        pinch = event.gesture(QtCore.Qt.GestureType.PinchGesture)
+        # Access gesture through QGestureEvent methods if available
+        # QGestureEvent is a subclass of QEvent, so we can access gesture() method
+        if not hasattr(event, "gesture"):
+            return False
+        pinch = event.gesture(QtCore.Qt.GestureType.PinchGesture)  # type: ignore[attr-defined]
         if pinch:
             return self._handle_pinch_gesture(pinch)
 
@@ -314,25 +343,33 @@ class GraphicsView(QtWidgets.QGraphicsView):
             # Use scrollbars instead of translate() to avoid transform matrix corruption
             h_bar = self.horizontalScrollBar()
             v_bar = self.verticalScrollBar()
-            h_bar.setValue(h_bar.value() + int(delta.x()))
-            v_bar.setValue(v_bar.value() + int(delta.y()))
+            if h_bar is not None:
+                h_bar.setValue(h_bar.value() + int(delta.x()))
+            if v_bar is not None:
+                v_bar.setValue(v_bar.value() + int(delta.y()))
 
             self.zoomChanged.emit()
             # Force viewport update for clean grid rendering
-            self.viewport().update()
+            viewport = self.viewport()
+            if viewport is not None:
+                viewport.update()
             # Sync ray overlay transform
             self._update_ray_gl_transform()
 
         elif state == QtCore.Qt.GestureState.GestureFinished:
             # Final update
-            self.viewport().update()
+            viewport = self.viewport()
+            if viewport is not None:
+                viewport.update()
             # Sync ray overlay transform
             self._update_ray_gl_transform()
 
         return True
 
-    def drawBackground(self, painter: QtGui.QPainter, rect: QtCore.QRectF):
+    def drawBackground(self, painter: QtGui.QPainter | None, rect: QtCore.QRectF):
         """Draw grid in background (MUCH faster than QGraphicsItems!)."""
+        if painter is None:
+            return
         super().drawBackground(painter, rect)
 
         # Draw background color
@@ -342,7 +379,10 @@ class GraphicsView(QtWidgets.QGraphicsView):
             painter.fillRect(rect, QtGui.QColor(255, 255, 255))  # White background
 
         # Get visible area in scene coordinates (normalize for Y-up flip)
-        visible_rect = self.mapToScene(self.viewport().rect()).boundingRect()
+        viewport = self.viewport()
+        if viewport is None:
+            return
+        visible_rect = self.mapToScene(viewport.rect()).boundingRect()
 
         # Add small margin
         margin = 500  # Reduced margin for better performance
@@ -466,7 +506,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
 
         painter.restore()
 
-    def drawForeground(self, painter: QtGui.QPainter, rect: QtCore.QRectF):
+    def drawForeground(self, painter: QtGui.QPainter | None, rect: QtCore.QRectF):
+        if painter is None:
+            return
         # Draw snap alignment guides first (in scene coordinates)
         if self._snap_guides:
             painter.save()
@@ -477,7 +519,11 @@ class GraphicsView(QtWidgets.QGraphicsView):
             pen.setStyle(QtCore.Qt.PenStyle.DashLine)
             painter.setPen(pen)
 
-            visible_rect = self.mapToScene(self.viewport().rect()).boundingRect()
+            viewport = self.viewport()
+            if viewport is None:
+                painter.restore()
+                return
+            visible_rect = self.mapToScene(viewport.rect()).boundingRect()
 
             for guide_type, coord in self._snap_guides:
                 if guide_type == "horizontal":
@@ -499,7 +545,10 @@ class GraphicsView(QtWidgets.QGraphicsView):
         painter.save()
         painter.resetTransform()
 
-        vsize = self.viewport().size()
+        viewport = self.viewport()
+        if viewport is None:
+            return
+        vsize = viewport.size()
         box_w = self._sb_len_px + 70
         box_h = self._sb_height_px + 22
         x0 = self._sb_margin_px
@@ -548,13 +597,17 @@ class GraphicsView(QtWidgets.QGraphicsView):
                         e.g., [("horizontal", 100.0), ("vertical", 200.0)]
         """
         self._snap_guides = guide_lines
-        self.viewport().update()
+        viewport = self.viewport()
+        if viewport is not None:
+            viewport.update()
 
     def clear_snap_guides(self):
         """Clear all alignment guide lines."""
         if self._snap_guides:
             self._snap_guides = []
-            self.viewport().update()
+            viewport = self.viewport()
+            if viewport is not None:
+                viewport.update()
 
     # ----- Ghost Preview Methods (Phase 1.1) -----
     def _clear_ghost(self):
@@ -562,8 +615,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
         if self._ghost_item is not None:
             try:
                 # The ghost is owned by the scene; remove it safely
-                if self._ghost_item.scene() is not None:
-                    self.scene().removeItem(self._ghost_item)
+                scene = self.scene()
+                if scene is not None and self._ghost_item.scene() is not None:
+                    scene.removeItem(self._ghost_item)
             except RuntimeError:
                 pass  # Item may already be removed from scene
         self._ghost_item = None
@@ -598,16 +652,24 @@ class GraphicsView(QtWidgets.QGraphicsView):
         item.setZValue(9999)  # Render on top
 
         # Add to scene
-        self.scene().addItem(item)
+        scene = self.scene()
+        if scene is not None:
+            scene.addItem(item)
         self._ghost_item = item
         self._ghost_rec = dict(rec)  # Keep a copy for later use
 
         # Force viewport update to ensure ghost is visible
-        self.viewport().update()
+        viewport = self.viewport()
+        if viewport is not None:
+            viewport.update()
 
     # ----- drag & drop (images and components) -----
-    def dragEnterEvent(self, e: QtGui.QDragEnterEvent):
+    def dragEnterEvent(self, e: QtGui.QDragEnterEvent | None):
+        if e is None:
+            return
         md = e.mimeData()
+        if md is None:
+            return
         if md.hasFormat(MIME_OPTICS_COMPONENT):
             # Temporarily disable transformation anchor to prevent zoom issues during drag
             # Save current anchor and switch to NoAnchor during drag operation
@@ -618,9 +680,14 @@ class GraphicsView(QtWidgets.QGraphicsView):
             try:
                 import json
 
-                rec = json.loads(bytes(md.data(MIME_OPTICS_COMPONENT)).decode("utf-8"))
+                data = md.data(MIME_OPTICS_COMPONENT)
+                if data is None:
+                    return
+                rec = json.loads(cast(bytes, data).decode("utf-8"))
                 self._clear_ghost()
-                self._make_ghost(rec, self.mapToScene(e.position().toPoint()))
+                pos = e.position()
+                if pos is not None:
+                    self._make_ghost(rec, self.mapToScene(pos.toPoint()))
             except (json.JSONDecodeError, KeyError, ValueError) as ex:
                 # Log error for debugging
                 _logger.warning("Ghost preview error: %s", ex, exc_info=True)
@@ -631,39 +698,63 @@ class GraphicsView(QtWidgets.QGraphicsView):
             self.setTransformationAnchor(self.ViewportAnchor.NoAnchor)
             e.acceptProposedAction()
 
-    def dragMoveEvent(self, e: QtGui.QDragMoveEvent):
+    def dragMoveEvent(self, e: QtGui.QDragMoveEvent | None):
+        if e is None:
+            return
         md = e.mimeData()
+        if md is None:
+            return
         if md.hasFormat(MIME_OPTICS_COMPONENT):
             # Move the ghost with the pointer; if it doesn't exist yet, (re)create it
             try:
                 if self._ghost_item is None:
                     import json
 
-                    rec = json.loads(bytes(md.data(MIME_OPTICS_COMPONENT)).decode("utf-8"))
-                    self._make_ghost(rec, self.mapToScene(e.position().toPoint()))
+                    data = md.data(MIME_OPTICS_COMPONENT)
+                    if data is None:
+                        return
+                    rec = json.loads(cast(bytes, data).decode("utf-8"))
+                    pos = e.position()
+                    if pos is not None:
+                        self._make_ghost(rec, self.mapToScene(pos.toPoint()))
                 else:
-                    self._ghost_item.setPos(self.mapToScene(e.position().toPoint()))
-                    self.viewport().update()  # Force redraw as ghost moves
+                    pos = e.position()
+                    if pos is not None:
+                        self._ghost_item.setPos(self.mapToScene(pos.toPoint()))
+                    viewport = self.viewport()
+                    if viewport is not None:
+                        viewport.update()  # Force redraw as ghost moves
             except (json.JSONDecodeError, KeyError, ValueError) as ex:
                 _logger.warning("Ghost move error: %s", ex)
             e.acceptProposedAction()
         elif md.hasImage() or md.hasUrls():
             e.acceptProposedAction()
 
-    def dragLeaveEvent(self, e: QtGui.QDragLeaveEvent):
+    def dragLeaveEvent(self, e: QtGui.QDragLeaveEvent | None):
         """Clear ghost when drag leaves the view."""
+        if e is None:
+            return
         self._clear_ghost()
         self._restore_drag_state()
         e.accept()
 
-    def dropEvent(self, e: QtGui.QDropEvent):
+    def dropEvent(self, e: QtGui.QDropEvent | None):
+        if e is None:
+            return
         with ErrorContext("while dropping component", show_dialog=False, suppress=True):
             scene = self.scene()
             if scene is None:
                 e.ignore()
                 return
             md = e.mimeData()
-            pos_view = e.position().toPoint()
+            if md is None:
+                e.ignore()
+                return
+            pos = e.position()
+            if pos is None:
+                e.ignore()
+                return
+            pos_view = pos.toPoint()
             scene_pos = self.mapToScene(pos_view)
 
             # Component from library
@@ -672,7 +763,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
 
                 data = md.data(MIME_OPTICS_COMPONENT)
                 try:
-                    rec = json.loads(bytes(data).decode("utf-8"))
+                    rec = json.loads(cast(bytes, data).decode("utf-8"))
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     e.ignore()
                     return
@@ -687,8 +778,12 @@ class GraphicsView(QtWidgets.QGraphicsView):
             return
 
         # Direct image
-        if md.hasImage():
-            img = md.imageData()
+        if md is not None and md.hasImage():
+            img_data = md.imageData()
+            if img_data is None:
+                e.ignore()
+                return
+            img = img_data
             if isinstance(img, QtGui.QImage):
                 pix = QtGui.QPixmap.fromImage(img)
             elif isinstance(img, QtGui.QPixmap):
@@ -704,8 +799,12 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 return
 
         # File URLs
-        if md.hasUrls():
-            for url in md.urls():
+        if md is not None and md.hasUrls():
+            urls = md.urls()
+            if urls is None:
+                e.ignore()
+                return
+            for url in urls:
                 if url.isLocalFile():
                     path = url.toLocalFile()
                     if path.lower().endswith((".png", ".jpg", ".jpeg", ".tif", ".tiff")):
@@ -725,12 +824,14 @@ class GraphicsView(QtWidgets.QGraphicsView):
         e.ignore()
 
     # ----- Pan Controls (Phase 3.1: Space + Middle Button) -----
-    def keyPressEvent(self, e: QtGui.QKeyEvent):
+    def keyPressEvent(self, e: QtGui.QKeyEvent | None):
         """Handle key press for pan mode (Space key).
 
         Note: We must check for modifier keys (Ctrl, Shift, etc.) to avoid
         intercepting keyboard shortcuts like Ctrl+C, Ctrl+V, etc.
         """
+        if e is None:
+            return
         # Don't handle key events with modifiers - let them propagate for shortcuts
         if e.modifiers() not in (
             QtCore.Qt.KeyboardModifier.NoModifier,
@@ -743,14 +844,18 @@ class GraphicsView(QtWidgets.QGraphicsView):
             # Zoom in
             self.scale(1.15, 1.15)
             self.zoomChanged.emit()
-            self.viewport().update()
+            viewport = self.viewport()
+            if viewport is not None:
+                viewport.update()
             e.accept()
             return
         if e.key() in (QtCore.Qt.Key.Key_Minus, QtCore.Qt.Key.Key_Underscore):
             # Zoom out
             self.scale(1 / 1.15, 1 / 1.15)
             self.zoomChanged.emit()
-            self.viewport().update()
+            viewport = self.viewport()
+            if viewport is not None:
+                viewport.update()
             e.accept()
             return
 
@@ -760,13 +865,17 @@ class GraphicsView(QtWidgets.QGraphicsView):
         # Let parent handle all other keys (including shortcuts)
         super().keyPressEvent(e)
 
-    def keyReleaseEvent(self, e: QtGui.QKeyEvent):
+    def keyReleaseEvent(self, e: QtGui.QKeyEvent | None):
         """Handle key release events."""
+        if e is None:
+            return
         # Note: Space key pan mode removed to avoid conflict with retrace shortcut
         super().keyReleaseEvent(e)
 
-    def mousePressEvent(self, e: QtGui.QMouseEvent):
+    def mousePressEvent(self, e: QtGui.QMouseEvent | None):
         """Handle middle button press for pan mode."""
+        if e is None:
+            return
         if e.button() == QtCore.Qt.MouseButton.MiddleButton:
             # Middle button → drag to pan
             # Switch to NoAnchor for better panning (AnchorUnderMouse causes issues at low zoom)
@@ -784,8 +893,10 @@ class GraphicsView(QtWidgets.QGraphicsView):
         else:
             super().mousePressEvent(e)
 
-    def mouseReleaseEvent(self, e: QtGui.QMouseEvent):
+    def mouseReleaseEvent(self, e: QtGui.QMouseEvent | None):
         """Handle middle button release to exit pan mode."""
+        if e is None:
+            return
         if e.button() == QtCore.Qt.MouseButton.MiddleButton:
             # Create fake left button release
             fake = QtGui.QMouseEvent(

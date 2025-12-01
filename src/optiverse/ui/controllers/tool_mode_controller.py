@@ -50,20 +50,20 @@ class ToolModeController(QtCore.QObject):
         self._placement_handler = placement_handler
 
         # Action references (set by MainWindow after initialization)
-        self._action_inspect: QtWidgets.QAction | None = None
-        self._action_measure_path: QtWidgets.QAction | None = None
-        self._action_measure_angle: QtWidgets.QAction | None = None
-        self._placement_actions: dict[ComponentType, QtWidgets.QAction] = {}
+        self._action_inspect: QtGui.QAction | None = None
+        self._action_measure_path: QtGui.QAction | None = None
+        self._action_measure_angle: QtGui.QAction | None = None
+        self._placement_actions: dict[ComponentType, QtGui.QAction] = {}
 
-    def set_action_inspect(self, action: QtWidgets.QAction):
+    def set_action_inspect(self, action: QtGui.QAction):
         """Set the inspect action for unchecking."""
         self._action_inspect = action
 
-    def set_action_measure_path(self, action: QtWidgets.QAction):
+    def set_action_measure_path(self, action: QtGui.QAction):
         """Set the measure path action for unchecking."""
         self._action_measure_path = action
 
-    def set_action_measure_angle(self, action: QtWidgets.QAction):
+    def set_action_measure_angle(self, action: QtGui.QAction):
         """Set the measure angle action for unchecking."""
         self._action_measure_angle = action
 
@@ -84,7 +84,7 @@ class ToolModeController(QtCore.QObject):
 
         self.angleMeasureModeChanged.emit(on)
 
-    def set_placement_actions(self, actions: dict[ComponentType, QtWidgets.QAction]):
+    def set_placement_actions(self, actions: dict[ComponentType, QtGui.QAction]):
         """Set placement actions for unchecking."""
         self._placement_actions = actions
 

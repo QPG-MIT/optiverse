@@ -57,7 +57,7 @@ class StorageService:
 
     def _iter_component_folders(self) -> list[Path]:
         """Find all component folders in the library."""
-        if not self._library_root.exists():
+        if self._library_root is None or not self._library_root.exists():
             return []
 
         folders = []
@@ -131,6 +131,8 @@ class StorageService:
             rec: ComponentRecord to save
         """
         # Generate folder name from component name
+        if self._library_root is None:
+            raise ValueError("Library root is not set")
         folder_name = slugify(rec.name)
         component_folder = self._library_root / folder_name
         component_folder.mkdir(parents=True, exist_ok=True)
@@ -200,6 +202,8 @@ class StorageService:
         Returns:
             True if deleted, False if not found
         """
+        if self._library_root is None:
+            return False
         folder_name = slugify(name)
         component_folder = self._library_root / folder_name
 
@@ -219,6 +223,8 @@ class StorageService:
         Returns:
             Component dictionary if found, None otherwise
         """
+        if self._library_root is None:
+            return None
         folder_name = slugify(name)
         component_folder = self._library_root / folder_name
         json_path = component_folder / "component.json"
@@ -236,7 +242,7 @@ class StorageService:
                 abs_image_path = (component_folder / image_path).resolve()
                 data["image_path"] = str(abs_image_path)
 
-            return data
+            return data  # type: ignore[no-any-return]
         except (json.JSONDecodeError, OSError, KeyError) as e:
             raise ComponentLoadError(str(json_path), str(e)) from e
 
@@ -251,6 +257,8 @@ class StorageService:
         Returns:
             True if successful, False otherwise
         """
+        if self._library_root is None:
+            return False
         folder_name = slugify(name)
         component_folder = self._library_root / folder_name
 
@@ -301,6 +309,8 @@ class StorageService:
             if not component_name:
                 return False
 
+            if self._library_root is None:
+                return False
             folder_name = slugify(component_name)
             dest_folder = self._library_root / folder_name
 
@@ -350,6 +360,8 @@ class StorageService:
 
     def get_library_root(self) -> Path:
         """Get the library root directory."""
+        if self._library_root is None:
+            raise ValueError("Library root is not set")
         return self._library_root
 
     def get_all_library_roots(self) -> list[Path]:

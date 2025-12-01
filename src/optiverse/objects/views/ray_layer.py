@@ -10,8 +10,12 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import TYPE_CHECKING
 
 from PyQt6 import QtCore, QtGui, QtWidgets
+
+if TYPE_CHECKING:
+    from optiverse.raytracing.ray import RayPath
 
 _logger = logging.getLogger(__name__)
 
@@ -21,7 +25,7 @@ class DebugRayPathItem(QtWidgets.QGraphicsPathItem):
 
     paint_count = 0
     total_paint_time = 0.0
-    paint_times = []
+    paint_times: list[float] = []
 
     def __init__(self, path):
         super().__init__(path)
@@ -116,14 +120,15 @@ class CachedRayLayer(QtWidgets.QGraphicsItemGroup):
         # Clear existing ray items
         for child in self.childItems():
             self.removeFromGroup(child)
-            if child.scene():
-                child.scene().removeItem(child)
+            scene = child.scene()
+            if scene is not None:
+                scene.removeItem(child)
 
         if not ray_paths:
             return
 
         # Group rays by visual style (color + width)
-        style_groups = {}
+        style_groups: dict[tuple[int, int, int, int, float], list[RayPath]] = {}
         for ray_path in ray_paths:
             if len(ray_path.points) < 2:
                 continue

@@ -6,11 +6,13 @@ Extracts eventFilter and keyPressEvent logic from MainWindow.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, cast
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 if TYPE_CHECKING:
+    from PyQt6.QtGui import QAction
+
     from ...core.editor_state import EditorState
     from ..controllers.item_drag_handler import ItemDragHandler
     from .placement_handler import PlacementHandler
@@ -36,9 +38,9 @@ class SceneEventHandler(QtCore.QObject):
         ruler_handler: RulerPlacementHandler,
         drag_handler: ItemDragHandler,
         cancel_placement_mode: Callable[[], None],
-        get_inspect_action: Callable[[], QtWidgets.QAction],
-        get_path_measure_action: Callable[[], QtWidgets.QAction],
-        get_angle_measure_action: Callable[[], QtWidgets.QAction],
+        get_inspect_action: Callable[[], QAction],
+        get_path_measure_action: Callable[[], QAction],
+        get_angle_measure_action: Callable[[], QAction],
         parent: QtCore.QObject | None = None,
     ):
         """
@@ -89,13 +91,13 @@ class SceneEventHandler(QtCore.QObject):
         # --- Component placement mode ---
         if self._placement_handler.is_active:
             if et == QtCore.QEvent.Type.GraphicsSceneMouseMove:
-                mev = ev  # QGraphicsSceneMouseEvent
+                mev = cast(QtWidgets.QGraphicsSceneMouseEvent, ev)
                 scene_pt = mev.scenePos()
                 self._placement_handler.handle_mouse_move(scene_pt)
                 return True
 
             elif et == QtCore.QEvent.Type.GraphicsSceneMousePress:
-                mev = ev  # QGraphicsSceneMouseEvent
+                mev = cast(QtWidgets.QGraphicsSceneMouseEvent, ev)
                 scene_pt = mev.scenePos()
 
                 if mev.button() == QtCore.Qt.MouseButton.LeftButton:
@@ -108,7 +110,7 @@ class SceneEventHandler(QtCore.QObject):
 
         # --- Inspect tool ---
         if self._editor_state.is_inspect and et == QtCore.QEvent.Type.GraphicsSceneMousePress:
-            mev = ev  # QGraphicsSceneMouseEvent
+            mev = cast(QtWidgets.QGraphicsSceneMouseEvent, ev)
             if mev.button() == QtCore.Qt.MouseButton.LeftButton:
                 scene_pt = mev.scenePos()
                 self._inspect_handler.handle_click(scene_pt)
@@ -116,7 +118,7 @@ class SceneEventHandler(QtCore.QObject):
 
         # --- Path Measure tool ---
         if self._editor_state.is_path_measure and et == QtCore.QEvent.Type.GraphicsSceneMousePress:
-            mev = ev  # QGraphicsSceneMouseEvent
+            mev = cast(QtWidgets.QGraphicsSceneMouseEvent, ev)
             if mev.button() == QtCore.Qt.MouseButton.LeftButton:
                 scene_pt = mev.scenePos()
                 self._path_measure_handler.handle_click(scene_pt)
@@ -125,13 +127,13 @@ class SceneEventHandler(QtCore.QObject):
         # --- Angle Measure tool ---
         if self._editor_state.is_angle_measure:
             if et == QtCore.QEvent.Type.GraphicsSceneMousePress:
-                mev = ev  # QGraphicsSceneMouseEvent
+                mev = cast(QtWidgets.QGraphicsSceneMouseEvent, ev)
                 if mev.button() == QtCore.Qt.MouseButton.LeftButton:
                     scene_pt = mev.scenePos()
                     self._angle_measure_handler.handle_click(scene_pt)
                     return True
             elif et == QtCore.QEvent.Type.GraphicsSceneMouseMove:
-                mev = ev  # QGraphicsSceneMouseEvent
+                mev = cast(QtWidgets.QGraphicsSceneMouseEvent, ev)
                 scene_pt = mev.scenePos()
                 self._angle_measure_handler.handle_mouse_move(scene_pt)
                 return True
@@ -139,17 +141,26 @@ class SceneEventHandler(QtCore.QObject):
         # --- Ruler multi-segment placement ---
         if self._ruler_handler.is_active:
             if et == QtCore.QEvent.Type.GraphicsSceneMousePress:
-                mev = ev  # QGraphicsSceneMouseEvent
+                mev = cast(QtWidgets.QGraphicsSceneMouseEvent, ev)
                 if self._ruler_handler.handle_mouse_press(mev.scenePos(), mev.button()):
                     return True
             elif et == QtCore.QEvent.Type.GraphicsSceneMouseMove:
-                mev = ev  # QGraphicsSceneMouseEvent
+                mev = cast(QtWidgets.QGraphicsSceneMouseEvent, ev)
                 if self._ruler_handler.handle_mouse_move(mev.scenePos()):
                     return True
 
         # --- Track item positions and rotations on mouse press ---
         if et == QtCore.QEvent.Type.GraphicsSceneMousePress:
-            self._drag_handler.handle_mouse_press(ev)
+            mev = cast(QtWidgets.QGraphicsSceneMouseEvent, ev)
+            # Convert QGraphicsSceneMouseEvent to QMouseEvent for drag handler
+            mouse_ev = QtGui.QMouseEvent(
+                QtCore.QEvent.Type.MouseButtonPress,
+                mev.pos(),  # localPos
+                mev.button(),
+                mev.buttons(),
+                mev.modifiers(),
+            )
+            self._drag_handler.handle_mouse_press(mouse_ev)
 
         # --- Snap to grid and create move/rotate commands on mouse release ---
         if et == QtCore.QEvent.Type.GraphicsSceneMouseRelease:

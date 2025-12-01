@@ -6,7 +6,7 @@ InterfaceDefinition and RefractiveInterface from the old architecture.
 """
 
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, cast
 
 from .geometry import CurvedSegment, GeometrySegment, LineSegment
 from .optical_properties import (
@@ -93,24 +93,24 @@ class OpticalInterface:
             OpticalInterface instance
         """
         # Deserialize geometry
-        geometry = LineSegment.from_dict(data["geometry"])
+        geometry: GeometrySegment = cast(GeometrySegment, LineSegment.from_dict(data["geometry"]))
 
         # Deserialize properties based on type
         property_type = data["property_type"]
         properties_data = data["properties"]
 
         if property_type == "lens":
-            properties = LensProperties(**properties_data)
+            properties: OpticalProperties = LensProperties(**properties_data)
         elif property_type == "mirror":
-            properties = MirrorProperties(**properties_data)
+            properties = cast(OpticalProperties, MirrorProperties(**properties_data))
         elif property_type == "refractive":
-            properties = RefractiveProperties(**properties_data)
+            properties = cast(OpticalProperties, RefractiveProperties(**properties_data))
         elif property_type == "beamsplitter":
-            properties = BeamsplitterProperties(**properties_data)
+            properties = cast(OpticalProperties, BeamsplitterProperties(**properties_data))
         elif property_type == "waveplate":
-            properties = WaveplateProperties(**properties_data)
+            properties = cast(OpticalProperties, WaveplateProperties(**properties_data))
         elif property_type == "dichroic":
-            properties = DichroicProperties(**properties_data)
+            properties = cast(OpticalProperties, DichroicProperties(**properties_data))
         else:
             raise ValueError(f"Unknown property type: {property_type}")
 
@@ -143,38 +143,49 @@ class OpticalInterface:
 
         if is_curved and abs(radius) > 1e-6:
             # Create curved segment for curved surfaces
-            geometry = CurvedSegment(p1, p2, radius)
+            geometry: GeometrySegment = CurvedSegment(p1, p2, radius)
         else:
             # Create straight line segment for flat surfaces
-            geometry = LineSegment(p1, p2)
+            geometry = cast(GeometrySegment, LineSegment(p1, p2))
 
         # Convert properties based on element_type
         element_type = old_interface.element_type
 
         if element_type == "lens":
-            properties = LensProperties(efl_mm=old_interface.efl_mm)
+            properties: OpticalProperties = LensProperties(efl_mm=old_interface.efl_mm)
         elif element_type == "mirror":
-            properties = MirrorProperties(reflectivity=old_interface.reflectivity / 100.0)
+            properties = cast(
+                OpticalProperties, MirrorProperties(reflectivity=old_interface.reflectivity / 100.0)
+            )
         elif element_type in ["beam_splitter", "beamsplitter"]:
-            properties = BeamsplitterProperties(
-                transmission=old_interface.split_T / 100.0,
-                reflection=old_interface.split_R / 100.0,
-                is_polarizing=old_interface.is_polarizing,
-                polarization_axis_deg=old_interface.pbs_transmission_axis_deg,
+            properties = cast(
+                OpticalProperties,
+                BeamsplitterProperties(
+                    transmission=old_interface.split_T / 100.0,
+                    reflection=old_interface.split_R / 100.0,
+                    is_polarizing=old_interface.is_polarizing,
+                    polarization_axis_deg=old_interface.pbs_transmission_axis_deg,
+                ),
             )
         elif element_type == "dichroic":
-            properties = DichroicProperties(
-                cutoff_wavelength_nm=old_interface.cutoff_wavelength_nm,
-                transition_width_nm=old_interface.transition_width_nm,
-                pass_type=old_interface.pass_type,
+            properties = cast(
+                OpticalProperties,
+                DichroicProperties(
+                    cutoff_wavelength_nm=old_interface.cutoff_wavelength_nm,
+                    transition_width_nm=old_interface.transition_width_nm,
+                    pass_type=old_interface.pass_type,
+                ),
             )
         elif element_type == "polarizing_interface":
             # Handle polarizing interface based on subtype
             polarizer_subtype = getattr(old_interface, "polarizer_subtype", "waveplate")
             if polarizer_subtype == "waveplate":
-                properties = WaveplateProperties(
-                    phase_shift_deg=old_interface.phase_shift_deg,
-                    fast_axis_deg=old_interface.fast_axis_deg,
+                properties = cast(
+                    OpticalProperties,
+                    WaveplateProperties(
+                        phase_shift_deg=old_interface.phase_shift_deg,
+                        fast_axis_deg=old_interface.fast_axis_deg,
+                    ),
                 )
             else:
                 # Future: handle other polarizer subtypes
@@ -183,16 +194,25 @@ class OpticalInterface:
             # Legacy support: old "waveplate" element_type
             phase_shift = getattr(old_interface, "phase_shift_deg", 90.0)
             fast_axis = getattr(old_interface, "fast_axis_deg", 0.0)
-            properties = WaveplateProperties(phase_shift_deg=phase_shift, fast_axis_deg=fast_axis)
+            properties = cast(
+                OpticalProperties,
+                WaveplateProperties(phase_shift_deg=phase_shift, fast_axis_deg=fast_axis),
+            )
         elif element_type == "refractive_interface":
             curvature = old_interface.radius_of_curvature_mm if old_interface.is_curved else None
-            properties = RefractiveProperties(
-                n1=old_interface.n1, n2=old_interface.n2, curvature_radius_mm=curvature
+            properties = cast(
+                OpticalProperties,
+                RefractiveProperties(
+                    n1=old_interface.n1, n2=old_interface.n2, curvature_radius_mm=curvature
+                ),
             )
         else:
             # Default to refractive
-            properties = RefractiveProperties(
-                n1=getattr(old_interface, "n1", 1.0), n2=getattr(old_interface, "n2", 1.0)
+            properties = cast(
+                OpticalProperties,
+                RefractiveProperties(
+                    n1=getattr(old_interface, "n1", 1.0), n2=getattr(old_interface, "n2", 1.0)
+                ),
             )
 
         return cls(geometry=geometry, properties=properties, name=old_interface.name)
@@ -220,20 +240,25 @@ class OpticalInterface:
 
         if is_curved and abs(radius) > 1e-6:
             # Create curved segment for curved surfaces
-            geometry = CurvedSegment(p1, p2, radius)
+            geometry: GeometrySegment = CurvedSegment(p1, p2, radius)
         else:
             # Create straight line segment for flat surfaces
-            geometry = LineSegment(p1, p2)
+            geometry = cast(GeometrySegment, LineSegment(p1, p2))
 
         # Check if it's a beam splitter or regular refractive interface
         if old_interface.is_beam_splitter:
-            properties = BeamsplitterProperties(
-                transmission=old_interface.split_T / 100.0,
-                reflection=old_interface.split_R / 100.0,
-                is_polarizing=old_interface.is_polarizing,
-                polarization_axis_deg=old_interface.pbs_transmission_axis_deg,
+            properties: OpticalProperties = cast(
+                OpticalProperties,
+                BeamsplitterProperties(
+                    transmission=old_interface.split_T / 100.0,
+                    reflection=old_interface.split_R / 100.0,
+                    is_polarizing=old_interface.is_polarizing,
+                    polarization_axis_deg=old_interface.pbs_transmission_axis_deg,
+                ),
             )
         else:
-            properties = RefractiveProperties(n1=old_interface.n1, n2=old_interface.n2)
+            properties = cast(
+                OpticalProperties, RefractiveProperties(n1=old_interface.n1, n2=old_interface.n2)
+            )
 
         return cls(geometry=geometry, properties=properties, name="")

@@ -49,7 +49,7 @@ class CollaborationController(QtCore.QObject):
     @property
     def is_connected(self) -> bool:
         """Check if connected to a collaboration session."""
-        return self._collab_manager.is_connected
+        return self._collab_manager.is_connected()
 
     def open_dialog(self):
         """Open dialog to connect to or host a collaboration session."""

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 import uuid
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -104,7 +104,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         self._label_prefix = label_prefix
 
         # Dragging state
-        self._dragging_endpoint = None  # 'start' or 'end' when dragging
+        self._dragging_endpoint: str | None = None  # 'start' or 'end' when dragging
         self._initial_params: dict[str, float] | None = None  # For undo tracking
 
         # Appearance (from constants)
@@ -159,7 +159,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
             if accumulated + segment_len > start_dist and accumulated + segment_len <= end_dist:
                 segment_points.append(p2.copy())
 
-            accumulated += segment_len
+            accumulated += float(segment_len)
 
         segment_points.append(end_pos)
         return segment_points
@@ -190,9 +190,9 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
             if accumulated + segment_len >= target_dist:
                 remaining = target_dist - accumulated
                 t = remaining / segment_len if segment_len > 0 else 0
-                return p1 + t * segment_vec
+                return cast(np.ndarray, p1 + t * segment_vec)
 
-            accumulated += segment_len
+            accumulated += float(segment_len)
 
         return self._full_path_points[-1].copy()
 
@@ -271,8 +271,10 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         stroker.setWidth(max(15.0, self._line_width * 2))
         return stroker.createStroke(path)
 
-    def paint(self, painter: QtGui.QPainter, option, widget=None):
+    def paint(self, painter: QtGui.QPainter | None, option, widget=None):
         """Render the highlighted path segment with measurements."""
+        if painter is None:
+            return
         segment_points = self._get_segment_points()
 
         if len(segment_points) < 2:
@@ -433,13 +435,13 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
             dist = np.linalg.norm(pos - closest_on_segment)
 
             if dist < min_dist:
-                min_dist = dist
+                min_dist = float(dist)
                 # Calculate parameter for this position
-                best_param = (accumulated + t * segment_len) / total_length
+                best_param = float((accumulated + float(t) * float(segment_len)) / total_length)
 
-            accumulated += segment_len
+            accumulated += float(segment_len)
 
-        return np.clip(best_param, 0.0, 1.0)
+        return cast(float, np.clip(best_param, 0.0, 1.0))
 
     def _draw_selection_indicator(self, painter: QtGui.QPainter, segment_points: list[np.ndarray]):
         """Draw dashed outline when selected."""
@@ -455,8 +457,10 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
             p2 = segment_points[i + 1]
             painter.drawLine(QtCore.QPointF(p1[0], p1[1]), QtCore.QPointF(p2[0], p2[1]))
 
-    def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent):
+    def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent | None):
         """Handle mouse press for dragging endpoints or context menu."""
+        if event is None:
+            return
         if event.button() == QtCore.Qt.MouseButton.RightButton:
             # Show context menu
             menu = QtWidgets.QMenu()
@@ -495,7 +499,8 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
 
         if event.button() == QtCore.Qt.MouseButton.LeftButton:
             # Check if clicking on endpoint
-            self._dragging_endpoint = self._endpoint_at_pos(event.scenePos())
+            endpoint = self._endpoint_at_pos(event.scenePos())
+            self._dragging_endpoint = endpoint if endpoint else None
             if self._dragging_endpoint:
                 # Store initial params for undo
                 self._initial_params = {
@@ -508,8 +513,10 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
 
         super().mousePressEvent(event)
 
-    def mouseMoveEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent):
+    def mouseMoveEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent | None):
         """Handle dragging endpoints along path."""
+        if event is None:
+            return
         if self._dragging_endpoint:
             # Find parameter for current position
             new_param = self._find_closest_parameter(event.scenePos())
@@ -532,8 +539,10 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
 
         super().mouseMoveEvent(event)
 
-    def mouseReleaseEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent):
+    def mouseReleaseEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent | None):
         """Handle end of dragging and create undo command if changed."""
+        if event is None:
+            return
         if self._dragging_endpoint and self._initial_params:
             # Check if params actually changed
             params_changed = (
@@ -561,8 +570,10 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
 
         super().mouseReleaseEvent(event)
 
-    def mouseDoubleClickEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent):
+    def mouseDoubleClickEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent | None):
         """Handle double-click to edit length."""
+        if event is None:
+            return
         if event.button() == QtCore.Qt.MouseButton.LeftButton:
             self._show_edit_length_dialog()
             event.accept()
@@ -651,7 +662,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
         }
 
     @staticmethod
-    def from_dict(d: dict[str, Any], ray_data: list = None) -> PathMeasureItem | None:
+    def from_dict(d: dict[str, Any], ray_data: list[Any] | None = None) -> PathMeasureItem | None:
         """
         Deserialize from dictionary.
 

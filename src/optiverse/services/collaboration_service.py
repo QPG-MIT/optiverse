@@ -164,16 +164,18 @@ class CollaborationService(QObject):
 
         # Convert enum to int for comparison
         # PyQt6 returns QWebSocketProtocol.CloseCode enum
+        close_code: int
         try:
             if hasattr(close_code_enum, "value"):
-                close_code = close_code_enum.value
+                close_code = int(close_code_enum.value)  # type: ignore[call-overload]
             else:
-                close_code = int(close_code_enum)
+                # Fallback: try to convert enum to int
+                close_code = int(close_code_enum)  # type: ignore[call-overload]
         except (ValueError, TypeError, AttributeError):
             close_code = 0
 
         # Map close codes to readable messages
-        close_code_messages = {
+        close_code_messages: dict[int, str] = {
             1000: "Normal closure",
             1001: "Going away",
             1002: "Protocol error",

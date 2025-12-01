@@ -112,7 +112,10 @@ class TypeRegistry:
         """
         # First check if item has type_name attribute (set by decorator)
         if hasattr(item, "type_name") and item.type_name:
-            return item.type_name
+            type_name = getattr(item, "type_name", None)
+            if isinstance(type_name, str):
+                return type_name
+            return str(type_name) if type_name is not None else None
         # Fall back to class name lookup
         return cls._class_to_type.get(item.__class__.__name__)
 
@@ -135,11 +138,18 @@ def serialize_item(item: Serializable) -> dict[str, Any]:
         Dictionary ready for JSON serialization
     """
     # Start with all params attributes (dataclass fields + dynamic)
-    d = vars(item.params).copy()
+    # Check if item has params attribute before accessing
+    if not hasattr(item, "params") or item.params is None:
+        d: dict[str, Any] = {}
+    else:
+        d = vars(item.params).copy()
 
     # Add positional metadata from Qt transforms
-    d["x_mm"] = float(item.pos().x())
-    d["y_mm"] = float(item.pos().y())
+    # Serializable items must have pos() method (QGraphicsItem)
+    if hasattr(item, "pos") and callable(item.pos):
+        pos = item.pos()
+        d["x_mm"] = float(pos.x())
+        d["y_mm"] = float(pos.y())
 
     # Convert Qt rotation to user angle (if item uses angles)
     if hasattr(item, "rotation"):
@@ -166,7 +176,10 @@ def serialize_item(item: Serializable) -> dict[str, Any]:
         library_roots = None
         try:
             # Get the scene from the item
-            scene = item.scene()
+            if hasattr(item, "scene") and callable(item.scene):
+                scene = item.scene()
+            else:
+                scene = None
             if scene:
                 # Get all views for this scene
                 views = scene.views()
