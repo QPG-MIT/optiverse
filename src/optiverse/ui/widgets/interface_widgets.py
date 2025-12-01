@@ -23,8 +23,10 @@ class InterfaceTreeWidget(QtWidgets.QTreeWidget):
 
     deleteKeyPressed = QtCore.pyqtSignal()
 
-    def keyPressEvent(self, event: QtGui.QKeyEvent):
+    def keyPressEvent(self, event: QtGui.QKeyEvent | None):
         """Override to handle Delete/Backspace keys."""
+        if event is None:
+            return
         # Check if Delete or Backspace key is pressed
         if event.key() in (QtCore.Qt.Key.Key_Delete, QtCore.Qt.Key.Key_Backspace):
             # Only handle if we're not currently editing an item
@@ -75,7 +77,9 @@ class EditableLabel(QtWidgets.QWidget):
         # Start in label mode
         self._stack.setCurrentWidget(self._label)
 
-    def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent):
+    def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent | None):
+        if event is None:
+            return
         """Switch to edit mode on double-click."""
         super().mouseDoubleClickEvent(event)
         self._start_editing()
@@ -230,6 +234,7 @@ class PropertyListWidget(QtWidgets.QWidget):
         # Add unit to label if present
         label_text = f"{label} ({unit})" if unit else f"{label}"
 
+        widget: QtWidgets.QWidget
         if isinstance(value, bool):
             widget = QtWidgets.QCheckBox()
             widget.setChecked(value)
@@ -298,11 +303,12 @@ class PropertyListWidget(QtWidgets.QWidget):
             return
 
         line_edit = self._property_widgets.get(coord_name)
-        if not line_edit:
+        if not line_edit or not isinstance(line_edit, (QtWidgets.QLineEdit, QtWidgets.QComboBox)):
             return
 
         try:
-            value = float(line_edit.text())
+            text = line_edit.text() if isinstance(line_edit, QtWidgets.QLineEdit) else line_edit.currentText()
+            value = float(text)
 
             if coord_name == "X₁":
                 self.interface.x1_mm = value
@@ -313,19 +319,21 @@ class PropertyListWidget(QtWidgets.QWidget):
             elif coord_name == "Y₂":
                 self.interface.y2_mm = value
 
-            line_edit.setText(f"{value:.3f}")
+            if isinstance(line_edit, QtWidgets.QLineEdit):
+                line_edit.setText(f"{value:.3f}")
             self.propertyChanged.emit()
 
         except ValueError:
             # Invalid number - revert to current interface value
-            if coord_name == "X₁":
-                line_edit.setText(f"{self.interface.x1_mm:.3f}")
-            elif coord_name == "X₂":
-                line_edit.setText(f"{self.interface.x2_mm:.3f}")
-            elif coord_name == "Y₁":
-                line_edit.setText(f"{self.interface.y1_mm:.3f}")
-            elif coord_name == "Y₂":
-                line_edit.setText(f"{self.interface.y2_mm:.3f}")
+            if isinstance(line_edit, QtWidgets.QLineEdit):
+                if coord_name == "X₁":
+                    line_edit.setText(f"{self.interface.x1_mm:.3f}")
+                elif coord_name == "X₂":
+                    line_edit.setText(f"{self.interface.x2_mm:.3f}")
+                elif coord_name == "Y₁":
+                    line_edit.setText(f"{self.interface.y1_mm:.3f}")
+                elif coord_name == "Y₂":
+                    line_edit.setText(f"{self.interface.y2_mm:.3f}")
 
     def _on_type_changed(self):
         """Handle type changes from dropdown - rebuild to show new properties."""
@@ -362,7 +370,7 @@ class PropertyListWidget(QtWidgets.QWidget):
             return
 
         line_edit = self._property_widgets.get(prop_name)
-        if not line_edit:
+        if not line_edit or not isinstance(line_edit, QtWidgets.QLineEdit):
             return
 
         try:
@@ -408,14 +416,18 @@ class PropertyListWidget(QtWidgets.QWidget):
                         type_combo.setCurrentIndex(idx)
 
             # Update coordinate text fields
-            if "X₁" in self._property_widgets:
-                self._property_widgets["X₁"].setText(f"{interface.x1_mm:.3f}")
-            if "X₂" in self._property_widgets:
-                self._property_widgets["X₂"].setText(f"{interface.x2_mm:.3f}")
-            if "Y₁" in self._property_widgets:
-                self._property_widgets["Y₁"].setText(f"{interface.y1_mm:.3f}")
-            if "Y₂" in self._property_widgets:
-                self._property_widgets["Y₂"].setText(f"{interface.y2_mm:.3f}")
+            for coord_name in ["X₁", "X₂", "Y₁", "Y₂"]:
+                if coord_name in self._property_widgets:
+                    widget = self._property_widgets[coord_name]
+                    if isinstance(widget, QtWidgets.QLineEdit):
+                        if coord_name == "X₁":
+                            widget.setText(f"{interface.x1_mm:.3f}")
+                        elif coord_name == "X₂":
+                            widget.setText(f"{interface.x2_mm:.3f}")
+                        elif coord_name == "Y₁":
+                            widget.setText(f"{interface.y1_mm:.3f}")
+                        elif coord_name == "Y₂":
+                            widget.setText(f"{interface.y2_mm:.3f}")
 
             # Update other properties
             for prop_name, widget in self._property_widgets.items():

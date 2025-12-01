@@ -100,6 +100,8 @@ class CanvasCoordinateSystem:
             return (0.0, 0.0)
 
         p = self._params
+        if p is None:
+            return (0.0, 0.0)
 
         # mm → image pixels
         x_img_px = x_mm / p.mm_per_px
@@ -133,6 +135,8 @@ class CanvasCoordinateSystem:
             return (0.0, 0.0)
 
         p = self._params
+        if p is None:
+            return (0.0, 0.0)
 
         # screen → image pixels (centered, Y-up)
         x_img_px = (x_screen - p.img_rect.x()) / p.scale_fit - p.img_center_x_px
@@ -165,6 +169,8 @@ class CanvasCoordinateSystem:
             return (0.0, 0.0)
 
         p = self._params
+        if p is None:
+            return (0.0, 0.0)
 
         x_img_px = (x_screen - p.img_rect.x()) / p.scale_fit - p.img_center_x_px
         y_img_px = p.img_center_y_px - (y_screen - p.img_rect.y()) / p.scale_fit
@@ -190,6 +196,8 @@ class CanvasCoordinateSystem:
             return (0.0, 0.0)
 
         p = self._params
+        if p is None:
+            return (0.0, 0.0)
 
         dx_mm = (dx_screen / p.scale_fit) * p.mm_per_px
         dy_mm = (-dy_screen / p.scale_fit) * p.mm_per_px  # Y inverted
@@ -212,6 +220,8 @@ class CanvasCoordinateSystem:
             return 0.0
 
         p = self._params
+        if p is None:
+            return 0.0
         return abs(radius_mm) / p.mm_per_px * p.scale_fit
 
     # ========== Clamping ==========
@@ -264,6 +274,15 @@ class CanvasCoordinateSystem:
             }
 
         p = self._params
+        if p is None:
+            return {
+                "scale": 1.0,
+                "h_offset": 0.0,
+                "v_offset": 0.0,
+                "h_range": (-50.0, 50.0),
+                "v_range": (-50.0, 50.0),
+                "show_mm": True,
+            }
 
         # Scale: screen pixels per mm
         scale = p.scale_fit / p.mm_per_px

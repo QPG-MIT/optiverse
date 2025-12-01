@@ -67,6 +67,8 @@ class SmartDoubleSpinBox(QtWidgets.QDoubleSpinBox):
             return
 
         line_edit = self.lineEdit()
+        if line_edit is None:
+            return
         text = line_edit.text()
 
         # Use the last known cursor position (from when user was editing)
@@ -142,6 +144,8 @@ class SmartDoubleSpinBox(QtWidgets.QDoubleSpinBox):
 
         # Restore cursor position accounting for prefix/suffix/spaces
         # Try to keep it in the same relative position
+        if line_edit is None:
+            return
         new_text = line_edit.text()
 
         # Account for prefix and leading spaces in new text
@@ -262,6 +266,9 @@ class SmartSpinBox(QtWidgets.QSpinBox):
         self.setValue(new_value)
 
         # Restore cursor position accounting for prefix/suffix/spaces
+        line_edit = self.lineEdit()
+        if line_edit is None:
+            return
         new_text = line_edit.text()
 
         # Account for prefix and leading spaces in new text

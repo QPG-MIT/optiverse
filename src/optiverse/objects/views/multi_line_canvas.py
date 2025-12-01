@@ -11,7 +11,7 @@ Extends ImageCanvas to support multiple optical interfaces with:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -45,9 +45,9 @@ class InterfaceLine:
     y1: float  # Start point Y in mm (centered, Y-up)
     x2: float  # End point X in mm (centered, Y-up)
     y2: float  # End point Y in mm (centered, Y-up)
-    color: QtGui.QColor = None  # Line color
+    color: QtGui.QColor | None = None  # Line color
     label: str = ""  # Optional label
-    properties: dict[str, Any] = None  # Additional properties (n1, n2, is_BS, etc.)
+    properties: dict[str, Any] | None = None  # Additional properties (n1, n2, is_BS, etc.)
 
     def __post_init__(self):
         if self.color is None:
@@ -252,7 +252,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
         Returns first selected for backward compatibility.
         """
         if len(self._selected_lines) > 0:
-            return min(self._selected_lines)
+            return int(min(self._selected_lines))
         return -1
 
     def get_selected_line_indices(self) -> list[int]:
@@ -363,7 +363,7 @@ class MultiLineCanvas(QtWidgets.QLabel):
 
         return rect
 
-    def paintEvent(self, e: QtGui.QPaintEvent):
+    def paintEvent(self, e: QtGui.QPaintEvent | None):
         """Draw image and all lines."""
         super().paintEvent(e)
 
@@ -614,9 +614,9 @@ class MultiLineCanvas(QtWidgets.QLabel):
 
         return result
 
-    def mousePressEvent(self, e: QtGui.QMouseEvent):
+    def mousePressEvent(self, e: QtGui.QMouseEvent | None):
         """Handle mouse press."""
-        if not self._pix or e.button() != QtCore.Qt.MouseButton.LeftButton:
+        if e is None or not self._pix or e.button() != QtCore.Qt.MouseButton.LeftButton:
             return
 
         # Check if clicking on an endpoint
@@ -659,7 +659,8 @@ class MultiLineCanvas(QtWidgets.QLabel):
 
             # Start dragging entire line(s)
             self._dragging_entire_lines = True
-            self._drag_start_pos = e.pos()
+            pos = e.pos()
+            self._drag_start_pos = QtCore.QPointF(pos.x(), pos.y()).toPointF() if hasattr(e.pos(), 'toPointF') else QtCore.QPointF(e.pos())
 
             # Store initial positions of all selected lines for undo
             self._drag_initial_lines.clear()
@@ -686,8 +687,10 @@ class MultiLineCanvas(QtWidgets.QLabel):
                 self._rect_end = e.pos()
                 self.update()
 
-    def mouseMoveEvent(self, e: QtGui.QMouseEvent):
+    def mouseMoveEvent(self, e: QtGui.QMouseEvent | None):
         """Handle mouse move."""
+        if e is None:
+            return
         if self._rect_selecting:
             # Update rectangle selection
             self._rect_end = e.pos()
@@ -793,8 +796,10 @@ class MultiLineCanvas(QtWidgets.QLabel):
 
             self.update()
 
-    def mouseReleaseEvent(self, e: QtGui.QMouseEvent):
+    def mouseReleaseEvent(self, e: QtGui.QMouseEvent | None):
         """Handle mouse release."""
+        if e is None:
+            return
         if e.button() == QtCore.Qt.MouseButton.LeftButton:
             # Handle rectangle selection completion
             if self._rect_selecting:
@@ -838,22 +843,31 @@ class MultiLineCanvas(QtWidgets.QLabel):
 
     # ========== Drag & Drop ==========
 
-    def dragEnterEvent(self, e: QtGui.QDragEnterEvent):
+    def dragEnterEvent(self, e: QtGui.QDragEnterEvent | None):
         """Accept image drops."""
-        if e.mimeData().hasImage() or e.mimeData().hasUrls():
+        if e is None:
+            return
+        mime_data = e.mimeData()
+        if mime_data is not None and (mime_data.hasImage() or mime_data.hasUrls()):
             e.accept()
         else:
             e.ignore()
 
-    def dropEvent(self, e: QtGui.QDropEvent):
+    def dropEvent(self, e: QtGui.QDropEvent | None):
         """Handle dropped image."""
+        if e is None:
+            return
         md = e.mimeData()
+        if md is None:
+            return
 
         if md.hasImage():
-            img = QtGui.QImage(md.imageData())
-            if not img.isNull():
-                pix = QtGui.QPixmap.fromImage(img)
-                self.imageDropped.emit(pix, "")
+            img_data = md.imageData()
+            if img_data is not None:
+                img = QtGui.QImage(img_data)
+                if not img.isNull():
+                    pix = QtGui.QPixmap.fromImage(img)
+                    self.imageDropped.emit(pix, "")
         elif md.hasUrls():
             urls = md.urls()
             if urls:
@@ -861,6 +875,8 @@ class MultiLineCanvas(QtWidgets.QLabel):
                 if path.lower().endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif", ".svg")):
                     if path.lower().endswith(".svg") and HAVE_QTSVG:
                         pix = self._render_svg_to_pixmap(path)
+                        if pix is None:
+                            continue
                     else:
                         pix = QtGui.QPixmap(path)
 
@@ -934,7 +950,8 @@ class MultiLineCanvas(QtWidgets.QLabel):
             (x_mm, y_mm) tuple
         """
         self._target_rect()  # Ensure coordinate system is updated
-        return self._coord_system.screen_to_mm_from_point(screen_pos)
+        result = self._coord_system.screen_to_mm_from_point(screen_pos)
+        return cast(tuple[float, float], result)
 
     def _get_ruler_view_params(self) -> dict:
         """
@@ -952,4 +969,5 @@ class MultiLineCanvas(QtWidgets.QLabel):
         """
         self._target_rect()  # Ensure coordinate system is updated
         w, h = self.image_pixel_size()
-        return self._coord_system.get_ruler_params(w, h)
+        result = self._coord_system.get_ruler_params(w, h)
+        return cast(dict[str, Any], result)

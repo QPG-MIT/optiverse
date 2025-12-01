@@ -13,6 +13,7 @@ import socket
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -232,7 +233,7 @@ class CollaborationDialog(QtWidgets.QDialog):
             s.connect(("8.8.8.8", 80))
             local_ip = s.getsockname()[0]
             s.close()
-            return local_ip
+            return str(local_ip)
         except OSError:
             return "localhost"
 
@@ -296,7 +297,7 @@ class CollaborationDialog(QtWidgets.QDialog):
         try:
             # Start server process with proper subprocess configuration
             # Don't pipe stdout/stderr to avoid blocking - let them go to console or DEVNULL
-            kwargs = {
+            popen_args: dict[str, Any] = {
                 "args": [sys.executable, str(server_script), "--host", host, "--port", str(port)],
                 "stdout": subprocess.DEVNULL,  # Suppress output to prevent blocking
                 "stderr": subprocess.DEVNULL,  # Suppress errors to prevent blocking
@@ -305,12 +306,12 @@ class CollaborationDialog(QtWidgets.QDialog):
             if sys.platform == "win32":
                 # On Windows, detach from parent console and hide window
                 # CREATE_NO_WINDOW = 0x08000000, DETACHED_PROCESS = 0x00000008
-                kwargs["creationflags"] = 0x08000000 | 0x00000008
+                popen_args["creationflags"] = 0x08000000 | 0x00000008
             else:
                 # On Unix-like systems (Mac, Linux), start in background
-                kwargs["start_new_session"] = True
+                popen_args["start_new_session"] = True
 
-            self.server_process = subprocess.Popen(**kwargs)
+            self.server_process = subprocess.Popen(**popen_args)
 
             # Give server a moment to start and verify it's actually listening
             import time
@@ -394,9 +395,9 @@ class CollaborationDialog(QtWidgets.QDialog):
         self._accepted = True
         self.accept()
 
-    def get_connection_info(self) -> dict:
+    def get_connection_info(self) -> dict[str, Any]:
         """Get connection information from the dialog."""
-        info = {
+        info: dict[str, Any] = {
             "mode": self.mode,
         }
 

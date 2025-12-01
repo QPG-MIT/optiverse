@@ -67,9 +67,9 @@ class SettingsDialog(QtWidgets.QDialog):
         )
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
-        button_box.button(QtWidgets.QDialogButtonBox.StandardButton.Apply).clicked.connect(
-            self._apply_settings
-        )
+        apply_button = button_box.button(QtWidgets.QDialogButtonBox.StandardButton.Apply)
+        if apply_button is not None:
+            apply_button.clicked.connect(self._apply_settings)
         right_layout.addWidget(button_box)
 
         main_layout.addLayout(right_layout, 1)
@@ -113,8 +113,9 @@ class SettingsDialog(QtWidgets.QDialog):
         if index >= 0:
             self.pages_stack.setCurrentIndex(index)
             item = self.category_list.item(index)
-            item.data(QtCore.Qt.ItemDataRole.UserRole)
-            self.page_title.setText(f"{item.text()}")
+            if item is not None:
+                item.data(QtCore.Qt.ItemDataRole.UserRole)
+                self.page_title.setText(f"{item.text()}")
 
     def _build_library_page(self):
         """Build the Library settings page."""

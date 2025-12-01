@@ -1,6 +1,6 @@
 """Interface type registry and metadata."""
 
-from typing import Any
+from typing import Any, cast
 
 # Interface type registry with metadata for UI generation
 INTERFACE_TYPES: dict[str, dict[str, Any]] = {
@@ -216,7 +216,7 @@ def get_all_type_names() -> list[str]:
 
 def get_type_display_name(element_type: str) -> str:
     """Get human-readable name for an interface type."""
-    return get_type_info(element_type).get("name", element_type)
+    return cast(str, get_type_info(element_type).get("name", element_type))
 
 
 def get_property_label(element_type: str, prop_name: str) -> str:
@@ -231,7 +231,7 @@ def get_property_label(element_type: str, prop_name: str) -> str:
         Human-readable label, or property name if not found
     """
     type_info = get_type_info(element_type)
-    return type_info.get("property_labels", {}).get(prop_name, prop_name)
+    return cast(str, type_info.get("property_labels", {}).get(prop_name, prop_name))
 
 
 def get_property_unit(element_type: str, prop_name: str) -> str:
@@ -246,7 +246,7 @@ def get_property_unit(element_type: str, prop_name: str) -> str:
         Unit string (e.g., 'mm', '%', '°'), or empty string if none
     """
     type_info = get_type_info(element_type)
-    return type_info.get("property_units", {}).get(prop_name, "")
+    return cast(str, type_info.get("property_units", {}).get(prop_name, ""))
 
 
 def get_property_range(element_type: str, prop_name: str) -> tuple[float, float]:
@@ -261,7 +261,7 @@ def get_property_range(element_type: str, prop_name: str) -> tuple[float, float]
         Tuple of (min, max) values
     """
     type_info = get_type_info(element_type)
-    return type_info.get("property_ranges", {}).get(prop_name, (-1e10, 1e10))
+    return cast(tuple[float, float], type_info.get("property_ranges", {}).get(prop_name, (-1e10, 1e10)))
 
 
 def get_property_default(element_type: str, prop_name: str) -> Any:
@@ -290,7 +290,7 @@ def get_type_color(element_type: str, is_polarizing: bool = False) -> tuple[int,
     Returns:
         RGB tuple (0-255 range)
     """
-    color = get_type_info(element_type).get("color", (150, 150, 150))
+    color = cast(tuple[int, int, int], get_type_info(element_type).get("color", (150, 150, 150)))
 
     # Special case: PBS is purple instead of green
     if element_type == "beam_splitter" and is_polarizing:
@@ -301,12 +301,12 @@ def get_type_color(element_type: str, is_polarizing: bool = False) -> tuple[int,
 
 def get_type_emoji(element_type: str) -> str:
     """Get emoji icon for an interface type."""
-    return get_type_info(element_type).get("emoji", "⚪")
+    return cast(str, get_type_info(element_type).get("emoji", "⚪"))
 
 
 def get_type_properties(element_type: str) -> list[str]:
     """Get list of property names for an interface type."""
-    return get_type_info(element_type).get("properties", [])
+    return cast(list[str], get_type_info(element_type).get("properties", []))
 
 
 def get_polarizing_interface_properties(polarizer_subtype: str) -> list[str]:

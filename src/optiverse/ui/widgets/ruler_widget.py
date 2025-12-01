@@ -79,7 +79,7 @@ class RulerWidget(QtWidgets.QWidget):
         self._show_mm = show_mm
         self.update()
 
-    def paintEvent(self, event: QtGui.QPaintEvent):
+    def paintEvent(self, event: QtGui.QPaintEvent | None):
         """Draw the ruler."""
         super().paintEvent(event)
 
@@ -216,11 +216,11 @@ class RulerWidget(QtWidgets.QWidget):
                 return
 
             # Draw triangle pointing down
-            points = [
+            points = QtGui.QPolygonF([
                 QtCore.QPointF(screen_x, 0),
                 QtCore.QPointF(screen_x - 5, 7),
                 QtCore.QPointF(screen_x + 5, 7),
-            ]
+            ])
 
             painter.setBrush(QtGui.QBrush(QtGui.QColor("#FF4444")))
             painter.setPen(QtGui.QPen(QtGui.QColor("#CC0000"), 1))
@@ -234,11 +234,11 @@ class RulerWidget(QtWidgets.QWidget):
                 return
 
             # Draw triangle pointing right
-            points = [
+            points = QtGui.QPolygonF([
                 QtCore.QPointF(0, screen_y),
                 QtCore.QPointF(7, screen_y - 5),
                 QtCore.QPointF(7, screen_y + 5),
-            ]
+            ])
 
             painter.setBrush(QtGui.QBrush(QtGui.QColor("#FF4444")))
             painter.setPen(QtGui.QPen(QtGui.QColor("#CC0000"), 1))
@@ -274,7 +274,7 @@ class RulerWidget(QtWidgets.QWidget):
         else:
             nice_interval = 10 * magnitude
 
-        return nice_interval
+        return float(nice_interval)
 
     def _get_canvas_scale(self) -> float:
         """Get the canvas scale factor (for pixel conversion)."""
@@ -321,13 +321,15 @@ class CanvasWithRulers(QtWidgets.QWidget):
         self._update_timer.timeout.connect(self._update_ruler_parameters)
         self._update_timer.start(100)  # Update every 100ms
 
-    def eventFilter(self, obj: QtCore.QObject, event: QtCore.QEvent) -> bool:
+    def eventFilter(self, obj: QtCore.QObject | None, event: QtCore.QEvent | None) -> bool:
         """Filter canvas events to update ruler indicators."""
+        if obj is None or event is None:
+            return False
         if obj == self.canvas:
             if event.type() == QtCore.QEvent.Type.MouseMove:
                 # Update ruler cursor position
-                mouse_event = event
-                self._update_cursor_position(mouse_event.pos())
+                if isinstance(event, QtGui.QMouseEvent):
+                    self._update_cursor_position(event.pos())
             elif event.type() == QtCore.QEvent.Type.Leave:
                 # Hide cursor indicators when mouse leaves canvas
                 self.h_ruler.set_cursor_position(None)

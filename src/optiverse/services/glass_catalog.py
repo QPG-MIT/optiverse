@@ -62,7 +62,8 @@ class GlassCatalog:
         if formula_type == "Sellmeier":
             return self._calculate_sellmeier(glass_data["coefficients"], wavelength_um)
         elif formula_type == "Constant":
-            return glass_data["index"]
+            index = glass_data.get("index")
+            return float(index) if index is not None else None
         else:
             return None
 

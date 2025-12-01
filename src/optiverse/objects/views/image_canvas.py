@@ -137,8 +137,8 @@ class ImageCanvas(QtWidgets.QLabel):
         y = max(0, min(y, self._pix.height()))
         return (x, y)
 
-    def mousePressEvent(self, e: QtGui.QMouseEvent):
-        if not self._pix:
+    def mousePressEvent(self, e: QtGui.QMouseEvent | None):
+        if e is None or not self._pix:
             return
         if e.button() == QtCore.Qt.MouseButton.LeftButton:
             # Check if clicking on existing point to drag
@@ -164,8 +164,8 @@ class ImageCanvas(QtWidgets.QLabel):
             self.clear_points()
             self.pointsChanged.emit()
 
-    def mouseMoveEvent(self, e: QtGui.QMouseEvent):
-        if not self._pix:
+    def mouseMoveEvent(self, e: QtGui.QMouseEvent | None):
+        if e is None or not self._pix:
             return
 
         # Handle dragging
@@ -189,7 +189,9 @@ class ImageCanvas(QtWidgets.QLabel):
             else:
                 self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
 
-    def mouseReleaseEvent(self, e: QtGui.QMouseEvent):
+    def mouseReleaseEvent(self, e: QtGui.QMouseEvent | None):
+        if e is None:
+            return
         if e.button() == QtCore.Qt.MouseButton.LeftButton:
             if self._dragging_point is not None:
                 self._dragging_point = None
@@ -200,16 +202,25 @@ class ImageCanvas(QtWidgets.QLabel):
                 else:
                     self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
 
-    def dragEnterEvent(self, e: QtGui.QDragEnterEvent):
+    def dragEnterEvent(self, e: QtGui.QDragEnterEvent | None):
+        if e is None:
+            return
         md = e.mimeData()
-        if md.hasImage() or md.hasUrls():
+        if md is not None and (md.hasImage() or md.hasUrls()):
             e.acceptProposedAction()
 
-    def dropEvent(self, e: QtGui.QDropEvent):
+    def dropEvent(self, e: QtGui.QDropEvent | None):
+        if e is None:
+            return
         md = e.mimeData()
+        if md is None:
+            return
         # Direct bitmap drop
         if md.hasImage():
-            img = md.imageData()
+            img_data = md.imageData()
+            if img_data is None:
+                return
+            img = img_data
             if isinstance(img, QtGui.QImage):
                 pix = QtGui.QPixmap.fromImage(img)
             elif isinstance(img, QtGui.QPixmap):

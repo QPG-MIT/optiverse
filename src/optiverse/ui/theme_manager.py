@@ -199,7 +199,7 @@ def apply_theme(dark_mode: bool) -> None:
         dark_mode: True for dark theme, False for light theme
     """
     app = QtWidgets.QApplication.instance()
-    if not app:
+    if not app or not isinstance(app, QtWidgets.QApplication):
         _logger.warning("No QApplication instance - cannot apply theme")
         return
 

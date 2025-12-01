@@ -11,7 +11,7 @@ class SettingsService:
 
     def get_value(self, key: str, default: Any = None, value_type: type | None = None) -> Any:
         if value_type is not None:
-            return self._settings.value(key, default, value_type)  # type: ignore[arg-type]
+            return self._settings.value(key, default, value_type)
         val = self._settings.value(key, default)
         # Best-effort coercion to default's type for common cases
         try:

@@ -109,22 +109,24 @@ class InterfacePropertiesWidget(QtWidgets.QWidget):
                 form.addRow(label_text, widget)
 
             elif isinstance(value, (int, float)):
-                widget = SmartDoubleSpinBox()
+                widget: QtWidgets.QWidget = SmartDoubleSpinBox()
                 min_val, max_val = interface_types.get_property_range(
                     interface.element_type, prop_name
                 )
-                widget.setRange(min_val, max_val)
-                widget.setDecimals(3)
-                if unit:
-                    widget.setSuffix(f" {unit}")
-                widget.setValue(float(value))
-                widget.valueChanged.connect(
-                    lambda val, i=idx, p=prop_name: self._on_property_changed(i, p, val)
-                )
+                if isinstance(widget, SmartDoubleSpinBox):
+                    widget.setRange(min_val, max_val)
+                    widget.setDecimals(3)
+                    if unit:
+                        widget.setSuffix(f" {unit}")
+                    widget.setValue(float(value))
+                    widget.valueChanged.connect(
+                        lambda val, i=idx, p=prop_name: self._on_property_changed(i, p, val)
+                    )
                 self._property_widgets[idx][prop_name] = widget
                 form.addRow(label_text, widget)
 
             elif isinstance(value, str):
+                widget: QtWidgets.QWidget
                 if prop_name == "pass_type":
                     widget = QtWidgets.QComboBox()
                     widget.addItems(["longpass", "shortpass"])
