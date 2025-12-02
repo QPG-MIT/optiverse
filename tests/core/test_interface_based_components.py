@@ -13,7 +13,7 @@ import pytest
 from optiverse.core.interface_definition import InterfaceDefinition
 from optiverse.core.models import ComponentParams
 from optiverse.objects import ComponentItem
-from tests.fixtures.factories import create_lens_item, create_mirror_item
+from tests.fixtures.factories import create_lens_item
 
 
 class TestInterfaceStorage:

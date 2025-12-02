@@ -7,7 +7,6 @@ When a component is selected, its sprite should show visual feedback
 
 from optiverse.objects import ComponentItem
 from tests.fixtures.factories import (
-    create_component_from_params,
     create_lens_item,
     create_mirror_item,
 )
