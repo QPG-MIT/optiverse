@@ -21,6 +21,7 @@ import pytest
 from PyQt6 import QtWidgets
 
 from optiverse.core.models import LensParams, SourceParams
+from optiverse.core.undo_commands import AddItemCommand
 from optiverse.objects import SourceItem
 from optiverse.ui.views.main_window import MainWindow
 from tests.fixtures.factories import create_component_from_params
@@ -77,9 +78,9 @@ class TestBasicAutosave:
         """Verify autosave file is created when scene is modified."""
         window = main_window_with_autosave
 
-        # Add a source to trigger modification
+        # Add a source to trigger modification (via undo stack to trigger autosave)
         source = SourceItem(SourceParams(x_mm=100.0, y_mm=200.0))
-        window.scene.addItem(source)
+        window.undo_stack.push(AddItemCommand(window.scene, source))
 
         # Wait for autosave timer (1000ms debounce + buffer)
         qtbot.wait(1500)
@@ -100,10 +101,10 @@ class TestBasicAutosave:
         """Verify autosave waits for debounce period before saving."""
         window = main_window_with_autosave
 
-        # Add multiple sources quickly
+        # Add multiple sources quickly (via undo stack to trigger autosave)
         for i in range(3):
             source = SourceItem(SourceParams(x_mm=100.0 * i, y_mm=200.0))
-            window.scene.addItem(source)
+            window.undo_stack.push(AddItemCommand(window.scene, source))
             QtWidgets.QApplication.processEvents()
 
         # Wait less than debounce period
@@ -146,9 +147,9 @@ class TestBasicAutosave:
         """Verify autosave file contains correct structure."""
         window = main_window_with_autosave
 
-        # Add a source
+        # Add a source (via undo stack to trigger autosave)
         source = SourceItem(SourceParams(x_mm=100.0, y_mm=200.0))
-        window.scene.addItem(source)
+        window.undo_stack.push(AddItemCommand(window.scene, source))
 
         # Wait for autosave
         qtbot.wait(1500)
@@ -175,9 +176,9 @@ class TestBasicAutosave:
         """Verify autosave metadata includes timestamp, original_path, version."""
         window = main_window_with_autosave
 
-        # Add a source
+        # Add a source (via undo stack to trigger autosave)
         source = SourceItem(SourceParams(x_mm=100.0, y_mm=200.0))
-        window.scene.addItem(source)
+        window.undo_stack.push(AddItemCommand(window.scene, source))
 
         # Wait for autosave
         qtbot.wait(1500)
@@ -223,9 +224,9 @@ class TestAutosaveForSavedFiles:
 
         assert save_path.exists()
 
-        # Add a source to trigger modification
+        # Add a source to trigger modification (via undo stack to trigger autosave)
         source = SourceItem(SourceParams(x_mm=100.0, y_mm=200.0))
-        window.scene.addItem(source)
+        window.undo_stack.push(AddItemCommand(window.scene, source))
 
         # Wait for autosave
         qtbot.wait(1500)
@@ -250,9 +251,9 @@ class TestAutosaveForSavedFiles:
         """Verify autosave uses timestamp-based ID for unsaved files."""
         window = main_window_with_autosave
 
-        # Add a source (no file saved yet)
+        # Add a source (no file saved yet, via undo stack to trigger autosave)
         source = SourceItem(SourceParams(x_mm=100.0, y_mm=200.0))
-        window.scene.addItem(source)
+        window.undo_stack.push(AddItemCommand(window.scene, source))
 
         # Wait for autosave
         qtbot.wait(1500)
@@ -277,9 +278,9 @@ class TestAutosaveForSavedFiles:
         """Verify new autosave overwrites previous autosave for same file."""
         window = main_window_with_autosave
 
-        # Add first source
+        # Add first source (via undo stack to trigger autosave)
         source1 = SourceItem(SourceParams(x_mm=100.0, y_mm=200.0))
-        window.scene.addItem(source1)
+        window.undo_stack.push(AddItemCommand(window.scene, source1))
 
         # Wait for autosave
         qtbot.wait(1500)
@@ -290,9 +291,9 @@ class TestAutosaveForSavedFiles:
         assert len(autosave_files) == 1
         first_file = autosave_files[0]
 
-        # Add second source (modify again)
+        # Add second source (modify again, via undo stack to trigger autosave)
         source2 = SourceItem(SourceParams(x_mm=200.0, y_mm=300.0))
-        window.scene.addItem(source2)
+        window.undo_stack.push(AddItemCommand(window.scene, source2))
 
         # Wait for autosave again
         qtbot.wait(1500)
@@ -321,11 +322,11 @@ class TestLoadingFromAutosave:
         """Verify loading an autosave file restores scene correctly."""
         window = main_window_with_autosave
 
-        # Add a source and lens
+        # Add a source and lens (via undo stack to trigger autosave)
         source = SourceItem(SourceParams(x_mm=100.0, y_mm=200.0, wavelength_nm=532.0))
         lens = create_component_from_params(LensParams(x_mm=50.0, y_mm=75.0, efl_mm=150.0))
-        window.scene.addItem(source)
-        window.scene.addItem(lens)
+        window.undo_stack.push(AddItemCommand(window.scene, source))
+        window.undo_stack.push(AddItemCommand(window.scene, lens))
 
         # Wait for autosave
         qtbot.wait(1500)
@@ -368,9 +369,9 @@ class TestLoadingFromAutosave:
         ):
             window.save_assembly()
 
-        # Add a source
+        # Add a source (via undo stack to trigger autosave)
         source = SourceItem(SourceParams(x_mm=100.0, y_mm=200.0))
-        window.scene.addItem(source)
+        window.undo_stack.push(AddItemCommand(window.scene, source))
 
         # Wait for autosave
         qtbot.wait(1500)
@@ -708,9 +709,9 @@ class TestAutosaveClearing:
         """Verify autosave file is deleted when file is saved normally."""
         window = main_window_with_autosave
 
-        # Add a source
+        # Add a source (via undo stack to trigger autosave)
         source = SourceItem(SourceParams(x_mm=100.0, y_mm=200.0))
-        window.scene.addItem(source)
+        window.undo_stack.push(AddItemCommand(window.scene, source))
 
         # Wait for autosave
         qtbot.wait(1500)
@@ -743,9 +744,9 @@ class TestAutosaveClearing:
         """Verify autosave can be cleared manually."""
         window = main_window_with_autosave
 
-        # Add a source
+        # Add a source (via undo stack to trigger autosave)
         source = SourceItem(SourceParams(x_mm=100.0, y_mm=200.0))
-        window.scene.addItem(source)
+        window.undo_stack.push(AddItemCommand(window.scene, source))
 
         # Wait for autosave
         qtbot.wait(1500)
@@ -776,9 +777,9 @@ class TestAutosaveEdgeCases:
         """Verify autosave handles JSON serialization errors gracefully."""
         window = main_window_with_autosave
 
-        # Add a source
+        # Add a source (via undo stack to mark scene as modified)
         source = SourceItem(SourceParams(x_mm=100.0, y_mm=200.0))
-        window.scene.addItem(source)
+        window.undo_stack.push(AddItemCommand(window.scene, source))
 
         # Mock serialize_scene to raise TypeError (simulating serialization error)
         original_serialize = window.file_controller.file_manager.serialize_scene
@@ -808,9 +809,9 @@ class TestAutosaveEdgeCases:
         """Verify autosave handles file I/O errors gracefully."""
         window = main_window_with_autosave
 
-        # Add a source
+        # Add a source (via undo stack to mark scene as modified)
         source = SourceItem(SourceParams(x_mm=100.0, y_mm=200.0))
-        window.scene.addItem(source)
+        window.undo_stack.push(AddItemCommand(window.scene, source))
 
         # Mock open to raise OSError
         original_open = open
@@ -911,9 +912,9 @@ class TestAutosaveEdgeCases:
         """Verify autosave uses atomic write (temp file + rename)."""
         window = main_window_with_autosave
 
-        # Add a source
+        # Add a source (via undo stack to trigger autosave)
         source = SourceItem(SourceParams(x_mm=100.0, y_mm=200.0))
-        window.scene.addItem(source)
+        window.undo_stack.push(AddItemCommand(window.scene, source))
 
         # Wait for autosave
         qtbot.wait(1500)

@@ -14,11 +14,12 @@ except ImportError:
 @pytest.mark.skipif(not HAVE_PYQT6, reason="PyQt6 not available")
 def test_component_editor_saves_to_library(qtbot, tmp_path, monkeypatch):
     """Test component editor saves to library with new structure."""
-    # force library path to temp file
-    lib_path = tmp_path / "components_library.json"
+    # force library path to temp directory (folder-based structure)
+    lib_dir = tmp_path / "test_library"
+    lib_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(
-        "optiverse.platform.paths.get_library_path",
-        lambda: str(lib_path),
+        "optiverse.platform.paths.get_user_library_root",
+        lambda: lib_dir,
         raising=True,
     )
 
@@ -124,10 +125,12 @@ def test_component_editor_has_notes_field(qtbot):
 @pytest.mark.skipif(not HAVE_PYQT6, reason="PyQt6 not available")
 def test_component_editor_emits_saved_signal(qtbot, tmp_path, monkeypatch):
     """Test that component editor emits saved signal."""
-    lib_path = tmp_path / "components_library.json"
+    # force library path to temp directory (folder-based structure)
+    lib_dir = tmp_path / "test_library"
+    lib_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(
-        "optiverse.platform.paths.get_library_path",
-        lambda: str(lib_path),
+        "optiverse.platform.paths.get_user_library_root",
+        lambda: lib_dir,
         raising=True,
     )
 
