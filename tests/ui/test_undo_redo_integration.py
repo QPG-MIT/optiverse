@@ -327,12 +327,15 @@ class TestUndoRedoIntegration:
         # Mock both the file dialog and the save prompt to avoid blocking dialogs
         import unittest.mock as mock
 
-        with mock.patch.object(
-            QtWidgets.QFileDialog, "getOpenFileName", return_value=(str(assembly_file), "")
-        ), mock.patch.object(
-            main_window.file_controller,
-            "prompt_save_changes",
-            return_value=QtWidgets.QMessageBox.StandardButton.Discard,
+        with (
+            mock.patch.object(
+                QtWidgets.QFileDialog, "getOpenFileName", return_value=(str(assembly_file), "")
+            ),
+            mock.patch.object(
+                main_window.file_controller,
+                "prompt_save_changes",
+                return_value=QtWidgets.QMessageBox.StandardButton.Discard,
+            ),
         ):
             main_window.open_assembly()
 

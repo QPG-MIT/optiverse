@@ -110,9 +110,9 @@ class MultiLineCanvas(QtWidgets.QLabel):
         self._dragging_point: int = 0  # 1 for start point, 2 for end point
         self._dragging_entire_lines: bool = False  # True when dragging whole line(s)
         self._drag_start_pos: QtCore.QPointF | None = None  # Initial drag position
-        self._drag_initial_lines: list[
-            tuple[float, float, float, float]
-        ] = []  # Initial line positions
+        self._drag_initial_lines: list[tuple[float, float, float, float]] = (
+            []
+        )  # Initial line positions
         self._drag_moved_indices: list[int] = []  # Indices of lines that were moved (for undo)
         self._hover_line: int = -1  # Line being hovered
         self._hover_point: int = 0  # Point being hovered (1 or 2)
