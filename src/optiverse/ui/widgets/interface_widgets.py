@@ -19,12 +19,13 @@ from ...core.interface_definition import InterfaceDefinition
 
 
 class InterfaceTreeWidget(QtWidgets.QTreeWidget):
-    """Custom QTreeWidget that handles Delete/Backspace keys for interface deletion."""
+    """Custom QTreeWidget that handles Delete/Backspace and F2 keys."""
 
     deleteKeyPressed = QtCore.pyqtSignal()
+    renameKeyPressed = QtCore.pyqtSignal()
 
     def keyPressEvent(self, event: QtGui.QKeyEvent | None):
-        """Override to handle Delete/Backspace keys."""
+        """Override to handle Delete/Backspace and F2 keys."""
         if event is None:
             return
         # Check if Delete or Backspace key is pressed
@@ -36,8 +37,34 @@ class InterfaceTreeWidget(QtWidgets.QTreeWidget):
                 event.accept()
                 return
 
+        # Check if F2 key is pressed (standard rename key)
+        if event.key() == QtCore.Qt.Key.Key_F2:
+            if self.state() != QtWidgets.QAbstractItemView.State.EditingState:
+                self.renameKeyPressed.emit()
+                event.accept()
+                return
+
         # Pass to parent for all other keys or when editing
         super().keyPressEvent(event)
+
+    def scrollTo(
+        self,
+        index: QtCore.QModelIndex,
+        hint: QtWidgets.QAbstractItemView.ScrollHint = QtWidgets.QAbstractItemView.ScrollHint.EnsureVisible,
+    ):
+        """Override to prevent scrolling when embedded widgets have focus.
+
+        This prevents the tree from scrolling when the user is interacting
+        with property widgets (EditableLabel, checkboxes, etc.) embedded in tree items.
+        """
+        # Check if focus is on an embedded widget inside this tree
+        app = QtWidgets.QApplication.instance()
+        if app:
+            focused = app.focusWidget()
+            if focused is not None and focused is not self and self.isAncestorOf(focused):
+                # Don't scroll - user is interacting with an embedded widget
+                return
+        super().scrollTo(index, hint)
 
 
 class EditableLabel(QtWidgets.QWidget):
@@ -78,10 +105,11 @@ class EditableLabel(QtWidgets.QWidget):
         self._stack.setCurrentWidget(self._label)
 
     def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent | None):
+        """Switch to edit mode on double-click."""
         if event is None:
             return
-        """Switch to edit mode on double-click."""
-        super().mouseDoubleClickEvent(event)
+        # Accept the event to prevent propagation to parent tree widget
+        event.accept()
         self._start_editing()
 
     def _start_editing(self):
@@ -302,15 +330,18 @@ class PropertyListWidget(QtWidgets.QWidget):
         if self._updating:
             return
 
-        line_edit = self._property_widgets.get(coord_name)
-        if not line_edit or not isinstance(line_edit, (QtWidgets.QLineEdit, QtWidgets.QComboBox)):
+        widget = self._property_widgets.get(coord_name)
+        if not widget or not isinstance(
+            widget, (QtWidgets.QLineEdit, QtWidgets.QComboBox, EditableLabel)
+        ):
             return
 
         try:
-            if isinstance(line_edit, QtWidgets.QLineEdit):
-                text = line_edit.text()
+            if isinstance(widget, QtWidgets.QComboBox):
+                text = widget.currentText()
             else:
-                text = line_edit.currentText()
+                # Works for both QLineEdit and EditableLabel
+                text = widget.text()
             value = float(text)
 
             if coord_name == "X₁":
@@ -322,21 +353,21 @@ class PropertyListWidget(QtWidgets.QWidget):
             elif coord_name == "Y₂":
                 self.interface.y2_mm = value
 
-            if isinstance(line_edit, QtWidgets.QLineEdit):
-                line_edit.setText(f"{value:.3f}")
+            if isinstance(widget, (QtWidgets.QLineEdit, EditableLabel)):
+                widget.setText(f"{value:.3f}")
             self.propertyChanged.emit()
 
         except ValueError:
             # Invalid number - revert to current interface value
-            if isinstance(line_edit, QtWidgets.QLineEdit):
+            if isinstance(widget, (QtWidgets.QLineEdit, EditableLabel)):
                 if coord_name == "X₁":
-                    line_edit.setText(f"{self.interface.x1_mm:.3f}")
+                    widget.setText(f"{self.interface.x1_mm:.3f}")
                 elif coord_name == "X₂":
-                    line_edit.setText(f"{self.interface.x2_mm:.3f}")
+                    widget.setText(f"{self.interface.x2_mm:.3f}")
                 elif coord_name == "Y₁":
-                    line_edit.setText(f"{self.interface.y1_mm:.3f}")
+                    widget.setText(f"{self.interface.y1_mm:.3f}")
                 elif coord_name == "Y₂":
-                    line_edit.setText(f"{self.interface.y2_mm:.3f}")
+                    widget.setText(f"{self.interface.y2_mm:.3f}")
 
     def _on_type_changed(self):
         """Handle type changes from dropdown - rebuild to show new properties."""
@@ -372,28 +403,28 @@ class PropertyListWidget(QtWidgets.QWidget):
         if self._updating:
             return
 
-        line_edit = self._property_widgets.get(prop_name)
-        if not line_edit or not isinstance(line_edit, QtWidgets.QLineEdit):
+        widget = self._property_widgets.get(prop_name)
+        if not widget or not isinstance(widget, (QtWidgets.QLineEdit, EditableLabel)):
             return
 
         try:
-            value = float(line_edit.text())
+            value = float(widget.text())
 
             min_val, max_val = interface_types.get_property_range(
                 self.interface.element_type, prop_name
             )
             if value < min_val or value > max_val:
                 current_value = getattr(self.interface, prop_name, 0.0)
-                line_edit.setText(f"{current_value:.3f}")
+                widget.setText(f"{current_value:.3f}")
                 return
 
             setattr(self.interface, prop_name, value)
-            line_edit.setText(f"{value:.3f}")
+            widget.setText(f"{value:.3f}")
             self.propertyChanged.emit()
 
         except ValueError:
             current_value = getattr(self.interface, prop_name, 0.0)
-            line_edit.setText(f"{current_value:.3f}")
+            widget.setText(f"{current_value:.3f}")
 
     def _on_property_changed(self, prop_name: str, value: Any):
         """Handle property value changes (for non-numeric properties)."""
