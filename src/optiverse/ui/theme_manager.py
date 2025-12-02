@@ -284,9 +284,7 @@ def question(
         if style is not None:
             # Get the standard pixmap for Question icon
             standard_pixmap = style.standardPixmap(
-                QtWidgets.QStyle.StandardPixmap.SP_MessageBoxQuestion,
-                None,
-                msg_box
+                QtWidgets.QStyle.StandardPixmap.SP_MessageBoxQuestion, None, msg_box
             )
             if standard_pixmap is not None and not standard_pixmap.isNull():
                 # Create inverted pixmap using QImage transformation

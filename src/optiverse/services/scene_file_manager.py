@@ -396,4 +396,3 @@ class SceneFileManager:
             | QtWidgets.QMessageBox.StandardButton.Cancel,
             QtWidgets.QMessageBox.StandardButton.Save,
         )
-

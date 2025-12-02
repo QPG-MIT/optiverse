@@ -491,4 +491,3 @@ class ActionBuilder:
                 ComponentType.RECTANGLE: w.act_add_rectangle,
             }
         )
-

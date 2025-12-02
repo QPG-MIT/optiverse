@@ -249,4 +249,3 @@ class LogWindow(QtWidgets.QDialog):
         # Unregister from log service
         self.log_service.remove_listener(self._on_new_message)
         super().closeEvent(event)
-
