@@ -265,8 +265,6 @@ mypy src/
 black src/ tests/
 ```
 
-**Note**: When you create a pull request, Ruff linting errors are automatically fixed by GitHub Actions and committed back to your branch. You can also run `ruff check --fix .` locally before pushing.
-
 ### Building Resources
 ```bash
 # Compile Qt UI files
