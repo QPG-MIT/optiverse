@@ -1,0 +1,231 @@
+/* 
+ * Optiverse Light Theme
+ * A clean light theme for the application
+ */
+
+QMainWindow {
+    background-color: white;
+    color: black;
+}
+
+QGraphicsView {
+    background-color: white;
+    border: none;
+}
+
+/* Menu Bar */
+QMenuBar {
+    background-color: #f0f0f0;
+    color: black;
+    border: none;
+}
+
+QMenuBar::item {
+    background: transparent;
+    padding: 4px 8px;
+    color: black;
+}
+
+QMenuBar::item:selected {
+    background-color: #e0e0e0;
+    border-radius: 3px;
+}
+
+/* Tool Bar */
+QToolBar {
+    background-color: #f0f0f0;
+    border: none;
+    spacing: 3px;
+}
+
+QToolBar QToolButton {
+    background-color: transparent;
+    color: black;
+    border: none;
+    padding: 3px;
+}
+
+QToolBar QToolButton:hover {
+    background-color: #e0e0e0;
+    color: black;
+    border-radius: 3px;
+}
+
+QToolBar QToolButton:pressed {
+    background-color: #d0d0d0;
+    color: black;
+    border-radius: 3px;
+}
+
+/* Status Bar */
+QStatusBar {
+    background-color: #f0f0f0;
+    color: black;
+}
+
+/* Dock Widget */
+QDockWidget {
+    background-color: white;
+    color: black;
+}
+
+QDockWidget::title {
+    background-color: #e0e0e0;
+    padding: 4px;
+}
+
+/* Tree Widget */
+QTreeWidget {
+    background-color: white;
+    color: black;
+    border: 1px solid #c0c0c0;
+    alternate-background-color: #f8f8f8;
+}
+
+QTreeWidget::item:selected {
+    background-color: #cce8ff;
+}
+
+QTreeWidget::item:hover {
+    background-color: #e6f2ff;
+}
+
+/* Push Button */
+QPushButton {
+    background-color: #f0f0f0;
+    color: black;
+    border: 1px solid #c0c0c0;
+    padding: 5px 15px;
+    border-radius: 3px;
+}
+
+QPushButton:hover {
+    background-color: #e0e0e0;
+}
+
+QPushButton:pressed {
+    background-color: #d0d0d0;
+}
+
+/* Line Edit & Combo Box */
+QLineEdit, QComboBox {
+    background-color: white;
+    color: black;
+    border: 1px solid #c0c0c0;
+    padding: 3px;
+    border-radius: 3px;
+}
+
+QLineEdit:focus, QComboBox:focus {
+    border: 1px solid #4a90e2;
+}
+
+/* Labels */
+QLabel {
+    color: black;
+}
+
+/* Check Box */
+QCheckBox {
+    color: black;
+}
+
+/* Radio Button */
+QRadioButton {
+    color: black;
+}
+
+/* Group Box */
+QGroupBox {
+    color: black;
+    border: 1px solid #c0c0c0;
+    border-radius: 5px;
+    margin-top: 10px;
+    padding-top: 10px;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 5px;
+    color: black;
+}
+
+/* Vertical Scroll Bar */
+QScrollBar:vertical {
+    background-color: #f0f0f0;
+    width: 12px;
+    border: none;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #c0c0c0;
+    border-radius: 6px;
+    min-height: 20px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #a0a0a0;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+/* Horizontal Scroll Bar */
+QScrollBar:horizontal {
+    background-color: #f0f0f0;
+    height: 12px;
+    border: none;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: #c0c0c0;
+    border-radius: 6px;
+    min-width: 20px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background-color: #a0a0a0;
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+
+/* Tab Widget */
+QTabWidget::pane {
+    border: 1px solid #c0c0c0;
+    background-color: white;
+}
+
+QTabBar::tab {
+    background-color: #e0e0e0;
+    color: black;
+    padding: 8px 16px;
+    border: 1px solid #c0c0c0;
+}
+
+QTabBar::tab:selected {
+    background-color: white;
+    border-bottom: none;
+}
+
+QTabBar::tab:hover {
+    background-color: #f0f0f0;
+}
+
+/* Dialog */
+QDialog {
+    background-color: white;
+    color: black;
+}
+
+/* Text Edit */
+QTextEdit, QPlainTextEdit {
+    background-color: white;
+    color: black;
+    border: 1px solid #c0c0c0;
+    border-radius: 3px;
+}
+

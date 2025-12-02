@@ -1,177 +1,201 @@
 """
-Integration tests for magnetic snap feature.
+Tests for magnetic snap functionality in the UI.
 
-Tests the complete flow of magnetic snap alignment.
+Tests snap calculations for center-to-center and edge-to-edge alignment.
 """
-import pytest
+
 from PyQt6 import QtCore, QtWidgets
-from optiverse.ui.views.main_window import MainWindow
-from optiverse.objects import LensItem
-from optiverse.core.models import LensParams
+
+from optiverse.core.snap_helper import SnapHelper, SnapResult
+from tests.fixtures.factories import create_lens_item, create_mirror_item
 
 
-def test_magnetic_snap_toggle(qtbot):
-    """Test that magnetic snap toggle works."""
-    window = MainWindow()
-    qtbot.addWidget(window)
-    
-    # Check initial state
-    assert window.magnetic_snap is True
-    assert window.act_magnetic_snap.isChecked()
-    
-    # Toggle off
-    window.act_magnetic_snap.trigger()
-    assert window.magnetic_snap is False
-    assert not window.act_magnetic_snap.isChecked()
-    
-    # Toggle back on
-    window.act_magnetic_snap.trigger()
-    assert window.magnetic_snap is True
-    assert window.act_magnetic_snap.isChecked()
+def test_snap_result_no_snap():
+    """Test SnapResult when no snap occurs."""
+    result = SnapResult(QtCore.QPointF(100, 200), False, [])
+    assert result.position.x() == 100
+    assert result.position.y() == 200
+    assert not result.snapped
+    assert len(result.guide_lines) == 0
 
 
-def test_magnetic_snap_aligns_components(qtbot):
-    """Test that components snap to align with each other."""
-    window = MainWindow()
-    qtbot.addWidget(window)
-    window.show()
-    
-    # Enable magnetic snap
-    window.magnetic_snap = True
-    
-    # Add first lens at (100, 200)
-    lens1 = LensItem(LensParams(x_mm=100, y_mm=200))
-    window.scene.addItem(lens1)
-    lens1._ready = True
-    
-    # Add second lens at (300, 205) - close to same Y
-    lens2 = LensItem(LensParams(x_mm=300, y_mm=205))
-    window.scene.addItem(lens2)
-    lens2._ready = True
-    
-    # Simulate position change (as would happen during drag)
-    # The itemChange method will intercept and snap
-    from PyQt6.QtCore import QPointF
-    proposed_pos = QPointF(300, 205)
-    
-    # Trigger itemChange by simulating a position change
-    snapped_pos = lens2.itemChange(
-        lens2.GraphicsItemChange.ItemPositionChange,
-        proposed_pos
-    )
-    
-    # Should snap to Y=200 (within tolerance of lens1)
-    # The itemChange returns the snapped position
-    assert isinstance(snapped_pos, QPointF)
-    assert snapped_pos.y() == 200  # Snapped to lens1's Y coordinate
-    assert snapped_pos.x() == 300  # X unchanged
+def test_snap_result_with_snap():
+    """Test SnapResult when snap occurs."""
+    guides = [("horizontal", 150.0), ("vertical", 250.0)]
+    result = SnapResult(QtCore.QPointF(150, 250), True, guides)
+    assert result.position.x() == 150
+    assert result.position.y() == 250
+    assert result.snapped
+    assert len(result.guide_lines) == 2
 
 
-def test_magnetic_snap_shows_guides(qtbot):
-    """Test that alignment guides are shown during snap."""
-    window = MainWindow()
-    qtbot.addWidget(window)
-    
-    # Enable magnetic snap
-    window.magnetic_snap = True
-    
-    # Add two lenses
-    lens1 = LensItem(LensParams(x_mm=100, y_mm=200))
-    window.scene.addItem(lens1)
-    
-    lens2 = LensItem(LensParams(x_mm=300, y_mm=203))
-    window.scene.addItem(lens2)
-    
-    # Calculate snap
-    snap_result = window._snap_helper.calculate_snap(
-        lens2.pos(),
-        lens2,
-        window.scene,
-        window.view
-    )
-    
-    # Set guides
-    window.view.set_snap_guides(snap_result.guide_lines)
-    
-    # Check that guides are set
-    assert len(window.view._snap_guides) > 0
-    
-    # Clear guides
-    window.view.clear_snap_guides()
-    assert len(window.view._snap_guides) == 0
+def test_snap_helper_initialization():
+    """Test SnapHelper initialization with default tolerance."""
+    helper = SnapHelper(tolerance_px=10.0)
+    assert helper.tolerance_px == 10.0
 
 
-def test_magnetic_snap_respects_tolerance(qtbot):
-    """Test that snap doesn't occur beyond tolerance."""
-    window = MainWindow()
-    qtbot.addWidget(window)
-    
-    # Enable magnetic snap
-    window.magnetic_snap = True
-    
-    # Add first lens at (100, 200)
-    lens1 = LensItem(LensParams(x_mm=100, y_mm=200))
-    window.scene.addItem(lens1)
-    
-    # Add second lens far away (300, 250) - beyond tolerance
-    lens2 = LensItem(LensParams(x_mm=300, y_mm=250))
-    window.scene.addItem(lens2)
-    
-    # Calculate snap
-    snap_result = window._snap_helper.calculate_snap(
-        lens2.pos(),
-        lens2,
-        window.scene,
-        window.view
-    )
-    
-    # Should NOT snap (too far)
-    assert not snap_result.snapped
-    assert len(snap_result.guide_lines) == 0
+def test_snap_to_center_horizontal(qtbot):
+    """Test center-to-center snap on horizontal axis."""
+    scene = QtWidgets.QGraphicsScene()
+
+    # Create a fixed lens at (100, 200)
+    fixed = create_lens_item(x_mm=100, y_mm=200)
+    scene.addItem(fixed)
+
+    # Create moving lens near the same Y coordinate
+    moving = create_lens_item(x_mm=300, y_mm=204)  # 4px offset
+    scene.addItem(moving)
+
+    helper = SnapHelper(tolerance_px=10.0)
+
+    # Try to snap at position (300, 204)
+    result = helper.calculate_snap(QtCore.QPointF(300, 204), moving, scene)
+
+    # Should snap Y to 200 (center of fixed item)
+    assert result.snapped
+    assert result.position.x() == 300  # X unchanged
+    assert result.position.y() == 200  # Y snapped
+    assert any(guide[0] == "horizontal" for guide in result.guide_lines)
 
 
-def test_magnetic_snap_disabled_no_snap(qtbot):
-    """Test that disabling magnetic snap prevents snapping."""
-    window = MainWindow()
-    qtbot.addWidget(window)
-    
-    # Disable magnetic snap
-    window.magnetic_snap = False
-    
-    # Add two close lenses
-    lens1 = LensItem(LensParams(x_mm=100, y_mm=200))
-    window.scene.addItem(lens1)
-    
-    lens2 = LensItem(LensParams(x_mm=300, y_mm=203))
-    window.scene.addItem(lens2)
-    lens2.setSelected(True)
-    
-    # Simulate mouse move event (should not snap)
-    # When magnetic_snap is False, the eventFilter should not apply snapping
-    
-    # Position should remain unchanged
-    original_y = lens2.pos().y()
-    
-    # The snap calculation would suggest Y=200, but with magnetic_snap=False
-    # the eventFilter won't apply it
-    assert lens2.pos().y() == original_y
+def test_snap_to_center_vertical(qtbot):
+    """Test center-to-center snap on vertical axis."""
+    scene = QtWidgets.QGraphicsScene()
+
+    # Create a fixed mirror at (100, 200)
+    fixed = create_mirror_item(x_mm=100, y_mm=200)
+    scene.addItem(fixed)
+
+    # Create moving mirror near the same X coordinate
+    moving = create_mirror_item(x_mm=103, y_mm=400)  # 3px offset
+    scene.addItem(moving)
+
+    helper = SnapHelper(tolerance_px=10.0)
+
+    # Try to snap at position (103, 400)
+    result = helper.calculate_snap(QtCore.QPointF(103, 400), moving, scene)
+
+    # Should snap X to 100 (center of fixed item)
+    assert result.snapped
+    assert result.position.x() == 100  # X snapped
+    assert result.position.y() == 400  # Y unchanged
+    assert any(guide[0] == "vertical" for guide in result.guide_lines)
 
 
-def test_magnetic_snap_persistence(qtbot):
-    """Test that magnetic snap setting is persisted."""
-    # Create first window and toggle snap off
-    window1 = MainWindow()
-    qtbot.addWidget(window1)
-    window1.magnetic_snap = False
-    window1.settings_service.set_value("magnetic_snap", False)
-    
-    # Create second window - should load saved setting
-    window2 = MainWindow()
-    qtbot.addWidget(window2)
-    
-    # Should remember the disabled state
-    assert window2.magnetic_snap is False
-    
-    # Cleanup: reset to default
-    window2.settings_service.set_value("magnetic_snap", True)
+def test_snap_both_axes(qtbot):
+    """Test simultaneous snap on both axes."""
+    scene = QtWidgets.QGraphicsScene()
 
+    # Create a fixed lens at (100, 200)
+    fixed = create_lens_item(x_mm=100, y_mm=200)
+    scene.addItem(fixed)
+
+    # Create moving lens near the same position
+    moving = create_lens_item(x_mm=105, y_mm=205)
+    scene.addItem(moving)
+
+    helper = SnapHelper(tolerance_px=10.0)
+
+    # Try to snap at position (105, 205)
+    result = helper.calculate_snap(QtCore.QPointF(105, 205), moving, scene)
+
+    # Should snap both X and Y
+    assert result.snapped
+    assert result.position.x() == 100
+    assert result.position.y() == 200
+    assert any(guide[0] == "horizontal" for guide in result.guide_lines)
+    assert any(guide[0] == "vertical" for guide in result.guide_lines)
+
+
+def test_no_snap_beyond_tolerance(qtbot):
+    """Test that no snap occurs beyond tolerance distance."""
+    scene = QtWidgets.QGraphicsScene()
+
+    # Create a fixed lens at (100, 200)
+    fixed = create_lens_item(x_mm=100, y_mm=200)
+    scene.addItem(fixed)
+
+    # Create moving lens far from fixed
+    moving = create_lens_item(x_mm=300, y_mm=250)
+    scene.addItem(moving)
+
+    helper = SnapHelper(tolerance_px=10.0)
+
+    # Try to snap at position too far away (50px difference)
+    result = helper.calculate_snap(QtCore.QPointF(300, 250), moving, scene)
+
+    # Should NOT snap
+    assert not result.snapped
+    assert result.position.x() == 300
+    assert result.position.y() == 250
+    assert len(result.guide_lines) == 0
+
+
+def test_snap_ignores_moving_item(qtbot):
+    """Test that snap doesn't consider the moving item itself."""
+    scene = QtWidgets.QGraphicsScene()
+
+    # Create only one lens
+    moving = create_lens_item(x_mm=100, y_mm=200)
+    scene.addItem(moving)
+
+    helper = SnapHelper(tolerance_px=10.0)
+
+    # Try to snap with only itself in the scene
+    result = helper.calculate_snap(QtCore.QPointF(105, 205), moving, scene)
+
+    # Should NOT snap (no other items)
+    assert not result.snapped
+    assert result.position.x() == 105
+    assert result.position.y() == 205
+
+
+def test_snap_multiple_candidates_closest(qtbot):
+    """Test that snap chooses the closest candidate."""
+    scene = QtWidgets.QGraphicsScene()
+
+    # Create two fixed items at different Y positions
+    fixed1 = create_lens_item(x_mm=100, y_mm=200)
+    fixed2 = create_lens_item(x_mm=200, y_mm=210)
+    scene.addItem(fixed1)
+    scene.addItem(fixed2)
+
+    # Create moving item closer to fixed1
+    moving = create_lens_item(x_mm=300, y_mm=203)
+    scene.addItem(moving)
+
+    helper = SnapHelper(tolerance_px=10.0)
+
+    # Try to snap
+    result = helper.calculate_snap(QtCore.QPointF(300, 203), moving, scene)
+
+    # Should snap to 200 (closer) not 210
+    assert result.snapped
+    assert result.position.y() == 200
+
+
+def test_snap_with_view_transform(qtbot):
+    """Test that snap calculations work with view zoom/transform."""
+    scene = QtWidgets.QGraphicsScene()
+    view = QtWidgets.QGraphicsView(scene)
+
+    # Zoom in 2x
+    view.scale(2.0, 2.0)
+
+    # Create fixed item
+    fixed = create_lens_item(x_mm=100, y_mm=200)
+    scene.addItem(fixed)
+
+    # Create moving item
+    moving = create_lens_item(x_mm=300, y_mm=205)
+    scene.addItem(moving)
+
+    helper = SnapHelper(tolerance_px=10.0)
+
+    # Try to snap - should work in scene coordinates
+    result = helper.calculate_snap(QtCore.QPointF(300, 205), moving, scene, view)
+
+    # Should still snap (tolerance is in view pixels, converted to scene)
+    assert result.snapped
+    assert result.position.y() == 200

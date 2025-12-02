@@ -3,5 +3,3 @@ def test_app_entry_imports():
     from optiverse.app.main import main
 
     assert callable(main)
-
-

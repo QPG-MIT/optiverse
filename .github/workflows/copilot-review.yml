@@ -1,0 +1,59 @@
+name: Copilot Instructions Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - '.github/copilot-instructions.md'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - '.github/copilot-instructions.md'
+  workflow_dispatch:
+
+jobs:
+  validate-copilot-instructions:
+    name: Validate Copilot Instructions
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Validate Copilot instructions file exists
+      run: |
+        if [ ! -f ".github/copilot-instructions.md" ]; then
+          echo "❌ Error: .github/copilot-instructions.md not found"
+          exit 1
+        fi
+        echo "✅ Copilot instructions file found"
+    
+    - name: Check file size
+      run: |
+        size=$(wc -c < .github/copilot-instructions.md)
+        if [ $size -lt 100 ]; then
+          echo "⚠️  Warning: Copilot instructions file seems too small ($size bytes)"
+        else
+          echo "✅ Copilot instructions file size: $size bytes"
+        fi
+    
+    - name: Display Copilot usage information
+      run: |
+        echo "## GitHub Copilot Integration"
+        echo ""
+        echo "This repository includes Copilot instructions at \`.github/copilot-instructions.md\`"
+        echo "that guide GitHub Copilot when reviewing code in Pull Requests."
+        echo ""
+        echo "### Using Copilot for Code Review:"
+        echo ""
+        echo "1. **In Pull Requests**: Use GitHub Copilot Chat to ask questions about code changes"
+        echo "2. **Copilot will reference**: The instructions file to understand project context"
+        echo "3. **Manual Review**: Copilot Chat provides suggestions but requires human review"
+        echo ""
+        echo "### Instructions File Location:"
+        echo "- Path: \`.github/copilot-instructions.md\`"
+        echo "- Purpose: Provides context about architecture, patterns, and conventions"
+        echo ""
+        echo "Note: GitHub Copilot does not provide automated code review via Actions."
+        echo "Use Copilot Chat manually in PRs for AI-assisted code review."
+

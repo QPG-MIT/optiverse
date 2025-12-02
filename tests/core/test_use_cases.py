@@ -1,6 +1,3 @@
-import math
-from typing import List
-
 import numpy as np
 
 
@@ -42,7 +39,7 @@ def test_reflection_on_mirror():
     pts = paths[0].points
     assert len(pts) >= 3
     assert abs(pts[1][1]) < 1e-6  # intersection ~ y=0
-    assert pts[2][1] < 0.0        # reflected below
+    assert pts[2][1] < 0.0  # reflected below
 
 
 def test_lens_zero_offset_no_deflection():
@@ -70,5 +67,3 @@ def test_beamsplitter_splits_into_two():
     # Sum of intensities approximately 1.0
     total_I = sum(p.intensity for p in paths)
     assert 0.95 <= total_I <= 1.05
-
-

@@ -11,17 +11,17 @@ Usage:
     python examples/zemax_import_demo.py /path/to/file.zmx
 """
 
-import sys
 import os
+import sys
 
 # Add src to path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, os.path.join(project_root, 'src'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(project_root, "src"))
 
 try:
-    from optiverse.services.zemax_parser import ZemaxParser
-    from optiverse.services.zemax_converter import ZemaxToInterfaceConverter
     from optiverse.services.glass_catalog import GlassCatalog
+    from optiverse.services.zemax_converter import ZemaxToInterfaceConverter
+    from optiverse.services.zemax_parser import ZemaxParser
 except ImportError as e:
     print(f"Import error: {e}")
     print("Make sure you run this from the project root.")
@@ -36,7 +36,7 @@ def print_separator(char="=", length=70):
 def demo_zemax_import(zmx_filepath: str):
     """
     Demonstrate Zemax file import process.
-    
+
     Args:
         zmx_filepath: Path to .zmx file
     """
@@ -44,74 +44,74 @@ def demo_zemax_import(zmx_filepath: str):
     print("ZEMAX IMPORT DEMONSTRATION")
     print_separator()
     print()
-    
+
     # Step 1: Parse Zemax file
     print("STEP 1: Parsing Zemax file...")
     print(f"File: {zmx_filepath}")
     print()
-    
+
     parser = ZemaxParser()
     zemax_data = parser.parse(zmx_filepath)
-    
+
     if not zemax_data:
         print("ERROR: Failed to parse Zemax file")
         return
-    
+
     print("✓ Successfully parsed Zemax file")
     print()
     print(parser.format_summary(zemax_data))
     print()
-    
+
     # Step 2: Show glass catalog capabilities
     print_separator("-")
     print("STEP 2: Glass Catalog Lookup")
     print_separator("-")
     print()
-    
+
     catalog = GlassCatalog()
     print(f"Available glasses: {len(catalog.list_glasses())}")
     print()
-    
+
     # Show refractive indices for materials in this lens
     unique_materials = set()
     for surf in zemax_data.surfaces:
         if surf.glass:
             unique_materials.add(surf.glass)
-    
+
     print("Materials used in this lens:")
     wavelength_um = zemax_data.primary_wavelength_um
     for material in sorted(unique_materials):
         n = catalog.get_refractive_index(material, wavelength_um)
         if n:
-            print(f"  {material:20s} @ {wavelength_um*1000:.1f}nm: n = {n:.5f}")
+            print(f"  {material:20s} @ {wavelength_um * 1000:.1f}nm: n = {n:.5f}")
         else:
-            print(f"  {material:20s} @ {wavelength_um*1000:.1f}nm: NOT FOUND")
+            print(f"  {material:20s} @ {wavelength_um * 1000:.1f}nm: NOT FOUND")
     print()
-    
+
     # Step 3: Convert to InterfaceDefinition objects
     print_separator("-")
     print("STEP 3: Converting to OptiVerse Interfaces")
     print_separator("-")
     print()
-    
+
     converter = ZemaxToInterfaceConverter(catalog)
     component = converter.convert(zemax_data)
-    
+
     print(f"Component Name: {component.name}")
     print(f"Component Type: {component.kind}")
     print(f"Object Height: {component.object_height_mm:.2f} mm")
     print(f"Number of Interfaces: {len(component.interfaces_v2) if component.interfaces_v2 else 0}")
     print()
-    
+
     # Step 4: Show detailed interface information
     print_separator("-")
     print("STEP 4: Interface Details")
     print_separator("-")
     print()
-    
+
     if component.interfaces_v2:
         for i, iface in enumerate(component.interfaces_v2):
-            print(f"Interface {i+1}:")
+            print(f"Interface {i + 1}:")
             print(f"  Name:     {iface.name}")
             print(f"  Type:     {iface.element_type}")
             print(f"  Position: x={iface.x1_mm:.3f} mm, y=±{abs(iface.y1_mm):.3f} mm")
@@ -119,13 +119,13 @@ def demo_zemax_import(zmx_filepath: str):
             print(f"  Indices:  n₁={iface.n1:.5f} → n₂={iface.n2:.5f}")
             print(f"  Δn:       {abs(iface.n2 - iface.n1):.5f}")
             print()
-    
+
     # Step 5: Show how this would be used in OptiVerse
     print_separator("-")
     print("STEP 5: Usage in OptiVerse")
     print_separator("-")
     print()
-    
+
     print("This component can now be used in OptiVerse:")
     print()
     print("1. SAVE TO LIBRARY:")
@@ -143,18 +143,19 @@ def demo_zemax_import(zmx_filepath: str):
     print("   # Rays will automatically refract through all interfaces")
     print("   # Snell's law applied at each n₁→n₂ boundary")
     print()
-    
+
     # Step 6: Show component JSON representation
     print_separator("-")
     print("STEP 6: JSON Representation (Excerpt)")
     print_separator("-")
     print()
-    
-    from optiverse.core.models import serialize_component
+
     import json
-    
+
+    from optiverse.core.models import serialize_component
+
     component_dict = serialize_component(component)
-    
+
     # Show excerpt of JSON (first interface only)
     excerpt = {
         "name": component_dict["name"],
@@ -162,12 +163,16 @@ def demo_zemax_import(zmx_filepath: str):
         "kind": component_dict["kind"],
         "object_height_mm": component_dict["object_height_mm"],
         "num_interfaces": len(component_dict.get("interfaces_v2", [])),
-        "first_interface": component_dict.get("interfaces_v2", [{}])[0] if component_dict.get("interfaces_v2") else {}
+        "first_interface": (
+            component_dict.get("interfaces_v2", [{}])[0]
+            if component_dict.get("interfaces_v2")
+            else {}
+        ),
     }
-    
+
     print(json.dumps(excerpt, indent=2))
     print()
-    
+
     print_separator()
     print("IMPORT COMPLETE ✓")
     print_separator()
@@ -190,16 +195,15 @@ def main():
         print("Example:")
         print("  python examples/zemax_import_demo.py ~/Downloads/AC254-100-B-Zemax.zmx")
         sys.exit(1)
-    
+
     zmx_filepath = sys.argv[1]
-    
+
     if not os.path.exists(zmx_filepath):
         print(f"ERROR: File not found: {zmx_filepath}")
         sys.exit(1)
-    
+
     demo_zemax_import(zmx_filepath)
 
 
 if __name__ == "__main__":
     main()
-

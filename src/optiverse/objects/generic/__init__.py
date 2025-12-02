@@ -2,5 +2,4 @@
 
 from .component_item import ComponentItem
 
-__all__ = ['ComponentItem']
-
+__all__ = ["ComponentItem"]

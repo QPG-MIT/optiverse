@@ -1,35 +1,52 @@
 from __future__ import annotations
 
-import json
 import os
-import tempfile
-import hashlib
-import datetime
+from functools import partial
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
-from ...core.models import (
-    SourceParams,
-    OpticalElement
+from ...core.constants import (
+    DEFAULT_WINDOW_HEIGHT,
+    DEFAULT_WINDOW_WIDTH,
+    SCENE_MIN_COORD,
+    SCENE_SIZE_MM,
 )
+from ...core.editor_state import EditorState
+from ...core.protocols import Editable
 from ...core.snap_helper import SnapHelper
-from ...core.undo_commands import AddItemCommand, MoveItemCommand, RemoveItemCommand, RemoveMultipleItemsCommand, PasteItemsCommand, RotateItemCommand, RotateItemsCommand
+from ...core.ui_constants import (
+    MAGNETIC_SNAP_TOLERANCE_PX,
+    ZOOM_FACTOR,
+)
 from ...core.undo_stack import UndoStack
-from ...core.use_cases import trace_rays
-from ...services.settings_service import SettingsService
-from ...services.storage_service import StorageService
-from ...services.collaboration_manager import CollaborationManager
-from ...services.log_service import get_log_service
-from .collaboration_dialog import CollaborationDialog
-from .log_window import LogWindow
 from ...objects import (
     GraphicsView,
     RulerItem,
-    SourceItem,
-    TextNoteItem,
 )
+from ...services.collaboration_manager import CollaborationManager
+from ...services.log_service import get_log_service
+from ...services.settings_service import SettingsService
+from ...services.storage_service import StorageService
+from ..builders import ActionBuilder
+from ..controllers import (
+    CollaborationController,
+    FileController,
+    RaytracingController,
+    ToolModeController,
+)
+from ..controllers.component_operations import ComponentOperationsHandler
+from ..controllers.item_drag_handler import ItemDragHandler
+from ..controllers.library_manager import LibraryManager
+from ..controllers.ray_renderer import RayRenderer
+from ..widgets.library_tree import LibraryTree
+from .log_window import LogWindow
+from .placement_handler import PlacementHandler
+from .ruler_placement_handler import RulerPlacementHandler
+from .scene_event_handler import SceneEventHandler
+from .tool_handlers import AngleMeasureToolHandler, InspectToolHandler, PathMeasureToolHandler
 
 
 def _get_icon_path(icon_name: str) -> str:
@@ -43,90 +60,53 @@ def to_np(p: QtCore.QPointF) -> np.ndarray:
     return np.array([p.x(), p.y()], float)
 
 
-class LibraryTree(QtWidgets.QTreeWidget):
-    """Drag-enabled library tree for component templates organized by category."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setHeaderHidden(True)
-        self.setIconSize(QtCore.QSize(64, 64))
-        self.setDragEnabled(True)
-        self.setSelectionMode(QtWidgets.QTreeWidget.SelectionMode.SingleSelection)
-        self.setDragDropMode(QtWidgets.QAbstractItemView.DragDropMode.DragOnly)
-        self.setDefaultDropAction(QtCore.Qt.DropAction.CopyAction)
-        self.setIndentation(20)
-        self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
-        self.customContextMenuRequested.connect(self._show_context_menu)
-        
-        # Expand all categories by default
-        self.expandAll()
-    
-    def _show_context_menu(self, position):
-        """Show context menu for component items."""
-        item = self.itemAt(position)
-        if not item:
-            return
-        
-        # Only show context menu for leaf items (components), not category headers
-        if item.childCount() > 0:
-            return
-        
-        payload = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
-        if not payload:
-            return
-        
-        # Create context menu
-        menu = QtWidgets.QMenu(self)
-        edit_action = menu.addAction("Edit Component")
-        edit_action.triggered.connect(lambda: self._edit_component(payload))
-        
-        # Show menu at cursor position
-        menu.exec(self.viewport().mapToGlobal(position))
-    
-    def _edit_component(self, component_data: dict):
-        """Open component editor with the selected component loaded."""
-        # Get the main window parent
-        main_window = self.window()
-        if hasattr(main_window, 'open_component_editor_with_data'):
-            main_window.open_component_editor_with_data(component_data)
-
-    def startDrag(self, actions):
-        it = self.currentItem()
-        if not it:
-            return
-        
-        # Only allow dragging leaf items (components), not category headers
-        if it.childCount() > 0:
-            return
-            
-        payload = it.data(0, QtCore.Qt.ItemDataRole.UserRole)
-        if not payload:
-            return
-            
-        md = QtCore.QMimeData()
-        md.setData("application/x-optics-component", json.dumps(payload).encode("utf-8"))
-        drag = QtGui.QDrag(self)
-        drag.setMimeData(md)
-        
-        # Set an empty 1x1 transparent pixmap to prevent Qt from creating a default drag cursor
-        # The ghost preview in GraphicsView provides the visual feedback
-        empty_pixmap = QtGui.QPixmap(1, 1)
-        empty_pixmap.fill(QtCore.Qt.GlobalColor.transparent)
-        drag.setPixmap(empty_pixmap)
-        drag.setHotSpot(QtCore.QPoint(0, 0))
-        
-        # Execute drag and clear selection afterwards
-        result = drag.exec(QtCore.Qt.DropAction.CopyAction)
-        if result == QtCore.Qt.DropAction.CopyAction:
-            self.clearSelection()
-
-
 class MainWindow(QtWidgets.QMainWindow):
+    # Action attributes (initialized by ActionBuilder)
+    act_open: QtGui.QAction
+    act_save: QtGui.QAction
+    act_save_as: QtGui.QAction
+    act_undo: QtGui.QAction
+    act_redo: QtGui.QAction
+    act_delete: QtGui.QAction
+    act_copy: QtGui.QAction
+    act_paste: QtGui.QAction
+    act_preferences: QtGui.QAction
+    act_add_source: QtGui.QAction
+    act_add_lens: QtGui.QAction
+    act_add_mirror: QtGui.QAction
+    act_add_bs: QtGui.QAction
+    act_add_ruler: QtGui.QAction
+    act_add_text: QtGui.QAction
+    act_add_rectangle: QtGui.QAction
+    act_inspect: QtGui.QAction
+    act_measure_path: QtGui.QAction
+    act_measure_angle: QtGui.QAction
+    act_zoom_in: QtGui.QAction
+    act_zoom_out: QtGui.QAction
+    act_fit: QtGui.QAction
+    act_recenter: QtGui.QAction
+    act_autotrace: QtGui.QAction
+    act_snap: QtGui.QAction
+    act_magnetic_snap: QtGui.QAction
+    act_dark_mode: QtGui.QAction
+    menu_raywidth: QtWidgets.QMenu
+    _raywidth_group: QtGui.QActionGroup
+    act_retrace: QtGui.QAction
+    act_clear: QtGui.QAction
+    act_editor: QtGui.QAction
+    act_reload: QtGui.QAction
+    act_open_library_folder: QtGui.QAction
+    act_import_library: QtGui.QAction
+    act_show_log: QtGui.QAction
+    act_collaborate: QtGui.QAction
+    act_disconnect: QtGui.QAction
+    collab_status_label: QtWidgets.QLabel
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("2D Ray Optics Sandbox — Top View (mm/cm grid)")
-        self.resize(1450, 860)
-        
+        self.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
+
         # Set window icon
         icon_path = _get_icon_path("optiverse.png")
         if os.path.exists(icon_path):
@@ -134,68 +114,32 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Scene and view
         self.scene = QtWidgets.QGraphicsScene(self)
-        # Effectively "infinite" scene: 1 million x 1 million mm (1 km x 1 km)
-        # This provides unlimited scrollable area for panning at any zoom level
+        # Effectively "infinite" scene (see constants.py for details)
         # Centered at origin for optical bench convention
-        self.scene.setSceneRect(-500000, -500000, 1000000, 1000000)
+        self.scene.setSceneRect(SCENE_MIN_COORD, SCENE_MIN_COORD, SCENE_SIZE_MM, SCENE_SIZE_MM)
         self.view = GraphicsView(self.scene)
-        self.view.parent = lambda: self  # For dropEvent callback
+        # Connect drop signal instead of circular reference
+        self.view.componentDropped.connect(self.on_drop_component)
         self.setCentralWidget(self.view)
-        
+
         # Initialize OpenGL ray overlay for hardware-accelerated rendering
         self.view._create_ray_overlay()
 
         # State variables
         self.snap_to_grid = False
-        self._ray_width_px = 2.0
         self.ray_items: list[QtWidgets.QGraphicsPathItem] = []
-        self.ray_data: list = []  # Store RayPath data for each ray item
-        self.autotrace = True
-        self._inspect_mode = False  # Track if inspect tool is active
-        
-        # Debouncing for autotrace to prevent excessive retrace calls
-        self._retrace_pending = False
-        self._retrace_timer = QtCore.QTimer()
-        self._retrace_timer.setSingleShot(True)
-        RETRACE_DEBOUNCE_DELAY_MS = 1  # debounce delay
-        self._retrace_timer.setInterval(RETRACE_DEBOUNCE_DELAY_MS)
-        self._retrace_timer.timeout.connect(self._do_retrace)
-        
-        # Autosave timer with debouncing (triggered by significant changes)
-        self._autosave_timer = QtCore.QTimer()
-        self._autosave_timer.setSingleShot(True)
-        AUTOSAVE_DEBOUNCE_DELAY_MS = 1000  # 1 second debounce
-        self._autosave_timer.setInterval(AUTOSAVE_DEBOUNCE_DELAY_MS)
-        self._autosave_timer.timeout.connect(self._do_autosave)
-        
-        # Component placement mode
-        self._placement_mode = False  # Track if component placement mode is active
-        self._placement_type = None  # Type of component being placed ("source", "lens", "mirror", "beamsplitter", "waveplate", "text")
-        self._placement_ghost = None  # Ghost item for preview
-        
+
+        # Centralized editor state (replaces scattered boolean flags)
+        self._editor_state = EditorState()
+
         # Cache standard component templates for toolbar placement
-        # Maps toolbar type strings to library component data
         self._component_templates = {}
-        
-        # NEW: Feature flag for polymorphic raytracing engine
-        # Set to True to use new polymorphic system (Phase 1-3 complete)
-        # Set to False to use legacy system (backward compatibility)
-        self._use_polymorphic_raytracing = False  # Default: False for safety
-        
-        # Grid now drawn in GraphicsView.drawBackground() for better performance
-        
+
         # Snap helper for magnetic alignment
-        self._snap_helper = SnapHelper(tolerance_px=10.0)
+        self._snap_helper = SnapHelper(tolerance_px=MAGNETIC_SNAP_TOLERANCE_PX)
 
-        # Ruler placement mode
-        self._placing_ruler = False
-        self._ruler_p1_scene: QtCore.QPointF | None = None
+        # Ruler placement cursor backup
         self._prev_cursor = None
-
-        # Undo/Redo tracking
-        self._item_positions: dict[QtWidgets.QGraphicsItem, QtCore.QPointF] = {}
-        self._item_rotations: dict[QtWidgets.QGraphicsItem, float] = {}
-        self._item_group_states: dict = {}  # For group rotation tracking
 
         # Services
         self.settings_service = SettingsService()
@@ -204,681 +148,136 @@ class MainWindow(QtWidgets.QMainWindow):
         self.collaboration_manager = CollaborationManager(self)
         self.log_service = get_log_service()
         self.log_service.debug("MainWindow.__init__ called", "Init")
-        self.collab_server_process = None  # Track hosted server process
-        
-        # Initialize clipboard for copy/paste
-        self._clipboard = []
-        self.log_service.debug("Clipboard initialized", "Copy/Paste")
-        
-        # Track unsaved changes
-        self._is_modified = False
-        self._saved_file_path = None  # Track current file for save vs save-as
-        self._autosave_path = None  # Track current autosave file path
-        self._unsaved_id = None  # Unique ID for unsaved documents
-        
+
         # Load saved preferences
         self.magnetic_snap = self.settings_service.get_value("magnetic_snap", True, bool)
-        
+
         # Load dark mode preference and apply theme to match
-        dark_mode_saved = self.settings_service.get_value("dark_mode", self.view.is_dark_mode(), bool)
+        dark_mode_saved = self.settings_service.get_value(
+            "dark_mode", self.view.is_dark_mode(), bool
+        )
         self.view.set_dark_mode(dark_mode_saved)
         # Apply theme to ensure app-wide styling matches the saved preference
-        from ...app.main import apply_theme
-        apply_theme(dark_mode_saved)
-        
-        # Connect collaboration signals
-        self.collaboration_manager.remote_item_added.connect(self._on_remote_item_added)
-        self.collaboration_manager.status_changed.connect(self._on_collaboration_status_changed)
+        from ..theme_manager import apply_theme
 
-        # Build UI
-        self._build_actions()
-        self._build_toolbar()
+        apply_theme(dark_mode_saved)
+
+        # Initialize extracted handlers
+        self._init_handlers()
+
+        # Build library dock first (needed before menus reference libDock)
         self._build_library_dock()
-        self._build_menubar()
-        
-        # Add actions with shortcuts to main window so they work globally
-        self._register_shortcuts()
+
+        # Tool mode controller - manages inspect, path measure, angle measure, placement modes
+        self.tool_controller = ToolModeController(
+            editor_state=self._editor_state,
+            view=self.view,
+            path_measure_handler=self.path_measure_handler,
+            angle_measure_handler=self.angle_measure_handler,
+            placement_handler=self.placement_handler,
+            parent=self,
+        )
+
+        # Build UI using ActionBuilder
+        action_builder = ActionBuilder(self)
+        action_builder.build_all()
+
+        # Initialize handlers that need actions (after action_builder creates them)
+        self._init_event_handlers()
 
         # Install event filter for snap and ruler placement
         self.scene.installEventFilter(self)
-        # Grid is now drawn automatically in GraphicsView.drawBackground()
-        
+
         # Check for autosave recovery on startup
-        QtCore.QTimer.singleShot(100, self._check_autosave_recovery)
-        
-        # Set initial window title
-        self._update_window_title()
+        QtCore.QTimer.singleShot(100, self.file_controller.check_autosave_recovery)
+
+    def _init_handlers(self):
+        """Initialize extracted handler classes."""
+        # Ray renderer for rendering traced paths
+        self.ray_renderer = RayRenderer(self.scene, self.view)
+
+        # Raytracing controller - manages ray tracing, debouncing, and ray data
+        self.raytracing_controller = RaytracingController(
+            scene=self.scene,
+            ray_renderer=self.ray_renderer,
+            log_service=self.log_service,
+            parent=self,
+        )
+
+        # File controller - handles save/load/autosave with UI
+        self.file_controller = FileController(
+            scene=self.scene,
+            undo_stack=self.undo_stack,
+            log_service=self.log_service,
+            get_ray_data=self._get_ray_data,
+            parent_widget=self,
+            connect_item_signals=self._connect_item_signals,
+        )
+        # Connect file controller signals
+        self.file_controller.traceRequested.connect(self._schedule_retrace)
+        self.file_controller.windowTitleChanged.connect(self.setWindowTitle)
+
+        # Collaboration controller - handles hosting/joining sessions
+        self.collab_controller = CollaborationController(
+            collaboration_manager=self.collaboration_manager,
+            log_service=self.log_service,
+            parent_widget=self,
+        )
+        # Status updates are connected via ActionBuilder to status label
+
+        # Inspect tool handler
+        self.inspect_handler = InspectToolHandler(
+            view=self.view,
+            get_ray_data=self._get_ray_data,
+            parent_widget=self,
+        )
+
+        # Path measure tool handler
+        self.path_measure_handler = PathMeasureToolHandler(
+            scene=self.scene,
+            view=self.view,
+            undo_stack=self.undo_stack,
+            get_ray_data=self._get_ray_data,
+            parent_widget=self,
+            on_complete=self._on_path_measure_complete,
+        )
+
+        # Angle measure tool handler
+        self.angle_measure_handler = AngleMeasureToolHandler(
+            scene=self.scene,
+            view=self.view,
+            undo_stack=self.undo_stack,
+            parent_widget=self,
+            on_complete=self._on_angle_measure_complete,
+        )
+
+        # Item drag handler - tracks positions/rotations for undo/redo
+        self.drag_handler = ItemDragHandler(
+            scene=self.scene,
+            view=self.view,
+            undo_stack=self.undo_stack,
+            snap_to_grid_getter=self._get_snap_to_grid,
+            schedule_retrace=self._schedule_retrace,
+        )
+
+        # Component operations handler - copy, paste, delete, drop
+        self.component_ops = ComponentOperationsHandler(
+            scene=self.scene,
+            undo_stack=self.undo_stack,
+            collaboration_manager=self.collaboration_manager,
+            log_service=self.log_service,
+            snap_to_grid_getter=self._get_snap_to_grid,
+            connect_item_signals=self._connect_item_signals,
+            schedule_retrace=self._schedule_retrace,
+            set_paste_enabled=self._set_paste_enabled,
+            parent_widget=self,
+        )
+
+        # Note: PlacementHandler is initialized after _build_library_dock()
+        # because it needs _component_templates which is populated by populate_library()
 
     # Grid is now drawn in GraphicsView.drawBackground() for much better performance
     # No need for _draw_grid() method anymore!
-
-    def _connect_modification_tracking(self):
-        """Connect signals to track when canvas is modified."""
-        # Wrap undo stack push to:
-        # 1. Mark as modified
-        # 2. Trigger autosave for significant changes (with debouncing)
-        original_push = self.undo_stack.push
-        def tracked_push(command):
-            original_push(command)
-            self._mark_modified()
-            # Schedule autosave after significant changes (not during drag)
-            self._schedule_autosave()
-        self.undo_stack.push = tracked_push
-
-    def _mark_modified(self):
-        """Mark the canvas as having unsaved changes."""
-        if not self._is_modified:
-            self._is_modified = True
-            self._update_window_title()
-        # NOTE: Autosave is triggered by undo_stack.push, not here!
-        # This prevents autosave during drag operations
-
-    def _mark_clean(self):
-        """Mark the canvas as saved (no unsaved changes)."""
-        if self._is_modified:
-            self._is_modified = False
-        # Always update window title to reflect current file path
-        self._update_window_title()
-
-    def _update_window_title(self):
-        """Update window title to show file name and modified state."""
-        if self._saved_file_path:
-            import os
-            filename = os.path.basename(self._saved_file_path)
-            # Remove extension for cleaner look
-            filename_no_ext = os.path.splitext(filename)[0]
-            title = filename_no_ext
-        else:
-            title = "Untitled"
-        
-        # Add modified indicator (asterisk before title on macOS, standard convention)
-        if self._is_modified:
-            title = f"{title} — Edited"
-        
-        self.setWindowTitle(title)
-    
-    def _schedule_autosave(self):
-        """Schedule autosave with debouncing."""
-        if self._autosave_timer:
-            self._autosave_timer.stop()
-            self._autosave_timer.start()
-    
-    def _get_autosave_path(self) -> str:
-        """Get autosave path in AppData (safe from permission/sync issues)."""
-        from ...platform.paths import _app_data_root
-        
-        autosave_dir = _app_data_root() / "autosave"
-        autosave_dir.mkdir(parents=True, exist_ok=True)
-        
-        if self._saved_file_path:
-            # Hash the absolute path to create unique filename
-            path_hash = hashlib.md5(self._saved_file_path.encode()).hexdigest()[:12]
-            base_name = os.path.splitext(os.path.basename(self._saved_file_path))[0]
-            filename = f"{base_name}_{path_hash}.autosave.json"
-        else:
-            # For unsaved files: use timestamp + sequential ID
-            if not self._unsaved_id:
-                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                self._unsaved_id = f"untitled_{timestamp}"
-            filename = f"{self._unsaved_id}.autosave.json"
-        
-        return str(autosave_dir / filename)
-    
-    def _serialize_scene(self) -> dict:
-        """Extract scene serialization logic for reuse."""
-        data = {
-            "version": "2.0",
-            "items": [],
-            "rulers": [],
-            "texts": [],
-            "rectangles": [],
-        }
-        
-        from ...objects import RectangleItem, BaseObj
-        
-        for it in self.scene.items():
-            if isinstance(it, BaseObj) and hasattr(it, 'type_name'):
-                data["items"].append(it.to_dict())
-            elif isinstance(it, RulerItem):
-                data["rulers"].append(it.to_dict())
-            elif isinstance(it, TextNoteItem):
-                data["texts"].append(it.to_dict())
-            elif isinstance(it, RectangleItem):
-                data["rectangles"].append(it.to_dict())
-        
-        return data
-    
-    def _do_autosave(self):
-        """Perform autosave to temporary file."""
-        if not self._is_modified:
-            return
-        
-        try:
-            autosave_path = self._get_autosave_path()
-            
-            # Serialize scene
-            data = self._serialize_scene()
-            
-            # Add metadata for recovery UI
-            data["_autosave_meta"] = {
-                "timestamp": datetime.datetime.now().isoformat(),
-                "original_path": self._saved_file_path,
-                "version": "2.0"
-            }
-            
-            # Atomic write: temp file + rename
-            autosave_dir = os.path.dirname(autosave_path)
-            with tempfile.NamedTemporaryFile(
-                mode='w',
-                encoding='utf-8',
-                dir=autosave_dir,
-                delete=False,
-                suffix='.tmp'
-            ) as tmp:
-                json.dump(data, tmp, indent=2)
-                tmp_path = tmp.name
-            
-            # Atomic rename (overwrites existing autosave)
-            os.replace(tmp_path, autosave_path)
-            self._autosave_path = autosave_path
-            
-            self.log_service.debug(f"Autosaved to {autosave_path}", "Autosave")
-            
-        except Exception as e:
-            self.log_service.error(f"Autosave failed: {e}", "Autosave")
-            # Don't show error to user - autosave should be silent
-    
-    def _clear_autosave(self):
-        """Delete autosave file."""
-        try:
-            if self._autosave_path and os.path.exists(self._autosave_path):
-                os.unlink(self._autosave_path)
-                self._autosave_path = None
-                self.log_service.debug("Cleared autosave file", "Autosave")
-        except Exception as e:
-            self.log_service.error(f"Failed to clear autosave: {e}", "Autosave")
-    
-    def _load_from_data(self, data: dict):
-        """Load scene from data dict (for both open and recovery)."""
-        from ...objects import RectangleItem, BaseObj
-        from ...objects.type_registry import deserialize_item
-        
-        # Clear scene
-        for it in list(self.scene.items()):
-            if isinstance(it, (BaseObj, RulerItem, TextNoteItem, RectangleItem)):
-                self.scene.removeItem(it)
-        
-        # Load items
-        for item_data in data.get("items", []):
-            try:
-                item = deserialize_item(item_data)
-                self.scene.addItem(item)
-            except Exception as e:
-                self.log_service.error(f"Error loading item: {e}", "Load")
-        
-        # Load annotations
-        for ruler_data in data.get("rulers", []):
-            self.scene.addItem(RulerItem.from_dict(ruler_data))
-        
-        for text_data in data.get("texts", []):
-            self.scene.addItem(TextNoteItem.from_dict(text_data))
-        
-        for rect_data in data.get("rectangles", []):
-            self.scene.addItem(RectangleItem.from_dict(rect_data))
-    
-    def _format_time_ago(self, delta: datetime.timedelta) -> str:
-        """Format timedelta as human-readable string."""
-        seconds = int(delta.total_seconds())
-        if seconds < 60:
-            return f"{seconds}s ago"
-        elif seconds < 3600:
-            return f"{seconds // 60}m ago"
-        elif seconds < 86400:
-            return f"{seconds // 3600}h ago"
-        else:
-            return f"{seconds // 86400}d ago"
-    
-    def _check_autosave_recovery(self):
-        """Check for autosave on startup."""
-        from ...platform.paths import _app_data_root
-        
-        autosave_dir = _app_data_root() / "autosave"
-        if not autosave_dir.exists():
-            return
-        
-        autosave_files = sorted(
-            autosave_dir.glob("*.autosave.json"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True  # Most recent first
-        )
-        
-        if not autosave_files:
-            return
-        
-        # Try most recent autosave
-        most_recent = autosave_files[0]
-        
-        try:
-            # Validate autosave file
-            with open(most_recent, encoding='utf-8') as f:
-                data = json.load(f)
-            
-            # Check version compatibility
-            if data.get("version") != "2.0":
-                raise ValueError("Incompatible autosave version")
-            
-            # Get metadata
-            meta = data.get("_autosave_meta", {})
-            timestamp_str = meta.get("timestamp", "")
-            original_path = meta.get("original_path")
-            
-            # Format time
-            try:
-                timestamp = datetime.datetime.fromisoformat(timestamp_str)
-                age = datetime.datetime.now() - timestamp
-                time_str = self._format_time_ago(age)
-            except Exception:
-                time_str = "unknown time"
-            
-            # Build message
-            if original_path:
-                file_name = os.path.basename(original_path)
-                msg = f"Found autosave of '{file_name}'\nSaved: {time_str}"
-            else:
-                msg = f"Found autosave of unsaved file\nSaved: {time_str}"
-            
-            # Ask user
-            reply = QtWidgets.QMessageBox.question(
-                self,
-                "Recover Autosave?",
-                f"{msg}\n\nWould you like to recover it?",
-                QtWidgets.QMessageBox.StandardButton.Yes |
-                QtWidgets.QMessageBox.StandardButton.No,
-                QtWidgets.QMessageBox.StandardButton.Yes
-            )
-            
-            if reply == QtWidgets.QMessageBox.StandardButton.Yes:
-                self._load_from_data(data)
-                self._saved_file_path = original_path  # Restore original path if any
-                self._autosave_path = str(most_recent)  # Track this autosave
-                self._mark_modified()  # Mark as modified - needs save
-                self._schedule_retrace()
-                
-                QtWidgets.QMessageBox.information(
-                    self,
-                    "Recovery Successful",
-                    "Autosave recovered. Please save your work."
-                )
-            else:
-                # Delete if user declines
-                most_recent.unlink()
-                
-        except Exception as e:
-            self.log_service.error(f"Failed to recover autosave: {e}", "Recovery")
-            # Silently skip corrupted autosaves
-
-    def _prompt_save_changes(self):
-        """
-        Prompt user to save unsaved changes.
-        
-        Returns:
-            QMessageBox.StandardButton: The user's choice (Save, Discard, or Cancel)
-        """
-        reply = QtWidgets.QMessageBox.question(
-            self,
-            "Unsaved Changes",
-            "Do you want to save your changes before closing?",
-            QtWidgets.QMessageBox.StandardButton.Save |
-            QtWidgets.QMessageBox.StandardButton.Discard |
-            QtWidgets.QMessageBox.StandardButton.Cancel,
-            QtWidgets.QMessageBox.StandardButton.Save
-        )
-        
-        if reply == QtWidgets.QMessageBox.StandardButton.Save:
-            # Save the file
-            self.save_assembly()
-            # Check if save was successful (user didn't cancel the save dialog)
-            if self._is_modified:
-                # User cancelled the save dialog, treat as cancel
-                return QtWidgets.QMessageBox.StandardButton.Cancel
-        
-        return reply
-
-    def _build_actions(self):
-        """Build all menu actions."""
-        # --- File ---
-        self.act_open = QtGui.QAction("Open Assembly…", self)
-        self.act_open.setShortcut(QtGui.QKeySequence.StandardKey.Open)
-        self.act_open.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_open.triggered.connect(self.open_assembly)
-
-        self.act_save = QtGui.QAction("Save", self)
-        self.act_save.setShortcut(QtGui.QKeySequence("Ctrl+S"))
-        self.act_save.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_save.triggered.connect(self.save_assembly)
-
-        self.act_save_as = QtGui.QAction("Save As…", self)
-        self.act_save_as.setShortcut(QtGui.QKeySequence("Ctrl+Shift+S"))
-        self.act_save_as.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_save_as.triggered.connect(self.save_assembly_as)
-
-        # --- Edit ---
-        self.act_undo = QtGui.QAction("Undo", self)
-        self.act_undo.setShortcut(QtGui.QKeySequence("Ctrl+Z"))
-        self.act_undo.setShortcutContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
-        self.act_undo.triggered.connect(self._do_undo)
-        self.act_undo.setEnabled(False)
-
-        self.act_redo = QtGui.QAction("Redo", self)
-        self.act_redo.setShortcut(QtGui.QKeySequence("Ctrl+Y"))
-        self.act_redo.setShortcutContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
-        self.act_redo.triggered.connect(self._do_redo)
-        self.act_redo.setEnabled(False)
-
-        self.act_delete = QtGui.QAction("Delete", self)
-        self.act_delete.setShortcuts([QtGui.QKeySequence.StandardKey.Delete, QtGui.QKeySequence(QtCore.Qt.Key.Key_Backspace)])
-        self.act_delete.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_delete.triggered.connect(self.delete_selected)
-
-        self.act_copy = QtGui.QAction("Copy", self)
-        self.act_copy.setShortcut(QtGui.QKeySequence("Ctrl+C"))
-        self.act_copy.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_copy.triggered.connect(self.copy_selected)
-
-        self.act_paste = QtGui.QAction("Paste", self)
-        self.act_paste.setShortcut(QtGui.QKeySequence("Ctrl+V"))
-        self.act_paste.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_paste.triggered.connect(self.paste_items)
-        self.act_paste.setEnabled(False)
-        
-        # --- Preferences ---
-        self.act_preferences = QtGui.QAction("Preferences...", self)
-        self.act_preferences.setShortcut(QtGui.QKeySequence.StandardKey.Preferences)
-        self.act_preferences.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_preferences.triggered.connect(self.open_preferences)
-        # On macOS, mark as preferences action so it goes to the app menu
-        self.act_preferences.setMenuRole(QtGui.QAction.MenuRole.PreferencesRole)
-
-        # Connect undo stack signals to update action states
-        self.undo_stack.canUndoChanged.connect(self.act_undo.setEnabled)
-        self.undo_stack.canRedoChanged.connect(self.act_redo.setEnabled)
-        
-        # Mark canvas as modified when commands are pushed
-        # Note: We'll connect this after initialization
-        self._connect_modification_tracking()
-
-        # --- Insert ---
-        # Component placement actions - now checkable to enter placement mode
-        self.act_add_source = QtGui.QAction("Source", self, checkable=True)
-        self.act_add_source.toggled.connect(lambda on: self._toggle_placement_mode("source", on))
-
-        self.act_add_lens = QtGui.QAction("Lens", self, checkable=True)
-        self.act_add_lens.toggled.connect(lambda on: self._toggle_placement_mode("lens", on))
-
-        self.act_add_mirror = QtGui.QAction("Mirror", self, checkable=True)
-        self.act_add_mirror.toggled.connect(lambda on: self._toggle_placement_mode("mirror", on))
-
-        self.act_add_bs = QtGui.QAction("Beamsplitter", self, checkable=True)
-        self.act_add_bs.toggled.connect(lambda on: self._toggle_placement_mode("beamsplitter", on))
-
-        self.act_add_ruler = QtGui.QAction("Ruler", self)
-        self.act_add_ruler.triggered.connect(self.start_place_ruler)
-
-        self.act_add_text = QtGui.QAction("Text", self, checkable=True)
-        self.act_add_text.toggled.connect(lambda on: self._toggle_placement_mode("text", on))
-        
-        self.act_add_rectangle = QtGui.QAction("Rectangle", self, checkable=True)
-        self.act_add_rectangle.toggled.connect(lambda on: self._toggle_placement_mode("rectangle", on))
-
-        # --- Tools ---
-        self.act_inspect = QtGui.QAction("Inspect", self, checkable=True)
-        self.act_inspect.setChecked(False)
-        self.act_inspect.toggled.connect(self._toggle_inspect)
-
-        # --- View ---
-        self.act_zoom_in = QtGui.QAction("Zoom In", self)
-        self.act_zoom_in.setShortcut(QtGui.QKeySequence.StandardKey.ZoomIn)
-        self.act_zoom_in.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_zoom_in.triggered.connect(lambda: (self.view.scale(1.15, 1.15), self.view.zoomChanged.emit()))
-
-        self.act_zoom_out = QtGui.QAction("Zoom Out", self)
-        self.act_zoom_out.setShortcut(QtGui.QKeySequence.StandardKey.ZoomOut)
-        self.act_zoom_out.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_zoom_out.triggered.connect(lambda: (self.view.scale(1 / 1.15, 1 / 1.15), self.view.zoomChanged.emit()))
-
-        self.act_fit = QtGui.QAction("Fit Scene", self)
-        self.act_fit.setShortcut("Ctrl+0")
-        self.act_fit.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_fit.triggered.connect(
-            lambda: (
-                self.view.fitInView(
-                    self.scene.itemsBoundingRect(), QtCore.Qt.AspectRatioMode.KeepAspectRatio
-                ),
-                self.view.zoomChanged.emit(),
-            )
-        )
-
-        self.act_recenter = QtGui.QAction("Recenter View", self)
-        self.act_recenter.setShortcut("Ctrl+Shift+0")
-        self.act_recenter.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_recenter.triggered.connect(self._recenter_view)
-
-        # Checkable options
-        self.act_autotrace = QtGui.QAction("Auto-trace", self, checkable=True)
-        self.act_autotrace.setChecked(True)
-        self.act_autotrace.toggled.connect(self._toggle_autotrace)
-
-        self.act_snap = QtGui.QAction("Snap to mm grid", self, checkable=True)
-        self.act_snap.setChecked(False)
-        self.act_snap.toggled.connect(self._toggle_snap)
-
-        self.act_magnetic_snap = QtGui.QAction("Magnetic snap", self, checkable=True)
-        self.act_magnetic_snap.setChecked(self.magnetic_snap)
-        self.act_magnetic_snap.toggled.connect(self._toggle_magnetic_snap)
-        
-        # Dark mode toggle
-        self.act_dark_mode = QtGui.QAction("Dark mode", self, checkable=True)
-        self.act_dark_mode.setChecked(self.view.is_dark_mode())
-        self.act_dark_mode.toggled.connect(self._toggle_dark_mode)
-
-        # Ray width submenu with presets + Custom…
-        self.menu_raywidth = QtWidgets.QMenu("Ray width", self)
-        self._raywidth_group = QtGui.QActionGroup(self)
-        self._raywidth_group.setExclusive(True)
-        for v in [0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0]:
-            a = self.menu_raywidth.addAction(f"{v:.1f} px")
-            a.setCheckable(True)
-            if abs(v - self._ray_width_px) < 1e-9:
-                a.setChecked(True)
-            a.triggered.connect(lambda _, vv=v: self._set_ray_width(vv))
-            self._raywidth_group.addAction(a)
-        self.menu_raywidth.addSeparator()
-        a_custom = self.menu_raywidth.addAction("Custom…")
-        a_custom.triggered.connect(self._choose_ray_width)
-
-        # --- Tools ---
-        self.act_retrace = QtGui.QAction("Retrace", self)
-        self.act_retrace.setShortcut("Space")
-        self.act_retrace.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_retrace.triggered.connect(self.retrace)
-
-        self.act_clear = QtGui.QAction("Clear Rays", self)
-        self.act_clear.triggered.connect(self.clear_rays)
-
-        self.act_editor = QtGui.QAction("Component Editor…", self)
-        self.act_editor.setShortcut("Ctrl+E")
-        self.act_editor.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_editor.triggered.connect(self.open_component_editor)
-
-        self.act_reload = QtGui.QAction("Reload Library", self)
-        self.act_reload.triggered.connect(self.populate_library)
-        
-        self.act_open_library_folder = QtGui.QAction("Open User Library Folder…", self)
-        self.act_open_library_folder.triggered.connect(self.open_user_library_folder)
-        
-        self.act_import_library = QtGui.QAction("Import Component Library…", self)
-        self.act_import_library.triggered.connect(self.import_component_library)
-        
-        self.act_show_log = QtGui.QAction("Show Log Window...", self)
-        self.act_show_log.setShortcut("Ctrl+L")
-        self.act_show_log.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_show_log.triggered.connect(self.show_log_window)
-        
-        # --- Collaboration ---
-        self.act_collaborate = QtGui.QAction("Connect/Host Session…", self)
-        self.act_collaborate.setShortcut("Ctrl+Shift+C")
-        self.act_collaborate.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
-        self.act_collaborate.triggered.connect(self.open_collaboration_dialog)
-        
-        self.act_disconnect = QtGui.QAction("Disconnect", self)
-        self.act_disconnect.setEnabled(False)
-        self.act_disconnect.triggered.connect(self.disconnect_collaboration)
-
-    def _build_toolbar(self):
-        """Build component toolbar with custom PNG icons."""
-        toolbar = QtWidgets.QToolBar("Components")
-        toolbar.setObjectName("component_toolbar")
-        toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        toolbar.setIconSize(QtCore.QSize(32, 32))
-        self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, toolbar)
-        
-        # Add styling for checked/active tool buttons to make them visually distinct
-        # Using box-shadow instead of border to avoid resizing the toolbar
-        toolbar.setStyleSheet("""
-            QToolButton {
-                padding: 2px;
-                border: 2px solid transparent;
-                border-radius: 4px;
-                color: palette(window-text);
-            }
-            QToolButton:checked {
-                background-color: rgba(100, 150, 255, 100);
-                border: 2px solid rgba(100, 150, 255, 180);
-                border-radius: 4px;
-                color: palette(window-text);
-            }
-            QToolButton:checked:hover {
-                background-color: rgba(100, 150, 255, 120);
-                border: 2px solid rgba(100, 150, 255, 200);
-                color: palette(window-text);
-            }
-        """)
-
-        # Source button
-        source_icon = QtGui.QIcon(_get_icon_path("source.png"))
-        self.act_add_source.setIcon(source_icon)
-        toolbar.addAction(self.act_add_source)
-
-        # Lens button
-        lens_icon = QtGui.QIcon(_get_icon_path("lens.png"))
-        self.act_add_lens.setIcon(lens_icon)
-        toolbar.addAction(self.act_add_lens)
-
-        # Mirror button
-        mirror_icon = QtGui.QIcon(_get_icon_path("mirror.png"))
-        self.act_add_mirror.setIcon(mirror_icon)
-        toolbar.addAction(self.act_add_mirror)
-
-        # Beamsplitter button
-        bs_icon = QtGui.QIcon(_get_icon_path("beamsplitter.png"))
-        self.act_add_bs.setIcon(bs_icon)
-        toolbar.addAction(self.act_add_bs)
-
-        toolbar.addSeparator()
-
-        # Ruler button
-        ruler_icon = QtGui.QIcon(_get_icon_path("ruler.png"))
-        self.act_add_ruler.setIcon(ruler_icon)
-        toolbar.addAction(self.act_add_ruler)
-
-        # Inspect button
-        inspect_icon = QtGui.QIcon(_get_icon_path("inspect.png"))
-        self.act_inspect.setIcon(inspect_icon)
-        toolbar.addAction(self.act_inspect)
-
-        # Text button
-        text_icon = QtGui.QIcon(_get_icon_path("text.png"))
-        self.act_add_text.setIcon(text_icon)
-        toolbar.addAction(self.act_add_text)
-
-        # Rectangle button
-        rect_icon = QtGui.QIcon(_get_icon_path("rectangle.png"))
-        self.act_add_rectangle.setIcon(rect_icon)
-        toolbar.addAction(self.act_add_rectangle)
-
-    def _build_menubar(self):
-        """Build menu bar."""
-        mb = self.menuBar()
-
-        # File menu
-        mFile = mb.addMenu("&File")
-        mFile.addAction(self.act_open)
-        mFile.addAction(self.act_save)
-        mFile.addAction(self.act_save_as)
-
-        # Edit menu
-        mEdit = mb.addMenu("&Edit")
-        mEdit.addAction(self.act_undo)
-        mEdit.addAction(self.act_redo)
-        mEdit.addSeparator()
-        mEdit.addAction(self.act_copy)
-        mEdit.addAction(self.act_paste)
-        mEdit.addSeparator()
-        mEdit.addAction(self.act_delete)
-        mEdit.addSeparator()
-        mEdit.addAction(self.act_preferences)
-
-        # Insert menu (Phase 3.2: Better menu organization)
-        mInsert = mb.addMenu("&Insert")
-        mInsert.addAction(self.act_add_source)
-        mInsert.addAction(self.act_add_lens)
-        mInsert.addAction(self.act_add_mirror)
-        mInsert.addAction(self.act_add_bs)
-        mInsert.addSeparator()
-        mInsert.addAction(self.act_add_ruler)
-        mInsert.addAction(self.act_add_text)
-        mInsert.addAction(self.act_add_rectangle)
-
-        # View menu
-        mView = mb.addMenu("&View")
-        mView.addAction(self.libDock.toggleViewAction())
-        mView.addSeparator()
-        mView.addAction(self.act_zoom_in)
-        mView.addAction(self.act_zoom_out)
-        mView.addAction(self.act_fit)
-        mView.addAction(self.act_recenter)
-        mView.addSeparator()
-        mView.addAction(self.act_autotrace)
-        mView.addAction(self.act_snap)
-        mView.addAction(self.act_magnetic_snap)
-        mView.addSeparator()
-        mView.addAction(self.act_dark_mode)
-        mView.addSeparator()
-        mView.addMenu(self.menu_raywidth)
-
-        # Tools menu
-        mTools = mb.addMenu("&Tools")
-        mTools.addAction(self.act_retrace)
-        mTools.addAction(self.act_clear)
-        mTools.addSeparator()
-        mTools.addAction(self.act_inspect)
-        mTools.addSeparator()
-        mTools.addAction(self.act_editor)
-        mTools.addAction(self.act_reload)
-        mTools.addSeparator()
-        mTools.addAction(self.act_open_library_folder)
-        mTools.addAction(self.act_import_library)
-        mTools.addSeparator()
-        mTools.addAction(self.act_show_log)
-        
-        # Collaboration menu
-        mCollab = mb.addMenu("&Collaboration")
-        mCollab.addAction(self.act_collaborate)
-        mCollab.addAction(self.act_disconnect)
-        
-        # Add collaboration status to status bar
-        self.collab_status_label = QtWidgets.QLabel("Not connected")
-        self.statusBar().addPermanentWidget(self.collab_status_label)
 
     def _build_library_dock(self):
         """Build component library dock with categorized tree view."""
@@ -887,329 +286,101 @@ class MainWindow(QtWidgets.QMainWindow):
         self.libraryTree = LibraryTree(self)
         self.libDock.setWidget(self.libraryTree)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.libDock)
-        self.populate_library()
 
-    def _register_shortcuts(self):
-        """Register actions with shortcuts to main window for global access.
-        
-        This ensures keyboard shortcuts work even when child widgets have focus.
-        """
-        # File actions
-        self.addAction(self.act_open)
-        self.addAction(self.act_save)
-        self.addAction(self.act_save_as)
-        
-        # Edit actions
-        self.addAction(self.act_undo)
-        self.addAction(self.act_redo)
-        self.addAction(self.act_delete)
-        self.addAction(self.act_copy)
-        self.addAction(self.act_paste)
-        
-        # View actions
-        self.addAction(self.act_zoom_in)
-        self.addAction(self.act_zoom_out)
-        self.addAction(self.act_fit)
-        self.addAction(self.act_recenter)
-        
-        # Tools actions
-        self.addAction(self.act_retrace)
-        self.addAction(self.act_editor)
-        self.addAction(self.act_show_log)
-        
-        # Collaboration actions
-        self.addAction(self.act_collaborate)
+        # Initialize library manager
+        self.library_manager = LibraryManager(
+            library_tree=self.libraryTree,
+            storage_service=self.storage_service,
+            log_service=self.log_service,
+            get_dark_mode=self.view.is_dark_mode,
+            get_style=self.style,
+            parent_widget=self,
+        )
+        self._component_templates = self.library_manager.populate()
+
+        # Initialize PlacementHandler now that component_templates is populated
+        self.placement_handler = PlacementHandler(
+            scene=self.scene,
+            view=self.view,
+            undo_stack=self.undo_stack,
+            log_service=self.log_service,
+            component_templates=self._component_templates,
+            snap_to_grid_getter=self._get_snap_to_grid,
+            connect_item_signals=self._connect_item_signals,
+            schedule_retrace=self._schedule_retrace,
+            broadcast_add_item=self.collaboration_manager.broadcast_add_item,
+        )
+
+    def _init_event_handlers(self):
+        """Initialize handlers that require actions to be created first."""
+        # Ruler placement handler
+        self.ruler_handler = RulerPlacementHandler(
+            scene=self.scene,
+            view=self.view,
+            editor_state=self._editor_state,
+            undo_stack=self.undo_stack,
+            get_ruler_action=lambda: self.act_add_ruler,
+            finish_ruler_mode=self.tool_controller.finish_ruler_placement,
+        )
+
+        # Scene event handler - routes events to appropriate handlers
+        self.scene_event_handler = SceneEventHandler(
+            editor_state=self._editor_state,
+            placement_handler=self.placement_handler,
+            inspect_handler=self.inspect_handler,
+            path_measure_handler=self.path_measure_handler,
+            angle_measure_handler=self.angle_measure_handler,
+            ruler_handler=self.ruler_handler,
+            drag_handler=self.drag_handler,
+            cancel_placement_mode=self._cancel_placement_mode,
+            get_inspect_action=lambda: self.act_inspect,
+            get_path_measure_action=lambda: self.act_measure_path,
+            get_angle_measure_action=lambda: self.act_measure_angle,
+            parent=self,
+        )
 
     def populate_library(self):
-        """Load and populate component library organized by category from multiple sources."""
-        self.libraryTree.clear()
-        
-        # Load from multiple sources:
-        # 1. Built-in library (standard components)
-        # 2. All custom libraries (auto-discovered from ComponentLibraries/)
-        from ...objects.component_registry import ComponentRegistry
-        from ...objects.definitions_loader import load_component_dicts, load_component_dicts_from_multiple
-        from ...platform.paths import get_all_custom_library_roots
-        
-        # Load built-in (standard) components
-        builtin_records = ComponentRegistry.get_standard_components()
-        # Mark as built-in for visual distinction
-        for rec in builtin_records:
-            rec["_source"] = "builtin"
-        
-        # Load all custom library components from all discovered library folders
-        custom_library_paths = get_all_custom_library_roots()
-        user_records = load_component_dicts_from_multiple(custom_library_paths)
-        # Mark as user-created
-        for rec in user_records:
-            rec["_source"] = "user"
-        
-        # Combine all records
-        all_records = builtin_records + user_records
-        
-        # Cache standard component templates for toolbar placement
-        # Map toolbar type strings to library component data
-        self._component_templates = {}
-        for rec in all_records:
-            name = rec.get("name", "")
-            # Map specific standard components to toolbar types
-            if "Standard Lens" in name:
-                if "lens" not in self._component_templates:  # Use first standard lens found
-                    self._component_templates["lens"] = rec
-            elif "Standard Mirror" in name:
-                if "mirror" not in self._component_templates:  # Use first standard mirror found
-                    self._component_templates["mirror"] = rec
-            elif "Standard Beamsplitter" in name:
-                if "beamsplitter" not in self._component_templates:  # Use first standard beamsplitter found
-                    self._component_templates["beamsplitter"] = rec
-        
-        # Organize by category
-        categories = {
-            "Lenses": [],
-            "Objectives": [],
-            "Mirrors": [],
-            "Beamsplitters": [],
-            "Dichroics": [],
-            "Waveplates": [],
-            "Sources": [],
-            "Background": [],
-            "Misc": [],
-            "Other": []
-        }
-        
-        for rec in all_records:
-            name = rec.get("name", "")
-            
-            # Check for explicit category field first (preferred method)
-            if "category" in rec:
-                category_key = rec["category"].lower()
-                # Map to UI category names
-                category_map = {
-                    "lenses": "Lenses",
-                    "objectives": "Objectives",
-                    "mirrors": "Mirrors",
-                    "beamsplitters": "Beamsplitters",
-                    "dichroics": "Dichroics",
-                    "waveplates": "Waveplates",
-                    "sources": "Sources",
-                    "background": "Background",
-                    "misc": "Misc",
-                }
-                category = category_map.get(category_key, "Other")
-            else:
-                # Fallback: Determine category from first interface element_type
-                interfaces = rec.get("interfaces", [])
-                if interfaces and len(interfaces) > 0:
-                    element_type = interfaces[0].get("element_type", "lens")
-                    category = ComponentRegistry.get_category_for_element_type(element_type, name)
-                else:
-                    category = "Other"
-            categories[category].append(rec)
-        
-        # Create category nodes with components
-        for category_name in ["Lenses", "Objectives", "Mirrors", "Beamsplitters", "Dichroics", "Waveplates", "Sources", "Background", "Misc", "Other"]:
-            comps = categories[category_name]
-            if not comps:
-                continue
-                
-            # Create category header
-            category_item = QtWidgets.QTreeWidgetItem([category_name])
-            category_item.setFlags(category_item.flags() & ~QtCore.Qt.ItemFlag.ItemIsDragEnabled)
-            
-            # Style category header
-            font = category_item.font(0)
-            font.setBold(True)
-            font.setPointSize(10)
-            category_item.setFont(0, font)
-            # Color adapts to dark/light mode
-            if self.view.is_dark_mode():
-                category_item.setForeground(0, QtGui.QColor(140, 150, 200))  # Light blue for dark mode
-            else:
-                category_item.setForeground(0, QtGui.QColor(60, 60, 100))  # Dark blue for light mode
-            
-            self.libraryTree.addTopLevelItem(category_item)
-            
-            # Add components under category
-            for rec in comps:
-                name = rec.get("name", "(unnamed)")
-                img = rec.get("image_path")
-                
-                icon = QtGui.QIcon()
-                if img and os.path.exists(img):
-                    icon = QtGui.QIcon(img)
-                else:
-                    icon = self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileIcon)
-                
-                comp_item = QtWidgets.QTreeWidgetItem([name])
-                comp_item.setIcon(0, icon)
-                comp_item.setData(0, QtCore.Qt.ItemDataRole.UserRole, rec)
-                category_item.addChild(comp_item)
-        
-        # Expand all categories
-        self.libraryTree.expandAll()
-    
+        """Load and populate component library (delegated to library manager)."""
+        self._component_templates = self.library_manager.populate()
+        # Update placement handler with new templates (always exists after _build_library_dock)
+        self.placement_handler.component_templates = self._component_templates
+
     def _connect_item_signals(self, item):
         """Connect standard signals for a new item (edited, commandCreated)."""
         from ...objects import BaseObj
-        
+
         # Connect edited signal for retrace and collaboration
-        if hasattr(item, 'edited'):
+        if isinstance(item, Editable):
             item.edited.connect(self._maybe_retrace)
-            item.edited.connect(lambda: self.collaboration_manager.broadcast_update_item(item))
-        
+            item.edited.connect(partial(self.collaboration_manager.broadcast_update_item, item))
+
         # Connect commandCreated signal for undo/redo
-        if isinstance(item, BaseObj) and hasattr(item, 'commandCreated'):
+        # BaseObj and RulerItem both have commandCreated signal
+        if isinstance(item, BaseObj):
+            item.commandCreated.connect(self.undo_stack.push)
+        elif isinstance(item, RulerItem):
             item.commandCreated.connect(self.undo_stack.push)
 
     def on_drop_component(self, rec: dict, scene_pos: QtCore.QPointF):
-        """
-        Handle component drop from library.
-        Uses ComponentFactory to ensure dropped item matches ghost preview.
-        """
-        # Apply snap to grid if enabled
-        if self.snap_to_grid:
-            scene_pos = QtCore.QPointF(round(scene_pos.x()), round(scene_pos.y()))
-        
-        # Use ComponentFactory to create the item (same logic as ghost)
-        from ...objects.component_factory import ComponentFactory
-        item = ComponentFactory.create_item_from_dict(
-            rec,
-            scene_pos.x(),
-            scene_pos.y()
-        )
-        
-        if not item:
-            # Should not happen now that ComponentFactory handles interface-less components
-            name = rec.get("name", "Unknown")
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Invalid Component",
-                f"Cannot create component '{name}': Unknown error during creation."
-            )
-            return
-        
-        # Connect signals
-        self._connect_item_signals(item)
-        
-        # Add to scene with undo support
-        cmd = AddItemCommand(self.scene, item)
-        self.undo_stack.push(cmd)
-        
-        # Clear previous selection and select only the newly dropped item
-        self.scene.clearSelection()
-        item.setSelected(True)
-        
-        # Broadcast addition to collaboration
-        self.collaboration_manager.broadcast_add_item(item)
-        
-        # Trigger ray tracing if enabled (with debouncing)
-        self._schedule_retrace()
+        """Handle component drop from library (delegated to component_ops)."""
+        self.component_ops.on_drop_component(rec, scene_pos)
 
-    # ----- Insert elements -----
     def delete_selected(self):
-        """Delete selected items using undo stack."""
-        from ...objects import BaseObj
-        
-        selected = self.scene.selectedItems()
-        items_to_delete = []
-        locked_items = []
-        
-        for item in selected:
-            # Only delete optical components and annotations (not grid lines or rays)
-            from ...objects import RectangleItem
-            if isinstance(item, (BaseObj, RulerItem, TextNoteItem, RectangleItem)):
-                # Check if item is locked (BaseObj has is_locked method)
-                if isinstance(item, BaseObj) and item.is_locked():
-                    locked_items.append(item)
-                else:
-                    items_to_delete.append(item)
-                    # Broadcast deletion to collaboration
-                    self.collaboration_manager.broadcast_remove_item(item)
-        
-        # Warn user if trying to delete locked items
-        if locked_items:
-            locked_count = len(locked_items)
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Locked Items",
-                f"Cannot delete {locked_count} locked item(s).\nUnlock them first in the edit dialog."
-            )
-        
-        # Use a single command for all deletions so undo/redo works correctly
-        if items_to_delete:
-            if len(items_to_delete) == 1:
-                # Single item: use RemoveItemCommand for backwards compatibility
-                cmd = RemoveItemCommand(self.scene, items_to_delete[0])
-            else:
-                # Multiple items: use RemoveMultipleItemsCommand to batch them
-                cmd = RemoveMultipleItemsCommand(self.scene, items_to_delete)
-            self.undo_stack.push(cmd)
-        
-        self._schedule_retrace()
+        """Delete selected items (delegated to component_ops)."""
+        self.component_ops.delete_selected()
 
     def copy_selected(self):
-        """Copy selected items to clipboard."""
-        from ...objects import BaseObj
-        
-        selected = self.scene.selectedItems()
-        self._clipboard = []
-        
-        for item in selected:
-            # Only copy optical components and annotations that have a clone method
-            from ...objects import RectangleItem
-            if isinstance(item, (BaseObj, RulerItem, TextNoteItem, RectangleItem)):
-                # Store reference to the item itself, not serialized data
-                # The clone() method will handle proper copying when pasting
-                self._clipboard.append(item)
-        
-        # Enable paste action if we have items in clipboard
-        self.act_paste.setEnabled(len(self._clipboard) > 0)
-        
-        # Provide feedback
-        if len(self._clipboard) > 0:
-            self.log_service.info(f"Copied {len(self._clipboard)} item(s) to clipboard", "Copy/Paste")
+        """Copy selected items to clipboard (delegated to component_ops)."""
+        self.component_ops.copy_selected()
 
     def paste_items(self):
-        """Paste items from clipboard using clone() method."""
-        if not self._clipboard:
-            self.log_service.warning("Cannot paste - clipboard is empty", "Copy/Paste")
-            return
-        
-        # Offset for pasted items so they're visible
-        paste_offset = (20.0, 20.0)
-        pasted_items = []
-        
-        for item in self._clipboard:
-            try:
-                # Use the clone() method to create a proper deep copy
-                # This automatically handles sprites, interfaces, and all properties
-                cloned_item = item.clone(paste_offset)
-                
-                # Connect signals
-                self._connect_item_signals(cloned_item)
-                
-                pasted_items.append(cloned_item)
-                
-            except Exception as e:
-                # Log error but continue with other items
-                import traceback
-                self.log_service.error(
-                    f"Error pasting {type(item).__name__}: {e}\n{traceback.format_exc()}",
-                    "Copy/Paste"
-                )
-        
-        if pasted_items:
-            self.log_service.info(f"Successfully pasted {len(pasted_items)} item(s)", "Copy/Paste")
-            # Use undo command to add all pasted items at once
-            cmd = PasteItemsCommand(self.scene, pasted_items)
-            self.undo_stack.push(cmd)
-            
-            # Clear current selection and select pasted items
-            self.scene.clearSelection()
-            for item in pasted_items:
-                item.setSelected(True)
-            
-            self._schedule_retrace()
+        """Paste items from clipboard at current cursor position (delegated to component_ops)."""
+        # Get cursor position in scene coordinates
+        cursor_global = QtGui.QCursor.pos()
+        cursor_view = self.view.mapFromGlobal(cursor_global)
+        cursor_scene = self.view.mapToScene(cursor_view)
+
+        self.component_ops.paste_items(cursor_scene)
 
     def _do_undo(self):
         """Undo last action and retrace rays."""
@@ -1221,482 +392,98 @@ class MainWindow(QtWidgets.QMainWindow):
         self.undo_stack.redo()
         self._schedule_retrace()
 
+    def _toggle_ruler_placement(self, on: bool):
+        """Toggle ruler placement mode (delegated to RulerPlacementHandler)."""
+        self.ruler_handler.toggle(on, self.tool_controller._cancel_other_modes)
+
     def start_place_ruler(self):
-        """Enter ruler placement mode (two-click)."""
-        # Disable inspect mode if active
-        if self._inspect_mode:
-            self.act_inspect.setChecked(False)
-        
-        self._placing_ruler = True
-        self._ruler_p1_scene = None
-        self._prev_cursor = self.view.cursor()
-        self.view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
-        QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), "Click start point, then end point")
+        """Enter ruler placement mode (delegated to RulerPlacementHandler)."""
+        self.ruler_handler.start(self.tool_controller._cancel_other_modes)
 
     def _finish_place_ruler(self):
-        """Exit ruler placement mode."""
-        self._placing_ruler = False
-        self._ruler_p1_scene = None
-        if self._prev_cursor is not None:
-            self.view.setCursor(self._prev_cursor)
-            self._prev_cursor = None
+        """Exit ruler placement mode (delegated to RulerPlacementHandler)."""
+        self.ruler_handler.finish()
 
-    # ----- Ray tracing -----
+    # ----- Ray tracing (delegated to RaytracingController) -----
     def clear_rays(self):
         """Remove all ray graphics from scene."""
-        # Clear OpenGL overlay if available
-        if self.view.has_ray_overlay():
-            self.view.clear_ray_overlay()
-        
-        # Clear software-rendered rays
-        for it in self.ray_items:
-            try:
-                # Check if item is still in scene before removing
-                if it.scene() is not None:
-                    self.scene.removeItem(it)
-            except RuntimeError:
-                # Item was already deleted (e.g., during scene clear)
-                pass
-        self.ray_items.clear()
-        self.ray_data.clear()
+        self.raytracing_controller.clear_rays()
 
     def _schedule_retrace(self):
-        """
-        Schedule a retrace with debouncing to prevent excessive calls.
-        
-        This method prevents framerate issues by:
-        - Only scheduling one retrace at a time (prevents queue buildup)
-        - Adding a 50ms delay to batch rapid changes together
-        - Checking if autotrace is enabled before scheduling
-        """
-        if not self.autotrace:
-            return
-        if not self._retrace_pending:
-            self._retrace_pending = True
-            self._retrace_timer.start()
-    
-    def _do_retrace(self):
-        """Execute the actual retrace (called by timer after debounce delay)."""
-        self._retrace_pending = False
-        self.retrace()
+        """Schedule a retrace with debouncing."""
+        self.raytracing_controller.schedule_retrace()
 
     def retrace(self):
-        """
-        Trace all rays from sources through optical elements.
-        
-        This method dispatches to either the legacy or polymorphic raytracing engine
-        based on the _use_polymorphic_raytracing feature flag.
-        
-        INTERFACE-BASED RAYTRACING:
-        Both engines use a unified approach where ALL components expose their
-        optical interfaces via get_interfaces_scene(). This allows:
-        - Multi-interface components (doublets, AR-coated mirrors, etc.)
-        - Consistent handling across all component types
-        - Proper modeling of complex optical systems from Zemax imports
-        """
-        if self._use_polymorphic_raytracing:
-            self._retrace_polymorphic()
-        else:
-            self._retrace_legacy()
-    
-    def _retrace_legacy(self):
-        """
-        Original raytracing implementation using string-based dispatch.
-        
-        This is the proven, stable implementation. Kept for backward compatibility
-        and as a fallback during migration to the new polymorphic system.
-        """
-        self.clear_rays()
-
-        # Collect sources
-        sources: list[SourceItem] = []
-        for it in self.scene.items():
-            if isinstance(it, SourceItem):
-                sources.append(it)
-
-        if not sources:
-            return
-
-        # UNIFIED INTERFACE-BASED APPROACH:
-        # Collect ALL interfaces from ALL components in the scene
-        elems: list[OpticalElement] = []
-        
-        for item in self.scene.items():
-            # Check if item has get_interfaces_scene() method
-            if hasattr(item, 'get_interfaces_scene') and callable(item.get_interfaces_scene):
-                try:
-                    interfaces_scene = item.get_interfaces_scene()
-                    
-                    # Create OpticalElement for each interface
-                    for p1, p2, iface in interfaces_scene:
-                        elem = self._create_element_from_interface(p1, p2, iface, item)
-                        if elem:
-                            elems.append(elem)
-                            
-                except Exception as e:
-                    # Log error but continue with other components
-                    print(f"Warning: Error getting interfaces from {type(item).__name__}: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    continue
-
-        # Build source params (use actual params from items)
-        srcs: list[SourceParams] = []
-        for S in sources:
-            srcs.append(S.params)
-
-        # Trace using legacy engine
-        paths = trace_rays(elems, srcs, max_events=80)
-        
-        # Render paths
-        self._render_ray_paths(paths)
-    
-    def _retrace_polymorphic(self):
-        """
-        NEW: Polymorphic raytracing implementation using IOpticalElement interface.
-        
-        This is the new, clean implementation that uses polymorphism instead of
-        string-based dispatch. Benefits:
-        - 6× faster (no pre-filtering)
-        - 67% less code (120 lines vs 358)
-        - 89% less complexity (cyclomatic 5 vs 45)
-        - Type-safe (no strings)
-        - Easy to extend (add new element types)
-        """
-        self.clear_rays()
-
-        # Collect sources
-        sources: list[SourceItem] = []
-        for it in self.scene.items():
-            if isinstance(it, SourceItem):
-                sources.append(it)
-
-        if not sources:
-            return
-
-        # Convert scene to polymorphic elements using the integration adapter
-        try:
-            from ...integration import convert_scene_to_polymorphic
-            elements = convert_scene_to_polymorphic(self.scene.items())
-        except Exception as e:
-            print(f"Error converting scene to polymorphic elements: {e}")
-            import traceback
-            traceback.print_exc()
-            # Fallback to legacy system
-            print("Falling back to legacy raytracing system")
-            self._retrace_legacy()
-            return
-
-        # Build source params (use actual params from items)
-        srcs: list[SourceParams] = []
-        for S in sources:
-            srcs.append(S.params)
-
-        # Trace using new polymorphic engine
-        try:
-            from ...raytracing import trace_rays_polymorphic
-            paths = trace_rays_polymorphic(elements, srcs, max_events=80)
-        except Exception as e:
-            print(f"Error in polymorphic raytracing: {e}")
-            import traceback
-            traceback.print_exc()
-            # Fallback to legacy system
-            print("Falling back to legacy raytracing system")
-            self._retrace_legacy()
-            return
-        
-        # Render paths (same as legacy)
-        self._render_ray_paths(paths)
-    
-    def _render_ray_paths(self, paths):
-        """
-        Render ray paths to the scene.
-        
-        This is shared between legacy and polymorphic engines since both
-        produce the same RayPath output format.
-        
-        Uses OpenGL hardware acceleration if available, otherwise falls back
-        to software rendering with QGraphicsPathItem.
-        
-        Args:
-            paths: List of RayPath objects
-        """
-        # Store ray data for inspect tool (always needed)
-        self.ray_data = list(paths)
-        
-        # Try OpenGL rendering first (100x+ faster)
-        if self.view.has_ray_overlay():
-            # Use hardware-accelerated OpenGL rendering
-            self.view.update_ray_overlay(paths, self._ray_width_px)
-            # No need to create QGraphicsPathItem objects
-            return
-        
-        # Fallback to software rendering if OpenGL not available
-        for p in paths:
-            if len(p.points) < 2:
-                continue
-            path = QtGui.QPainterPath(QtCore.QPointF(p.points[0][0], p.points[0][1]))
-            for q in p.points[1:]:
-                path.lineTo(q[0], q[1])
-            item = QtWidgets.QGraphicsPathItem(path)
-            r, g, b, a = p.rgba
-            
-            # Boost saturation and brightness for OpenGL viewport (colors appear darker in OpenGL)
-            # Convert to HSV, increase saturation and value significantly, convert back
-            color = QtGui.QColor(r, g, b, a)
-            h, s, v, alpha = color.getHsv()
-            # Only boost HSV if OpenGL is used
-            SATURATION_BOOST_FACTOR = 1.3
-            VALUE_BOOST_FACTOR = 1.2
-            HSV_MAX = 255
-            RAY_WIDTH_OPENGL_SCALE = 2.0
-
-            if self.view.has_ray_overlay():
-                s = min(HSV_MAX, int(s * SATURATION_BOOST_FACTOR))
-                v = min(HSV_MAX, int(v * VALUE_BOOST_FACTOR))
-                color.setHsv(h, s, v, alpha)
-            
-            pen = QtGui.QPen(color)
-            # OpenGL viewport makes lines appear thinner, so increase width
-            # Use a scale factor to compensate (RAY_WIDTH_OPENGL_SCALE)
-            pen.setWidthF(self._ray_width_px * RAY_WIDTH_OPENGL_SCALE)
-            pen.setCosmetic(True)
-            item.setPen(pen)
-            item.setZValue(10)
-            self.scene.addItem(item)
-            self.ray_items.append(item)
-    
-    def _create_element_from_interface(self, p1, p2, iface, parent_item):
-        """
-        Create OpticalElement from InterfaceDefinition or RefractiveInterface.
-        
-        This centralizes the conversion logic and handles all interface types.
-        
-        Args:
-            p1: Start point in scene coordinates (numpy array)
-            p2: End point in scene coordinates (numpy array)
-            iface: InterfaceDefinition or RefractiveInterface object
-            parent_item: The parent item (for accessing item-specific properties like angle_deg)
-        
-        Returns:
-            OpticalElement or None if interface type is unknown
-        """
-        from ...core.models import RefractiveInterface
-        
-        # Handle legacy RefractiveInterface objects
-        if isinstance(iface, RefractiveInterface):
-            # RefractiveInterface objects are always refractive surfaces
-            elem = OpticalElement(
-                kind="refractive_interface",
-                p1=p1,
-                p2=p2
-            )
-            elem.n1 = iface.n1
-            elem.n2 = iface.n2
-            # Copy curvature properties
-            elem.is_curved = getattr(iface, 'is_curved', False)
-            elem.radius_of_curvature_mm = getattr(iface, 'radius_of_curvature_mm', 0.0)
-            # Copy beam splitter properties
-            elem.is_beam_splitter = iface.is_beam_splitter
-            if elem.is_beam_splitter:
-                elem.split_T = iface.split_T
-                elem.split_R = iface.split_R
-                elem.is_polarizing = iface.is_polarizing
-                elem.pbs_transmission_axis_deg = iface.pbs_transmission_axis_deg
-            return elem
-        
-        # Handle InterfaceDefinition objects (new format)
-        element_type = iface.element_type
-        
-        if element_type == "lens":
-            return OpticalElement(
-                kind="lens",
-                p1=p1,
-                p2=p2,
-                efl_mm=iface.efl_mm
-            )
-        
-        elif element_type == "mirror":
-            return OpticalElement(
-                kind="mirror",
-                p1=p1,
-                p2=p2
-            )
-        
-        elif element_type in ["beam_splitter", "beamsplitter"]:
-            return OpticalElement(
-                kind="bs",
-                p1=p1,
-                p2=p2,
-                split_T=iface.split_T,
-                split_R=iface.split_R,
-                is_polarizing=iface.is_polarizing,
-                pbs_transmission_axis_deg=iface.pbs_transmission_axis_deg
-            )
-        
-        elif element_type == "dichroic":
-            return OpticalElement(
-                kind="dichroic",
-                p1=p1,
-                p2=p2,
-                cutoff_wavelength_nm=iface.cutoff_wavelength_nm,
-                transition_width_nm=iface.transition_width_nm,
-                pass_type=iface.pass_type
-            )
-        
-        elif element_type == "polarizing_interface":
-            # Handle polarizing interface based on subtype
-            polarizer_subtype = getattr(iface, 'polarizer_subtype', 'waveplate')
-            
-            if polarizer_subtype == "waveplate":
-                # Get waveplate-specific properties
-                phase_shift_deg = iface.phase_shift_deg
-                fast_axis_deg = iface.fast_axis_deg
-                
-                # angle_deg is needed for directionality detection - get from parent item
-                angle_deg = 0.0
-                if hasattr(parent_item, 'params') and hasattr(parent_item.params, 'angle_deg'):
-                    angle_deg = parent_item.params.angle_deg
-                
-                return OpticalElement(
-                    kind="waveplate",
-                    p1=p1,
-                    p2=p2,
-                    phase_shift_deg=phase_shift_deg,
-                    fast_axis_deg=fast_axis_deg,
-                    angle_deg=angle_deg
-                )
-            else:
-                # Future: handle other polarizer subtypes (linear_polarizer, faraday_rotator, etc.)
-                return None
-        
-        elif element_type == "waveplate":
-            # Legacy support for old "waveplate" element_type
-            phase_shift_deg = getattr(iface, 'phase_shift_deg', 90.0)
-            fast_axis_deg = getattr(iface, 'fast_axis_deg', 0.0)
-            
-            # angle_deg is needed for directionality detection - get from parent item
-            angle_deg = 0.0
-            if hasattr(parent_item, 'params') and hasattr(parent_item.params, 'angle_deg'):
-                angle_deg = parent_item.params.angle_deg
-            
-            return OpticalElement(
-                kind="waveplate",
-                p1=p1,
-                p2=p2,
-                phase_shift_deg=phase_shift_deg,
-                fast_axis_deg=fast_axis_deg,
-                angle_deg=angle_deg
-            )
-        
-        elif element_type == "refractive_interface":
-            elem = OpticalElement(
-                kind="refractive_interface",
-                p1=p1,
-                p2=p2
-            )
-            # Store refractive properties as attributes
-            elem.n1 = iface.n1
-            elem.n2 = iface.n2
-            # Check if this interface acts as a beam splitter (for coating)
-            elem.is_beam_splitter = getattr(iface, 'is_beam_splitter', False)
-            if elem.is_beam_splitter:
-                elem.split_T = getattr(iface, 'split_T', 50.0)
-                elem.split_R = getattr(iface, 'split_R', 50.0)
-                elem.is_polarizing = getattr(iface, 'is_polarizing', False)
-                elem.pbs_transmission_axis_deg = getattr(iface, 'pbs_transmission_axis_deg', 0.0)
-            return elem
-        
-        elif element_type == "beam_block":
-            return OpticalElement(
-                kind="block",
-                p1=p1,
-                p2=p2
-            )
-
-        else:
-            print(f"Warning: Unknown interface type: {element_type}")
-            return None
+        """Trace all rays from sources through optical elements."""
+        self.raytracing_controller.retrace()
 
     def _maybe_retrace(self):
         """Retrace if autotrace is enabled (with debouncing)."""
         self._schedule_retrace()
 
-    # ----- Save / Load -----
+    # Properties to maintain backward compatibility
+    @property
+    def ray_data(self) -> list[Any]:
+        """Get ray data from controller."""
+        return self.raytracing_controller.ray_data  # type: ignore[no-any-return]
+
+    @property
+    def autotrace(self) -> bool:
+        """Get autotrace enabled state from controller."""
+        return self.raytracing_controller.autotrace  # type: ignore[no-any-return]
+
+    @autotrace.setter
+    def autotrace(self, value: bool) -> None:
+        """Set autotrace enabled state on controller."""
+        self.raytracing_controller.autotrace = value
+
+    @property
+    def _ray_width_px(self) -> float:
+        """Get ray width from controller."""
+        return self.raytracing_controller.ray_width_px  # type: ignore[no-any-return]
+
+    @_ray_width_px.setter
+    def _ray_width_px(self, value: float) -> None:
+        """Set ray width on controller."""
+        self.raytracing_controller.ray_width_px = value
+
+    # ----- Getter methods for handlers (replaces lambda callbacks) -----
+    def _get_ray_data(self) -> list[Any]:
+        """Get ray data - used by handlers instead of lambda."""
+        return self.raytracing_controller.ray_data  # type: ignore[no-any-return]
+
+    def _get_snap_to_grid(self) -> bool:
+        """Get snap to grid state - used by handlers instead of lambda."""
+        return self.snap_to_grid  # type: ignore[no-any-return]
+
+    def _set_paste_enabled(self, enabled: bool) -> None:
+        """Set paste action enabled state - used by handlers instead of lambda."""
+        self.act_paste.setEnabled(enabled)
+
+    def _on_path_measure_complete(self) -> None:
+        """Called when path measure tool completes - used instead of lambda."""
+        self.act_measure_path.setChecked(False)
+
+    def _on_angle_measure_complete(self) -> None:
+        """Called when angle measure tool completes - used instead of lambda."""
+        self.act_measure_angle.setChecked(False)
+
+    # ----- Save / Load (delegated to FileController) -----
     def save_assembly(self):
-        """Quick save: save to current file or prompt if new."""
-        if self._saved_file_path:
-            # We have a saved file path, save directly
-            self._save_to_file(self._saved_file_path)
-        else:
-            # No saved file path yet, prompt for location
-            self.save_assembly_as()
-    
+        """Quick save (delegated to file controller)."""
+        self.file_controller.save_assembly()
+
     def save_assembly_as(self):
-        """Save As: always prompt for new file location."""
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self, "Save Assembly As", "", "Optics Assembly (*.json)"
-        )
-        if not path:
-            return
-        
-        self._save_to_file(path)
-    
-    def _save_to_file(self, path: str):
-        """Helper method to save assembly to specified file path."""
-        data = self._serialize_scene()  # Use extracted method
-        
-        try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
-            
-            self._saved_file_path = path
-            self._mark_clean()
-            
-            # Clear autosave after successful save
-            self._clear_autosave()
-            
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Save error", str(e))
+        """Save As (delegated to file controller)."""
+        self.file_controller.save_assembly_as()
 
     def open_assembly(self):
-        """Load all elements from JSON file."""
-        # Check for unsaved changes before opening
-        if self._is_modified:
-            reply = self._prompt_save_changes()
-            if reply == QtWidgets.QMessageBox.StandardButton.Cancel:
-                return
-        
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Open Assembly", "", "Optics Assembly (*.json)"
-        )
-        if not path:
-            return
-        try:
-            with open(path, encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Open error", str(e))
-            return
-
-        self._load_from_data(data)  # Use extracted method
-        
-        # Connect edited signal for optical components
-        from ...objects import BaseObj
-        for item in self.scene.items():
-            if isinstance(item, BaseObj) and hasattr(item, 'edited'):
-                item.edited.connect(self._maybe_retrace)
-        
-        # Clear undo history after loading
-        self.undo_stack.clear()
-        
-        # Mark as clean and track the file path
-        self._saved_file_path = path
-        self._unsaved_id = None  # Clear unsaved ID
-        self._mark_clean()
-        self._schedule_retrace()
-        
-        self._schedule_retrace()
+        """Open assembly (delegated to file controller)."""
+        if self.file_controller.open_assembly():
+            # Connect edited signal for optical components
+            for item in self.scene.items():
+                if isinstance(item, Editable):
+                    item.edited.connect(self._maybe_retrace)
 
     # ----- Settings -----
     def _toggle_autotrace(self, on: bool):
@@ -1708,7 +495,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _toggle_snap(self, on: bool):
         """Toggle snap to grid."""
         self.snap_to_grid = on
-    
+
     def _toggle_magnetic_snap(self, on: bool):
         """Toggle magnetic snap."""
         self.magnetic_snap = on
@@ -1716,17 +503,35 @@ class MainWindow(QtWidgets.QMainWindow):
         # Clear guides if turning off
         if not on:
             self.view.clear_snap_guides()
-    
+
     def _toggle_dark_mode(self, on: bool):
         """Toggle dark mode."""
         self.view.set_dark_mode(on)
         self.settings_service.set_value("dark_mode", on)
         # Apply the theme to the entire application
-        from ...app.main import apply_theme
+        from ..theme_manager import apply_theme
+
         apply_theme(on)
         # Refresh library to update category colors
         self.populate_library()
-    
+
+    def _zoom_in(self):
+        """Zoom in by ZOOM_FACTOR."""
+        self.view.scale(ZOOM_FACTOR, ZOOM_FACTOR)
+        self.view.zoomChanged.emit()
+
+    def _zoom_out(self):
+        """Zoom out by ZOOM_FACTOR."""
+        self.view.scale(1 / ZOOM_FACTOR, 1 / ZOOM_FACTOR)
+        self.view.zoomChanged.emit()
+
+    def _fit_scene(self):
+        """Fit scene contents in view."""
+        self.view.fitInView(
+            self.scene.itemsBoundingRect(), QtCore.Qt.AspectRatioMode.KeepAspectRatio
+        )
+        self.view.zoomChanged.emit()
+
     def _recenter_view(self):
         """Reset view to default position (centered at origin) and zoom level (1:1)."""
         # Reset transform to identity (removes any zoom/pan/rotation)
@@ -1737,449 +542,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view.centerOn(0, 0)
         # Emit zoom changed signal to update UI
         self.view.zoomChanged.emit()
-    
+
     def _toggle_inspect(self, on: bool):
-        """Toggle inspect tool mode."""
-        self._inspect_mode = on
-        if on:
-            # Disable placement mode if active
-            self._cancel_placement_mode()
-            # Change cursor to indicate inspect mode is active
-            self.view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
-            QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), "Click on a ray to view its properties")
-        else:
-            # Restore default cursor (unset to use widget default)
-            self.view.unsetCursor()
-    
+        """Toggle inspect tool mode (delegated to ToolModeController)."""
+        self.tool_controller.toggle_inspect(on)
+
+    def _toggle_path_measure(self, on: bool):
+        """Toggle path measure tool mode (delegated to ToolModeController)."""
+        self.tool_controller.toggle_path_measure(on)
+
+    def _toggle_angle_measure(self, on: bool):
+        """Toggle angle measure tool mode (delegated to ToolModeController)."""
+        self.tool_controller.toggle_angle_measure(on)
+
     def _toggle_placement_mode(self, component_type: str, on: bool):
-        """Toggle component placement mode."""
-        if on:
-            # Disable inspect mode if active
-            if self._inspect_mode:
-                self.act_inspect.setChecked(False)
-            
-            # Disable any other placement mode buttons
-            self._cancel_placement_mode(except_type=component_type)
-            
-            # Enter placement mode
-            self._placement_mode = True
-            self._placement_type = component_type
-            
-            # Enable mouse tracking to get move events without button press
-            self.view.setMouseTracking(True)
-            self.view.viewport().setMouseTracking(True)
-            
-            # Change cursor to crosshair
-            self.view.setCursor(QtCore.Qt.CursorShape.CrossCursor)
-            
-            # Show tooltip
-            QtWidgets.QToolTip.showText(
-                QtGui.QCursor.pos(), 
-                f"Click to place {component_type}. Right-click or Escape to cancel."
-            )
-        else:
-            # Exit placement mode
-            self._cancel_placement_mode()
-    
+        """Toggle component placement mode (delegated to ToolModeController)."""
+        self.tool_controller.toggle_placement(component_type, on)
+
     def _cancel_placement_mode(self, except_type: str | None = None):
-        """Cancel placement mode and clean up."""
-        # Check if we need to restore state (before clearing variables)
-        should_restore = self._placement_mode or self._placement_ghost is not None
-        
-        # Clear ghost preview with proper cleanup
-        if self._placement_ghost is not None:
-            if self._placement_ghost.scene() is not None:
-                # Get bounding rect before removal for proper viewport update
-                ghost_rect = self._placement_ghost.sceneBoundingRect()
-                # Expand rect to account for cosmetic pen rendering beyond bounds
-                ghost_rect = ghost_rect.adjusted(-20, -20, 20, 20)
-                # Hide first to prevent flicker
-                self._placement_ghost.hide()
-                self.scene.removeItem(self._placement_ghost)
-                # Aggressive viewport update to clear any rendering artifacts
-                self.scene.update(ghost_rect)
-                self.scene.invalidate(ghost_rect)
-                self.view.viewport().update()
-                # Schedule another update to catch any stragglers
-                QtCore.QTimer.singleShot(0, self.view.viewport().update)
-            # Schedule deletion to ensure proper cleanup
-            self._placement_ghost.deleteLater()
-            self._placement_ghost = None
-        
-        # Reset state
-        prev_type = self._placement_type
-        self._placement_mode = False
-        self._placement_type = None
-        
-        # Restore cursor and mouse tracking (after state reset)
-        if should_restore:
-            # CRITICAL FIX: Send synthetic mouse move event BEFORE disabling tracking
-            # Qt needs mouse tracking to be ACTIVE when processing position updates
-            # wheelEvent is received by the VIEW (not viewport), so we must update the view's position cache
-            cursor_pos = self.view.mapFromGlobal(QtGui.QCursor.pos())
-            move_event = QtGui.QMouseEvent(
-                QtCore.QEvent.Type.MouseMove,
-                QtCore.QPointF(cursor_pos),
-                QtCore.Qt.MouseButton.NoButton,
-                QtCore.Qt.MouseButton.NoButton,
-                QtCore.Qt.KeyboardModifier.NoModifier
-            )
-            # Send to VIEW first (critical for wheelEvent which is received by the view)
-            QtWidgets.QApplication.sendEvent(self.view, move_event)
-            # Also send to viewport (for completeness)
-            QtWidgets.QApplication.sendEvent(self.view.viewport(), move_event)
-            
-            # Process events to ensure the mouse position update completes
-            # before we disable tracking
-            QtWidgets.QApplication.processEvents()
-            
-            # Restore to default arrow cursor
-            self.view.unsetCursor()
-            
-            # Disable mouse tracking AFTER position update is complete
-            # (GraphicsView doesn't use it by default)
-            self.view.setMouseTracking(False)
-            self.view.viewport().setMouseTracking(False)
-        
-        # Uncheck toolbar buttons (except the one we're toggling to)
-        if prev_type != except_type:
-            if prev_type == "source":
-                self.act_add_source.setChecked(False)
-            elif prev_type == "lens":
-                self.act_add_lens.setChecked(False)
-            elif prev_type == "mirror":
-                self.act_add_mirror.setChecked(False)
-            elif prev_type == "beamsplitter":
-                self.act_add_bs.setChecked(False)
-            elif prev_type == "text":
-                self.act_add_text.setChecked(False)
-            elif prev_type == "rectangle":
-                self.act_add_rectangle.setChecked(False)
-    
-    def _create_placement_ghost(self, component_type: str, scene_pos: QtCore.QPointF):
-        """Create a ghost preview for the component being placed."""
-        # Clear any existing ghost with proper cleanup
-        if self._placement_ghost is not None:
-            if self._placement_ghost.scene() is not None:
-                ghost_rect = self._placement_ghost.sceneBoundingRect()
-                # Expand rect to account for cosmetic pen rendering beyond bounds
-                ghost_rect = ghost_rect.adjusted(-20, -20, 20, 20)
-                self._placement_ghost.hide()
-                self.scene.removeItem(self._placement_ghost)
-                # Aggressive viewport update to clear any rendering artifacts
-                self.scene.update(ghost_rect)
-                self.scene.invalidate(ghost_rect)
-                self.view.viewport().update()
-            self._placement_ghost.deleteLater()
-            self._placement_ghost = None
-        
-        # Create ghost based on component type
-        if component_type == "source":
-            # Source is a special case - still uses SourceItem directly
-            params = SourceParams(x_mm=scene_pos.x(), y_mm=scene_pos.y())
-            ghost = SourceItem(params)
-        elif component_type in ("lens", "mirror", "beamsplitter"):
-            # Use ComponentFactory with library templates for interface-based components
-            from ...objects.component_factory import ComponentFactory
-            
-            # Get template from library cache
-            template = self._component_templates.get(component_type)
-            if template is None:
-                # Fallback: if template not found, just return (shouldn't happen)
-                self.log_service.warning(f"No template found for component type: {component_type}", "Placement")
-                return
-            
-            # Create a copy of the template without the sprite image
-            # This ensures we see the interface lines directly, not a background image
-            template_copy = dict(template)
-            template_copy["image_path"] = ""  # Remove sprite to show interface lines only
-            
-            # Create component from template using ComponentFactory
-            ghost = ComponentFactory.create_item_from_dict(
-                template_copy,
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y()
-            )
-            if ghost is None:
-                self.log_service.error(f"Failed to create ghost for component type: {component_type}", "Placement")
-                return
-        elif component_type == "text":
-            ghost = TextNoteItem("Text")
-            ghost.setPos(scene_pos)
-        elif component_type == "rectangle":
-            from ...objects import RectangleItem
-            ghost = RectangleItem(width_mm=60.0, height_mm=40.0)
-            ghost.setPos(scene_pos)
-        else:
-            return
-        
-        # Make it semi-transparent for ghost effect
-        ghost.setOpacity(0.5)
-        
-        # Disable caching to prevent rendering artifacts (especially for SourceItem with cosmetic pens)
-        ghost.setCacheMode(QtWidgets.QGraphicsItem.CacheMode.NoCache)
-        
-        # Add to scene
-        self.scene.addItem(ghost)
-        self._placement_ghost = ghost
-    
-    def _update_placement_ghost(self, scene_pos: QtCore.QPointF):
-        """Update the position of the placement ghost."""
-        if self._placement_ghost is not None:
-            # Get old rect for proper invalidation (expanded for cosmetic pens)
-            old_rect = self._placement_ghost.sceneBoundingRect().adjusted(-20, -20, 20, 20)
-            
-            # Apply snap to grid if enabled
-            if self.snap_to_grid:
-                scene_pos = QtCore.QPointF(round(scene_pos.x()), round(scene_pos.y()))
-            
-            # Update position
-            self._placement_ghost.setPos(scene_pos)
-            
-            # Force scene update in old and new areas to prevent artifacts
-            new_rect = self._placement_ghost.sceneBoundingRect().adjusted(-20, -20, 20, 20)
-            update_rect = old_rect.united(new_rect)
-            self.scene.update(update_rect)
-            self.scene.invalidate(update_rect)
-    
-    def _place_component_at(self, component_type: str, scene_pos: QtCore.QPointF):
-        """Place a component at the specified scene position."""
-        # Apply snap to grid if enabled
-        if self.snap_to_grid:
-            scene_pos = QtCore.QPointF(round(scene_pos.x()), round(scene_pos.y()))
-        
-        # Create the component based on type
-        if component_type == "source":
-            # Source is a special case - still uses SourceItem directly
-            params = SourceParams(x_mm=scene_pos.x(), y_mm=scene_pos.y())
-            item = SourceItem(params)
-        elif component_type in ("lens", "mirror", "beamsplitter"):
-            # Use ComponentFactory with library templates for interface-based components
-            from ...objects.component_factory import ComponentFactory
-            
-            # Get template from library cache
-            template = self._component_templates.get(component_type)
-            if template is None:
-                # Fallback: if template not found, log error and return
-                self.log_service.error(f"No template found for component type: {component_type}", "Placement")
-                return
-            
-            # Create a copy of the template without the sprite image
-            # This ensures we see the interface lines directly, not a background image
-            template_copy = dict(template)
-            template_copy["image_path"] = ""  # Remove sprite to show interface lines only
-            
-            # Create component from template using ComponentFactory
-            item = ComponentFactory.create_item_from_dict(
-                template_copy,
-                x_mm=scene_pos.x(),
-                y_mm=scene_pos.y()
-            )
-            if item is None:
-                self.log_service.error(f"Failed to create component for type: {component_type}", "Placement")
-                return
-        elif component_type == "text":
-            item = TextNoteItem("Text")
-            item.setPos(scene_pos)
-        elif component_type == "rectangle":
-            from ...objects import RectangleItem
-            item = RectangleItem(width_mm=60.0, height_mm=40.0)
-            item.setPos(scene_pos)
-        else:
-            return
-        
-        # Connect signals for optical components (skip annotations like text/rectangle)
-        if component_type not in ("text", "rectangle"):
-            self._connect_item_signals(item)
-        
-        # Add to scene with undo support
-        cmd = AddItemCommand(self.scene, item)
-        self.undo_stack.push(cmd)
-        item.setSelected(True)
-        
-        # Broadcast addition to collaboration (for optical components only)
-        if component_type not in ("text", "rectangle"):
-            self.collaboration_manager.broadcast_add_item(item)
-        
-        # Retrace if enabled (only for optical components, with debouncing)
-        if component_type not in ("text", "rectangle"):
-            self._schedule_retrace()
-        
-        # Force Qt to update its internal mouse position tracking by sending a synthetic mouse move
-        # This ensures zoom-to-cursor works correctly after placing a component
-        # wheelEvent is received by the VIEW, so we must send to the view (not just viewport)
-        cursor_pos = self.view.mapFromGlobal(QtGui.QCursor.pos())
-        move_event = QtGui.QMouseEvent(
-            QtCore.QEvent.Type.MouseMove,
-            QtCore.QPointF(cursor_pos),
-            QtCore.Qt.MouseButton.NoButton,
-            QtCore.Qt.MouseButton.NoButton,
-            QtCore.Qt.KeyboardModifier.NoModifier
-        )
-        # Send to VIEW first (critical for wheelEvent position cache)
-        QtWidgets.QApplication.sendEvent(self.view, move_event)
-        # Also send to viewport (for completeness)
-        QtWidgets.QApplication.sendEvent(self.view.viewport(), move_event)
-    
-    def _point_to_segment_distance(self, point, seg_start, seg_end):
-        """
-        Calculate the minimum distance from a point to a line segment.
-        
-        Args:
-            point: The point to check (numpy array)
-            seg_start: Start of line segment (numpy array)
-            seg_end: End of line segment (numpy array)
-            
-        Returns:
-            Minimum distance from point to the line segment
-        """
-        # Vector from seg_start to seg_end
-        segment = seg_end - seg_start
-        segment_len_sq = np.dot(segment, segment)
-        
-        # Handle degenerate case (segment is a point)
-        if segment_len_sq < 1e-10:
-            return np.linalg.norm(point - seg_start)
-        
-        # Project point onto the line defined by the segment
-        # t = 0 means point projects to seg_start
-        # t = 1 means point projects to seg_end
-        t = np.dot(point - seg_start, segment) / segment_len_sq
-        
-        # Clamp t to [0, 1] to stay within the segment
-        t = max(0.0, min(1.0, t))
-        
-        # Find the closest point on the segment
-        closest_point = seg_start + t * segment
-        
-        # Return distance to the closest point
-        return np.linalg.norm(point - closest_point)
-    
-    def _handle_inspect_click(self, scene_pos: QtCore.QPointF):
-        """Handle click in inspect mode to display ray information."""
-        click_pt = np.array([scene_pos.x(), scene_pos.y()])
-        
-        # Find the nearest ray segment within tolerance
-        # Use a tolerance that scales with zoom level for better UX
-        # Get the view's transform to compute pixel-to-scene ratio
-        transform = self.view.transform()
-        scale_factor = transform.m11()  # Horizontal scale (zoom level)
-        tolerance_px = 15.0  # pixels - generous click radius
-        tolerance = tolerance_px / max(scale_factor, 0.01)  # Convert to scene units (mm)
-        
-        best_ray = None
-        best_distance = float('inf')
-        best_point_idx = None
-        
-        for i, ray_data in enumerate(self.ray_data):
-            # Check each line segment in the ray path
-            points = ray_data.points
-            for j in range(len(points) - 1):
-                # Calculate distance to the line segment between consecutive points
-                dist = self._point_to_segment_distance(click_pt, points[j], points[j + 1])
-                
-                if dist < best_distance and dist < tolerance:
-                    best_distance = dist
-                    best_ray = ray_data
-                    # Use the closest endpoint of the segment
-                    dist_to_start = np.linalg.norm(click_pt - points[j])
-                    dist_to_end = np.linalg.norm(click_pt - points[j + 1])
-                    best_point_idx = j if dist_to_start < dist_to_end else j + 1
-        
-        if best_ray is not None:
-            # Display the ray information
-            self._show_ray_info_dialog(best_ray, best_point_idx)
-        else:
-            QtWidgets.QMessageBox.information(
-                self,
-                "No Ray Found",
-                "No ray found near the clicked position.\nTry clicking closer to a ray."
-            )
-    
-    def _show_ray_info_dialog(self, ray_data, point_idx):
-        """Display a dialog with ray polarization and intensity information."""
-        # Get position
-        point = ray_data.points[point_idx]
-        x_mm, y_mm = point[0], point[1]
-        
-        # Get intensity (from alpha channel)
-        intensity = ray_data.rgba[3] / 255.0
-        
-        # Get polarization state
-        pol = ray_data.polarization
-        
-        # Format polarization info
-        if pol is not None:
-            ex, ey = pol.jones_vector[0], pol.jones_vector[1]
-            # Calculate Stokes parameters
-            I_total = abs(ex)**2 + abs(ey)**2
-            Q = abs(ex)**2 - abs(ey)**2
-            U = 2 * np.real(ex * np.conj(ey))
-            V = 2 * np.imag(ex * np.conj(ey))
-            
-            # Calculate degree of polarization
-            pol_degree = np.sqrt(Q**2 + U**2 + V**2) / I_total if I_total > 0 else 0
-            
-            # Linear polarization angle
-            pol_angle_rad = 0.5 * np.arctan2(U, Q)
-            pol_angle_deg = np.degrees(pol_angle_rad)
-            
-            pol_text = f"""Jones Vector: [{ex:.4f}, {ey:.4f}]
-
-Stokes Parameters:
-  I = {I_total:.4f}
-  Q = {Q:.4f}
-  U = {U:.4f}
-  V = {V:.4f}
-
-Degree of Polarization: {pol_degree:.2%}
-Linear Polarization Angle: {pol_angle_deg:.2f}°"""
-        else:
-            pol_text = "No polarization information available"
-        
-        # Get wavelength
-        wavelength_text = f"{ray_data.wavelength_nm:.1f} nm" if ray_data.wavelength_nm > 0 else "Not specified"
-        
-        # Create info dialog
-        dialog = QtWidgets.QDialog(self)
-        dialog.setWindowTitle("Ray Information")
-        dialog.setMinimumWidth(400)
-        
-        layout = QtWidgets.QVBoxLayout(dialog)
-        
-        # Position info
-        pos_label = QtWidgets.QLabel(f"<b>Position:</b> ({x_mm:.2f}, {y_mm:.2f}) mm")
-        layout.addWidget(pos_label)
-        
-        # Intensity info
-        intensity_label = QtWidgets.QLabel(f"<b>Intensity:</b> {intensity:.2%}")
-        layout.addWidget(intensity_label)
-        
-        # Wavelength info
-        wl_label = QtWidgets.QLabel(f"<b>Wavelength:</b> {wavelength_text}")
-        layout.addWidget(wl_label)
-        
-        layout.addSpacing(10)
-        
-        # Polarization info
-        pol_title = QtWidgets.QLabel("<b>Polarization State:</b>")
-        layout.addWidget(pol_title)
-        
-        pol_text_widget = QtWidgets.QTextEdit()
-        pol_text_widget.setPlainText(pol_text)
-        pol_text_widget.setReadOnly(True)
-        pol_text_widget.setMaximumHeight(200)
-        layout.addWidget(pol_text_widget)
-        
-        # Close button
-        button_layout = QtWidgets.QHBoxLayout()
-        button_layout.addStretch()
-        close_btn = QtWidgets.QPushButton("Close")
-        close_btn.clicked.connect(dialog.accept)
-        button_layout.addWidget(close_btn)
-        layout.addLayout(button_layout)
-        
-        dialog.exec()
+        """Cancel placement mode (delegated to ToolModeController)."""
+        self.tool_controller.cancel_placement(except_type=except_type)
 
     def _set_ray_width(self, v: float):
         """Set ray width and retrace."""
@@ -2197,44 +579,36 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
             for act in self._raywidth_group.actions():
                 act.setChecked(abs(float(act.text().split()[0]) - v) < 1e-9)
 
-    def open_component_editor(self):
-        """Open component editor dialog."""
+    def open_component_editor(self, component_data: dict | None = None):
+        """
+        Open component editor dialog, optionally with pre-loaded data.
+
+        Args:
+            component_data: Optional dict to load into the editor
+        """
         try:
             from .component_editor_dialog import ComponentEditorDialog
-        except Exception as e:
+        except ImportError as e:
             QtWidgets.QMessageBox.critical(self, "Import error", str(e))
             return
         self._comp_editor = ComponentEditorDialog(self.storage_service, self)
         self._comp_editor.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose, True)
-        # Connect saved signal to reload library
-        if hasattr(self._comp_editor, "saved"):
-            self._comp_editor.saved.connect(self.populate_library)
+        # Connect saved signal to reload library (saved is always a signal on ComponentEditorDialog)
+        self._comp_editor.saved.connect(self.populate_library)
+        # Load component data if provided
+        if component_data is not None:
+            self._comp_editor._load_from_dict(component_data)
         self._comp_editor.show()
-    
-    def open_component_editor_with_data(self, component_data: dict):
-        """Open component editor dialog with a specific component loaded."""
-        try:
-            from .component_editor_dialog import ComponentEditorDialog
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Import error", str(e))
-            return
-        self._comp_editor = ComponentEditorDialog(self.storage_service, self)
-        self._comp_editor.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose, True)
-        # Connect saved signal to reload library
-        if hasattr(self._comp_editor, "saved"):
-            self._comp_editor.saved.connect(self.populate_library)
-        # Load the component data into the editor
-        self._comp_editor._load_from_dict(component_data)
-        self._comp_editor.show()
-    
+
     def open_user_library_folder(self):
         """Open the user library folder in the system file explorer."""
-        from ...platform.paths import get_user_library_root
         import subprocess
         import sys
-        
+
+        from ...platform.paths import get_user_library_root
+
         library_path = get_user_library_root()
-        
+
         try:
             if sys.platform == "win32":
                 os.startfile(str(library_path))
@@ -2242,485 +616,92 @@ Linear Polarization Angle: {pol_angle_deg:.2f}°"""
                 subprocess.run(["open", str(library_path)])
             else:  # linux
                 subprocess.run(["xdg-open", str(library_path)])
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError) as e:
             QtWidgets.QMessageBox.information(
                 self,
                 "User Library Location",
                 f"User library location:\n{library_path}\n\n"
-                f"(Could not open folder automatically: {str(e)})"
+                f"(Could not open folder automatically: {str(e)})",
             )
-    
+
     def open_preferences(self):
         """Open preferences/settings dialog."""
         from .settings_dialog import SettingsDialog
-        
+
         dialog = SettingsDialog(self.settings_service, self)
         dialog.settings_changed.connect(self._on_settings_changed)
         dialog.exec()
-    
+
     def _on_settings_changed(self):
         """Handle settings changes."""
         # Reload library to pick up new library paths
         self.populate_library()
-        
+
         # Log the change
         self.log_service.info("Settings updated - library reloaded", "Settings")
-    
+
     def import_component_library(self):
-        """Import components from another library folder."""
-        # Ask user to select a library folder
-        source_dir = QtWidgets.QFileDialog.getExistingDirectory(
-            self,
-            "Select Component Library Folder to Import",
-            "",
-            QtWidgets.QFileDialog.Option.ShowDirsOnly
-        )
-        
-        if not source_dir:
-            return  # User cancelled
-        
-        from pathlib import Path
-        source_path = Path(source_dir)
-        
-        # Check if this looks like a library folder (has component folders with component.json)
-        component_folders = [
-            p for p in source_path.iterdir() 
-            if p.is_dir() and (p / "component.json").exists()
-        ]
-        
-        if not component_folders:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Invalid Library",
-                f"Selected folder does not contain any valid components.\n\n"
-                f"A component library should contain folders with component.json files."
-            )
-            return
-        
-        # Ask for confirmation
-        reply = QtWidgets.QMessageBox.question(
-            self,
-            "Import Library",
-            f"Found {len(component_folders)} component(s) in:\n{source_dir}\n\n"
-            f"Import all components into your user library?",
-            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
-            QtWidgets.QMessageBox.StandardButton.Yes
-        )
-        
-        if reply != QtWidgets.QMessageBox.StandardButton.Yes:
-            return
-        
-        # Import each component
-        imported_count = 0
-        skipped_count = 0
-        
-        for comp_folder in component_folders:
-            try:
-                success = self.storage_service.import_component(str(comp_folder), overwrite=False)
-                if success:
-                    imported_count += 1
-                else:
-                    skipped_count += 1
-            except Exception as e:
-                print(f"[MainWindow] Failed to import {comp_folder.name}: {e}")
-                skipped_count += 1
-        
-        # Show results
-        message = f"Import complete!\n\n"
-        message += f"Imported: {imported_count} component(s)\n"
-        if skipped_count > 0:
-            message += f"Skipped: {skipped_count} component(s) (already exist or invalid)"
-        
-        QtWidgets.QMessageBox.information(
-            self,
-            "Import Complete",
-            message
-        )
-        
-        # Reload library to show new components
-        self.populate_library()
+        """Import components from another library folder (delegated to library manager)."""
+        if self.library_manager.import_library():
+            self.populate_library()
 
-    # ----- Event filter for snap, ruler placement, inspect, and placement mode -----
+    # ----- Event filter (delegated to SceneEventHandler) -----
     def eventFilter(self, obj, ev):
-        """Handle scene events for snap, ruler placement, inspect tool, and component placement."""
-        et = ev.type()
-
-        # --- Component placement mode ---
-        if self._placement_mode:
-            # Mouse move - update ghost position
-            if et == QtCore.QEvent.Type.GraphicsSceneMouseMove:
-                mev = ev  # QGraphicsSceneMouseEvent
-                scene_pt = mev.scenePos()
-                
-                # Create ghost if it doesn't exist yet
-                if self._placement_ghost is None:
-                    self._create_placement_ghost(self._placement_type, scene_pt)
-                else:
-                    self._update_placement_ghost(scene_pt)
-                return True  # consume event
-            
-            # Mouse press - place component or cancel
-            elif et == QtCore.QEvent.Type.GraphicsSceneMousePress:
-                mev = ev  # QGraphicsSceneMouseEvent
-                scene_pt = mev.scenePos()
-                
-                if mev.button() == QtCore.Qt.MouseButton.LeftButton:
-                    # Place the component
-                    self._place_component_at(self._placement_type, scene_pt)
-                    # Keep placement mode active for multiple placements
-                    # Just clear the ghost so a new one is created on next move
-                    if self._placement_ghost is not None:
-                        if self._placement_ghost.scene() is not None:
-                            # Get bounding rect before removal for proper viewport update
-                            ghost_rect = self._placement_ghost.sceneBoundingRect()
-                            # Expand rect to account for cosmetic pen rendering beyond bounds
-                            ghost_rect = ghost_rect.adjusted(-20, -20, 20, 20)
-                            # Hide first to prevent flicker
-                            self._placement_ghost.hide()
-                            self.scene.removeItem(self._placement_ghost)
-                            # Aggressive viewport update to clear any rendering artifacts (especially for SourceItem)
-                            self.scene.update(ghost_rect)
-                            self.scene.invalidate(ghost_rect)
-                            self.view.viewport().update()
-                            # Schedule another update to catch any stragglers
-                            QtCore.QTimer.singleShot(0, self.view.viewport().update)
-                        # Schedule deletion to ensure proper cleanup
-                        self._placement_ghost.deleteLater()
-                        self._placement_ghost = None
-                    return True  # consume event
-                
-                elif mev.button() == QtCore.Qt.MouseButton.RightButton:
-                    # Cancel placement
-                    self._cancel_placement_mode()
-                    return True  # consume event
-        
-        # --- Inspect tool ---
-        if self._inspect_mode and et == QtCore.QEvent.Type.GraphicsSceneMousePress:
-            mev = ev  # QGraphicsSceneMouseEvent
-            if mev.button() == QtCore.Qt.MouseButton.LeftButton:
-                scene_pt = mev.scenePos()
-                self._handle_inspect_click(scene_pt)
-                return True  # consume event
-
-        # --- Ruler 2-click placement ---
-        if self._placing_ruler and et == QtCore.QEvent.Type.GraphicsSceneMousePress:
-            mev = ev  # QGraphicsSceneMouseEvent
-            if mev.button() == QtCore.Qt.MouseButton.LeftButton:
-                scene_pt = mev.scenePos()
-                if self._ruler_p1_scene is None:
-                    # first click
-                    self._ruler_p1_scene = QtCore.QPointF(scene_pt)
-                    return True  # consume
-                else:
-                    # second click -> create ruler in item coords
-                    p1 = QtCore.QPointF(self._ruler_p1_scene)
-                    p2 = QtCore.QPointF(scene_pt)
-                    R = RulerItem(p1, p2)
-                    R.setPos(0, 0)
-                    cmd = AddItemCommand(self.scene, R)
-                    self.undo_stack.push(cmd)
-                    R.setSelected(True)
-                    self._finish_place_ruler()
-                    return True  # consume
-            elif mev.button() == QtCore.Qt.MouseButton.RightButton:
-                # cancel placement on right-click
-                self._finish_place_ruler()
-                return True
-
-        # --- Track item positions and rotations on mouse press ---
-        if et == QtCore.QEvent.Type.GraphicsSceneMousePress:
-            from ...objects import BaseObj, RectangleItem
-            mev = ev
-            # Check if this is a rotation operation (Ctrl modifier)
-            is_rotation_mode = mev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier
-            
-            # Store initial positions of selected items
-            self._item_positions.clear()
-            self._item_rotations.clear()
-            self._item_group_states.clear()
-            
-            # Get already-selected items
-            selected_items = [it for it in self.scene.selectedItems() 
-                            if isinstance(it, (BaseObj, RulerItem, TextNoteItem, RectangleItem))]
-            
-            # Also track the item under the mouse cursor (may not be selected yet)
-            clicked_item = self.scene.itemAt(mev.scenePos(), QtGui.QTransform())
-            print(f"[DEBUG] Mouse press: {len(selected_items)} already selected, clicked_item={type(clicked_item).__name__ if clicked_item else None}")
-            
-            # Walk up parent hierarchy to find the actual draggable item (child items like sprites return first)
-            while clicked_item is not None:
-                if isinstance(clicked_item, (BaseObj, RulerItem, TextNoteItem, RectangleItem)):
-                    if clicked_item not in selected_items:
-                        print(f"[DEBUG] Adding clicked item {type(clicked_item).__name__} to tracking")
-                        selected_items.append(clicked_item)
-                    break
-                # Move to parent item
-                clicked_item = clicked_item.parentItem()
-            
-            print(f"[DEBUG] Tracking {len(selected_items)} items total")
-            for it in selected_items:
-                print(f"[DEBUG]   - {type(it).__name__} at {it.pos()}")
-            
-            for it in selected_items:
-                self._item_positions[it] = QtCore.QPointF(it.pos())
-                
-                # Track rotations if in rotation mode (for BaseObj and RectangleItem)
-                if is_rotation_mode and isinstance(it, (BaseObj, RectangleItem)):
-                    self._item_rotations[it] = it.rotation()
-            
-            # For group rotation, also track initial positions for orbit calculation
-            if is_rotation_mode and len(selected_items) > 1:
-                self._item_group_states = {
-                    'items': selected_items,
-                    'initial_positions': {it: QtCore.QPointF(it.pos()) for it in selected_items},
-                    'initial_rotations': {it: it.rotation() for it in selected_items if isinstance(it, (BaseObj, RectangleItem))}
-                }
-
-        # --- Snap to grid and create move/rotate commands on mouse release ---
-        if et == QtCore.QEvent.Type.GraphicsSceneMouseRelease:
-            from ...objects import BaseObj
-
-            # Clear snap guides
-            self.view.clear_snap_guides()
-            
-            # Check if this was a group rotation
-            was_group_rotation = bool(self._item_group_states and 'items' in self._item_group_states)
-            
-            print(f"[DEBUG] Mouse release: {len(self._item_positions)} items tracked")
-            
-            # Iterate over tracked items (not currently selected items, which may have changed)
-            for it in list(self._item_positions.keys()):
-                if isinstance(it, BaseObj) and self.snap_to_grid:
-                    p = it.pos()
-                    it.setPos(round(p.x()), round(p.y()))
-                
-                # Create move command if item was moved (and not rotated)
-                if it not in self._item_rotations:
-                    old_pos = self._item_positions[it]
-                    new_pos = it.pos()
-                    # Only create command if position actually changed
-                    if old_pos != new_pos:
-                        print(f"[DEBUG] Creating move command for {type(it).__name__} from {old_pos} to {new_pos}")
-                        cmd = MoveItemCommand(it, old_pos, new_pos)
-                        self.undo_stack.push(cmd)
-                    else:
-                        print(f"[DEBUG] No position change for {type(it).__name__}")
-                else:
-                    print(f"[DEBUG] Skipping {type(it).__name__} (was rotated)")
-            
-            # Handle rotation commands
-            if self._item_rotations and not was_group_rotation:
-                # Single item rotation(s)
-                for it, old_rotation in self._item_rotations.items():
-                    new_rotation = it.rotation()
-                    # Only create command if rotation actually changed
-                    if abs(new_rotation - old_rotation) > 0.01:  # Small threshold for floating point comparison
-                        cmd = RotateItemCommand(it, old_rotation, new_rotation)
-                        self.undo_stack.push(cmd)
-            
-            elif was_group_rotation:
-                # Group rotation - check if any items changed
-                from ...objects import RectangleItem
-                items = self._item_group_states['items']
-                old_positions = self._item_group_states['initial_positions']
-                old_rotations = self._item_group_states['initial_rotations']
-                new_positions = {it: it.pos() for it in items}
-                new_rotations = {it: it.rotation() for it in items if isinstance(it, (BaseObj, RectangleItem))}
-                
-                # Check if anything actually changed
-                position_changed = any(
-                    old_positions[it] != new_positions[it] 
-                    for it in items if it in old_positions
-                )
-                rotation_changed = any(
-                    abs(old_rotations.get(it, 0) - new_rotations.get(it, 0)) > 0.01
-                    for it in items if isinstance(it, (BaseObj, RectangleItem))
-                )
-                
-                if position_changed or rotation_changed:
-                    # Filter to only items that have rotation (BaseObj and RectangleItem)
-                    rotatable_items = [it for it in items if isinstance(it, (BaseObj, RectangleItem))]
-                    if rotatable_items:
-                        cmd = RotateItemsCommand(
-                            rotatable_items,
-                            old_positions,
-                            new_positions,
-                            old_rotations,
-                            new_rotations
-                        )
-                        self.undo_stack.push(cmd)
-            
-            self._item_positions.clear()
-            self._item_rotations.clear()
-            self._item_group_states.clear()
-            self._schedule_retrace()
-        # Removed: Mouse move and wheel events no longer trigger retrace
-        # This fixes framerate bottleneck (was causing 60-120+ retraces/second)
-        # Retrace only happens when items are actually moved (on mouse release above)
-
+        """Handle scene events (delegated to SceneEventHandler)."""
+        result = self.scene_event_handler.handle_event(obj, ev)
+        if result is not None:
+            return result
         return super().eventFilter(obj, ev)
-    
+
     def keyPressEvent(self, ev):
-        """Handle key press events for placement mode cancellation."""
-        # Check if Escape is pressed and placement mode is active
-        if ev.key() == QtCore.Qt.Key.Key_Escape:
-            if self._placement_mode:
-                self._cancel_placement_mode()
-                ev.accept()
-                return
-        
-        # Pass to parent for normal handling
+        """Handle key press events (delegated to SceneEventHandler)."""
+        if self.scene_event_handler.handle_key_press(ev):
+            ev.accept()
+            return
+        # Pass to parent for normal handling (Delete/Backspace handled by act_delete action)
         super().keyPressEvent(ev)
 
     def show_log_window(self):
         """Show the application log window."""
         log_window = LogWindow(self)
         log_window.show()
-    
-    # ----- Collaboration -----
+
+    # ----- Collaboration (delegated to CollaborationController) -----
     def open_collaboration_dialog(self):
         """Open dialog to connect to or host a collaboration session."""
-        dialog = CollaborationDialog(self)
-        if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
-            info = dialog.get_connection_info()
-            
-            mode = info.get("mode", "connect")
-            
-            if mode == "host":
-                # Host creating a new session
-                session_id = info.get("session_id", "default")
-                user_id = info.get("user_id", "host")
-                use_current_canvas = info.get("use_current_canvas", True)
-                
-                # Store server process if hosted locally
-                if dialog.server_process:
-                    self.collab_server_process = dialog.server_process
-                
-                # Create session as host
-                self.collaboration_manager.create_session(
-                    session_id=session_id,
-                    user_id=user_id,
-                    use_current_canvas=use_current_canvas
-                )
-                
-                # Connect to local server
-                server_url = f"ws://localhost:{info.get('port', 8765)}"
-                self.collaboration_manager.connect_to_session(server_url, session_id, user_id)
-                
-                self.log_service.info(
-                    f"Created session '{session_id}' as host (current_canvas={use_current_canvas})",
-                    "Collaboration"
-                )
-            
-            else:
-                # Client joining existing session
-                server_url = info.get("server_url", "ws://localhost:8765")
-                session_id = info.get("session_id", "default")
-                user_id = info.get("user_id", "user")
-                
-                # Join session as client
-                self.collaboration_manager.join_session(server_url, session_id, user_id)
-                
-                self.log_service.info(
-                    f"Joining session '{session_id}' as client",
-                    "Collaboration"
-                )
-            
+        self.collab_controller.open_dialog()
+        if self.collab_controller.is_connected:
             self.act_disconnect.setEnabled(True)
             self.act_collaborate.setEnabled(False)
-    
+
     def disconnect_collaboration(self):
         """Disconnect from collaboration session."""
-        self.collaboration_manager.disconnect()
+        self.collab_controller.disconnect()
         self.act_disconnect.setEnabled(False)
         self.act_collaborate.setEnabled(True)
-        self.collab_status_label.setText("Not connected")
-        
-        # Stop server if we're hosting one
-        if self.collab_server_process:
-            try:
-                self.collab_server_process.terminate()
-                try:
-                    self.collab_server_process.wait(timeout=3)
-                except:
-                    self.collab_server_process.kill()
-                self.log_service.info("Stopped collaboration server", "Collaboration")
-            except Exception as e:
-                self.log_service.warning(f"Error stopping server: {e}", "Collaboration")
-            finally:
-                self.collab_server_process = None
-    
-    def _on_collaboration_status_changed(self, status: str):
-        """Update collaboration status indicator."""
-        self.collab_status_label.setText(f"Collaboration: {status}")
-    
-    def _on_remote_item_added(self, item_type: str, data: dict):
-        """Handle remote item addition."""
-        # Suppress broadcasting while adding remote item
-        try:
-            # Create the appropriate item type
-            if item_type == "source":
-                item = SourceItem(SourceParams(**data), data.get("item_uuid"))
-                self.scene.addItem(item)
-                item.edited.connect(self._maybe_retrace)
-            elif item_type == "lens":
-                item = LensItem(LensParams(**data), data.get("item_uuid"))
-                self.scene.addItem(item)
-                item.edited.connect(self._maybe_retrace)
-            elif item_type == "mirror":
-                item = MirrorItem(MirrorParams(**data), data.get("item_uuid"))
-                self.scene.addItem(item)
-                item.edited.connect(self._maybe_retrace)
-            elif item_type == "beamsplitter":
-                item = BeamsplitterItem(BeamsplitterParams(**data), data.get("item_uuid"))
-                self.scene.addItem(item)
-                item.edited.connect(self._maybe_retrace)
-            elif item_type == "dichroic":
-                item = DichroicItem(DichroicParams(**data), data.get("item_uuid"))
-                self.scene.addItem(item)
-                item.edited.connect(self._maybe_retrace)
-            elif item_type == "waveplate":
-                item = WaveplateItem(WaveplateParams(**data), data.get("item_uuid"))
-                self.scene.addItem(item)
-                item.edited.connect(self._maybe_retrace)
-            elif item_type == "ruler":
-                item = RulerItem.from_dict(data)
-                self.scene.addItem(item)
-            elif item_type == "text":
-                item = TextNoteItem.from_dict(data)
-                self.scene.addItem(item)
-            
-            # Add to UUID map
-            if hasattr(item, 'item_uuid'):
-                self.collaboration_manager.item_uuid_map[item.item_uuid] = item
-            
-            # Retrace if autotrace is on (with debouncing)
-            self._schedule_retrace()
-        except Exception as e:
-            print(f"Error adding remote item: {e}")
-    
+
     # ensure clean shutdown
-    def closeEvent(self, e: QtGui.QCloseEvent):
-        # Check for unsaved changes
-        if self._is_modified:
-            reply = self._prompt_save_changes()
+    def closeEvent(self, e: QtGui.QCloseEvent | None):
+        # Check for unsaved changes (skip dialog in offscreen/test mode)
+        import os
+
+        if self.file_controller.is_modified and os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+            reply = self.file_controller.prompt_save_changes()
             if reply == QtWidgets.QMessageBox.StandardButton.Cancel:
-                e.ignore()  # Don't close the window
+                if e is not None:
+                    e.ignore()  # Don't close the window
                 return
-        
+
         try:
-            # Stop autosave timer
-            if hasattr(self, '_autosave_timer'):
-                self._autosave_timer.stop()
-            
             # Clear autosave on clean exit
-            self._clear_autosave()
-            
-            if hasattr(self, "_comp_editor") and self._comp_editor:
+            self.file_controller.file_manager.clear_autosave()
+
+            # Close component editor if it was opened
+            if getattr(self, "_comp_editor", None) is not None:
                 self._comp_editor.close()
-            # Disconnect from collaboration and stop server if running
-            if hasattr(self, "collaboration_manager"):
-                self.disconnect_collaboration()
-        except Exception:
+            # Disconnect from collaboration (collab_controller always exists after __init__)
+            self.collab_controller.cleanup()
+        except (OSError, RuntimeError):
+            # Ignore cleanup errors during shutdown
             pass
         super().closeEvent(e)

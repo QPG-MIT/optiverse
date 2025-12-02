@@ -1,11 +1,11 @@
 import numpy as np
 
-from optiverse.core.geometry import (
-    transform_polarization_waveplate,
-    transform_polarization_mirror,
-    deg2rad,
-)
 from optiverse.core.models import Polarization
+from optiverse.core.raytracing_math import (
+    deg2rad,
+    transform_polarization_mirror,
+    transform_polarization_waveplate,
+)
 
 
 def _equivalent_up_to_global_phase(a: np.ndarray, b: np.ndarray, atol: float = 1e-6) -> bool:
@@ -40,7 +40,9 @@ def _apply_qwp_mirror_qwp(pol: Polarization, theta_deg: float) -> Polarization:
 
     # Ideal mirror at near-normal incidence (s/p fallback picks s=[0,1], p=[-1,0])
     # Convention is fine; only relative phase matters
-    pol2 = transform_polarization_mirror(pol1, v_in=np.array([1.0, 0.0]), n_hat=np.array([1.0, 0.0]))
+    pol2 = transform_polarization_mirror(
+        pol1, v_in=np.array([1.0, 0.0]), n_hat=np.array([1.0, 0.0])
+    )
 
     # Backward pass through the same QWP (−90° effective)
     pol3 = transform_polarization_waveplate(
@@ -72,5 +74,3 @@ def test_qwp_mirror_qwp_45_degrees_rotates_by_90():
 
     expected = _linear_jones(90.0)
     assert _equivalent_up_to_global_phase(pol_out.jones_vector, expected, atol=1e-6)
-
-

@@ -3,27 +3,28 @@ Lens element implementation.
 
 Implements thin lens approximation using paraxial optics.
 """
-from typing import List, Tuple
-import numpy as np
+
 import math
 
-from .base import IOpticalElement
+import numpy as np
+
+from ...core.raytracing_math import normalize
 from ..ray import RayState
-from ...core.geometry import normalize
+from .base import IOpticalElement
 
 
 class LensElement(IOpticalElement):
     """
     Thin lens element using paraxial approximation.
-    
+
     Uses the thin lens equation to deflect rays based on their height
     off the optical axis.
     """
-    
+
     def __init__(self, p1: np.ndarray, p2: np.ndarray, efl_mm: float):
         """
         Initialize lens element.
-        
+
         Args:
             p1: Start point of lens line segment [x, y] in mm
             p2: End point of lens line segment [x, y] in mm
@@ -32,48 +33,48 @@ class LensElement(IOpticalElement):
         self.p1 = np.array(p1, dtype=float)
         self.p2 = np.array(p2, dtype=float)
         self.efl_mm = efl_mm
-    
-    def get_geometry(self) -> Tuple[np.ndarray, np.ndarray]:
+
+    def get_geometry(self) -> tuple[np.ndarray, np.ndarray]:
         """Get lens line segment"""
         return self.p1, self.p2
-    
+
     def interact(
-        self,
-        ray: RayState,
-        hit_point: np.ndarray,
-        normal: np.ndarray,
-        tangent: np.ndarray
-    ) -> List[RayState]:
+        self, ray: RayState, hit_point: np.ndarray, normal: np.ndarray, tangent: np.ndarray
+    ) -> list[RayState]:
         """
         Deflect ray using thin lens equation.
-        
+
         Physics:
         - Thin lens approximation: θ_out = θ_in - y/f
         - where y is height off optical axis, f is focal length
         - Polarization unchanged through ideal lens
         """
+        # CRITICAL FIX: Ensure normal points in ray propagation direction
+        # The thin lens formula only works when angles are measured from
+        # the propagation direction (theta=0), not from backward (theta=180°)
+        if np.dot(ray.direction, normal) < 0:
+            normal = -normal
+
         # Compute ray height on lens (distance from center along tangent)
         center = 0.5 * (self.p1 + self.p2)
         y = float(np.dot(hit_point - center, tangent))
-        
+
         # Decompose ray direction into normal and tangent components
         a_n = float(np.dot(ray.direction, normal))
         a_t = float(np.dot(ray.direction, tangent))
-        
+
         # Compute incident angle
         theta_in = math.atan2(a_t, a_n)
-        
+
         # Apply thin lens equation: θ_out = θ_in - y/f
         if abs(self.efl_mm) > 1e-12:
             theta_out = theta_in - (y / self.efl_mm)
         else:
             theta_out = theta_in  # Infinite focal length = no deflection
-        
+
         # Reconstruct direction from angle
-        direction_out = normalize(
-            math.cos(theta_out) * normal + math.sin(theta_out) * tangent
-        )
-        
+        direction_out = normalize(math.cos(theta_out) * normal + math.sin(theta_out) * tangent)
+
         # Polarization unchanged through ideal lens
         EPS_ADV = 1e-3
         refracted_ray = RayState(
@@ -83,14 +84,13 @@ class LensElement(IOpticalElement):
             polarization=ray.polarization,  # Unchanged
             wavelength_nm=ray.wavelength_nm,
             path=ray.path + [hit_point],
-            events=ray.events + 1
+            events=ray.events + 1,
         )
-        
+
         return [refracted_ray]
-    
-    def get_bounding_box(self) -> Tuple[np.ndarray, np.ndarray]:
+
+    def get_bounding_box(self) -> tuple[np.ndarray, np.ndarray]:
         """Get axis-aligned bounding box"""
         min_corner = np.minimum(self.p1, self.p2)
         max_corner = np.maximum(self.p1, self.p2)
         return min_corner, max_corner
-

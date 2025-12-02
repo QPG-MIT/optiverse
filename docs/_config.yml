@@ -1,0 +1,40 @@
+# GitHub Pages Configuration for Optiverse Documentation
+# This enables GitHub Pages with Jekyll theme
+
+title: Optiverse Documentation
+description: Comprehensive documentation for Optiverse optical simulation software
+theme: jekyll-theme-minimal
+
+# Navigation
+navigation:
+  - title: Getting Started
+    children:
+      - MACOS_SETUP.md
+  - title: User Guides
+    children:
+      - INTERFACE_COLOR_GUIDE.md
+      - REFRACTIVE_INDEX_LABELS.md
+      - RULER_VISUAL_GUIDE.md
+      - ZEMAX_IMPORT_UI_GUIDE.md
+      - COLLABORATION.md
+      - INSPECT_TOOL.md
+  - title: Physics & Optics
+    children:
+      - DICHROIC_MIRRORS_AND_WAVELENGTH_SYSTEM.md
+      - POLARIZING_INTERFACES.md
+      - WAVEPLATE_DIRECTIONALITY.md
+  - title: Architecture & Development
+    children:
+      - UNIFIED_INTERFACE_SYSTEM.md
+      - TESTING_ARCHITECTURE.md
+      - ERROR_HANDLING.md
+      - LOGGING_SYSTEM.md
+  - title: Performance
+    children:
+      - PARALLEL_RAYTRACING.md
+      - MAC_TRACKPAD_OPTIMIZATION.md
+
+# Exclude files from processing
+exclude:
+  - ERROR_HANDLING_QUICK_REFERENCE.py
+

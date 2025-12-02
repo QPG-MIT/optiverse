@@ -1,4 +1,5 @@
 import math
+
 import numpy as np
 
 
@@ -7,10 +8,20 @@ def test_thin_lens_deflection_matches_v2_formula():
     from optiverse.core.use_cases import trace_rays
 
     # Lens centered at origin along x-axis; ray passes at x=+10 mm above optical axis
-    lens = OpticalElement(kind="lens", p1=np.array([-50.0, 0.0]), p2=np.array([50.0, 0.0]), efl_mm=100.0)
+    lens = OpticalElement(
+        kind="lens", p1=np.array([-50.0, 0.0]), p2=np.array([50.0, 0.0]), efl_mm=100.0
+    )
 
     # Source at (10, -100) shooting straight up (along +Y)
-    src = SourceParams(x_mm=10.0, y_mm=-100.0, angle_deg=90.0, size_mm=0.0, n_rays=1, ray_length_mm=400.0, spread_deg=0.0)
+    src = SourceParams(
+        x_mm=10.0,
+        y_mm=-100.0,
+        angle_deg=90.0,
+        size_mm=0.0,
+        n_rays=1,
+        ray_length_mm=400.0,
+        spread_deg=0.0,
+    )
 
     paths = trace_rays([lens], [src], max_events=1)
     assert len(paths) >= 1
@@ -42,7 +53,15 @@ def test_mirror_reflection_angle_parity():
     mirror = OpticalElement(kind="mirror", p1=p1, p2=p2)
 
     # Ray coming from left to right
-    src = SourceParams(x_mm=-100.0, y_mm=0.0, angle_deg=0.0, size_mm=0.0, n_rays=1, ray_length_mm=400.0, spread_deg=0.0)
+    src = SourceParams(
+        x_mm=-100.0,
+        y_mm=0.0,
+        angle_deg=0.0,
+        size_mm=0.0,
+        n_rays=1,
+        ray_length_mm=400.0,
+        spread_deg=0.0,
+    )
     paths = trace_rays([mirror], [src], max_events=2)
     assert len(paths) >= 1
     pts = paths[0].points
@@ -51,5 +70,3 @@ def test_mirror_reflection_angle_parity():
     v = np.array(pts[-1]) - np.array(pts[-2])
     v_norm = v / (np.linalg.norm(v) or 1.0)
     assert v_norm[1] > 0.7  # strong upward component
-
-

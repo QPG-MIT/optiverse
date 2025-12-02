@@ -8,5 +8,3 @@ def test_library_dock_smoke(qtbot):
 
     assert hasattr(w, "libraryDock")
     assert w.libraryDock.isVisible()
-
-

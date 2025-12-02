@@ -4,7 +4,7 @@ Tests for ComponentRegistry/catalog system (v2 schema).
 Verifies that standard components load from per-object folders with
 interfaces and valid image paths.
 """
-import os
+
 from pathlib import Path
 
 import pytest
@@ -17,9 +17,12 @@ class TestComponentRegistry:
         """Component registry module should exist."""
         try:
             from optiverse.objects.component_registry import ComponentRegistry
+
             assert ComponentRegistry is not None
         except ImportError:
-            pytest.fail("ComponentRegistry should be importable from optiverse.objects.component_registry")
+            pytest.fail(
+                "ComponentRegistry should be importable from optiverse.objects.component_registry"
+            )
 
     def test_get_standard_components_returns_list(self):
         """get_standard_components() should return a non-empty list."""
@@ -38,8 +41,13 @@ class TestComponentRegistry:
             assert "name" in comp, "Component must have 'name'"
             assert "image_path" in comp, "Component must have 'image_path'"
             assert "object_height_mm" in comp, "Component must have 'object_height_mm'"
-            # Either interfaces are present or it's a non-interface element (e.g., source/background)
-            assert "interfaces" in comp, "Component should export 'interfaces' list"
+            # Sources and background components may not have interfaces
+            # Optical components should have interfaces
+            category = comp.get("category", "").lower()
+            if category not in ("sources", "background"):
+                assert (
+                    "interfaces" in comp
+                ), f"Component {comp['name']} should export 'interfaces' list"
             # No legacy keys
             assert "schema_version" not in comp
             assert "coord_system" not in comp
@@ -50,7 +58,11 @@ class TestComponentRegistry:
 
         components = ComponentRegistry.get_standard_components()
         # A lens is any component whose first interface is type 'lens'
-        lenses = [c for c in components if c.get("interfaces") and c["interfaces"][0].get("element_type") == "lens"]
+        lenses = [
+            c
+            for c in components
+            if c.get("interfaces") and c["interfaces"][0].get("element_type") == "lens"
+        ]
 
         assert len(lenses) >= 1, "Should have at least one standard lens"
 
@@ -65,11 +77,19 @@ class TestComponentRegistry:
         from optiverse.objects.component_registry import ComponentRegistry
 
         components = ComponentRegistry.get_standard_components()
-        mirrors = [c for c in components if c.get("interfaces") and c["interfaces"][0].get("element_type") == "mirror"]
+        mirrors = [
+            c
+            for c in components
+            if c.get("interfaces") and c["interfaces"][0].get("element_type") == "mirror"
+        ]
 
         assert len(mirrors) >= 1, "Should have at least one standard mirror"
 
-        std_mirror = mirrors[0]
+        # Find the 1" standard mirror by name
+        std_mirrors = [m for m in mirrors if "Standard Mirror" in m.get("name", "")]
+        assert len(std_mirrors) >= 1, "Should have Standard Mirror component"
+
+        std_mirror = std_mirrors[0]
         assert "Standard Mirror" in std_mirror["name"]
         assert "standard_mirror_1_inch.png" in std_mirror["image_path"]
 
@@ -78,11 +98,24 @@ class TestComponentRegistry:
         from optiverse.objects.component_registry import ComponentRegistry
 
         components = ComponentRegistry.get_standard_components()
-        beamsplitters = [c for c in components if c.get("interfaces") and c["interfaces"][0].get("element_type") in ("beam_splitter", "beamsplitter")]
+        beamsplitters = [
+            c
+            for c in components
+            if c.get("interfaces")
+            and c["interfaces"][0].get("element_type") in ("beam_splitter", "beamsplitter")
+        ]
 
         assert len(beamsplitters) >= 1, "Should have at least one standard beamsplitter"
 
-        std_bs = beamsplitters[0]
+        # Find the 50/50 standard beamsplitter by name
+        std_bs_list = [
+            b
+            for b in beamsplitters
+            if "Standard Beamsplitter" in b.get("name", "") or "50/50" in b.get("name", "")
+        ]
+        assert len(std_bs_list) >= 1, "Should have Standard Beamsplitter (50/50) component"
+
+        std_bs = std_bs_list[0]
         assert "Standard Beamsplitter" in std_bs["name"] or "50/50" in std_bs["name"]
         assert "beamsplitter_50_50_1_inch.png" in std_bs["image_path"]
         iface0 = std_bs["interfaces"][0]
@@ -94,13 +127,15 @@ class TestComponentRegistry:
         from optiverse.objects.component_registry import ComponentRegistry
 
         components = ComponentRegistry.get_standard_components()
-        sources = [c for c in components if c.get("name", "").lower().startswith("standard source")]
+        sources = [c for c in components if c.get("category", "").lower() == "sources"]
 
         assert len(sources) >= 1, "Should have at least one standard source"
 
         std_source = sources[0]
-        for k in ("n_rays", "spread_deg", "size_mm", "ray_length_mm"):
-            assert k in std_source
+        # Sources are stored with basic ComponentRecord fields
+        # Source-specific fields (n_rays, spread_deg, etc.) are handled by SourceItem
+        assert "name" in std_source
+        assert "Standard Source" in std_source["name"]
 
     def test_image_paths_exist(self):
         """All referenced image paths should exist on disk."""
@@ -117,15 +152,15 @@ class TestComponentRegistry:
     def test_get_components_by_category(self):
         """get_components_by_category() should organize components."""
         from optiverse.objects.component_registry import ComponentRegistry
-        
+
         by_category = ComponentRegistry.get_components_by_category()
-        
+
         assert isinstance(by_category, dict)
         assert "Lenses" in by_category
         assert "Mirrors" in by_category
         assert "Beamsplitters" in by_category
         assert "Sources" in by_category
-        
+
         # Each category should have at least one component
         assert len(by_category["Lenses"]) >= 1
         assert len(by_category["Mirrors"]) >= 1
@@ -135,10 +170,11 @@ class TestComponentRegistry:
     def test_component_params_are_serializable(self):
         """All component parameters should be JSON-serializable."""
         import json
+
         from optiverse.objects.component_registry import ComponentRegistry
-        
+
         components = ComponentRegistry.get_standard_components()
-        
+
         json_str = json.dumps(components)
         assert len(json_str) > 0
 
@@ -155,4 +191,3 @@ class TestComponentRegistry:
                 assert isinstance(iface.get("x2_mm"), (int, float))
                 assert isinstance(iface.get("y2_mm"), (int, float))
                 assert isinstance(iface.get("element_type"), str)
-

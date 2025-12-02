@@ -2,6 +2,9 @@
 
 **A modern 2D ray-optics simulation and component editor built with PyQt6**
 
+[![CI](https://github.com/QPG-MIT/optiverse/actions/workflows/ci.yml/badge.svg)](https://github.com/QPG-MIT/optiverse/actions/workflows/ci.yml)
+[![Copilot Instructions](https://github.com/QPG-MIT/optiverse/actions/workflows/copilot-review.yml/badge.svg)](https://github.com/QPG-MIT/optiverse/actions/workflows/copilot-review.yml)
+
 Optiverse is a powerful, interactive tool for designing and simulating optical systems. Create complex setups with mirrors, lenses, beamsplitters, and custom components, then visualize ray propagation in real-time with hardware-accelerated rendering.
 
 ## Features
@@ -128,6 +131,35 @@ python -m optiverse.app.main
 4. **Trace Rays**: Real-time visualization updates automatically
 5. **Save/Load**: Save your optical systems as JSON files
 
+### Keyboard Shortcuts
+
+| Action | Windows/Linux | macOS |
+|--------|---------------|-------|
+| **File** | | |
+| Open Assembly | `Ctrl+O` | `⌘O` |
+| Save | `Ctrl+S` | `⌘S` |
+| Save As | `Ctrl+Shift+S` | `⌘⇧S` |
+| **Edit** | | |
+| Undo | `Ctrl+Z` | `⌘Z` |
+| Redo | `Ctrl+Y` | `⌘Y` |
+| Copy | `Ctrl+C` | `⌘C` |
+| Paste | `Ctrl+V` | `⌘V` |
+| Delete | `Delete` / `Backspace` | `Delete` / `⌫` |
+| Preferences | `Ctrl+,` | `⌘,` |
+| **View** | | |
+| Zoom In | `Ctrl++` | `⌘+` |
+| Zoom Out | `Ctrl+-` | `⌘-` |
+| Fit Scene | `Ctrl+0` | `⌘0` |
+| Recenter View | `Ctrl+Shift+0` | `⌘⇧0` |
+| **Tools** | | |
+| Retrace Rays | `Space` | `Space` |
+| Component Editor | `Ctrl+E` | `⌘E` |
+| Show Log Window | `Ctrl+L` | `⌘L` |
+| **Collaboration** | | |
+| Connect/Host Session | `Ctrl+Shift+C` | `⌘⇧C` |
+| **General** | | |
+| Cancel Current Tool | `Esc` | `Esc` |
+
 ### Component Editor
 
 Create custom optical components:
@@ -222,12 +254,18 @@ pytest --cov=src --cov-report=html
 # Lint
 ruff check .
 
+# Auto-fix linting errors
+ruff check --fix .
+ruff format .
+
 # Type checking
 mypy src/
 
 # Format (if needed)
 black src/ tests/
 ```
+
+**Note**: When you create a pull request, Ruff linting errors are automatically fixed by GitHub Actions and committed back to your branch. You can also run `ruff check --fix .` locally before pushing.
 
 ### Building Resources
 ```bash
@@ -317,8 +355,19 @@ MIT License - see pyproject.toml for details.
 - OpenGL for hardware-accelerated rendering
 - WebSockets for real-time collaboration
 
+## Documentation
+
+Comprehensive documentation is available in the [`docs/`](docs/) directory:
+
+- **[Documentation Index](docs/README.md)** - Complete guide to all available documentation
+- **[Getting Started](docs/MACOS_SETUP.md)** - Installation and setup guides
+- **[User Guides](docs/README.md#-user-guides)** - Component editor, Zemax import, collaboration
+- **[Physics & Optics](docs/README.md#-physics--optics)** - Dichroic mirrors, polarization, waveplates
+- **[Architecture & Development](docs/README.md#️-architecture--development)** - Testing, error handling, system architecture
+- **[Performance](docs/README.md#-performance)** - Parallel raytracing, optimizations
+
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/QPG-MIT/optiverse/issues)
-- **Documentation**: See `docs/` folder for detailed guides
+- **Documentation**: [Complete Documentation Index](docs/README.md)
 - **Examples**: Check `examples/` for demo assemblies

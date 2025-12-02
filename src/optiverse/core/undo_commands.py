@@ -2,12 +2,15 @@
 Command pattern implementation for undo/redo functionality.
 Each command encapsulates an action that can be executed and undone.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any
 
 from PyQt6 import QtCore
+
+from .protocols import Editable, HasParams, Undoable
 
 if TYPE_CHECKING:
     from PyQt6 import QtWidgets
@@ -25,12 +28,12 @@ class Command(ABC):
     def undo(self) -> None:
         """Undo the command."""
         pass
-    
+
     def id(self) -> int:
         """Return command ID for merging. Return -1 to disable merging."""
         return -1
-    
-    def merge_with(self, other: 'Command') -> bool:
+
+    def merge_with(self, other: Command) -> bool:
         """Attempt to merge with another command. Return True if successful."""
         return False
 
@@ -123,12 +126,12 @@ class MoveItemCommand(Command):
         self.item.setPos(self.old_pos)
         # Force Qt to update cached transforms (fixes BeamsplitterItem position tracking)
         self.item.setTransform(self.item.transform())
-    
+
     def id(self) -> int:
         """Return unique ID for this item to enable command merging."""
         return id(self.item)
-    
-    def merge_with(self, other: 'Command') -> bool:
+
+    def merge_with(self, other: Command) -> bool:
         """Merge with another MoveItemCommand for the same item."""
         if not isinstance(other, MoveItemCommand):
             return False
@@ -137,6 +140,36 @@ class MoveItemCommand(Command):
         # Update new position to include the other command's movement
         self.new_pos = QtCore.QPointF(other.new_pos)
         return True
+
+
+class AddMultipleItemsCommand(Command):
+    """Command to add multiple items to the scene in a single operation."""
+
+    def __init__(self, scene: QtWidgets.QGraphicsScene, items: list[QtWidgets.QGraphicsItem]):
+        """
+        Initialize AddMultipleItemsCommand.
+
+        Args:
+            scene: The graphics scene to add items to
+            items: The list of graphics items to add
+        """
+        self.scene = scene
+        self.items = items
+        self._executed = False
+
+    def execute(self) -> None:
+        """Add all items to the scene."""
+        if not self._executed:
+            for item in self.items:
+                self.scene.addItem(item)
+            self._executed = True
+
+    def undo(self) -> None:
+        """Remove all items from the scene."""
+        if self._executed:
+            for item in self.items:
+                self.scene.removeItem(item)
+            self._executed = False
 
 
 class RemoveMultipleItemsCommand(Command):
@@ -204,15 +237,15 @@ class PropertyChangeCommand(Command):
 
     def __init__(
         self,
-        item: Any,
-        before_state: Dict[str, Any],
-        after_state: Dict[str, Any],
+        item: Undoable,
+        before_state: dict[str, Any],
+        after_state: dict[str, Any],
     ):
         """
         Initialize PropertyChangeCommand.
 
         Args:
-            item: The item whose properties changed (must have to_dict/from_dict or apply_state)
+            item: The item whose properties changed (must implement Undoable protocol)
             before_state: Dictionary of property values before the change
             after_state: Dictionary of property values after the change
         """
@@ -227,32 +260,32 @@ class PropertyChangeCommand(Command):
     def undo(self) -> None:
         """Restore the before state to the item."""
         self._apply_state(self.before_state)
-    
-    def _apply_state(self, state: Dict[str, Any]) -> None:
+
+    def _apply_state(self, state: dict[str, Any]) -> None:
         """Apply a state dictionary to the item."""
-        # Try custom apply_state method first
-        if hasattr(self.item, 'apply_state'):
+        # Try custom apply_state method first (Undoable protocol)
+        if isinstance(self.item, Undoable):
             self.item.apply_state(state)
             return
-        
+
         # Fallback: apply each key-value pair
         for key, value in state.items():
-            if key == 'pos':
-                self.item.setPos(QtCore.QPointF(value['x'], value['y']))
-            elif key == 'rotation':
+            if key == "pos":
+                self.item.setPos(QtCore.QPointF(value["x"], value["y"]))
+            elif key == "rotation":
                 self.item.setRotation(value)
-            elif hasattr(self.item, 'params'):
+            elif isinstance(self.item, HasParams):
                 # For items with params dataclass
                 if hasattr(self.item.params, key):
                     setattr(self.item.params, key, value)
-        
+
         # Trigger updates
-        if hasattr(self.item, '_sync_params_from_item'):
+        if isinstance(self.item, HasParams):
             self.item._sync_params_from_item()
-        if hasattr(self.item, 'edited'):
+        if isinstance(self.item, Editable):
             self.item.edited.emit()
-        if hasattr(self.item, 'update'):
-            self.item.update()
+        # All QGraphicsItems have update() - no hasattr check needed
+        self.item.update()
 
 
 class RotateItemCommand(Command):

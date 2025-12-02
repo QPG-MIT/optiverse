@@ -8,7 +8,7 @@ This example shows how to:
 
 Usage:
     python examples/component_editor_right_click_demo.py
-    
+
 Then in the application:
     - Look at the Component Library on the right side
     - Right-click on any component (e.g., "1 inch lens", "Standard Mirror")
@@ -17,17 +17,19 @@ Then in the application:
 """
 
 import sys
+
 from PyQt6 import QtWidgets
+
 from optiverse.ui.views.main_window import MainWindow
 
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
-    
+
     # Create and show main window
     window = MainWindow()
     window.show()
-    
+
     print("=" * 60)
     print("Component Library Right-Click Demo")
     print("=" * 60)
@@ -41,10 +43,9 @@ def main():
     print("  - Modify the component")
     print("  - Save changes back to the library")
     print("=" * 60)
-    
+
     sys.exit(app.exec())
 
 
 if __name__ == "__main__":
     main()
-

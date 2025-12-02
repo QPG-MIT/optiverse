@@ -11,18 +11,17 @@ This module contains all graphical components for the optics simulation:
 """
 
 # Base classes
+# Annotations
+from .annotations import RectangleItem, RulerItem, TextNoteItem
 from .base_obj import BaseObj
-from .component_sprite import ComponentSprite
 
 # Component factory
 from .component_factory import ComponentFactory
+from .component_sprite import ComponentSprite
 
 # Optical elements
 from .generic import ComponentItem
 from .sources import SourceItem
-
-# Annotations
-from .annotations import RulerItem, TextNoteItem, RectangleItem
 
 # Views
 from .views import GraphicsView, ImageCanvas
@@ -44,4 +43,3 @@ __all__ = [
     "GraphicsView",
     "ImageCanvas",
 ]
-
