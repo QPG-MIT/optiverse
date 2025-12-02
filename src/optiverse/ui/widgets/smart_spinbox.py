@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from PyQt6 import QtCore, QtWidgets
+from PyQt6.QtCore import QLocale
 
 
 class SmartDoubleSpinBox(QtWidgets.QDoubleSpinBox):
@@ -19,6 +20,8 @@ class SmartDoubleSpinBox(QtWidgets.QDoubleSpinBox):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        # Force period as decimal separator regardless of system locale
+        self.setLocale(QLocale.c())
         self._use_cursor_step = True
         self._last_cursor_pos = 0
 
@@ -133,6 +136,11 @@ class SmartDoubleSpinBox(QtWidgets.QDoubleSpinBox):
         # DO NOT clamp to singleStep() - that would defeat cursor-aware stepping!
         # We want to increment by exactly the step we calculated based on cursor position
 
+        # Save offset from decimal point BEFORE changing value
+        # This allows us to restore cursor to same digit place after value changes
+        offset_from_decimal = cursor_pos - decimal_pos if decimal_pos != -1 else None
+        offset_from_end = len(text) - cursor_pos  # Fallback for no decimal
+
         # Apply the step
         new_value = self.value() + (steps * step)
 
@@ -142,14 +150,33 @@ class SmartDoubleSpinBox(QtWidgets.QDoubleSpinBox):
         # Set value (this will reformat the text)
         self.setValue(new_value)
 
-        # Restore cursor position accounting for prefix/suffix/spaces
-        # Try to keep it in the same relative position
+        # Restore cursor position relative to decimal point in NEW text
         if line_edit is None:
             return
         new_text = line_edit.text()
 
-        # Account for prefix and leading spaces in new text
-        adjusted_pos = cursor_pos + prefix_len + leading_spaces
+        # Strip prefix/suffix from new text to find new decimal position
+        new_clean = new_text
+        if prefix and new_clean.startswith(prefix):
+            new_clean = new_clean[prefix_len:]
+        if suffix and new_clean.endswith(suffix):
+            new_clean = new_clean[:-suffix_len]
+        new_leading = len(new_clean) - len(new_clean.lstrip())
+        new_clean = new_clean.strip()
+
+        # Find decimal position in new text
+        new_decimal_pos = new_clean.find(".")
+
+        # Calculate new cursor position maintaining same offset from decimal
+        if offset_from_decimal is not None and new_decimal_pos != -1:
+            # Position relative to decimal: negative = before, positive = after
+            new_cursor_pos = new_decimal_pos + offset_from_decimal
+        else:
+            # Fallback: maintain position from end
+            new_cursor_pos = len(new_clean) - offset_from_end
+
+        new_cursor_pos = max(0, min(new_cursor_pos, len(new_clean)))
+        adjusted_pos = new_cursor_pos + prefix_len + new_leading
         adjusted_pos = max(0, min(adjusted_pos, len(new_text) - suffix_len))
 
         line_edit.setCursorPosition(adjusted_pos)
@@ -164,6 +191,8 @@ class SmartSpinBox(QtWidgets.QSpinBox):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        # Force period as decimal separator regardless of system locale
+        self.setLocale(QLocale.c())
         self._use_cursor_step = True
         self._last_cursor_pos = 0
 
@@ -258,6 +287,10 @@ class SmartSpinBox(QtWidgets.QSpinBox):
         # DO NOT clamp to singleStep() - that would defeat cursor-aware stepping!
         # We want to increment by exactly the step we calculated based on cursor position
 
+        # Save offset from end BEFORE changing value
+        # This allows us to restore cursor to same digit place after value changes
+        offset_from_end = len(text) - cursor_pos
+
         # Apply the step
         new_value = self.value() + (steps * step)
 
@@ -267,14 +300,26 @@ class SmartSpinBox(QtWidgets.QSpinBox):
         # Set value (this will reformat the text)
         self.setValue(new_value)
 
-        # Restore cursor position accounting for prefix/suffix/spaces
+        # Restore cursor position relative to end in NEW text
         line_edit = self.lineEdit()
         if line_edit is None:
             return
         new_text = line_edit.text()
 
-        # Account for prefix and leading spaces in new text
-        adjusted_pos = cursor_pos + prefix_len + leading_spaces
+        # Strip prefix/suffix from new text
+        new_clean = new_text
+        if prefix and new_clean.startswith(prefix):
+            new_clean = new_clean[prefix_len:]
+        if suffix and new_clean.endswith(suffix):
+            new_clean = new_clean[:-suffix_len]
+        new_leading = len(new_clean) - len(new_clean.lstrip())
+        new_clean = new_clean.strip()
+
+        # Maintain position from end (same digit place)
+        new_cursor_pos = len(new_clean) - offset_from_end
+        new_cursor_pos = max(0, min(new_cursor_pos, len(new_clean)))
+
+        adjusted_pos = new_cursor_pos + prefix_len + new_leading
         adjusted_pos = max(0, min(adjusted_pos, len(new_text) - suffix_len))
 
         line_edit.setCursorPosition(adjusted_pos)

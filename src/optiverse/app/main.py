@@ -12,7 +12,7 @@ import os
 import sys
 from pathlib import Path
 
-from PyQt6 import QtGui, QtWidgets
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 # Module logger
 _logger = logging.getLogger(__name__)
@@ -103,6 +103,9 @@ def main() -> int:
 
     # Create QApplication (Qt6 enables high DPI by default)
     app = QtWidgets.QApplication(sys.argv)
+
+    # Force period as decimal separator program-wide (regardless of system locale)
+    QtCore.QLocale.setDefault(QtCore.QLocale.c())
 
     # Install Qt message handler
     install_qt_message_handler()
