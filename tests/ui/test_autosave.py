@@ -402,7 +402,7 @@ class TestAutosaveRecovery:
         autosave_file = tmp_autosave_dir / "test_untitled_12345.autosave.json"
         autosave_data = {
             "version": "2.0",
-            "sources": [{"x_mm": 100.0, "y_mm": 200.0, "type": "source"}],
+            "items": [{"x_mm": 100.0, "y_mm": 200.0, "_type": "source"}],
             "_autosave_meta": {
                 "timestamp": datetime.datetime.now().isoformat(),
                 "original_path": None,
@@ -446,11 +446,11 @@ class TestAutosaveRecovery:
         # Ensure we're not in "headless" mode for this test
         monkeypatch.setenv("QT_QPA_PLATFORM", "xcb")
 
-        # Create an autosave file manually
+        # Create an autosave file manually (using "items" with "_type" as per serialization format)
         autosave_file = tmp_autosave_dir / "test_untitled_12345.autosave.json"
         autosave_data = {
             "version": "2.0",
-            "sources": [
+            "items": [
                 {
                     "x_mm": 100.0,
                     "y_mm": 200.0,
@@ -463,7 +463,7 @@ class TestAutosaveRecovery:
                     "wavelength_nm": 532.0,
                     "polarization_type": "horizontal",
                     "polarization_angle_deg": 0.0,
-                    "type": "source",
+                    "_type": "source",
                 }
             ],
             "_autosave_meta": {
@@ -528,7 +528,7 @@ class TestAutosaveRecovery:
         autosave_file = tmp_autosave_dir / "test_untitled_12345.autosave.json"
         autosave_data = {
             "version": "2.0",
-            "sources": [{"x_mm": 100.0, "y_mm": 200.0, "type": "source"}],
+            "items": [{"x_mm": 100.0, "y_mm": 200.0, "_type": "source"}],
             "_autosave_meta": {
                 "timestamp": datetime.datetime.now().isoformat(),
                 "original_path": None,
@@ -584,7 +584,7 @@ class TestAutosaveRecovery:
         autosave_file = tmp_autosave_dir / "test_untitled_12345.autosave.json"
         autosave_data = {
             "version": "2.0",
-            "sources": [{"x_mm": 100.0, "y_mm": 200.0, "type": "source"}],
+            "items": [{"x_mm": 100.0, "y_mm": 200.0, "_type": "source"}],
             "_autosave_meta": {
                 "timestamp": datetime.datetime.now().isoformat(),
                 "original_path": None,
@@ -635,7 +635,7 @@ class TestAutosaveRecovery:
 
         autosave_data1 = {
             "version": "2.0",
-            "sources": [{"x_mm": 100.0, "y_mm": 200.0, "type": "source"}],
+            "items": [{"x_mm": 100.0, "y_mm": 200.0, "_type": "source"}],
             "_autosave_meta": {
                 "timestamp": old_time.isoformat(),
                 "original_path": None,
@@ -644,7 +644,7 @@ class TestAutosaveRecovery:
         }
         autosave_data2 = {
             "version": "2.0",
-            "sources": [{"x_mm": 200.0, "y_mm": 300.0, "type": "source"}],
+            "items": [{"x_mm": 200.0, "y_mm": 300.0, "_type": "source"}],
             "_autosave_meta": {
                 "timestamp": new_time.isoformat(),
                 "original_path": None,
@@ -883,7 +883,7 @@ class TestAutosaveEdgeCases:
         autosave_file = tmp_autosave_dir / "wrong_version_untitled_12345.autosave.json"
         autosave_data = {
             "version": "1.0",  # Wrong version
-            "sources": [{"x_mm": 100.0, "y_mm": 200.0, "type": "source"}],
+            "items": [{"x_mm": 100.0, "y_mm": 200.0, "_type": "source"}],
             "_autosave_meta": {
                 "timestamp": datetime.datetime.now().isoformat(),
                 "original_path": None,
