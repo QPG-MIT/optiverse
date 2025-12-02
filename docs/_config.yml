@@ -5,8 +5,7 @@ title: Optiverse Documentation
 description: Comprehensive documentation for Optiverse optical simulation software
 theme: jekyll-theme-minimal
 
-# Clean URLs (removes .html extension)
-permalink: pretty
+# Default permalink style (generates .html files)
 
 # Markdown settings
 markdown: kramdown
