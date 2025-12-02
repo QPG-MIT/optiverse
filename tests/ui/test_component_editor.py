@@ -83,9 +83,9 @@ def test_component_editor_has_toolbar_actions(qtbot):
     action_texts = [a.text().lower() for a in actions if a.text()]
 
     # Component editor should have save/new/open actions
-    assert any(
-        "save" in t or "new" in t or "open" in t for t in action_texts
-    ), f"Expected save/new/open actions, found: {action_texts}"
+    assert any("save" in t or "new" in t or "open" in t for t in action_texts), (
+        f"Expected save/new/open actions, found: {action_texts}"
+    )
 
 
 @pytest.mark.skipif(not HAVE_PYQT6, reason="PyQt6 not available")

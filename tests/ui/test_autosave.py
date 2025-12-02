@@ -273,9 +273,7 @@ class TestAutosaveForSavedFiles:
         meta = data["_autosave_meta"]
         assert meta["original_path"] is None
 
-    def test_autosave_overwrites_previous(
-        self, main_window_with_autosave, tmp_autosave_dir, qtbot
-    ):
+    def test_autosave_overwrites_previous(self, main_window_with_autosave, tmp_autosave_dir, qtbot):
         """Verify new autosave overwrites previous autosave for same file."""
         window = main_window_with_autosave
 
@@ -319,9 +317,7 @@ class TestAutosaveForSavedFiles:
 class TestLoadingFromAutosave:
     """Test loading from autosave files."""
 
-    def test_load_from_autosave_file(
-        self, main_window_with_autosave, tmp_autosave_dir, qtbot
-    ):
+    def test_load_from_autosave_file(self, main_window_with_autosave, tmp_autosave_dir, qtbot):
         """Verify loading an autosave file restores scene correctly."""
         window = main_window_with_autosave
 
@@ -399,9 +395,7 @@ class TestLoadingFromAutosave:
 class TestAutosaveRecovery:
     """Test autosave recovery on startup."""
 
-    def test_autosave_recovery_detects_file(
-        self, qapp, tmp_autosave_dir, monkeypatch, qtbot
-    ):
+    def test_autosave_recovery_detects_file(self, qapp, tmp_autosave_dir, monkeypatch, qtbot):
         """Verify recovery detects autosave files on startup."""
         # Create an autosave file manually
         autosave_file = tmp_autosave_dir / "test_untitled_12345.autosave.json"
@@ -446,9 +440,7 @@ class TestAutosaveRecovery:
         window.close()
         QtWidgets.QApplication.processEvents()
 
-    def test_autosave_recovery_user_accepts(
-        self, qapp, tmp_autosave_dir, monkeypatch, qtbot
-    ):
+    def test_autosave_recovery_user_accepts(self, qapp, tmp_autosave_dir, monkeypatch, qtbot):
         """Mock dialog to test recovery when user accepts."""
         # Create an autosave file manually
         autosave_file = tmp_autosave_dir / "test_untitled_12345.autosave.json"
@@ -490,14 +482,17 @@ class TestAutosaveRecovery:
         # Mock theme_manager.question to return Yes
         from optiverse.ui import theme_manager
 
-        with mock.patch.object(
-            theme_manager,
-            "question",
-            return_value=QtWidgets.QMessageBox.StandardButton.Yes,
-        ), mock.patch.object(
-            QtWidgets.QMessageBox,
-            "information",
-            return_value=None,
+        with (
+            mock.patch.object(
+                theme_manager,
+                "question",
+                return_value=QtWidgets.QMessageBox.StandardButton.Yes,
+            ),
+            mock.patch.object(
+                QtWidgets.QMessageBox,
+                "information",
+                return_value=None,
+            ),
         ):
             # Create window
             window = MainWindow()
@@ -520,9 +515,7 @@ class TestAutosaveRecovery:
         window.close()
         QtWidgets.QApplication.processEvents()
 
-    def test_autosave_recovery_user_rejects(
-        self, qapp, tmp_autosave_dir, monkeypatch, qtbot
-    ):
+    def test_autosave_recovery_user_rejects(self, qapp, tmp_autosave_dir, monkeypatch, qtbot):
         """Mock dialog to test recovery when user rejects (file deleted)."""
         # Create an autosave file manually
         autosave_file = tmp_autosave_dir / "test_untitled_12345.autosave.json"
@@ -575,9 +568,7 @@ class TestAutosaveRecovery:
         window.close()
         QtWidgets.QApplication.processEvents()
 
-    def test_autosave_recovery_skips_headless(
-        self, qapp, tmp_autosave_dir, monkeypatch, qtbot
-    ):
+    def test_autosave_recovery_skips_headless(self, qapp, tmp_autosave_dir, monkeypatch, qtbot):
         """Verify recovery is skipped in headless environments."""
         # Set headless environment
         monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
@@ -623,9 +614,7 @@ class TestAutosaveRecovery:
         window.close()
         QtWidgets.QApplication.processEvents()
 
-    def test_autosave_recovery_most_recent(
-        self, qapp, tmp_autosave_dir, monkeypatch, qtbot
-    ):
+    def test_autosave_recovery_most_recent(self, qapp, tmp_autosave_dir, monkeypatch, qtbot):
         """Verify recovery uses most recent autosave file."""
         # Create two autosave files with different timestamps
         autosave_file1 = tmp_autosave_dir / "old_untitled_12345.autosave.json"
@@ -675,14 +664,17 @@ class TestAutosaveRecovery:
         # Mock theme_manager.question to return Yes
         from optiverse.ui import theme_manager
 
-        with mock.patch.object(
-            theme_manager,
-            "question",
-            return_value=QtWidgets.QMessageBox.StandardButton.Yes,
-        ), mock.patch.object(
-            QtWidgets.QMessageBox,
-            "information",
-            return_value=None,
+        with (
+            mock.patch.object(
+                theme_manager,
+                "question",
+                return_value=QtWidgets.QMessageBox.StandardButton.Yes,
+            ),
+            mock.patch.object(
+                QtWidgets.QMessageBox,
+                "information",
+                return_value=None,
+            ),
         ):
             # Create window
             window = MainWindow()
@@ -915,9 +907,7 @@ class TestAutosaveEdgeCases:
         window.close()
         QtWidgets.QApplication.processEvents()
 
-    def test_autosave_atomic_write(
-        self, main_window_with_autosave, tmp_autosave_dir, qtbot
-    ):
+    def test_autosave_atomic_write(self, main_window_with_autosave, tmp_autosave_dir, qtbot):
         """Verify autosave uses atomic write (temp file + rename)."""
         window = main_window_with_autosave
 
@@ -940,4 +930,3 @@ class TestAutosaveEdgeCases:
         with open(autosave_files[0]) as f:
             data = json.load(f)  # Should not raise JSONDecodeError
             assert "version" in data
-

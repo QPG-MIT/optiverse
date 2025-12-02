@@ -248,9 +248,9 @@ class TestExceptionHierarchy:
         ]
 
         for exc_class in exceptions:
-            assert issubclass(
-                exc_class, OptiverseError
-            ), f"{exc_class.__name__} should inherit from OptiverseError"
+            assert issubclass(exc_class, OptiverseError), (
+                f"{exc_class.__name__} should inherit from OptiverseError"
+            )
 
     def test_serialization_children(self):
         """Test serialization error hierarchy."""

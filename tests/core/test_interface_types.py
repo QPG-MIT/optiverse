@@ -149,9 +149,9 @@ def test_interface_types_completeness():
 
         # Check that properties have corresponding labels
         for prop in type_info["properties"]:
-            assert prop in type_info.get(
-                "property_labels", {}
-            ), f"Type '{type_name}' property '{prop}' has no label"
+            assert prop in type_info.get("property_labels", {}), (
+                f"Type '{type_name}' property '{prop}' has no label"
+            )
 
 
 def test_all_properties_have_metadata():
@@ -162,13 +162,13 @@ def test_all_properties_have_metadata():
             assert prop in type_info.get("property_labels", {}), f"{type_name}.{prop} has no label"
 
             # Every property should have a default (may be None)
-            assert prop in type_info.get(
-                "property_defaults", {}
-            ), f"{type_name}.{prop} has no default"
+            assert prop in type_info.get("property_defaults", {}), (
+                f"{type_name}.{prop} has no default"
+            )
 
             # Numeric properties should have ranges (skip booleans - bool is subclass of int)
             default = type_info["property_defaults"][prop]
             if isinstance(default, (int, float)) and not isinstance(default, bool):
-                assert prop in type_info.get(
-                    "property_ranges", {}
-                ), f"{type_name}.{prop} has no range"
+                assert prop in type_info.get("property_ranges", {}), (
+                    f"{type_name}.{prop} has no range"
+                )

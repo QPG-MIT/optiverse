@@ -42,9 +42,9 @@ jobs:
         ruff check .
       continue-on-error: false
     
-    - name: Check code formatting with Black
+    - name: Check code formatting with Ruff
       run: |
-        black --check --diff .
+        ruff format --check .
     
     - name: Run MyPy type checker
       run: |

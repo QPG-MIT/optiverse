@@ -256,13 +256,12 @@ ruff check .
 
 # Auto-fix linting errors
 ruff check --fix .
+
+# Format code
 ruff format .
 
 # Type checking
 mypy src/
-
-# Format (if needed)
-black src/ tests/
 ```
 
 ### Building Resources

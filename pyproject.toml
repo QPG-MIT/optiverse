@@ -31,7 +31,6 @@ dev = [
   "pytest-timeout>=2.3.1",
   "coverage[toml]>=7.4",
   "ruff>=0.6.0",
-  "black>=24.3.0",
   "mypy>=1.8.0",
 ]
 
@@ -65,10 +64,6 @@ target-version = "py310"
 [tool.ruff.lint]
 extend-select = ["E", "F", "I", "UP", "B", "Q", "W"]
 ignore = ["E203"]
-
-[tool.black]
-line-length = 100
-target-version = ["py310"]
 
 [tool.mypy]
 python_version = "3.10"

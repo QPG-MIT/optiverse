@@ -45,9 +45,9 @@ class TestComponentRegistry:
             # Optical components should have interfaces
             category = comp.get("category", "").lower()
             if category not in ("sources", "background"):
-                assert (
-                    "interfaces" in comp
-                ), f"Component {comp['name']} should export 'interfaces' list"
+                assert "interfaces" in comp, (
+                    f"Component {comp['name']} should export 'interfaces' list"
+                )
             # No legacy keys
             assert "schema_version" not in comp
             assert "coord_system" not in comp

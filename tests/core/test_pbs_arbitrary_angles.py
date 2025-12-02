@@ -177,12 +177,12 @@ class TestPBSArbitraryAngles:
         expected_high = np.cos(np.deg2rad(30)) ** 2
         expected_low = np.sin(np.deg2rad(30)) ** 2
 
-        assert (
-            abs(intensities[0] - expected_high) < 0.1
-        ), f"Expected high intensity {expected_high:.3f}, got {intensities[0]:.3f}"
-        assert (
-            abs(intensities[1] - expected_low) < 0.1
-        ), f"Expected low intensity {expected_low:.3f}, got {intensities[1]:.3f}"
+        assert abs(intensities[0] - expected_high) < 0.1, (
+            f"Expected high intensity {expected_high:.3f}, got {intensities[0]:.3f}"
+        )
+        assert abs(intensities[1] - expected_low) < 0.1, (
+            f"Expected low intensity {expected_low:.3f}, got {intensities[1]:.3f}"
+        )
 
 
 class TestPBSPolarizationTransform:
@@ -291,12 +291,12 @@ class TestPBSPolarizationTransform:
         expected_t = np.cos(np.deg2rad(30)) ** 2
         expected_r = np.sin(np.deg2rad(30)) ** 2
 
-        assert (
-            abs(int_t - expected_t) < 1e-6
-        ), f"Expected transmission {expected_t:.6f}, got {int_t:.6f}"
-        assert (
-            abs(int_r - expected_r) < 1e-6
-        ), f"Expected reflection {expected_r:.6f}, got {int_r:.6f}"
+        assert abs(int_t - expected_t) < 1e-6, (
+            f"Expected transmission {expected_t:.6f}, got {int_t:.6f}"
+        )
+        assert abs(int_r - expected_r) < 1e-6, (
+            f"Expected reflection {expected_r:.6f}, got {int_r:.6f}"
+        )
         assert abs((int_t + int_r) - 1.0) < 1e-6, "Intensity not conserved"
 
     def test_arbitrary_angles_intensity_conservation(self):
@@ -367,6 +367,6 @@ class TestPBSPolarizationTransform:
             )
 
             expected = np.cos(np.deg2rad(angle_diff)) ** 2
-            assert (
-                abs(int_t - expected) < 1e-6
-            ), f"Malus's Law violation at {angle_diff}°: expected {expected:.6f}, got {int_t:.6f}"
+            assert abs(int_t - expected) < 1e-6, (
+                f"Malus's Law violation at {angle_diff}°: expected {expected:.6f}, got {int_t:.6f}"
+            )

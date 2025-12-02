@@ -182,9 +182,7 @@ class ItemDragHandler:
                     # Convert to QGraphicsItem types for RotateItemsCommand
                     from PyQt6.QtWidgets import QGraphicsItem
 
-                    rotatable_items_typed: list[QGraphicsItem] = [
-                        it for it in rotatable_items
-                    ]  # type: ignore[list-item]
+                    rotatable_items_typed: list[QGraphicsItem] = [it for it in rotatable_items]  # type: ignore[list-item]
                     old_positions_typed: dict[QGraphicsItem, QtCore.QPointF] = {
                         it: old_positions[it] for it in rotatable_items if it in old_positions
                     }  # type: ignore[dict-item]
