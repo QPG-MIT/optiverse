@@ -25,6 +25,7 @@ from .ui_test_helpers import (
     mock_file_dialog_cancel,
     mock_file_dialog_open,
     mock_file_dialog_save,
+    safe_wait_exposed,
     simulate_drag_and_drop,
     simulate_keyboard_shortcut,
     trigger_action,
@@ -63,6 +64,7 @@ __all__ = [
     "simulate_keyboard_shortcut",
     # Widget helpers
     "wait_for_widget_visible",
+    "safe_wait_exposed",
     "get_widget_by_type",
     "assert_widget_enabled",
     "assert_widget_visible",

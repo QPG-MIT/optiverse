@@ -2,6 +2,8 @@
 
 from PyQt6 import QtCore, QtWidgets
 
+from tests.helpers import safe_wait_exposed
+
 
 def test_ruler_item_smoke(qtbot):
     """Basic smoke test for RulerItem."""
@@ -12,7 +14,7 @@ def test_ruler_item_smoke(qtbot):
     qtbot.addWidget(view)
     view.resize(300, 200)
     view.show()
-    qtbot.waitExposed(view)
+    safe_wait_exposed(qtbot, view)
 
     r = RulerItem(QtCore.QPointF(-50, 0), QtCore.QPointF(50, 0))
     scene.addItem(r)
@@ -284,7 +286,7 @@ def test_text_note_item_smoke(qtbot):
     qtbot.addWidget(view)
     view.resize(300, 200)
     view.show()
-    qtbot.waitExposed(view)
+    safe_wait_exposed(qtbot, view)
 
     t = TextNoteItem("Hello")
     scene.addItem(t)

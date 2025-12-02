@@ -92,6 +92,16 @@ class ErrorHandler:
             message: User-friendly error message
             details: Technical details (traceback, etc.)
         """
+        import os
+
+        # Skip dialogs in headless environments (CI, tests) to avoid hanging
+        qpa_platform = os.environ.get("QT_QPA_PLATFORM", "").lower()
+        if qpa_platform in ("offscreen", "minimal", "vnc"):
+            _logger.error("ERROR: %s - %s", title, message)
+            if details:
+                _logger.debug("Details:\n%s", details)
+            return
+
         # Get the QApplication instance
         app = QtWidgets.QApplication.instance()
         if not app:

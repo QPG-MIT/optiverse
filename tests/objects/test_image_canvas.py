@@ -1,5 +1,7 @@
 from PyQt6 import QtCore, QtGui
 
+from tests.helpers import safe_wait_exposed
+
 
 def test_image_canvas_click_and_line(qtbot):
     from optiverse.objects import ImageCanvas
@@ -19,7 +21,7 @@ def test_image_canvas_click_and_line(qtbot):
     # Simulate clicks roughly in the center: use widget coords (scaled to fit)
     w.resize(200, 200)
     w.show()
-    qtbot.waitExposed(w)
+    safe_wait_exposed(qtbot, w)
 
     # Click twice near center of the target rect
     pos = w.rect().center()

@@ -9,7 +9,8 @@ import pytest
 from optiverse.services.zemax_parser import ZemaxParser
 
 # Path to test fixture - these tests need a real Zemax file to parse
-ZEMAX_TEST_FILE = "/Users/benny/Downloads/AC254-100-B-Zemax(ZMX).zmx"
+# Set ZEMAX_TEST_FILE environment variable to point to a .zmx file for local testing
+ZEMAX_TEST_FILE = os.environ.get("ZEMAX_TEST_FILE", "tests/fixtures/sample.zmx")
 
 # Skip all tests if the Zemax test file doesn't exist (e.g., on CI)
 pytestmark = pytest.mark.skipif(

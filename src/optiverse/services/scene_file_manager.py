@@ -252,6 +252,13 @@ class SceneFileManager:
         Returns:
             True if recovery was performed, False otherwise
         """
+        import os
+
+        # Skip autosave recovery in headless environments (CI, tests) to avoid dialog hangs
+        qpa_platform = os.environ.get("QT_QPA_PLATFORM", "").lower()
+        if qpa_platform in ("offscreen", "minimal", "vnc"):
+            return False
+
         from ..platform.paths import _app_data_root
 
         autosave_dir = _app_data_root() / "autosave"
