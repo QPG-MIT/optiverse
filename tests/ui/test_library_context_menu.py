@@ -1,19 +1,46 @@
 """Test right-click context menu on library components."""
 
+import gc
+
 import pytest
-from PyQt6 import QtCore
+from PyQt6 import QtCore, QtWidgets
 
 from tests.helpers import safe_wait_exposed
 
 
-def test_library_context_menu_on_component(qtbot):
-    """Test that right-clicking on a component shows context menu with Edit option."""
+@pytest.fixture
+def main_window(qapp, qtbot):
+    """Create a MainWindow instance for testing with proper cleanup."""
     from optiverse.ui.views.main_window import MainWindow
 
-    w = MainWindow()
-    qtbot.addWidget(w)
-    w.show()
-    safe_wait_exposed(qtbot, w)
+    window = MainWindow()
+    # Disable autotrace and stop timers to prevent hangs in CI
+    window.autotrace = False
+    window.raytracing_controller._retrace_timer.stop()
+    window.file_controller._autosave_timer.stop()
+    QtWidgets.QApplication.processEvents()
+    qtbot.addWidget(window)
+    window.show()
+    safe_wait_exposed(qtbot, window)
+    yield window
+    # Clean up
+    window.autotrace = False
+    window.raytracing_controller._retrace_timer.stop()
+    window.file_controller._autosave_timer.stop()
+    window.file_controller.mark_clean()
+    window.raytracing_controller.clear_rays()
+    for item in list(window.scene.items()):
+        window.scene.removeItem(item)
+    QtWidgets.QApplication.processEvents()
+    window.close()
+    QtWidgets.QApplication.processEvents()
+    gc.collect()
+    QtWidgets.QApplication.processEvents()
+
+
+def test_library_context_menu_on_component(main_window, qtbot):
+    """Test that right-clicking on a component shows context menu with Edit option."""
+    w = main_window
 
     # Find a component item in the library tree
     tree = w.libraryTree
@@ -47,14 +74,9 @@ def test_library_context_menu_on_component(qtbot):
     tree._show_context_menu(position)
 
 
-def test_library_no_context_menu_on_category(qtbot):
+def test_library_no_context_menu_on_category(main_window, qtbot):
     """Test that right-clicking on a category header doesn't show component menu."""
-    from optiverse.ui.views.main_window import MainWindow
-
-    w = MainWindow()
-    qtbot.addWidget(w)
-    w.show()
-    safe_wait_exposed(qtbot, w)
+    w = main_window
 
     tree = w.libraryTree
     assert tree is not None
@@ -85,14 +107,9 @@ def test_library_no_context_menu_on_category(qtbot):
     tree._show_context_menu(position)
 
 
-def test_open_component_editor_with_data(qtbot):
+def test_open_component_editor_with_data(main_window, qtbot):
     """Test that opening component editor with data loads the component."""
-    from optiverse.ui.views.main_window import MainWindow
-
-    w = MainWindow()
-    qtbot.addWidget(w)
-    w.show()
-    safe_wait_exposed(qtbot, w)
+    w = main_window
 
     # Wait for library to populate
     qtbot.wait(100)
