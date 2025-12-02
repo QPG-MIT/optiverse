@@ -357,7 +357,9 @@ MIT License - see pyproject.toml for details.
 
 ## Documentation
 
-Comprehensive documentation is available in the [`docs/`](docs/) directory:
+📚 **[View the Documentation Website](https://qpg-mit.github.io/optiverse/)**
+
+Comprehensive documentation is also available in the [`docs/`](docs/) directory:
 
 - **[Documentation Index](docs/README.md)** - Complete guide to all available documentation
 - **[Getting Started](docs/MACOS_SETUP.md)** - Installation and setup guides
