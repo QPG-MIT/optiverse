@@ -44,21 +44,8 @@ def _ensure_src_on_path() -> Generator[None, None, None]:
     yield
 
 
-# Use pytest-qt's built-in qapp fixture instead of custom one
-# This avoids QApplication initialization issues on macOS
-
-
-@pytest.fixture
-def qtbot(qapp: QApplication, request: pytest.FixtureRequest) -> Generator[QtBotType, None, None]:
-    """
-    Provides a QtBot object for Qt widget testing.
-
-    Requires qapp fixture to ensure QApplication exists.
-    """
-    from pytestqt.qtbot import QtBot
-
-    bot = QtBot(request)
-    yield bot
+# Use pytest-qt's built-in qapp and qtbot fixtures
+# Do not override them - pytest-qt handles everything correctly
 
 
 # =============================================================================
