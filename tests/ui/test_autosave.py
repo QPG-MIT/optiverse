@@ -308,9 +308,9 @@ class TestAutosaveForSavedFiles:
         with open(autosave_files[0]) as f:
             data = json.load(f)
 
-        # Count sources in the data
+        # Count sources in the data (type is stored as "_type" in serialization)
         sources_count = len(data.get("sources", [])) + len(
-            [item for item in data.get("items", []) if item.get("type") == "source"]
+            [item for item in data.get("items", []) if item.get("_type") == "source"]
         )
         assert sources_count == 2
 
@@ -443,6 +443,9 @@ class TestAutosaveRecovery:
 
     def test_autosave_recovery_user_accepts(self, qapp, tmp_autosave_dir, monkeypatch, qtbot):
         """Mock dialog to test recovery when user accepts."""
+        # Ensure we're not in "headless" mode for this test
+        monkeypatch.setenv("QT_QPA_PLATFORM", "xcb")
+
         # Create an autosave file manually
         autosave_file = tmp_autosave_dir / "test_untitled_12345.autosave.json"
         autosave_data = {
@@ -518,6 +521,9 @@ class TestAutosaveRecovery:
 
     def test_autosave_recovery_user_rejects(self, qapp, tmp_autosave_dir, monkeypatch, qtbot):
         """Mock dialog to test recovery when user rejects (file deleted)."""
+        # Ensure we're not in "headless" mode for this test
+        monkeypatch.setenv("QT_QPA_PLATFORM", "xcb")
+
         # Create an autosave file manually
         autosave_file = tmp_autosave_dir / "test_untitled_12345.autosave.json"
         autosave_data = {
@@ -617,6 +623,9 @@ class TestAutosaveRecovery:
 
     def test_autosave_recovery_most_recent(self, qapp, tmp_autosave_dir, monkeypatch, qtbot):
         """Verify recovery uses most recent autosave file."""
+        # Ensure we're not in "headless" mode for this test
+        monkeypatch.setenv("QT_QPA_PLATFORM", "xcb")
+
         # Create two autosave files with different timestamps
         autosave_file1 = tmp_autosave_dir / "old_untitled_12345.autosave.json"
         autosave_file2 = tmp_autosave_dir / "new_untitled_67890.autosave.json"
