@@ -4,10 +4,6 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from PyQt6 import QtCore as QtCoreType
 
 _logger = logging.getLogger(__name__)
 
