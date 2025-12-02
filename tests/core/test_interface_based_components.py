@@ -213,9 +213,7 @@ class TestSceneCoordinates:
         interface = InterfaceDefinition(
             x1_mm=0.0, y1_mm=-10.0, x2_mm=0.0, y2_mm=10.0, element_type="lens", efl_mm=100.0
         )
-        params = ComponentParams(
-            x_mm=100.0, y_mm=200.0, angle_deg=45.0, interfaces=[interface]
-        )
+        params = ComponentParams(x_mm=100.0, y_mm=200.0, angle_deg=45.0, interfaces=[interface])
         item = ComponentItem(params)
 
         interfaces = item.get_interfaces_scene()

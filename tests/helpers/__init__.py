@@ -71,4 +71,3 @@ __all__ = [
     # State checker
     "UIStateChecker",
 ]
-
