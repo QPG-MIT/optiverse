@@ -1,3 +1,8 @@
+---
+layout: default
+title: Dichroic Mirrors & Wavelength System
+---
+
 # Dichroic Mirrors and Wavelength System Implementation
 
 ## Overview

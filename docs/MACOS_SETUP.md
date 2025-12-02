@@ -1,3 +1,8 @@
+---
+layout: default
+title: macOS Installation Guide
+---
+
 # macOS Installation Guide
 
 This guide explains how to set up Optiverse on macOS so it appears correctly in the menu bar.

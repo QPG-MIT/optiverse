@@ -5,6 +5,15 @@ title: Optiverse Documentation
 description: Comprehensive documentation for Optiverse optical simulation software
 theme: jekyll-theme-minimal
 
+# Clean URLs (removes .html extension)
+permalink: pretty
+
+# Markdown settings
+markdown: kramdown
+kramdown:
+  input: GFM
+  hard_wrap: false
+
 # Navigation
 navigation:
   - title: Getting Started
@@ -37,4 +46,6 @@ navigation:
 # Exclude files from processing
 exclude:
   - ERROR_HANDLING_QUICK_REFERENCE.py
+  - Gemfile
+  - Gemfile.lock
 

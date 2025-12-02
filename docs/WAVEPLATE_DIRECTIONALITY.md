@@ -1,3 +1,8 @@
+---
+layout: default
+title: Waveplate Directionality
+---
+
 # Waveplate Directionality Implementation
 
 ## Overview

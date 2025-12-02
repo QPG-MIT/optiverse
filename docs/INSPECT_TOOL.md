@@ -1,3 +1,8 @@
+---
+layout: default
+title: Inspect Tool
+---
+
 # Inspect Tool Implementation
 
 ## Overview

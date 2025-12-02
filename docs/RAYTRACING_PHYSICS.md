@@ -1,3 +1,8 @@
+---
+layout: default
+title: Raytracing Physics
+---
+
 # Raytracing Physics and Optical Interface Structure
 
 This document provides a comprehensive mathematical and physical description of how raytracing works in Optiverse, including detailed equations and the structure of optical interfaces.

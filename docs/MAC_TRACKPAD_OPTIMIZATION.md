@@ -1,3 +1,8 @@
+---
+layout: default
+title: macOS Trackpad Optimization
+---
+
 # Mac Trackpad Optimization and Performance Improvements
 
 ## Overview

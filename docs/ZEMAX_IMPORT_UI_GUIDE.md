@@ -1,3 +1,8 @@
+---
+layout: default
+title: Zemax Import Guide
+---
+
 # Zemax Import UI - User Guide
 
 ## Quick Start: Import a Zemax Lens
