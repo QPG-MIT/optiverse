@@ -27,8 +27,6 @@ def mock_library_root(tmp_path, monkeypatch):
 @pytest.mark.skipif(not HAVE_PYQT6, reason="PyQt6 not available")
 def test_component_editor_saves_to_library(qtbot, mock_library_root):
     """Test component editor saves to library with new structure."""
-    lib_dir = mock_library_root
-
     from optiverse.services.storage_service import StorageService
     from optiverse.ui.views.component_editor_dialog import ComponentEditor
 
