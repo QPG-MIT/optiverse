@@ -29,32 +29,14 @@ class TestObjectsImports:
         except ImportError:
             pytest.fail("BaseObj should be importable from optiverse.objects")
 
-    def test_lens_item_importable(self):
-        """LensItem should be importable from objects."""
+    def test_component_item_importable(self):
+        """ComponentItem should be importable from objects."""
         try:
-            from optiverse.objects import LensItem
+            from optiverse.objects import ComponentItem
 
-            assert LensItem is not None
+            assert ComponentItem is not None
         except ImportError:
-            pytest.fail("LensItem should be importable from optiverse.objects")
-
-    def test_mirror_item_importable(self):
-        """MirrorItem should be importable from objects."""
-        try:
-            from optiverse.objects import MirrorItem
-
-            assert MirrorItem is not None
-        except ImportError:
-            pytest.fail("MirrorItem should be importable from optiverse.objects")
-
-    def test_beamsplitter_item_importable(self):
-        """BeamsplitterItem should be importable from objects."""
-        try:
-            from optiverse.objects import BeamsplitterItem
-
-            assert BeamsplitterItem is not None
-        except ImportError:
-            pytest.fail("BeamsplitterItem should be importable from optiverse.objects")
+            pytest.fail("ComponentItem should be importable from optiverse.objects")
 
     def test_source_item_importable(self):
         """SourceItem should be importable from objects."""
@@ -110,30 +92,25 @@ class TestObjectsImports:
         except ImportError:
             pytest.fail("ImageCanvas should be importable from optiverse.objects")
 
+    def test_component_factory_importable(self):
+        """ComponentFactory should be importable from objects."""
+        try:
+            from optiverse.objects import ComponentFactory
+
+            assert ComponentFactory is not None
+        except ImportError:
+            pytest.fail("ComponentFactory should be importable from optiverse.objects")
+
     def test_subfolder_imports_work(self):
         """Should be able to import from subfolders directly."""
         try:
-            from optiverse.objects.beamsplitters import BeamsplitterItem
-            from optiverse.objects.lenses import LensItem
-            from optiverse.objects.mirrors import MirrorItem
-
             from optiverse.objects.sources import SourceItem
+            from optiverse.objects.generic import ComponentItem
 
-            assert LensItem is not None
-            assert MirrorItem is not None
-            assert BeamsplitterItem is not None
             assert SourceItem is not None
+            assert ComponentItem is not None
         except ImportError as e:
             pytest.fail(f"Subfolder imports should work: {e}")
-
-    def test_component_registry_importable(self):
-        """ComponentRegistry should be importable."""
-        try:
-            from optiverse.objects.component_registry import ComponentRegistry
-
-            assert ComponentRegistry is not None
-        except ImportError:
-            pytest.fail("ComponentRegistry should be importable")
 
     def test_no_circular_imports(self):
         """Importing objects module should not cause circular import errors."""
@@ -141,12 +118,11 @@ class TestObjectsImports:
             # This should work without raising ImportError
             from optiverse.objects import (
                 BaseObj,
-                BeamsplitterItem,
+                ComponentFactory,
+                ComponentItem,
                 ComponentSprite,
                 GraphicsView,
                 ImageCanvas,
-                LensItem,
-                MirrorItem,
                 RulerItem,
                 SourceItem,
                 TextNoteItem,
@@ -156,15 +132,14 @@ class TestObjectsImports:
             assert all(
                 [
                     BaseObj,
-                    LensItem,
-                    MirrorItem,
-                    BeamsplitterItem,
+                    ComponentItem,
                     SourceItem,
                     GraphicsView,
                     RulerItem,
                     TextNoteItem,
                     ComponentSprite,
                     ImageCanvas,
+                    ComponentFactory,
                 ]
             )
         except ImportError as e:

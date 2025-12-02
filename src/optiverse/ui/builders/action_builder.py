@@ -305,9 +305,9 @@ class ActionBuilder:
         w.act_add_ruler.setIcon(ruler_icon)
         toolbar.addAction(w.act_add_ruler)
 
-        # Path Measure tool
-        w.act_measure_path.setIcon(ruler_icon)
-        toolbar.addAction(w.act_measure_path)
+        # Path Measure tool - HIDDEN: Feature is buggy, hiding UI but keeping code
+        # w.act_measure_path.setIcon(ruler_icon)
+        # toolbar.addAction(w.act_measure_path)
 
         # Angle Measure tool
         w.act_measure_angle.setIcon(QtGui.QIcon(_get_icon_path("angle_measure.png")))

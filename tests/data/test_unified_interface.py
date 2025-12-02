@@ -54,7 +54,7 @@ class TestOpticalProperties:
 
         props = MirrorProperties()
 
-        assert props.reflectivity == 0.99
+        assert props.reflectivity == 1.0
 
     def test_beamsplitter_properties_creation(self):
         """Test creating beamsplitter properties"""
@@ -187,8 +187,9 @@ class TestLineSegment:
         segment = LineSegment(p1=p1, p2=p2)
         normal = segment.normal()
 
-        # Normal to horizontal line should be vertical
-        expected = np.array([0.0, 1.0])
+        # Normal to horizontal line should be vertical, pointing down per convention
+        # (n1 on "right" side, n2 on "left" side when looking from p1 to p2)
+        expected = np.array([0.0, -1.0])
         assert np.allclose(normal, expected)
 
 

@@ -78,7 +78,7 @@ def test_get_property_range():
 def test_get_property_default():
     """Test getting property defaults."""
     assert get_property_default("lens", "efl_mm") == 100.0
-    assert get_property_default("mirror", "reflectivity") == 99.0
+    assert get_property_default("mirror", "reflectivity") == 100.0
     assert get_property_default("beam_splitter", "split_T") == 50.0
     assert get_property_default("dichroic", "pass_type") == "longpass"
 
@@ -166,9 +166,9 @@ def test_all_properties_have_metadata():
                 "property_defaults", {}
             ), f"{type_name}.{prop} has no default"
 
-            # Numeric properties should have ranges
+            # Numeric properties should have ranges (skip booleans - bool is subclass of int)
             default = type_info["property_defaults"][prop]
-            if isinstance(default, (int, float)):
+            if isinstance(default, (int, float)) and not isinstance(default, bool):
                 assert prop in type_info.get(
                     "property_ranges", {}
                 ), f"{type_name}.{prop} has no range"

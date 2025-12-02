@@ -1,10 +1,23 @@
 """
 Test collaboration connection lifecycle to identify disconnect issue.
+
+These tests require a running collaboration server at localhost:8765.
+They are skipped on CI environments or when the server is not available.
 """
 
+import os
+
+import pytest
 from PyQt6.QtTest import QTest
 
 from optiverse.services.collaboration_service import CollaborationService
+
+# Skip all tests in this module if we're on CI or server is not available
+# CI environments typically set CI=true
+pytestmark = pytest.mark.skipif(
+    os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true",
+    reason="Collaboration server tests require a running server at localhost:8765",
+)
 
 
 class TestCollaborationConnection:

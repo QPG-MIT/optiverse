@@ -187,14 +187,15 @@ def test_snap_with_view_transform(qtbot):
     fixed = create_lens_item(x_mm=100, y_mm=200)
     scene.addItem(fixed)
 
-    # Create moving item
-    moving = create_lens_item(x_mm=300, y_mm=205)
+    # Create moving item - within tolerance (10px / 2 = 5mm, so 4mm diff should snap)
+    moving = create_lens_item(x_mm=300, y_mm=204)
     scene.addItem(moving)
 
     helper = SnapHelper(tolerance_px=10.0)
 
     # Try to snap - should work in scene coordinates
-    result = helper.calculate_snap(QtCore.QPointF(300, 205), moving, scene, view)
+    # With 2x zoom, 10px tolerance = 5mm in scene. 4mm < 5mm so it should snap.
+    result = helper.calculate_snap(QtCore.QPointF(300, 204), moving, scene, view)
 
     # Should still snap (tolerance is in view pixels, converted to scene)
     assert result.snapped

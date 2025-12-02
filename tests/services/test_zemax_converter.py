@@ -2,18 +2,25 @@
 Test Zemax to OptiVerse converter functionality.
 """
 
+import os
+
 import pytest
 
 from optiverse.services.glass_catalog import GlassCatalog
 from optiverse.services.zemax_converter import ZemaxToInterfaceConverter
 from optiverse.services.zemax_parser import ZemaxParser
 
+# Path to test fixture - these tests need a real Zemax file to parse
+ZEMAX_TEST_FILE = "/Users/benny/Downloads/AC254-100-B-Zemax(ZMX).zmx"
+
 
 @pytest.fixture
 def zemax_data():
     """Load the AC254-100-B Zemax file for testing."""
+    if not os.path.exists(ZEMAX_TEST_FILE):
+        pytest.skip(f"Zemax test file not found: {ZEMAX_TEST_FILE}")
     parser = ZemaxParser()
-    return parser.parse("/Users/benny/Downloads/AC254-100-B-Zemax(ZMX).zmx")
+    return parser.parse(ZEMAX_TEST_FILE)
 
 
 @pytest.fixture

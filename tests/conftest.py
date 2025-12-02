@@ -49,7 +49,7 @@ def _ensure_src_on_path() -> Generator[None, None, None]:
 
 
 @pytest.fixture
-def qtbot(qapp: QApplication) -> Generator[QtBotType, None, None]:
+def qtbot(qapp: QApplication, request: pytest.FixtureRequest) -> Generator[QtBotType, None, None]:
     """
     Provides a QtBot object for Qt widget testing.
 
@@ -57,7 +57,7 @@ def qtbot(qapp: QApplication) -> Generator[QtBotType, None, None]:
     """
     from pytestqt.qtbot import QtBot
 
-    bot = QtBot(qapp)
+    bot = QtBot(request)
     yield bot
 
 
