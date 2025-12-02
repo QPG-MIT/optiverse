@@ -3,6 +3,8 @@
 import numpy as np
 from PyQt6 import QtCore, QtWidgets
 
+from tests.helpers import safe_wait_exposed
+
 
 def test_angle_measure_item_smoke(qtbot):
     """Basic smoke test for AngleMeasureItem."""
@@ -14,7 +16,7 @@ def test_angle_measure_item_smoke(qtbot):
     qtbot.addWidget(view)
     view.resize(300, 200)
     view.show()
-    qtbot.waitExposed(view)
+    safe_wait_exposed(qtbot, view)
 
     # Create angle measure with 90 degree angle
     vertex = QtCore.QPointF(0, 0)
@@ -135,7 +137,7 @@ def test_path_measure_item_smoke(qtbot):
     qtbot.addWidget(view)
     view.resize(300, 200)
     view.show()
-    qtbot.waitExposed(view)
+    safe_wait_exposed(qtbot, view)
 
     # Create path measure with simple path
     points = [np.array([0, 0]), np.array([100, 0]), np.array([100, 100])]

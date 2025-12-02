@@ -1,5 +1,7 @@
 from PyQt6 import QtCore, QtGui, QtWidgets
 
+from tests.helpers import safe_wait_exposed
+
 
 def test_graphics_view_scale_bar_smoke(qtbot):
     from optiverse.objects.views.graphics_view import GraphicsView
@@ -9,7 +11,7 @@ def test_graphics_view_scale_bar_smoke(qtbot):
     qtbot.addWidget(v)
     v.resize(300, 200)
     v.show()
-    qtbot.waitExposed(v)
+    safe_wait_exposed(qtbot, v)
     # trigger a redraw
     v.viewport().update()
     assert v.isVisible()

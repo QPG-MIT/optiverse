@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import cast
 
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -11,10 +12,21 @@ from ...services.error_handler import ErrorContext
 
 _logger = logging.getLogger(__name__)
 
+
+def _is_headless_environment() -> bool:
+    """Check if running in a headless environment where OpenGL might not work."""
+    qpa_platform = os.environ.get("QT_QPA_PLATFORM", "").lower()
+    return qpa_platform in ("offscreen", "minimal", "vnc")
+
+
 try:
     from PyQt6.QtOpenGLWidgets import QOpenGLWidget
 
-    OPENGL_AVAILABLE = True
+    # Disable OpenGL in headless environments to avoid hangs
+    OPENGL_AVAILABLE = not _is_headless_environment()
+    if _is_headless_environment():
+        _logger.debug("OpenGL disabled in headless environment (QT_QPA_PLATFORM=%s)",
+                      os.environ.get("QT_QPA_PLATFORM", ""))
 except ImportError:
     OPENGL_AVAILABLE = False
 

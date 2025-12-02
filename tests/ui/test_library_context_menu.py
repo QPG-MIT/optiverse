@@ -3,6 +3,8 @@
 import pytest
 from PyQt6 import QtCore
 
+from tests.helpers import safe_wait_exposed
+
 
 def test_library_context_menu_on_component(qtbot):
     """Test that right-clicking on a component shows context menu with Edit option."""
@@ -11,7 +13,7 @@ def test_library_context_menu_on_component(qtbot):
     w = MainWindow()
     qtbot.addWidget(w)
     w.show()
-    qtbot.waitExposed(w)
+    safe_wait_exposed(qtbot, w)
 
     # Find a component item in the library tree
     tree = w.libraryTree
@@ -52,7 +54,7 @@ def test_library_no_context_menu_on_category(qtbot):
     w = MainWindow()
     qtbot.addWidget(w)
     w.show()
-    qtbot.waitExposed(w)
+    safe_wait_exposed(qtbot, w)
 
     tree = w.libraryTree
     assert tree is not None
@@ -90,7 +92,7 @@ def test_open_component_editor_with_data(qtbot):
     w = MainWindow()
     qtbot.addWidget(w)
     w.show()
-    qtbot.waitExposed(w)
+    safe_wait_exposed(qtbot, w)
 
     # Wait for library to populate
     qtbot.wait(100)

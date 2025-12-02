@@ -7,6 +7,7 @@ and more consistent.
 
 from __future__ import annotations
 
+import os
 import unittest.mock as mock
 from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
@@ -19,6 +20,33 @@ if TYPE_CHECKING:
     from optiverse.ui.views.main_window import EditorMode, MainWindow
 
 T = TypeVar("T")
+
+
+def _is_headless_environment() -> bool:
+    """Check if running in a headless environment where waitExposed might hang."""
+    qpa_platform = os.environ.get("QT_QPA_PLATFORM", "").lower()
+    return qpa_platform in ("offscreen", "minimal", "vnc")
+
+
+def safe_wait_exposed(qtbot: QtBot, widget: QtWidgets.QWidget, timeout: int = 5000) -> None:
+    """
+    Wait for a widget to be exposed, with headless environment support.
+
+    In headless environments (QT_QPA_PLATFORM=offscreen), waitExposed can hang
+    indefinitely. This function uses a brief wait as a fallback.
+
+    Args:
+        qtbot: QtBot instance
+        widget: Widget to wait for
+        timeout: Timeout in milliseconds (ignored in headless mode)
+    """
+    if _is_headless_environment():
+        # In headless mode, process events and give Qt a brief moment to settle
+        QtWidgets.QApplication.processEvents()
+        qtbot.wait(50)  # Brief wait to let Qt process pending events
+        QtWidgets.QApplication.processEvents()
+    else:
+        qtbot.waitExposed(widget, timeout=timeout)
 
 
 def create_main_window(qtbot: QtBot) -> MainWindow:  # type: ignore[valid-type]
@@ -36,7 +64,7 @@ def create_main_window(qtbot: QtBot) -> MainWindow:  # type: ignore[valid-type]
     window = MainWindow()
     qtbot.addWidget(window)
     window.show()
-    qtbot.waitExposed(window)
+    safe_wait_exposed(qtbot, window)
     return window
 
 
@@ -56,7 +84,7 @@ def create_component_editor(qtbot: QtBot) -> ComponentEditor:  # type: ignore[va
     editor = ComponentEditor(storage=StorageService())
     qtbot.addWidget(editor)
     editor.show()
-    qtbot.waitExposed(editor)
+    safe_wait_exposed(qtbot, editor)
     return editor
 
 
@@ -327,7 +355,7 @@ def wait_for_widget_visible(qtbot: QtBot, widget: QtWidgets.QWidget, timeout: in
         widget: Widget to wait for
         timeout: Timeout in milliseconds
     """
-    qtbot.waitExposed(widget, timeout=timeout)
+    safe_wait_exposed(qtbot, widget, timeout)
 
 
 def get_widget_by_type(parent: QtWidgets.QWidget, widget_type: type[T]) -> T | None:

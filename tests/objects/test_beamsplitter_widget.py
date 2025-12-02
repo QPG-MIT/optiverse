@@ -1,5 +1,7 @@
 from PyQt6 import QtWidgets
 
+from tests.helpers import safe_wait_exposed
+
 
 def test_beamsplitter_item_insert(qtbot):
     from optiverse.ui.views.main_window import MainWindow
@@ -7,7 +9,7 @@ def test_beamsplitter_item_insert(qtbot):
     w = MainWindow()
     qtbot.addWidget(w)
     w.show()
-    qtbot.waitExposed(w)
+    safe_wait_exposed(qtbot, w)
 
     # call insert beamsplitter via the window API once implemented
     assert hasattr(w, "_insert_beamsplitter")
