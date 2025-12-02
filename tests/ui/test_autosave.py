@@ -15,12 +15,10 @@ import datetime
 import gc
 import json
 import os
-import tempfile
 import unittest.mock as mock
-from pathlib import Path
 
 import pytest
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtWidgets
 
 from optiverse.core.models import LensParams, SourceParams
 from optiverse.objects import SourceItem
@@ -661,8 +659,6 @@ class TestAutosaveRecovery:
             json.dump(autosave_data2, f)
 
         # Update file modification times to ensure correct ordering
-        import time
-
         old_mtime = (old_time - datetime.datetime(1970, 1, 1)).total_seconds()
         new_mtime = (new_time - datetime.datetime(1970, 1, 1)).total_seconds()
         os.utime(autosave_file1, (old_mtime, old_mtime))
