@@ -25,8 +25,10 @@ try:
     # Disable OpenGL in headless environments to avoid hangs
     OPENGL_AVAILABLE = not _is_headless_environment()
     if _is_headless_environment():
-        _logger.debug("OpenGL disabled in headless environment (QT_QPA_PLATFORM=%s)",
-                      os.environ.get("QT_QPA_PLATFORM", ""))
+        _logger.debug(
+            "OpenGL disabled in headless environment (QT_QPA_PLATFORM=%s)",
+            os.environ.get("QT_QPA_PLATFORM", ""),
+        )
 except ImportError:
     OPENGL_AVAILABLE = False
 
