@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import cast
-
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.constants import MIME_OPTICS_COMPONENT
@@ -697,7 +695,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
                 data = md.data(MIME_OPTICS_COMPONENT)
                 if data is None:
                     return
-                rec = json.loads(cast(bytes, data).decode("utf-8"))
+                rec = json.loads(data.data())
                 self._clear_ghost()
                 pos = e.position()
                 if pos is not None:
@@ -727,7 +725,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
                     data = md.data(MIME_OPTICS_COMPONENT)
                     if data is None:
                         return
-                    rec = json.loads(cast(bytes, data).decode("utf-8"))
+                    rec = json.loads(data.data())
                     pos = e.position()
                     if pos is not None:
                         self._make_ghost(rec, self.mapToScene(pos.toPoint()))
@@ -777,7 +775,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
 
                 data = md.data(MIME_OPTICS_COMPONENT)
                 try:
-                    rec = json.loads(cast(bytes, data).decode("utf-8"))
+                    rec = json.loads(data.data())
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     e.ignore()
                     return
