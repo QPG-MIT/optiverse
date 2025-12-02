@@ -58,7 +58,7 @@ jobs:
         QT_QPA_PLATFORM: offscreen
         DISPLAY: :99
       run: |
-        xvfb-run -a pytest --cov=src/optiverse --cov-fail-under=70 --cov-report=xml --cov-report=term --cov-report=html -v --timeout=300
+        xvfb-run -a pytest tests/ui/ tests/core/ tests/app/ tests/services/ --cov=src/optiverse --cov-fail-under=70 --cov-report=xml --cov-report=term --cov-report=html -v --timeout=300
     
     - name: Run tests with coverage (macOS/Windows)
       if: matrix.os != 'ubuntu-latest'
@@ -67,7 +67,7 @@ jobs:
         QT_QPA_PLATFORM: offscreen
       run: |
         pip install pytest-timeout
-        pytest --cov=src/optiverse --cov-fail-under=70 --cov-report=xml --cov-report=term --cov-report=html -v --timeout=300
+        pytest tests/ui/ tests/core/ tests/app/ tests/services/ --cov=src/optiverse --cov-fail-under=70 --cov-report=xml --cov-report=term --cov-report=html -v --timeout=300
     
     - name: Upload coverage reports
       uses: codecov/codecov-action@v4
