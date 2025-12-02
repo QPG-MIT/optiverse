@@ -338,7 +338,7 @@ class ActionBuilder:
 
     def refresh_toolbar_icons(self, dark_mode: bool) -> None:
         """Refresh all toolbar icons for the given theme.
-        
+
         Args:
             dark_mode: If True, use dark mode (inverted) icons
         """
@@ -491,3 +491,4 @@ class ActionBuilder:
                 ComponentType.RECTANGLE: w.act_add_rectangle,
             }
         )
+

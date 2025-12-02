@@ -212,7 +212,7 @@ class LogWindow(QtWidgets.QDialog):
         """Clear all log messages."""
         # Import here to avoid circular import
         from ...ui.theme_manager import question as theme_aware_question
-        
+
         reply = theme_aware_question(
             self,
             "Clear Log",
@@ -249,3 +249,4 @@ class LogWindow(QtWidgets.QDialog):
         # Unregister from log service
         self.log_service.remove_listener(self._on_new_message)
         super().closeEvent(event)
+
