@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import os
 import sys
-from collections.abc import Generator
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable, Generator
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -194,6 +194,53 @@ def undo_stack() -> Generator[UndoStack, None, None]:
     stack = UndoStack()
     yield stack
     stack.clear()
+
+
+# =============================================================================
+# MainWindow Fixture
+# =============================================================================
+
+
+@pytest.fixture
+def main_window(qapp: QApplication, qtbot):  # type: ignore[no-untyped-def]
+    """
+    Create a MainWindow instance for testing with proper cleanup.
+
+    This fixture:
+    - Disables autotrace to prevent timer-based hangs in tests
+    - Stops autosave timer to prevent interference
+    - Cleans up all items and timers after the test
+    """
+    import gc
+
+    from PyQt6 import QtWidgets
+
+    from optiverse.ui.views.main_window import MainWindow
+    from tests.helpers.ui_test_helpers import safe_wait_exposed
+
+    window = MainWindow()
+    # Disable autotrace and stop timers to prevent hangs in CI
+    window.autotrace = False
+    window.raytracing_controller._retrace_timer.stop()
+    window.file_controller._autosave_timer.stop()
+    QtWidgets.QApplication.processEvents()
+    qtbot.addWidget(window)
+    window.show()
+    safe_wait_exposed(qtbot, window)
+    yield window
+    # Clean up
+    window.autotrace = False
+    window.raytracing_controller._retrace_timer.stop()
+    window.file_controller._autosave_timer.stop()
+    window.file_controller.mark_clean()
+    window.raytracing_controller.clear_rays()
+    for item in list(window.scene.items()):
+        window.scene.removeItem(item)
+    QtWidgets.QApplication.processEvents()
+    window.close()
+    QtWidgets.QApplication.processEvents()
+    gc.collect()
+    QtWidgets.QApplication.processEvents()
 
 
 # =============================================================================

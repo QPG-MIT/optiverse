@@ -10,14 +10,12 @@ These tests verify that undo/redo works correctly for:
 
 from __future__ import annotations
 
-import pytest
 from PyQt6 import QtCore, QtWidgets
 
 from optiverse.objects import (
     SourceItem,
     TextNoteItem,
 )
-from optiverse.ui.views.main_window import MainWindow
 from tests.helpers.ui_test_helpers import (
     add_lens_to_window,
     add_mirror_to_window,
@@ -30,39 +28,6 @@ from tests.helpers.ui_test_helpers import (
 
 class TestUndoRedoIntegration:
     """Integration tests for undo/redo in MainWindow."""
-
-    @pytest.fixture
-    def main_window(self, qapp):
-        """Create a MainWindow instance for testing."""
-        import gc
-
-        window = MainWindow()
-        # Disable autotrace to prevent timer-based hangs in tests
-        window.autotrace = False
-        # Stop any pending retrace timers
-        window.raytracing_controller._retrace_timer.stop()
-        # Stop autosave timer to prevent interference
-        window.file_controller._autosave_timer.stop()
-        # Process events to clear any pending operations
-        QtWidgets.QApplication.processEvents()
-        yield window
-        # Clean up - stop all timers first
-        window.autotrace = False
-        window.raytracing_controller._retrace_timer.stop()
-        window.file_controller._autosave_timer.stop()
-        # Mark clean to avoid save dialogs
-        window.file_controller.mark_clean()
-        # Clear the scene to release graphics items
-        window.raytracing_controller.clear_rays()
-        for item in list(window.scene.items()):
-            window.scene.removeItem(item)
-        # Process all pending events
-        QtWidgets.QApplication.processEvents()
-        window.close()
-        QtWidgets.QApplication.processEvents()
-        # Force garbage collection to clean up Qt objects
-        gc.collect()
-        QtWidgets.QApplication.processEvents()
 
     def test_undo_redo_actions_exist(self, main_window):
         """Test that undo/redo actions are created."""

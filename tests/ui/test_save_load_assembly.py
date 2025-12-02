@@ -7,10 +7,8 @@ are correctly saved to and loaded from JSON files.
 
 from __future__ import annotations
 
-import gc
 import json
 
-import pytest
 from PyQt6 import QtWidgets
 
 from optiverse.core.models import (
@@ -23,7 +21,6 @@ from optiverse.core.models import (
     WaveplateParams,
 )
 from optiverse.objects import ComponentItem, SourceItem
-from optiverse.ui.views.main_window import MainWindow
 from tests.fixtures.factories import create_component_from_params
 from tests.helpers.ui_test_helpers import (
     is_beamsplitter_component,
@@ -57,31 +54,6 @@ def is_slm_component(item):
     if not item.params.interfaces:
         return False
     return any(iface.element_type == "slm" for iface in item.params.interfaces)
-
-
-@pytest.fixture
-def main_window(qapp):
-    """Create a MainWindow instance for testing."""
-    window = MainWindow()
-    # Disable autotrace and stop timers to prevent hangs
-    window.autotrace = False
-    window.raytracing_controller._retrace_timer.stop()
-    window.file_controller._autosave_timer.stop()
-    QtWidgets.QApplication.processEvents()
-    yield window
-    # Clean up
-    window.autotrace = False
-    window.raytracing_controller._retrace_timer.stop()
-    window.file_controller._autosave_timer.stop()
-    window.file_controller.mark_clean()
-    window.raytracing_controller.clear_rays()
-    for item in list(window.scene.items()):
-        window.scene.removeItem(item)
-    QtWidgets.QApplication.processEvents()
-    window.close()
-    QtWidgets.QApplication.processEvents()
-    gc.collect()
-    QtWidgets.QApplication.processEvents()
 
 
 class TestSaveLoadAssembly:

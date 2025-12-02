@@ -2,42 +2,12 @@
 Tests for copy/paste functionality in the main window.
 """
 
-import gc
-
-import pytest
-from PyQt6 import QtWidgets
+from __future__ import annotations
 
 from tests.helpers.ui_test_helpers import (
     is_lens_component,
     is_mirror_component,
 )
-
-
-@pytest.fixture
-def main_window(qapp):
-    """Create a main window for testing."""
-    from optiverse.ui.views.main_window import MainWindow
-
-    window = MainWindow()
-    # Disable autotrace and stop timers to prevent hangs
-    window.autotrace = False
-    window.raytracing_controller._retrace_timer.stop()
-    window.file_controller._autosave_timer.stop()
-    QtWidgets.QApplication.processEvents()
-    yield window
-    # Clean up
-    window.autotrace = False
-    window.raytracing_controller._retrace_timer.stop()
-    window.file_controller._autosave_timer.stop()
-    window.file_controller.mark_clean()
-    window.raytracing_controller.clear_rays()
-    for item in list(window.scene.items()):
-        window.scene.removeItem(item)
-    QtWidgets.QApplication.processEvents()
-    window.close()
-    QtWidgets.QApplication.processEvents()
-    gc.collect()
-    QtWidgets.QApplication.processEvents()
 
 
 def test_copy_paste_single_source(main_window, qtbot):
