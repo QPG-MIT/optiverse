@@ -1,6 +1,7 @@
 ---
 layout: default
-title: Optiverse Documentation
+title: Home
+nav_order: 1
 ---
 
 # Optiverse Documentation

@@ -1,6 +1,8 @@
 ---
 layout: default
 title: Zemax Import Guide
+nav_order: 14
+parent: User Guides
 ---
 
 # Zemax Import UI - User Guide

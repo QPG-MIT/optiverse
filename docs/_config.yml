@@ -1,50 +1,45 @@
 # GitHub Pages Configuration for Optiverse Documentation
-# This enables GitHub Pages with Jekyll theme
+# Using Just the Docs theme
 
 title: Optiverse Documentation
 description: Comprehensive documentation for Optiverse optical simulation software
-theme: jekyll-theme-minimal
+theme: just-the-docs
 
-# Default permalink style (generates .html files)
+# Site settings
+url: "https://qpg-mit.github.io"
+baseurl: "/optiverse"
+
+# Search
+search_enabled: true
+search_heading: true
+search_rel_url: true
+
+# Auxiliary links
+aux_links:
+  "Optiverse on GitHub":
+    - "https://github.com/QPG-MIT/optiverse"
+
+# Footer content
+footer_content: "Built with <a href=\"https://github.com/just-the-docs/just-the-docs\">Just the Docs</a>, a documentation theme for Jekyll."
+
+# Color scheme
+color_scheme: dark
 
 # Markdown settings
 markdown: kramdown
 kramdown:
   input: GFM
   hard_wrap: false
+  syntax_highlighter: rouge
 
-# Navigation
-navigation:
-  - title: Getting Started
-    children:
-      - MACOS_SETUP.md
-  - title: User Guides
-    children:
-      - INTERFACE_COLOR_GUIDE.md
-      - REFRACTIVE_INDEX_LABELS.md
-      - RULER_VISUAL_GUIDE.md
-      - ZEMAX_IMPORT_UI_GUIDE.md
-      - COLLABORATION.md
-      - INSPECT_TOOL.md
-  - title: Physics & Optics
-    children:
-      - DICHROIC_MIRRORS_AND_WAVELENGTH_SYSTEM.md
-      - POLARIZING_INTERFACES.md
-      - WAVEPLATE_DIRECTIONALITY.md
-  - title: Architecture & Development
-    children:
-      - UNIFIED_INTERFACE_SYSTEM.md
-      - TESTING_ARCHITECTURE.md
-      - ERROR_HANDLING.md
-      - LOGGING_SYSTEM.md
-  - title: Performance
-    children:
-      - PARALLEL_RAYTRACING.md
-      - MAC_TRACKPAD_OPTIMIZATION.md
+# Plugins
+plugins:
+  - jekyll-seo-tag
 
 # Exclude files from processing
 exclude:
   - ERROR_HANDLING_QUICK_REFERENCE.py
   - Gemfile
   - Gemfile.lock
+  - README.md
 

@@ -1,6 +1,8 @@
 ---
 layout: default
 title: Testing Architecture
+nav_order: 32
+parent: Architecture & Development
 ---
 
 # Testing Architecture Analysis

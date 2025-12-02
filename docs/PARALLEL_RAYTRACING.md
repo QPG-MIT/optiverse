@@ -1,6 +1,8 @@
 ---
 layout: default
 title: Parallel Raytracing
+nav_order: 41
+parent: Performance
 ---
 
 # Parallel Raytracing Implementation (Numba JIT + Threading)

@@ -1,6 +1,8 @@
 ---
 layout: default
 title: Interface Color Guide
+nav_order: 11
+parent: User Guides
 ---
 
 # Optical Interface Color Guide

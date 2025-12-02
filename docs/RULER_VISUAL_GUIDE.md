@@ -1,6 +1,8 @@
 ---
 layout: default
 title: Ruler Visual Guide
+nav_order: 13
+parent: User Guides
 ---
 
 # Ruler Visual Guide

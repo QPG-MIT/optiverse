@@ -1,5 +1,8 @@
 source "https://rubygems.org"
 
+# Just the Docs theme
+gem "just-the-docs"
+
 # GitHub Pages gem includes Jekyll and all dependencies
 gem "github-pages", group: :jekyll_plugins
 

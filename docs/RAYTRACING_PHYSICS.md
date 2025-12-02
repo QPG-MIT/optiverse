@@ -1,6 +1,8 @@
 ---
 layout: default
 title: Raytracing Physics
+nav_order: 21
+parent: Physics & Optics
 ---
 
 # Raytracing Physics and Optical Interface Structure

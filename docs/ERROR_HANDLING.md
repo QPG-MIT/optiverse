@@ -1,6 +1,8 @@
 ---
 layout: default
 title: Error Handling
+nav_order: 33
+parent: Architecture & Development
 ---
 
 # Global Error Handling System

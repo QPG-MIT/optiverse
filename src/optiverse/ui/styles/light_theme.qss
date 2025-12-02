@@ -107,8 +107,8 @@ QPushButton:pressed {
     background-color: #d0d0d0;
 }
 
-/* Line Edit & Combo Box */
-QLineEdit, QComboBox {
+/* Line Edit, Combo Box & Spin Box */
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
     background-color: white;
     color: black;
     border: 1px solid #c0c0c0;
@@ -116,8 +116,28 @@ QLineEdit, QComboBox {
     border-radius: 3px;
 }
 
-QLineEdit:focus, QComboBox:focus {
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {
     border: 1px solid #4a90e2;
+}
+
+QSpinBox::up-button, QDoubleSpinBox::up-button {
+    min-width: 18px;
+    min-height: 10px;
+}
+
+QSpinBox::down-button, QDoubleSpinBox::down-button {
+    min-width: 18px;
+    min-height: 10px;
+}
+
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+    width: 7px;
+    height: 7px;
+}
+
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+    width: 7px;
+    height: 7px;
 }
 
 /* Labels */

@@ -1,6 +1,8 @@
 ---
 layout: default
 title: Waveplate Directionality
+nav_order: 24
+parent: Physics & Optics
 ---
 
 # Waveplate Directionality Implementation

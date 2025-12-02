@@ -1,6 +1,8 @@
 ---
 layout: default
 title: macOS Installation Guide
+nav_order: 3
+parent: Getting Started
 ---
 
 # macOS Installation Guide
