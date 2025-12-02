@@ -1,3 +1,8 @@
+---
+layout: default
+title: Interface Color Guide
+---
+
 # Optical Interface Color Guide
 
 ## Component Editor Visual System

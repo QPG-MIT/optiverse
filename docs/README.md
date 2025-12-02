@@ -1,3 +1,8 @@
+---
+layout: default
+title: Documentation Index
+---
+
 # Optiverse Documentation
 
 Welcome to the Optiverse documentation! This directory contains comprehensive guides for users and developers.

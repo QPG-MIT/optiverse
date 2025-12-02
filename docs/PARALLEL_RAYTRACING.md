@@ -1,3 +1,8 @@
+---
+layout: default
+title: Parallel Raytracing
+---
+
 # Parallel Raytracing Implementation (Numba JIT + Threading)
 
 ## Overview

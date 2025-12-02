@@ -1,3 +1,8 @@
+---
+layout: default
+title: Polarizing Interfaces
+---
+
 # Polarizing Interface System
 
 ## Overview

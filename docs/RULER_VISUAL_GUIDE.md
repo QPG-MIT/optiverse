@@ -1,3 +1,8 @@
+---
+layout: default
+title: Ruler Visual Guide
+---
+
 # Ruler Visual Guide
 
 ## What It Looks Like

@@ -1,3 +1,8 @@
+---
+layout: default
+title: Logging System
+---
+
 # Logging System Documentation
 
 ## Overview

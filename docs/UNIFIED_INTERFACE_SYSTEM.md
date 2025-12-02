@@ -1,3 +1,8 @@
+---
+layout: default
+title: Unified Interface System
+---
+
 # Unified Interface System - Design Document
 
 ## Concept Unification

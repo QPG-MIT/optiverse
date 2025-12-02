@@ -1,3 +1,8 @@
+---
+layout: default
+title: Error Handling
+---
+
 # Global Error Handling System
 
 ## Overview

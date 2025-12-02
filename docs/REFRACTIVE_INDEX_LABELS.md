@@ -1,3 +1,8 @@
+---
+layout: default
+title: Refractive Index Labels
+---
+
 # Refractive Index Labels in Component Editor
 
 ## Overview

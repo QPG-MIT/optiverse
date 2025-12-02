@@ -1,3 +1,8 @@
+---
+layout: default
+title: Collaboration Guide
+---
+
 # Collaborative Editing in Optiverse
 
 Optiverse supports real-time collaborative editing via WebSocket connections, allowing multiple users on the same local network to work together on optical designs.
