@@ -281,21 +281,33 @@ class ActionBuilder:
         w.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, toolbar)
         toolbar.setStyleSheet(_TOOLBAR_STYLESHEET)
 
+        # Create exclusive action group for tool buttons
+        # ExclusiveOptional allows unchecking all (clicking checked action unchecks it)
+        w._tool_action_group = QtGui.QActionGroup(w)
+        w._tool_action_group.setExclusive(True)
+        w._tool_action_group.setExclusionPolicy(
+            QtGui.QActionGroup.ExclusionPolicy.ExclusiveOptional
+        )
+
         # Source button
         w.act_add_source.setIcon(QtGui.QIcon(_get_icon_path("source.png")))
         toolbar.addAction(w.act_add_source)
+        w._tool_action_group.addAction(w.act_add_source)
 
         # Lens button
         w.act_add_lens.setIcon(QtGui.QIcon(_get_icon_path("lens.png")))
         toolbar.addAction(w.act_add_lens)
+        w._tool_action_group.addAction(w.act_add_lens)
 
         # Mirror button
         w.act_add_mirror.setIcon(QtGui.QIcon(_get_icon_path("mirror.png")))
         toolbar.addAction(w.act_add_mirror)
+        w._tool_action_group.addAction(w.act_add_mirror)
 
         # Beamsplitter button
         w.act_add_bs.setIcon(QtGui.QIcon(_get_icon_path("beamsplitter.png")))
         toolbar.addAction(w.act_add_bs)
+        w._tool_action_group.addAction(w.act_add_bs)
 
         toolbar.addSeparator()
 
@@ -304,6 +316,7 @@ class ActionBuilder:
         ruler_icon = QtGui.QIcon(_get_icon_path("ruler.png"))
         w.act_add_ruler.setIcon(ruler_icon)
         toolbar.addAction(w.act_add_ruler)
+        w._tool_action_group.addAction(w.act_add_ruler)
 
         # Path Measure tool - HIDDEN: Feature is buggy, hiding UI but keeping code
         # w.act_measure_path.setIcon(ruler_icon)
@@ -312,6 +325,7 @@ class ActionBuilder:
         # Angle Measure tool
         w.act_measure_angle.setIcon(QtGui.QIcon(_get_icon_path("angle_measure.png")))
         toolbar.addAction(w.act_measure_angle)
+        w._tool_action_group.addAction(w.act_measure_angle)
 
         toolbar.addSeparator()
 
@@ -319,14 +333,17 @@ class ActionBuilder:
         # Inspect button
         w.act_inspect.setIcon(QtGui.QIcon(_get_icon_path("inspect.png")))
         toolbar.addAction(w.act_inspect)
+        w._tool_action_group.addAction(w.act_inspect)
 
         # Text button
         w.act_add_text.setIcon(QtGui.QIcon(_get_icon_path("text.png")))
         toolbar.addAction(w.act_add_text)
+        w._tool_action_group.addAction(w.act_add_text)
 
         # Rectangle button
         w.act_add_rectangle.setIcon(QtGui.QIcon(_get_icon_path("rectangle.png")))
         toolbar.addAction(w.act_add_rectangle)
+        w._tool_action_group.addAction(w.act_add_rectangle)
 
     def build_menubar(self) -> None:
         """Build the menu bar."""
