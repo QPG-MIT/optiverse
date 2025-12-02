@@ -104,8 +104,8 @@ class TestObjectsImports:
     def test_subfolder_imports_work(self):
         """Should be able to import from subfolders directly."""
         try:
-            from optiverse.objects.sources import SourceItem
             from optiverse.objects.generic import ComponentItem
+            from optiverse.objects.sources import SourceItem
 
             assert SourceItem is not None
             assert ComponentItem is not None
