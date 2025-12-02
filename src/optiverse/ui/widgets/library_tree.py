@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import json
+from typing import Protocol, runtime_checkable
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.constants import MIME_OPTICS_COMPONENT
 
 
-class HasComponentEditor:
+@runtime_checkable
+class HasComponentEditor(Protocol):
     """Protocol marker for windows that can open component editor."""
 
     def open_component_editor(self, component: dict | None = None) -> None:
