@@ -3,13 +3,13 @@ Tests for polarization functionality.
 """
 
 import numpy as np
+
+from optiverse.core.models import OpticalElement, Polarization, SourceParams
 from optiverse.core.raytracing_math import (
     transform_polarization_beamsplitter,
     transform_polarization_lens,
     transform_polarization_mirror,
 )
-
-from optiverse.core.models import OpticalElement, Polarization, SourceParams
 from optiverse.core.use_cases import trace_rays
 
 

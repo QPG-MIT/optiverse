@@ -12,9 +12,9 @@ Physics background:
 """
 
 import numpy as np
-from optiverse.core.raytracing_math import transform_polarization_beamsplitter
 
 from optiverse.core.models import OpticalElement, Polarization, SourceParams
+from optiverse.core.raytracing_math import transform_polarization_beamsplitter
 from optiverse.core.use_cases import trace_rays
 
 

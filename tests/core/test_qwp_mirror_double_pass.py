@@ -1,11 +1,11 @@
 import numpy as np
+
+from optiverse.core.models import Polarization
 from optiverse.core.raytracing_math import (
     deg2rad,
     transform_polarization_mirror,
     transform_polarization_waveplate,
 )
-
-from optiverse.core.models import Polarization
 
 
 def _equivalent_up_to_global_phase(a: np.ndarray, b: np.ndarray, atol: float = 1e-6) -> bool:
