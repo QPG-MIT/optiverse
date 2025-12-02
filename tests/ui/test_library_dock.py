@@ -37,5 +37,5 @@ def main_window(qapp, qtbot):
 
 def test_library_dock_smoke(main_window):
     """Test that library dock is visible on startup."""
-    assert hasattr(main_window, "libraryDock")
-    assert main_window.libraryDock.isVisible()
+    assert hasattr(main_window, "libDock")
+    assert main_window.libDock.isVisible()
