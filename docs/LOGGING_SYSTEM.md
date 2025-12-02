@@ -1,6 +1,8 @@
 ---
 layout: default
 title: Logging System
+nav_order: 34
+parent: Architecture & Development
 ---
 
 # Logging System Documentation

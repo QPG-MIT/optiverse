@@ -1,6 +1,8 @@
 ---
 layout: default
 title: Inspect Tool
+nav_order: 16
+parent: User Guides
 ---
 
 # Inspect Tool Implementation

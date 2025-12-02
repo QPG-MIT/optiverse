@@ -1,6 +1,8 @@
 ---
 layout: default
 title: Collaboration Guide
+nav_order: 15
+parent: User Guides
 ---
 
 # Collaborative Editing in Optiverse

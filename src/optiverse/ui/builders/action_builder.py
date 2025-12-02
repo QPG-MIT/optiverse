@@ -19,10 +19,11 @@ if TYPE_CHECKING:
     from ..views.main_window import MainWindow
 
 
-def _get_icon_path(icon_name: str) -> str:
-    """Get the full path to an icon file."""
+def _get_icon_path(icon_name: str, dark_mode: bool) -> str:
+    """Get path to a themed toolbar icon."""
     icons_dir = Path(__file__).parent.parent / "icons"
-    return str(icons_dir / icon_name)
+    theme = "dark" if dark_mode else "light"
+    return str(icons_dir / theme / icon_name)
 
 
 # Toolbar stylesheet for checked tool buttons
@@ -66,6 +67,8 @@ class ActionBuilder:
             window: The MainWindow instance to build actions for
         """
         self.window = window
+        # Mapping of actions to their icon filenames for theme switching
+        self._toolbar_icon_map: list[tuple[QtGui.QAction, str]] = []
 
     def build_all(self) -> None:
         """Build all actions, toolbar, and menubar."""
@@ -273,6 +276,7 @@ class ActionBuilder:
     def build_toolbar(self) -> None:
         """Build the component toolbar with icons."""
         w = self.window
+        dark_mode = w.view.is_dark_mode()
 
         toolbar = QtWidgets.QToolBar("Components")
         toolbar.setObjectName("component_toolbar")
@@ -289,61 +293,57 @@ class ActionBuilder:
             QtGui.QActionGroup.ExclusionPolicy.ExclusiveOptional
         )
 
+        # Helper to set icon and register for theme switching
+        def add_toolbar_action(action: QtGui.QAction, icon_name: str) -> None:
+            action.setIcon(QtGui.QIcon(_get_icon_path(icon_name, dark_mode)))
+            toolbar.addAction(action)
+            w._tool_action_group.addAction(action)
+            self._toolbar_icon_map.append((action, icon_name))
+
         # Source button
-        w.act_add_source.setIcon(QtGui.QIcon(_get_icon_path("source.png")))
-        toolbar.addAction(w.act_add_source)
-        w._tool_action_group.addAction(w.act_add_source)
+        add_toolbar_action(w.act_add_source, "source.png")
 
         # Lens button
-        w.act_add_lens.setIcon(QtGui.QIcon(_get_icon_path("lens.png")))
-        toolbar.addAction(w.act_add_lens)
-        w._tool_action_group.addAction(w.act_add_lens)
+        add_toolbar_action(w.act_add_lens, "lens.png")
 
         # Mirror button
-        w.act_add_mirror.setIcon(QtGui.QIcon(_get_icon_path("mirror.png")))
-        toolbar.addAction(w.act_add_mirror)
-        w._tool_action_group.addAction(w.act_add_mirror)
+        add_toolbar_action(w.act_add_mirror, "mirror.png")
 
         # Beamsplitter button
-        w.act_add_bs.setIcon(QtGui.QIcon(_get_icon_path("beamsplitter.png")))
-        toolbar.addAction(w.act_add_bs)
-        w._tool_action_group.addAction(w.act_add_bs)
+        add_toolbar_action(w.act_add_bs, "beamsplitter.png")
 
         toolbar.addSeparator()
 
         # --- Measurement Tools ---
         # Ruler button
-        ruler_icon = QtGui.QIcon(_get_icon_path("ruler.png"))
-        w.act_add_ruler.setIcon(ruler_icon)
-        toolbar.addAction(w.act_add_ruler)
-        w._tool_action_group.addAction(w.act_add_ruler)
+        add_toolbar_action(w.act_add_ruler, "ruler.png")
 
         # Path Measure tool - HIDDEN: Feature is buggy, hiding UI but keeping code
-        # w.act_measure_path.setIcon(ruler_icon)
-        # toolbar.addAction(w.act_measure_path)
+        # add_toolbar_action(w.act_measure_path, "ruler.png")
 
         # Angle Measure tool
-        w.act_measure_angle.setIcon(QtGui.QIcon(_get_icon_path("angle_measure.png")))
-        toolbar.addAction(w.act_measure_angle)
-        w._tool_action_group.addAction(w.act_measure_angle)
+        add_toolbar_action(w.act_measure_angle, "angle_measure.png")
 
         toolbar.addSeparator()
 
         # --- Inspection & Annotation Tools ---
         # Inspect button
-        w.act_inspect.setIcon(QtGui.QIcon(_get_icon_path("inspect.png")))
-        toolbar.addAction(w.act_inspect)
-        w._tool_action_group.addAction(w.act_inspect)
+        add_toolbar_action(w.act_inspect, "inspect.png")
 
         # Text button
-        w.act_add_text.setIcon(QtGui.QIcon(_get_icon_path("text.png")))
-        toolbar.addAction(w.act_add_text)
-        w._tool_action_group.addAction(w.act_add_text)
+        add_toolbar_action(w.act_add_text, "text.png")
 
         # Rectangle button
-        w.act_add_rectangle.setIcon(QtGui.QIcon(_get_icon_path("rectangle.png")))
-        toolbar.addAction(w.act_add_rectangle)
-        w._tool_action_group.addAction(w.act_add_rectangle)
+        add_toolbar_action(w.act_add_rectangle, "rectangle.png")
+
+    def refresh_toolbar_icons(self, dark_mode: bool) -> None:
+        """Refresh all toolbar icons for the given theme.
+        
+        Args:
+            dark_mode: If True, use dark mode (inverted) icons
+        """
+        for action, icon_name in self._toolbar_icon_map:
+            action.setIcon(QtGui.QIcon(_get_icon_path(icon_name, dark_mode)))
 
     def build_menubar(self) -> None:
         """Build the menu bar."""

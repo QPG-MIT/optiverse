@@ -1,6 +1,8 @@
 ---
 layout: default
 title: Polarizing Interfaces
+nav_order: 23
+parent: Physics & Optics
 ---
 
 # Polarizing Interface System

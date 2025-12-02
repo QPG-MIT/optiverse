@@ -178,9 +178,9 @@ class MainWindow(QtWidgets.QMainWindow):
             parent=self,
         )
 
-        # Build UI using ActionBuilder
-        action_builder = ActionBuilder(self)
-        action_builder.build_all()
+        # Build UI using ActionBuilder (stored for theme switching)
+        self.action_builder = ActionBuilder(self)
+        self.action_builder.build_all()
 
         # Initialize handlers that need actions (after action_builder creates them)
         self._init_event_handlers()
@@ -512,6 +512,8 @@ class MainWindow(QtWidgets.QMainWindow):
         from ..theme_manager import apply_theme
 
         apply_theme(on)
+        # Refresh toolbar icons for new theme
+        self.action_builder.refresh_toolbar_icons(on)
         # Refresh library to update category colors
         self.populate_library()
 

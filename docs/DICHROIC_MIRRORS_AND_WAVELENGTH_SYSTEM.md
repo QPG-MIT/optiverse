@@ -1,6 +1,8 @@
 ---
 layout: default
 title: Dichroic Mirrors & Wavelength System
+nav_order: 22
+parent: Physics & Optics
 ---
 
 # Dichroic Mirrors and Wavelength System Implementation

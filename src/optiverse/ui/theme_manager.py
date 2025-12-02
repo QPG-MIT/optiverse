@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from PyQt6 import QtGui, QtWidgets
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 _logger = logging.getLogger(__name__)
 
@@ -221,3 +221,78 @@ def apply_theme(dark_mode: bool) -> None:
             style.unpolish(widget)
             style.polish(widget)
         widget.update()
+
+
+def is_dark_mode() -> bool:
+    """
+    Check if the application is currently in dark mode.
+    
+    Returns:
+        True if dark mode is active, False otherwise
+    """
+    try:
+        app = QtWidgets.QApplication.instance()
+        if not app:
+            return False
+        palette = app.palette()
+        bg_color = palette.color(QtGui.QPalette.ColorRole.Window)
+        return bg_color.lightness() < 128
+    except (AttributeError, RuntimeError):
+        return False
+
+
+def question(
+    parent: QtWidgets.QWidget | None,
+    title: str,
+    text: str,
+    buttons: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.StandardButton.Yes
+    | QtWidgets.QMessageBox.StandardButton.No,
+    default_button: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.StandardButton.No,
+) -> QtWidgets.QMessageBox.StandardButton:
+    """
+    Show a question dialog with theme-aware icon colors.
+    
+    This is a drop-in replacement for QMessageBox.question that ensures
+    the question mark icon is visible in dark mode.
+    
+    Args:
+        parent: Parent widget
+        title: Dialog title
+        text: Message text
+        buttons: Standard buttons to show
+        default_button: Default button
+        
+    Returns:
+        The button that was pressed
+    """
+    msg_box = QtWidgets.QMessageBox(parent)
+    msg_box.setIcon(QtWidgets.QMessageBox.Icon.Question)
+    msg_box.setWindowTitle(title)
+    msg_box.setText(text)
+    msg_box.setStandardButtons(buttons)
+    msg_box.setDefaultButton(default_button)
+    
+    # Center align the text label
+    text_label = msg_box.findChild(QtWidgets.QLabel, "qt_msgbox_label")
+    if text_label is not None:
+        text_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+    
+    # In dark mode, invert the icon to make it visible
+    if is_dark_mode():
+        # Get the standard icon from QStyle
+        style = msg_box.style()
+        if style is not None:
+            # Get the standard pixmap for Question icon
+            standard_pixmap = style.standardPixmap(
+                QtWidgets.QStyle.StandardPixmap.SP_MessageBoxQuestion,
+                None,
+                msg_box
+            )
+            if standard_pixmap is not None and not standard_pixmap.isNull():
+                # Create inverted pixmap using QImage transformation
+                img = standard_pixmap.toImage()
+                img.invertPixels(QtGui.QImage.InvertMode.InvertRgb)  # Invert RGB, preserve alpha
+                inverted_pixmap = QtGui.QPixmap.fromImage(img)
+                msg_box.setIconPixmap(inverted_pixmap)
+    
+    return msg_box.exec()

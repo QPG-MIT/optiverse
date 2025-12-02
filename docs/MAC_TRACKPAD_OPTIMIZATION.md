@@ -1,6 +1,8 @@
 ---
 layout: default
 title: macOS Trackpad Optimization
+nav_order: 42
+parent: Performance
 ---
 
 # Mac Trackpad Optimization and Performance Improvements

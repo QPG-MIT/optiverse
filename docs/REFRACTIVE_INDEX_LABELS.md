@@ -1,6 +1,8 @@
 ---
 layout: default
 title: Refractive Index Labels
+nav_order: 12
+parent: User Guides
 ---
 
 # Refractive Index Labels in Component Editor

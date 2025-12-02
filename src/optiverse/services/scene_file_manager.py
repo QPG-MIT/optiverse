@@ -298,7 +298,10 @@ class SceneFileManager:
             else:
                 msg = f"Found autosave of unsaved file\nSaved: {time_str}"
 
-            reply = QtWidgets.QMessageBox.question(
+            # Import here to avoid circular import
+            from ..ui.theme_manager import question as theme_aware_question
+            
+            reply = theme_aware_question(
                 self.parent_widget,
                 "Recover Autosave?",
                 f"{msg}\n\nWould you like to recover it?",
@@ -381,7 +384,10 @@ class SceneFileManager:
         Returns:
             The user's choice (Save, Discard, or Cancel)
         """
-        return QtWidgets.QMessageBox.question(
+        # Import here to avoid circular import
+        from ..ui.theme_manager import question as theme_aware_question
+        
+        return theme_aware_question(
             self.parent_widget,
             "Unsaved Changes",
             "Do you want to save your changes before closing?",

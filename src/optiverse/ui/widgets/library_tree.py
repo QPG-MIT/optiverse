@@ -37,6 +37,11 @@ class LibraryTree(QtWidgets.QTreeWidget):
         # Expand all categories by default
         self.expandAll()
 
+    def focusOutEvent(self, event):
+        """Clear selection when focus leaves the library tree."""
+        self.clearSelection()
+        super().focusOutEvent(event)
+
     def _show_context_menu(self, position):
         """Show context menu for component items."""
         item = self.itemAt(position)
