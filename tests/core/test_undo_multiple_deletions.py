@@ -10,10 +10,11 @@ from __future__ import annotations
 import pytest
 from PyQt6 import QtWidgets
 
-from optiverse.core.models import LensParams, MirrorParams, SourceParams
+from optiverse.core.models import SourceParams
 from optiverse.core.undo_commands import RemoveMultipleItemsCommand
 from optiverse.core.undo_stack import UndoStack
-from optiverse.objects import LensItem, MirrorItem, SourceItem
+from optiverse.objects import SourceItem
+from tests.fixtures.factories import create_lens_item, create_mirror_item
 
 
 class TestMultipleItemDeletionUndo:
@@ -38,8 +39,8 @@ class TestMultipleItemDeletionUndo:
         """
         # Create 3 different items
         item1 = SourceItem(SourceParams(x_mm=0, y_mm=0))
-        item2 = LensItem(LensParams(x_mm=10, y_mm=10))
-        item3 = MirrorItem(MirrorParams(x_mm=20, y_mm=20))
+        item2 = create_lens_item(x_mm=10, y_mm=10)
+        item3 = create_mirror_item(x_mm=20, y_mm=20)
 
         # Add them to the scene
         scene.addItem(item1)
@@ -77,7 +78,7 @@ class TestMultipleItemDeletionUndo:
         from PyQt6.QtCore import QPointF
 
         item1 = SourceItem(SourceParams(x_mm=0, y_mm=0))
-        item2 = LensItem(LensParams(x_mm=10, y_mm=10))
+        item2 = create_lens_item(x_mm=10, y_mm=10)
 
         pos1 = QPointF(100, 200)
         pos2 = QPointF(300, 400)
@@ -130,8 +131,8 @@ class TestMultipleItemDeletionUndo:
         """
         # Setup: 3 items
         item1 = SourceItem(SourceParams(x_mm=0, y_mm=0))
-        item2 = LensItem(LensParams(x_mm=10, y_mm=10))
-        item3 = MirrorItem(MirrorParams(x_mm=20, y_mm=20))
+        item2 = create_lens_item(x_mm=10, y_mm=10)
+        item3 = create_mirror_item(x_mm=20, y_mm=20)
 
         scene.addItem(item1)
         scene.addItem(item2)

@@ -12,14 +12,13 @@ import pytest
 
 from optiverse.core.interface_definition import InterfaceDefinition
 from optiverse.core.models import (
-    LensParams,
-    MirrorParams,
+    ComponentParams,
     OpticalElement,
     RefractiveInterface,
     SourceParams,
 )
 from optiverse.core.use_cases import trace_rays
-from optiverse.objects import LensItem, MirrorItem
+from optiverse.objects import ComponentItem
 
 
 class TestMultiInterfaceRaytracing:
@@ -58,8 +57,8 @@ class TestMultiInterfaceRaytracing:
             ),
         ]
 
-        params = LensParams(x_mm=0.0, y_mm=0.0, angle_deg=90.0, interfaces=interfaces)
-        lens = LensItem(params)
+        params = ComponentParams(x_mm=0.0, y_mm=0.0, angle_deg=90.0, interfaces=interfaces)
+        lens = ComponentItem(params)
 
         # Get interfaces for raytracing
         interfaces_scene = lens.get_interfaces_scene()
@@ -82,9 +81,6 @@ class TestMultiInterfaceRaytracing:
 
         # Should have ray paths (at least transmitted and reflected)
         assert len(paths) > 0
-
-        # Rays should interact with multiple interfaces
-        # (This is a qualitative test - proper testing would check ray bending)
 
     def test_mirror_with_ar_coating(self):
         """Test mirror with AR coating (2 interfaces)."""
@@ -109,8 +105,8 @@ class TestMultiInterfaceRaytracing:
             ),
         ]
 
-        params = MirrorParams(x_mm=0.0, y_mm=0.0, angle_deg=45.0, interfaces=interfaces)
-        mirror = MirrorItem(params)
+        params = ComponentParams(x_mm=0.0, y_mm=0.0, angle_deg=45.0, interfaces=interfaces)
+        mirror = ComponentItem(params)
 
         # Get interfaces
         interfaces_scene = mirror.get_interfaces_scene()
@@ -126,41 +122,20 @@ class TestMultiInterfaceRaytracing:
         assert mirror_iface.element_type == "mirror"
         assert mirror_iface.reflectivity == pytest.approx(99.9)
 
-    def test_backward_compatibility_single_interface(self):
-        """Test that legacy single-interface components still work."""
-        # Create lens without explicit interfaces (legacy mode)
-        params = LensParams(x_mm=0.0, y_mm=0.0, angle_deg=90.0, efl_mm=100.0)
-        # Clear interfaces to simulate legacy component
-        params.interfaces = []
-
-        lens = LensItem(params)
-
-        # Should auto-generate one interface
-        interfaces = lens.get_interfaces_scene()
-        assert len(interfaces) == 1
-
-        p1, p2, iface = interfaces[0]
-        assert iface.element_type == "lens"
-        assert iface.efl_mm == pytest.approx(100.0)
-
-        # Create OpticalElement and test raytracing
-        elem = OpticalElement(kind="lens", p1=p1, p2=p2, efl_mm=iface.efl_mm)
-
-        source = SourceParams(x_mm=-50.0, y_mm=0.0, angle_deg=0.0, n_rays=1, ray_length_mm=200.0)
-
-        paths = trace_rays([elem], [source], max_events=10)
-        assert len(paths) > 0
-
 
 class TestRaytracingIntegration:
     """Test end-to-end raytracing with mixed component types."""
 
     def test_mixed_single_and_multi_interface_components(self):
         """Test scene with both single and multi-interface components."""
-        # Simple lens (single interface, legacy mode)
-        lens1_params = LensParams(x_mm=-50.0, y_mm=0.0, angle_deg=90.0, efl_mm=100.0)
-        lens1_params.interfaces = []  # Legacy mode
-        lens1 = LensItem(lens1_params)
+        # Simple lens (single interface)
+        lens1_interface = InterfaceDefinition(
+            x1_mm=0.0, y1_mm=-30.0, x2_mm=0.0, y2_mm=30.0, element_type="lens", efl_mm=100.0
+        )
+        lens1_params = ComponentParams(
+            x_mm=-50.0, y_mm=0.0, angle_deg=90.0, interfaces=[lens1_interface]
+        )
+        lens1 = ComponentItem(lens1_params)
 
         # Doublet lens (3 interfaces)
         doublet_interfaces = [
@@ -192,10 +167,10 @@ class TestRaytracingIntegration:
                 n2=1.0,
             ),
         ]
-        lens2_params = LensParams(
+        lens2_params = ComponentParams(
             x_mm=50.0, y_mm=0.0, angle_deg=90.0, interfaces=doublet_interfaces
         )
-        lens2 = LensItem(lens2_params)
+        lens2 = ComponentItem(lens2_params)
 
         # Collect all interfaces from all components
         elements = []
@@ -288,12 +263,6 @@ class TestRaytracingIntegration:
             assert (
                 direction_after[0] > 0.5
             ), f"Ray should still go right, got direction {direction_after}"
-
-            # The key test: with n1=1.0 (air, right) and n2=1.5 (glass, left),
-            # ray going right should bend LEFT (negative Y component slightly)
-            # This verifies the fix - previously it would bend the wrong way
-            print(f"Refracted direction: {direction_after}")
-            # At normal incidence, there's minimal bending, so we just verify it processed correctly
 
 
 if __name__ == "__main__":

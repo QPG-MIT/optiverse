@@ -6,9 +6,8 @@ Tests snap calculations for center-to-center and edge-to-edge alignment.
 
 from PyQt6 import QtCore, QtWidgets
 
-from optiverse.core.models import LensParams, MirrorParams
 from optiverse.core.snap_helper import SnapHelper, SnapResult
-from optiverse.objects import LensItem, MirrorItem
+from tests.fixtures.factories import create_lens_item, create_mirror_item
 
 
 def test_snap_result_no_snap():
@@ -41,11 +40,11 @@ def test_snap_to_center_horizontal(qtbot):
     scene = QtWidgets.QGraphicsScene()
 
     # Create a fixed lens at (100, 200)
-    fixed = LensItem(LensParams(x_mm=100, y_mm=200))
+    fixed = create_lens_item(x_mm=100, y_mm=200)
     scene.addItem(fixed)
 
     # Create moving lens near the same Y coordinate
-    moving = LensItem(LensParams(x_mm=300, y_mm=204))  # 4px offset
+    moving = create_lens_item(x_mm=300, y_mm=204)  # 4px offset
     scene.addItem(moving)
 
     helper = SnapHelper(tolerance_px=10.0)
@@ -65,11 +64,11 @@ def test_snap_to_center_vertical(qtbot):
     scene = QtWidgets.QGraphicsScene()
 
     # Create a fixed mirror at (100, 200)
-    fixed = MirrorItem(MirrorParams(x_mm=100, y_mm=200))
+    fixed = create_mirror_item(x_mm=100, y_mm=200)
     scene.addItem(fixed)
 
     # Create moving mirror near the same X coordinate
-    moving = MirrorItem(MirrorParams(x_mm=103, y_mm=400))  # 3px offset
+    moving = create_mirror_item(x_mm=103, y_mm=400)  # 3px offset
     scene.addItem(moving)
 
     helper = SnapHelper(tolerance_px=10.0)
@@ -89,11 +88,11 @@ def test_snap_both_axes(qtbot):
     scene = QtWidgets.QGraphicsScene()
 
     # Create a fixed lens at (100, 200)
-    fixed = LensItem(LensParams(x_mm=100, y_mm=200))
+    fixed = create_lens_item(x_mm=100, y_mm=200)
     scene.addItem(fixed)
 
     # Create moving lens near the same position
-    moving = LensItem(LensParams(x_mm=105, y_mm=205))
+    moving = create_lens_item(x_mm=105, y_mm=205)
     scene.addItem(moving)
 
     helper = SnapHelper(tolerance_px=10.0)
@@ -114,11 +113,11 @@ def test_no_snap_beyond_tolerance(qtbot):
     scene = QtWidgets.QGraphicsScene()
 
     # Create a fixed lens at (100, 200)
-    fixed = LensItem(LensParams(x_mm=100, y_mm=200))
+    fixed = create_lens_item(x_mm=100, y_mm=200)
     scene.addItem(fixed)
 
     # Create moving lens far from fixed
-    moving = LensItem(LensParams(x_mm=300, y_mm=250))
+    moving = create_lens_item(x_mm=300, y_mm=250)
     scene.addItem(moving)
 
     helper = SnapHelper(tolerance_px=10.0)
@@ -138,7 +137,7 @@ def test_snap_ignores_moving_item(qtbot):
     scene = QtWidgets.QGraphicsScene()
 
     # Create only one lens
-    moving = LensItem(LensParams(x_mm=100, y_mm=200))
+    moving = create_lens_item(x_mm=100, y_mm=200)
     scene.addItem(moving)
 
     helper = SnapHelper(tolerance_px=10.0)
@@ -157,13 +156,13 @@ def test_snap_multiple_candidates_closest(qtbot):
     scene = QtWidgets.QGraphicsScene()
 
     # Create two fixed items at different Y positions
-    fixed1 = LensItem(LensParams(x_mm=100, y_mm=200))
-    fixed2 = LensItem(LensParams(x_mm=200, y_mm=210))
+    fixed1 = create_lens_item(x_mm=100, y_mm=200)
+    fixed2 = create_lens_item(x_mm=200, y_mm=210)
     scene.addItem(fixed1)
     scene.addItem(fixed2)
 
     # Create moving item closer to fixed1
-    moving = LensItem(LensParams(x_mm=300, y_mm=203))
+    moving = create_lens_item(x_mm=300, y_mm=203)
     scene.addItem(moving)
 
     helper = SnapHelper(tolerance_px=10.0)
@@ -185,11 +184,11 @@ def test_snap_with_view_transform(qtbot):
     view.scale(2.0, 2.0)
 
     # Create fixed item
-    fixed = LensItem(LensParams(x_mm=100, y_mm=200))
+    fixed = create_lens_item(x_mm=100, y_mm=200)
     scene.addItem(fixed)
 
     # Create moving item
-    moving = LensItem(LensParams(x_mm=300, y_mm=205))
+    moving = create_lens_item(x_mm=300, y_mm=205)
     scene.addItem(moving)
 
     helper = SnapHelper(tolerance_px=10.0)
