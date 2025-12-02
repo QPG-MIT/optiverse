@@ -20,7 +20,6 @@ import pytest
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QApplication, QGraphicsScene
-    from pytestqt.qtbot import QtBot as QtBotType
 
     from optiverse.core.undo_stack import UndoStack
     from optiverse.objects.generic import ComponentItem
