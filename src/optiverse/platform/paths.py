@@ -4,10 +4,19 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from PyQt6 import QtCore
+if TYPE_CHECKING:
+    from PyQt6 import QtCore as QtCoreType
 
 _logger = logging.getLogger(__name__)
+
+
+def _get_qt_core():
+    """Lazy import of QtCore to avoid initialization issues in headless environments."""
+    from PyQt6 import QtCore
+
+    return QtCore
 
 
 def is_macos() -> bool:
@@ -27,6 +36,7 @@ def is_linux() -> bool:
 
 def _app_data_root() -> Path:
     # Prefer Qt standard writable location
+    QtCore = _get_qt_core()
     base = QtCore.QStandardPaths.writableLocation(
         QtCore.QStandardPaths.StandardLocation.AppDataLocation
     )
@@ -73,6 +83,7 @@ def get_user_library_root() -> Path:
         Path to the user library root directory
     """
     # Use Qt's DocumentsLocation for cross-platform compatibility
+    QtCore = _get_qt_core()
     docs_location = QtCore.QStandardPaths.writableLocation(
         QtCore.QStandardPaths.StandardLocation.DocumentsLocation
     )
@@ -103,6 +114,7 @@ def get_all_custom_library_roots() -> list[Path]:
         List of Path objects for all library directories found under ComponentLibraries/
     """
     # Use Qt's DocumentsLocation for cross-platform compatibility
+    QtCore = _get_qt_core()
     docs_location = QtCore.QStandardPaths.writableLocation(
         QtCore.QStandardPaths.StandardLocation.DocumentsLocation
     )
