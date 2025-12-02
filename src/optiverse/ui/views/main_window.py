@@ -682,8 +682,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # ensure clean shutdown
     def closeEvent(self, e: QtGui.QCloseEvent | None):
-        # Check for unsaved changes
-        if self.file_controller.is_modified:
+        # Check for unsaved changes (skip dialog in offscreen/test mode)
+        import os
+
+        if self.file_controller.is_modified and os.environ.get("QT_QPA_PLATFORM") != "offscreen":
             reply = self.file_controller.prompt_save_changes()
             if reply == QtWidgets.QMessageBox.StandardButton.Cancel:
                 if e is not None:

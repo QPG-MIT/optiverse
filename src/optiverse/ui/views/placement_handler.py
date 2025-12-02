@@ -160,6 +160,12 @@ class PlacementHandler:
 
     def _send_synthetic_mouse_move(self) -> None:
         """Send synthetic mouse move event to update Qt's position tracking."""
+        # Skip in offscreen/test mode to prevent event loop issues
+        import os
+
+        if os.environ.get("QT_QPA_PLATFORM") == "offscreen":
+            return
+
         cursor_pos = self.view.mapFromGlobal(QtGui.QCursor.pos())
         move_event = QtGui.QMouseEvent(
             QtCore.QEvent.Type.MouseMove,

@@ -145,10 +145,10 @@ class TestMoveItemCommand:
 
     def test_execute_moves_item_to_new_position(self, source_item):
         """Execute should move item to new position."""
+        from PyQt6.QtCore import QPointF
+
         old_pos = source_item.pos()
-        new_pos = QtWidgets.QGraphicsScene().addEllipse(0, 0, 1, 1).pos()
-        new_pos.setX(50)
-        new_pos.setY(60)
+        new_pos = QPointF(50, 60)
 
         cmd = MoveItemCommand(source_item, old_pos, new_pos)
         cmd.execute()

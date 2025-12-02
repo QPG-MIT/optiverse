@@ -34,22 +34,44 @@ class TestUndoRedoIntegration:
     @pytest.fixture
     def main_window(self, qapp):
         """Create a MainWindow instance for testing."""
+        import gc
+
         window = MainWindow()
+        # Disable autotrace to prevent timer-based hangs in tests
+        window.autotrace = False
+        # Stop any pending retrace timers
+        window.raytracing_controller._retrace_timer.stop()
+        # Stop autosave timer to prevent interference
+        window.file_controller._autosave_timer.stop()
+        # Process events to clear any pending operations
+        QtWidgets.QApplication.processEvents()
         yield window
+        # Clean up - stop all timers first
+        window.autotrace = False
+        window.raytracing_controller._retrace_timer.stop()
+        window.file_controller._autosave_timer.stop()
+        # Mark clean to avoid save dialogs
+        window.file_controller.mark_clean()
+        # Clear the scene to release graphics items
+        window.raytracing_controller.clear_rays()
+        for item in list(window.scene.items()):
+            window.scene.removeItem(item)
+        # Process all pending events
+        QtWidgets.QApplication.processEvents()
         window.close()
+        QtWidgets.QApplication.processEvents()
+        # Force garbage collection to clean up Qt objects
+        gc.collect()
+        QtWidgets.QApplication.processEvents()
 
     def test_undo_redo_actions_exist(self, main_window):
         """Test that undo/redo actions are created."""
+        from PyQt6.QtGui import QKeySequence
+
         assert hasattr(main_window, "act_undo")
         assert hasattr(main_window, "act_redo")
-        assert (
-            main_window.act_undo.shortcut()
-            == QtCore.Qt.Key.Key_Z | QtCore.Qt.KeyboardModifier.ControlModifier
-        )
-        assert (
-            main_window.act_redo.shortcut()
-            == QtCore.Qt.Key.Key_Y | QtCore.Qt.KeyboardModifier.ControlModifier
-        )
+        assert main_window.act_undo.shortcut() == QKeySequence.StandardKey.Undo
+        assert main_window.act_redo.shortcut() == QKeySequence.StandardKey.Redo
 
     def test_undo_redo_initially_disabled(self, main_window):
         """Test that undo/redo are initially disabled."""
@@ -239,13 +261,10 @@ class TestUndoRedoIntegration:
         item.setPos(old_pos)
         item.setSelected(True)
 
-        # Simulate mouse press (track position)
-        main_window._item_positions[item] = QtCore.QPointF(old_pos)
-
         # Move item
         item.setPos(new_pos)
 
-        # Simulate mouse release (create move command)
+        # Create and push move command
         from optiverse.core.undo_commands import MoveItemCommand
 
         cmd = MoveItemCommand(item, old_pos, new_pos)
@@ -295,25 +314,25 @@ class TestUndoRedoIntegration:
         add_source_to_window(main_window)
         assert main_window.undo_stack.can_undo()
 
-        # Create a temporary assembly file
+        # Create a temporary assembly file with version 2.0 format
         import json
 
         assembly_file = tmp_path / "test_assembly.json"
         data = {
-            "sources": [],
-            "lenses": [],
-            "mirrors": [],
-            "beamsplitters": [],
-            "rulers": [],
-            "texts": [],
+            "version": "2.0",
+            "items": [],
         }
         assembly_file.write_text(json.dumps(data))
 
-        # Mock the file dialog to return our test file
+        # Mock both the file dialog and the save prompt to avoid blocking dialogs
         import unittest.mock as mock
 
         with mock.patch.object(
             QtWidgets.QFileDialog, "getOpenFileName", return_value=(str(assembly_file), "")
+        ), mock.patch.object(
+            main_window.file_controller,
+            "prompt_save_changes",
+            return_value=QtWidgets.QMessageBox.StandardButton.Discard,
         ):
             main_window.open_assembly()
 

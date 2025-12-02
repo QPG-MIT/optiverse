@@ -73,6 +73,8 @@ def scene(qapp: QApplication) -> Generator[QGraphicsScene, None, None]:
 
     The scene is automatically cleared after the test.
     """
+    import gc
+
     from PyQt6 import QtWidgets
 
     from optiverse.core.constants import SCENE_MIN_COORD, SCENE_SIZE_MM
@@ -87,6 +89,9 @@ def scene(qapp: QApplication) -> Generator[QGraphicsScene, None, None]:
     yield s
     # Cleanup: remove all items
     s.clear()
+    QtWidgets.QApplication.processEvents()
+    gc.collect()
+    QtWidgets.QApplication.processEvents()
 
 
 @pytest.fixture

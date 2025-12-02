@@ -7,6 +7,7 @@ are correctly saved to and loaded from JSON files.
 
 from __future__ import annotations
 
+import gc
 import json
 
 import pytest
@@ -59,11 +60,28 @@ def is_slm_component(item):
 
 
 @pytest.fixture
-def main_window(qtbot):
+def main_window(qapp):
     """Create a MainWindow instance for testing."""
     window = MainWindow()
-    qtbot.addWidget(window)
-    return window
+    # Disable autotrace and stop timers to prevent hangs
+    window.autotrace = False
+    window.raytracing_controller._retrace_timer.stop()
+    window.file_controller._autosave_timer.stop()
+    QtWidgets.QApplication.processEvents()
+    yield window
+    # Clean up
+    window.autotrace = False
+    window.raytracing_controller._retrace_timer.stop()
+    window.file_controller._autosave_timer.stop()
+    window.file_controller.mark_clean()
+    window.raytracing_controller.clear_rays()
+    for item in list(window.scene.items()):
+        window.scene.removeItem(item)
+    QtWidgets.QApplication.processEvents()
+    window.close()
+    QtWidgets.QApplication.processEvents()
+    gc.collect()
+    QtWidgets.QApplication.processEvents()
 
 
 class TestSaveLoadAssembly:
