@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.constants import MIME_OPTICS_COMPONENT
