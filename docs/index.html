@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optiverse Documentation</title>
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent: #58a6ff;
+            --accent-hover: #79b8ff;
+            --border: #30363d;
+            --success: #3fb950;
+            --warning: #d29922;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        header {
+            text-align: center;
+            padding: 3rem 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 3rem;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--accent), #a371f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+        
+        .quick-start {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .quick-start h2 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            color: var(--success);
+        }
+        
+        .quick-start ol {
+            padding-left: 1.5rem;
+        }
+        
+        .quick-start li {
+            margin-bottom: 0.5rem;
+        }
+        
+        .sections {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: border-color 0.2s, transform 0.2s;
+        }
+        
+        .section:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+        
+        .section h3 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .section ul {
+            list-style: none;
+        }
+        
+        .section li {
+            margin-bottom: 0.5rem;
+        }
+        
+        a {
+            color: var(--accent);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        
+        a:hover {
+            color: var(--accent-hover);
+            text-decoration: underline;
+        }
+        
+        .icon {
+            font-size: 1.2rem;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 2rem 0;
+            margin-top: 3rem;
+            border-top: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        
+        footer a {
+            color: var(--text-secondary);
+        }
+        
+        footer a:hover {
+            color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Optiverse Documentation</h1>
+            <p>Comprehensive documentation for Optiverse optical simulation software</p>
+        </header>
+        
+        <div class="quick-start">
+            <h2>🚀 Quick Start</h2>
+            <ol>
+                <li><a href="MACOS_SETUP.md">Installation Guide</a> – Set up Optiverse on your system</li>
+                <li><a href="INTERFACE_COLOR_GUIDE.md">Component Editor Basics</a> – Learn the interface system</li>
+                <li><a href="ZEMAX_IMPORT_UI_GUIDE.md">Import Zemax Files</a> – Import optical designs</li>
+            </ol>
+        </div>
+        
+        <div class="sections">
+            <div class="section">
+                <h3><span class="icon">📖</span> User Guides</h3>
+                <ul>
+                    <li><a href="INTERFACE_COLOR_GUIDE.md">Interface Color Guide</a></li>
+                    <li><a href="REFRACTIVE_INDEX_LABELS.md">Refractive Index Labels</a></li>
+                    <li><a href="RULER_VISUAL_GUIDE.md">Ruler Visual Guide</a></li>
+                    <li><a href="ZEMAX_IMPORT_UI_GUIDE.md">Zemax Import Guide</a></li>
+                    <li><a href="COLLABORATION.md">Collaboration Guide</a></li>
+                    <li><a href="INSPECT_TOOL.md">Inspect Tool</a></li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h3><span class="icon">🔬</span> Physics & Optics</h3>
+                <ul>
+                    <li><a href="RAYTRACING_PHYSICS.md">Raytracing Physics</a></li>
+                    <li><a href="DICHROIC_MIRRORS_AND_WAVELENGTH_SYSTEM.md">Dichroic Mirrors & Wavelengths</a></li>
+                    <li><a href="POLARIZING_INTERFACES.md">Polarizing Interfaces</a></li>
+                    <li><a href="WAVEPLATE_DIRECTIONALITY.md">Waveplate Directionality</a></li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h3><span class="icon">🏗️</span> Architecture</h3>
+                <ul>
+                    <li><a href="UNIFIED_INTERFACE_SYSTEM.md">Unified Interface System</a></li>
+                    <li><a href="TESTING_ARCHITECTURE.md">Testing Architecture</a></li>
+                    <li><a href="ERROR_HANDLING.md">Error Handling</a></li>
+                    <li><a href="LOGGING_SYSTEM.md">Logging System</a></li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h3><span class="icon">⚡</span> Performance</h3>
+                <ul>
+                    <li><a href="PARALLEL_RAYTRACING.md">Parallel Raytracing</a></li>
+                    <li><a href="MAC_TRACKPAD_OPTIMIZATION.md">macOS Trackpad Optimization</a></li>
+                </ul>
+            </div>
+        </div>
+        
+        <footer>
+            <p>
+                <a href="https://github.com/QPG-MIT/optiverse">View on GitHub</a> · 
+                <a href="README.md">Full Documentation Index</a>
+            </p>
+        </footer>
+    </div>
+</body>
+</html>
+
