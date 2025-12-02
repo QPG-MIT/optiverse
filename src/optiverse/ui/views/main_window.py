@@ -91,6 +91,7 @@ class MainWindow(QtWidgets.QMainWindow):
     act_dark_mode: QtGui.QAction
     menu_raywidth: QtWidgets.QMenu
     _raywidth_group: QtGui.QActionGroup
+    _tool_action_group: QtGui.QActionGroup
     act_retrace: QtGui.QAction
     act_clear: QtGui.QAction
     act_editor: QtGui.QAction

@@ -232,11 +232,12 @@ def is_dark_mode() -> bool:
     """
     try:
         app = QtWidgets.QApplication.instance()
-        if not app:
+        if not app or not isinstance(app, QtWidgets.QApplication):
             return False
         palette = app.palette()
         bg_color = palette.color(QtGui.QPalette.ColorRole.Window)
-        return bg_color.lightness() < 128
+        lightness: int = bg_color.lightness()
+        return lightness < 128
     except (AttributeError, RuntimeError):
         return False
 
@@ -293,4 +294,5 @@ def question(
                 inverted_pixmap = QtGui.QPixmap.fromImage(img)
                 msg_box.setIconPixmap(inverted_pixmap)
 
-    return msg_box.exec()
+    result: int = msg_box.exec()
+    return QtWidgets.QMessageBox.StandardButton(result)
