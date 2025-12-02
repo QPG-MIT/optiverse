@@ -240,11 +240,52 @@ QDialog {
     color: white;
 }
 
+/* Message Box */
+QMessageBox {
+    background-color: #1a1c21;
+    color: white;
+}
+
+QMessageBox QLabel {
+    color: white;
+    qproperty-alignment: AlignCenter;
+}
+
+QMessageBox QPushButton {
+    background-color: #2d2f36;
+    color: white;
+    border: 1px solid #3d3f46;
+    padding: 5px 15px;
+    border-radius: 3px;
+    min-width: 80px;
+}
+
+QMessageBox QPushButton:hover {
+    background-color: #3d3f46;
+}
+
+QMessageBox QPushButton:pressed {
+    background-color: #23252b;
+}
+
 /* Text Edit */
 QTextEdit, QPlainTextEdit {
     background-color: #2d2f36;
     color: white;
     border: 1px solid #3d3f46;
     border-radius: 3px;
+}
+
+/* Ruler Widget */
+RulerWidget {
+    background-color: #2d2f36;
+    color: white;
+    border: 1px solid #3d3f46;
+}
+
+/* Corner Widget (ruler intersection) */
+QWidget#corner {
+    background-color: #2d2f36;
+    border: 1px solid #3d3f46;
 }
 

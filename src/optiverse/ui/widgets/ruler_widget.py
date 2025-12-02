@@ -45,15 +45,7 @@ class RulerWidget(QtWidgets.QWidget):
                 QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Expanding
             )
 
-        # Styling
-        self.setStyleSheet(
-            """
-            RulerWidget {
-                background-color: #E8E8E8;
-                border: 1px solid #999;
-            }
-        """
-        )
+        # Styling is handled by QSS theme files
 
     def set_cursor_position(self, pos_mm: float | None):
         """Set cursor position in mm (or None to hide indicator)."""
@@ -86,8 +78,9 @@ class RulerWidget(QtWidgets.QWidget):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
 
-        # Draw background (already styled, but ensure it's filled)
-        painter.fillRect(self.rect(), QtGui.QColor("#E8E8E8"))
+        # Draw background using palette color (adapts to theme)
+        bg_color = self.palette().color(QtGui.QPalette.ColorRole.Window)
+        painter.fillRect(self.rect(), bg_color)
 
         if self.orientation == self.HORIZONTAL:
             self._draw_horizontal_ruler(painter)
@@ -110,8 +103,9 @@ class RulerWidget(QtWidgets.QWidget):
         # Calculate range of values to draw
         min_mm, max_mm = self._range_mm
 
-        # Draw ticks and labels
-        painter.setPen(QtGui.QPen(QtGui.QColor("#333"), 1))
+        # Draw ticks and labels using palette colors (adapts to theme)
+        text_color = self.palette().color(QtGui.QPalette.ColorRole.WindowText)
+        painter.setPen(QtGui.QPen(text_color, 1))
         font = painter.font()
         font.setPointSize(8)
         painter.setFont(font)
@@ -163,8 +157,9 @@ class RulerWidget(QtWidgets.QWidget):
         # Calculate range of values to draw
         min_mm, max_mm = self._range_mm
 
-        # Draw ticks and labels
-        painter.setPen(QtGui.QPen(QtGui.QColor("#333"), 1))
+        # Draw ticks and labels using palette colors (adapts to theme)
+        text_color = self.palette().color(QtGui.QPalette.ColorRole.WindowText)
+        painter.setPen(QtGui.QPen(text_color, 1))
         font = painter.font()
         font.setPointSize(8)
         painter.setFont(font)
@@ -300,8 +295,9 @@ class CanvasWithRulers(QtWidgets.QWidget):
 
         # Create corner widget (just a blank space)
         self.corner = QtWidgets.QWidget(self)
+        self.corner.setObjectName("corner")  # Allow QSS to target it
         self.corner.setFixedSize(self.v_ruler.ruler_size, self.h_ruler.ruler_size)
-        self.corner.setStyleSheet("background-color: #D0D0D0; border: 1px solid #999;")
+        # Styling is handled by QSS theme files
 
         # Layout: corner, h_ruler, v_ruler, canvas
         layout = QtWidgets.QGridLayout(self)

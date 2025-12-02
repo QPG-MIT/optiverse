@@ -210,7 +210,10 @@ class LogWindow(QtWidgets.QDialog):
 
     def _clear_log(self):
         """Clear all log messages."""
-        reply = QtWidgets.QMessageBox.question(
+        # Import here to avoid circular import
+        from ...ui.theme_manager import question as theme_aware_question
+        
+        reply = theme_aware_question(
             self,
             "Clear Log",
             "Are you sure you want to clear all log messages?",

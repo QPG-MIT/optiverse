@@ -249,3 +249,16 @@ QTextEdit, QPlainTextEdit {
     border-radius: 3px;
 }
 
+/* Ruler Widget */
+RulerWidget {
+    background-color: #E8E8E8;
+    color: black;
+    border: 1px solid #999;
+}
+
+/* Corner Widget (ruler intersection) */
+QWidget#corner {
+    background-color: #D0D0D0;
+    border: 1px solid #999;
+}
+
