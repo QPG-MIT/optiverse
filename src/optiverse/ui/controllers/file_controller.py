@@ -2,10 +2,12 @@
 File controller for handling save/load/autosave operations.
 
 Extracts file management UI logic from MainWindow.
+Supports importing assemblies as grouped layers.
 """
 
 from __future__ import annotations
 
+import json
 import os
 from typing import TYPE_CHECKING, Callable
 
@@ -16,6 +18,7 @@ from ...services.error_handler import ErrorContext
 from ...services.scene_file_manager import SceneFileManager
 
 if TYPE_CHECKING:
+    from ...core.layer_group import GroupManager
     from ...core.undo_stack import UndoStack
     from ...services.log_service import LogService
 
@@ -40,12 +43,17 @@ class FileController(QtCore.QObject):
         get_ray_data: Callable,
         parent_widget: QtWidgets.QWidget,
         connect_item_signals: Callable | None = None,
+        group_manager: GroupManager | None = None,
     ):
         super().__init__(parent_widget)
 
         self._parent = parent_widget
         self._undo_stack = undo_stack
         self._is_modified = False
+        self._group_manager = group_manager
+        self._log_service = log_service
+        self._scene = scene
+        self._connect_item_signals = connect_item_signals
 
         # Create file manager
         self.file_manager = SceneFileManager(
@@ -56,6 +64,11 @@ class FileController(QtCore.QObject):
             parent_widget=parent_widget,
             connect_item_signals=connect_item_signals,
         )
+
+    def set_group_manager(self, group_manager: GroupManager) -> None:
+        """Set the group manager for import-as-layer functionality."""
+        self._group_manager = group_manager
+        self.file_manager.set_group_manager(group_manager)
 
         # Autosave timer
         self._autosave_timer = QtCore.QTimer()
@@ -187,3 +200,126 @@ class FileController(QtCore.QObject):
         self._undo_stack.clear()
         self.traceRequested.emit()
         return True
+
+    def import_as_layer(self) -> bool:
+        """
+        Import an assembly file as a new layer (group).
+
+        Does not clear the current scene. Creates a group containing
+        all imported items and adds them to the current scene.
+
+        Returns:
+            True if import was successful
+        """
+        with ErrorContext("while importing assembly as layer", suppress=True):
+            path, _ = QtWidgets.QFileDialog.getOpenFileName(
+                self._parent, "Import Assembly as Layer", "", "Optics Assembly (*.json)"
+            )
+            if not path:
+                return False
+
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except (OSError, json.JSONDecodeError) as e:
+                self._log_service.error(f"Failed to load file: {e}", "Import")
+                QtWidgets.QMessageBox.warning(
+                    self._parent,
+                    "Import Failed",
+                    f"Could not read file:\n{e}",
+                )
+                return False
+
+            # Import items without clearing scene
+            imported_uuids = self._import_items_from_data(data)
+
+            if not imported_uuids:
+                QtWidgets.QMessageBox.information(
+                    self._parent,
+                    "Import Complete",
+                    "No items were imported from the file.",
+                )
+                return False
+
+            # Create a group for the imported items
+            if self._group_manager:
+                # Use filename (without extension) as group name
+                group_name = os.path.splitext(os.path.basename(path))[0]
+                self._group_manager.create_group(group_name, imported_uuids)
+
+            # Mark as modified and retrace
+            self.mark_modified()
+            self.traceRequested.emit()
+
+            self._log_service.info(
+                f"Imported {len(imported_uuids)} items as layer '{group_name}'",
+                "Import",
+            )
+
+            return True
+
+        return False
+
+    def _import_items_from_data(self, data: dict) -> list[str]:
+        """
+        Import items from data dict without clearing scene.
+
+        Args:
+            data: Dictionary containing assembly data
+
+        Returns:
+            List of imported item UUIDs
+        """
+        from optiverse.objects.annotations.path_measure_item import PathMeasureItem
+
+        from ...objects import BaseObj, RectangleItem
+        from ...objects.annotations import RulerItem, TextNoteItem
+        from ...objects.type_registry import deserialize_item
+
+        imported_uuids: list[str] = []
+
+        # Import optical items
+        for item_data in data.get("items", []):
+            try:
+                item = deserialize_item(item_data)
+                self._scene.addItem(item)
+                if self._connect_item_signals:
+                    self._connect_item_signals(item)
+                if hasattr(item, "item_uuid"):
+                    imported_uuids.append(item.item_uuid)
+            except (KeyError, ValueError, TypeError) as e:
+                self._log_service.error(f"Error importing item: {e}", "Import")
+
+        # Import rulers
+        for ruler_data in data.get("rulers", []):
+            try:
+                ruler = RulerItem.from_dict(ruler_data)
+                self._scene.addItem(ruler)
+                if self._connect_item_signals:
+                    self._connect_item_signals(ruler)
+                if hasattr(ruler, "item_uuid"):
+                    imported_uuids.append(ruler.item_uuid)
+            except (KeyError, ValueError, TypeError) as e:
+                self._log_service.error(f"Error importing ruler: {e}", "Import")
+
+        # Import text notes
+        for text_data in data.get("texts", []):
+            try:
+                text_item = TextNoteItem.from_dict(text_data)
+                self._scene.addItem(text_item)
+                if hasattr(text_item, "item_uuid"):
+                    imported_uuids.append(text_item.item_uuid)
+            except (KeyError, ValueError, TypeError) as e:
+                self._log_service.error(f"Error importing text: {e}", "Import")
+
+        # Import rectangles
+        for rect_data in data.get("rectangles", []):
+            try:
+                rect_item = RectangleItem.from_dict(rect_data)
+                self._scene.addItem(rect_item)
+                if hasattr(rect_item, "item_uuid"):
+                    imported_uuids.append(rect_item.item_uuid)
+            except (KeyError, ValueError, TypeError) as e:
+                self._log_service.error(f"Error importing rectangle: {e}", "Import")
+
+        return imported_uuids

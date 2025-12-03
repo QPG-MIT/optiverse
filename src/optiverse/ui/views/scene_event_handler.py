@@ -162,6 +162,11 @@ class SceneEventHandler(QtCore.QObject):
             )
             self._drag_handler.handle_mouse_press(mouse_ev)
 
+        # --- Update group positions during drag ---
+        if et == QtCore.QEvent.Type.GraphicsSceneMouseMove:
+            if self._drag_handler.is_dragging_group():
+                self._drag_handler.update_group_positions()
+
         # --- Snap to grid and create move/rotate commands on mouse release ---
         if et == QtCore.QEvent.Type.GraphicsSceneMouseRelease:
             self._drag_handler.handle_mouse_release()

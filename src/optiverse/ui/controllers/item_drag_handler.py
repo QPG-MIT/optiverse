@@ -2,6 +2,7 @@
 Handler for item drag, move, and rotation tracking.
 
 Extracts position/rotation tracking and undo command creation from MainWindow.
+Supports group movement where all items in a group move together.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Callable
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 if TYPE_CHECKING:
+    from ...core.layer_group import GroupManager
     from ...core.undo_stack import UndoStack
 
 
@@ -29,6 +31,7 @@ class ItemDragHandler:
         undo_stack: UndoStack,
         snap_to_grid_getter: Callable[[], bool],
         schedule_retrace: Callable[[], None],
+        group_manager: GroupManager | None = None,
     ):
         """
         Initialize the drag handler.
@@ -39,21 +42,36 @@ class ItemDragHandler:
             undo_stack: Undo stack for command creation
             snap_to_grid_getter: Callable returning whether snap to grid is enabled
             schedule_retrace: Callable to schedule ray retracing
+            group_manager: Optional group manager for group movement
         """
         self.scene = scene
         self.view = view
         self.undo_stack = undo_stack
         self._get_snap_to_grid = snap_to_grid_getter
         self._schedule_retrace = schedule_retrace
+        self._group_manager = group_manager
 
         # Position tracking state
         self._item_positions: dict[QtWidgets.QGraphicsItem, QtCore.QPointF] = {}
         self._item_rotations: dict[QtWidgets.QGraphicsItem, float] = {}
         self._item_group_states: dict[str, Any] = {}
+        
+        # Group movement tracking
+        self._dragging_group = False
+        self._group_items: list[QtWidgets.QGraphicsItem] = []
+        self._group_offsets: dict[QtWidgets.QGraphicsItem, QtCore.QPointF] = {}
+        self._primary_drag_item: QtWidgets.QGraphicsItem | None = None
+
+    def set_group_manager(self, group_manager: GroupManager) -> None:
+        """Set the group manager for group movement support."""
+        self._group_manager = group_manager
 
     def handle_mouse_press(self, event: QtGui.QMouseEvent):
         """
         Track item positions and rotations on mouse press.
+
+        Also handles group movement - when one grouped item is pressed,
+        all group members are tracked for coordinated movement.
 
         Args:
             event: Mouse event from the scene
@@ -68,6 +86,10 @@ class ItemDragHandler:
         self._item_positions.clear()
         self._item_rotations.clear()
         self._item_group_states.clear()
+        self._dragging_group = False
+        self._group_items.clear()
+        self._group_offsets.clear()
+        self._primary_drag_item = None
 
         # Get already-selected items
         selected_items = [
@@ -89,8 +111,25 @@ class ItemDragHandler:
             if isinstance(clicked_item, (BaseObj, RulerItem, TextNoteItem, RectangleItem)):
                 if clicked_item not in selected_items:
                     selected_items.append(clicked_item)
+                self._primary_drag_item = clicked_item
                 break
             clicked_item = clicked_item.parentItem()
+
+        # Check for group membership and expand selection
+        if self._group_manager and self._primary_drag_item:
+            grouped_items = self._group_manager.get_grouped_items(self._primary_drag_item)
+            if len(grouped_items) > 1:
+                self._dragging_group = True
+                self._group_items = grouped_items
+                # Store offsets relative to primary item
+                primary_pos = self._primary_drag_item.pos()
+                for item in grouped_items:
+                    if item != self._primary_drag_item:
+                        offset = item.pos() - primary_pos
+                        self._group_offsets[item] = offset
+                        # Add to selected items for position tracking
+                        if item not in selected_items:
+                            selected_items.append(item)
 
         # Store initial positions
         for it in selected_items:
@@ -111,6 +150,33 @@ class ItemDragHandler:
                     if isinstance(it, (BaseObj, RectangleItem))
                 },
             }
+
+    def update_group_positions(self) -> None:
+        """
+        Update positions of all group members during drag.
+
+        Should be called during mouse move when dragging grouped items.
+        Moves all group members relative to the primary drag item.
+        """
+        if not self._dragging_group or not self._primary_drag_item:
+            return
+
+        primary_pos = self._primary_drag_item.pos()
+
+        for item, offset in self._group_offsets.items():
+            # Temporarily disable signals to prevent cascading updates
+            if hasattr(item, "blockSignals"):
+                item.blockSignals(True)
+            
+            new_pos = primary_pos + offset
+            item.setPos(new_pos)
+            
+            if hasattr(item, "blockSignals"):
+                item.blockSignals(False)
+
+    def is_dragging_group(self) -> bool:
+        """Check if currently dragging a group."""
+        return self._dragging_group
 
     def handle_mouse_release(self) -> bool:
         """
@@ -211,6 +277,10 @@ class ItemDragHandler:
         self._item_positions.clear()
         self._item_rotations.clear()
         self._item_group_states.clear()
+        self._dragging_group = False
+        self._group_items.clear()
+        self._group_offsets.clear()
+        self._primary_drag_item = None
 
         # Schedule retrace
         self._schedule_retrace()
