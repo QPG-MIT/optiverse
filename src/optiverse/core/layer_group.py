@@ -120,6 +120,14 @@ class GroupManager(QtCore.QObject):
             if z_values:
                 group.z_base = max(z_values)
 
+        # If this is a subgroup, remove items from parent group's item list
+        # (they're now in the child group instead)
+        if parent_group_uuid and parent_group_uuid in self._groups:
+            parent_group = self._groups[parent_group_uuid]
+            for item_uuid in (item_uuids or []):
+                if item_uuid in parent_group.item_uuids:
+                    parent_group.item_uuids.remove(item_uuid)
+
         self._groups[group.group_uuid] = group
 
         # Update item-to-group mapping

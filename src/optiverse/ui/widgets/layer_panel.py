@@ -559,16 +559,31 @@ class LayerPanel(QtWidgets.QWidget):
             if not item_uuids:
                 return
 
+            # Check if all items are in the same group (for creating subgroups)
+            parent_group_uuid: str | None = None
+            parent_groups = set()
+            for item_uuid in item_uuids:
+                group = self._group_manager.get_item_group(item_uuid)
+                if group:
+                    parent_groups.add(group.group_uuid)
+
+            # If all items are in the same group, create a subgroup
+            if len(parent_groups) == 1:
+                parent_group_uuid = parent_groups.pop()
+
             undo_stack = self._get_undo_stack()
             if undo_stack:
                 cmd = CreateGroupCommand(
                     self._group_manager,
                     name or "Group",
                     item_uuids,
+                    parent_group_uuid,
                 )
                 undo_stack.push(cmd)
             else:
-                self._group_manager.group_selected_items(name or "Group")
+                self._group_manager.create_group(
+                    name or "Group", item_uuids, parent_group_uuid
+                )
 
     def _ungroup_selected(self) -> None:
         if not self._group_manager:

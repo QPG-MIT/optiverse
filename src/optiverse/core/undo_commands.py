@@ -502,6 +502,13 @@ class CreateGroupCommand(Command):
         if not self._executed:
             if self._group:
                 # Re-add an existing group (redo case)
+                # First remove items from parent group if this is a subgroup
+                if self._parent_group_uuid:
+                    parent = self._group_manager.get_group(self._parent_group_uuid)
+                    if parent:
+                        for item_uuid in self._item_uuids:
+                            if item_uuid in parent.item_uuids:
+                                parent.item_uuids.remove(item_uuid)
                 self._group_manager.add_group(self._group)
             else:
                 # First time creation
@@ -511,9 +518,21 @@ class CreateGroupCommand(Command):
             self._executed = True
 
     def undo(self) -> None:
-        """Delete the group (keep items)."""
+        """Delete the group and restore items to parent if this was a subgroup."""
         if self._executed and self._group:
+            # Delete the group (keep items)
             self._group_manager.delete_group(self._group.group_uuid, keep_items=True)
+
+            # If this was a subgroup, restore items to parent group
+            if self._parent_group_uuid:
+                parent = self._group_manager.get_group(self._parent_group_uuid)
+                if parent:
+                    for item_uuid in self._item_uuids:
+                        if item_uuid not in parent.item_uuids:
+                            parent.item_uuids.append(item_uuid)
+                        self._group_manager._item_to_group[item_uuid] = self._parent_group_uuid
+                    self._group_manager.groupsChanged.emit()
+
             self._executed = False
 
 
