@@ -7,6 +7,12 @@ from typing import TYPE_CHECKING, Callable
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.layer_group import GroupManager, LayerGroup
+from ...core.undo_commands import (
+    AddItemToGroupCommand,
+    CreateGroupCommand,
+    DeleteGroupCommand,
+    RemoveItemFromGroupCommand,
+)
 from ...core.zorder_utils import apply_z_order_change
 from .constants import (
     LAYER_ITEM_MARGIN,
@@ -18,7 +24,7 @@ from .constants import (
 )
 
 if TYPE_CHECKING:
-    pass
+    from ...core.undo_stack import UndoStack
 
 # Shared data role constants
 ITEM_UUID_ROLE = QtCore.Qt.ItemDataRole.UserRole
@@ -222,16 +228,8 @@ class LayerPanel(QtWidgets.QWidget):
         self._tree = LayerTreeWidget()
         self._tree.itemSelectionChanged.connect(self._on_selection_changed)
         self._tree.itemsReordered.connect(self._on_reordered)
-        def add_to_group(uuid: str, group_uuid: str) -> None:
-            if self._group_manager:
-                self._group_manager.add_item_to_group(uuid, group_uuid)
-
-        def remove_from_group(uuid: str) -> None:
-            if self._group_manager:
-                self._group_manager.remove_item_from_group(uuid)
-
-        self._tree.itemDroppedInGroup.connect(add_to_group)
-        self._tree.itemRemovedFromGroup.connect(remove_from_group)
+        self._tree.itemDroppedInGroup.connect(self._on_item_dropped_in_group)
+        self._tree.itemRemovedFromGroup.connect(self._on_item_removed_from_group)
         self._tree.deleteKeyPressed.connect(self._delete_selected)
         self._tree.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._show_context_menu)
@@ -264,6 +262,16 @@ class LayerPanel(QtWidgets.QWidget):
     def set_group_manager(self, group_manager: GroupManager) -> None:
         self._group_manager = group_manager
         group_manager.groupsChanged.connect(self.refresh)
+
+    def _get_undo_stack(self) -> UndoStack | None:
+        """Get the undo stack from the main window."""
+        if not self._scene:
+            return None
+        if views := self._scene.views():
+            window = views[0].window()
+            if window is not None and hasattr(window, "undo_stack"):
+                return window.undo_stack
+        return None
 
     def refresh(self) -> None:
         if not self._scene:
@@ -413,6 +421,28 @@ class LayerPanel(QtWidgets.QWidget):
 
     # --- Group Operations ---
 
+    def _on_item_dropped_in_group(self, item_uuid: str, group_uuid: str) -> None:
+        """Handle item being dropped into a group (via drag-drop)."""
+        if not self._group_manager:
+            return
+        undo_stack = self._get_undo_stack()
+        if undo_stack:
+            cmd = AddItemToGroupCommand(self._group_manager, item_uuid, group_uuid)
+            undo_stack.push(cmd)
+        else:
+            self._group_manager.add_item_to_group(item_uuid, group_uuid)
+
+    def _on_item_removed_from_group(self, item_uuid: str) -> None:
+        """Handle item being removed from a group (via drag-drop)."""
+        if not self._group_manager:
+            return
+        undo_stack = self._get_undo_stack()
+        if undo_stack:
+            cmd = RemoveItemFromGroupCommand(self._group_manager, item_uuid)
+            undo_stack.push(cmd)
+        else:
+            self._group_manager.remove_item_from_group(item_uuid)
+
     def _apply_to_group(self, group_uuid: str, action: Callable) -> None:
         """Apply action recursively to all items in a group."""
         if not self._group_manager:
@@ -513,21 +543,49 @@ class LayerPanel(QtWidgets.QWidget):
     def _group_selected(self) -> None:
         if not self._scene or not self._group_manager:
             return
-        if len(self._scene.selectedItems()) < 2:
+        selected = self._scene.selectedItems()
+        if len(selected) < 2:
             QtWidgets.QMessageBox.information(
                 self, "Group Items", "Please select at least 2 items to group."
             )
             return
         name, ok = QtWidgets.QInputDialog.getText(self, "Create Group", "Group name:", text="Group")
         if ok:
-            self._group_manager.group_selected_items(name or "Group")
+            # Collect item UUIDs
+            item_uuids = [
+                item.item_uuid for item in selected
+                if hasattr(item, "item_uuid")
+            ]
+            if not item_uuids:
+                return
+
+            undo_stack = self._get_undo_stack()
+            if undo_stack:
+                cmd = CreateGroupCommand(
+                    self._group_manager,
+                    name or "Group",
+                    item_uuids,
+                )
+                undo_stack.push(cmd)
+            else:
+                self._group_manager.group_selected_items(name or "Group")
 
     def _ungroup_selected(self) -> None:
         if not self._group_manager:
             return
         for item in self._tree.selectedItems():
             if item.data(0, IS_GROUP_ROLE):
-                self._group_manager.ungroup(item.data(0, GROUP_UUID_ROLE))
+                group_uuid = item.data(0, GROUP_UUID_ROLE)
+                undo_stack = self._get_undo_stack()
+                if undo_stack:
+                    cmd = DeleteGroupCommand(
+                        self._group_manager,
+                        group_uuid,
+                        keep_items=True,
+                    )
+                    undo_stack.push(cmd)
+                else:
+                    self._group_manager.ungroup(group_uuid)
                 return
         QtWidgets.QMessageBox.information(self, "Ungroup", "Please select a group to ungroup.")
 
@@ -538,19 +596,38 @@ class LayerPanel(QtWidgets.QWidget):
         if not selected:
             return
 
+        from ...core.undo_commands import RemoveItemCommand, RemoveMultipleItemsCommand
+
+        undo_stack = self._get_undo_stack()
+
         for item in selected:
             if item.data(0, IS_GROUP_ROLE):
                 if self._group_manager:
-                    self._group_manager.delete_group(item.data(0, GROUP_UUID_ROLE))
+                    group_uuid = item.data(0, GROUP_UUID_ROLE)
+                    if undo_stack:
+                        cmd = DeleteGroupCommand(
+                            self._group_manager,
+                            group_uuid,
+                            keep_items=False,  # Delete items with group
+                        )
+                        undo_stack.push(cmd)
+                    else:
+                        self._group_manager.delete_group(group_uuid)
             else:
                 uuid = item.data(0, ITEM_UUID_ROLE)
                 if uuid:
                     scene_item = self._uuid_cache.get(uuid)
                     if scene_item:
-                        # Remove from group first (this triggers empty group cleanup)
-                        if self._group_manager:
-                            self._group_manager.remove_item_from_group(uuid)
-                        self._scene.removeItem(scene_item)
+                        if undo_stack:
+                            cmd = RemoveItemCommand(
+                                self._scene, scene_item, self._group_manager
+                            )
+                            undo_stack.push(cmd)
+                        else:
+                            # Remove from group first (this triggers empty group cleanup)
+                            if self._group_manager:
+                                self._group_manager.remove_item_from_group(uuid)
+                            self._scene.removeItem(scene_item)
         self.refresh()
 
     def _toggle_property(

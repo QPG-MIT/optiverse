@@ -90,12 +90,15 @@ class RemoveItemCommand(Command):
         self._group_manager = group_manager
         self._executed = False
 
-        # Store group membership for undo support
+        # Store group membership and full group data for undo support
         self._group_uuid: str | None = None
+        self._group_data: dict[str, Any] | None = None
         if group_manager and hasattr(item, "item_uuid"):
             group = group_manager.get_item_group(item.item_uuid)
             if group:
                 self._group_uuid = group.group_uuid
+                # Store full group data in case it gets auto-deleted
+                self._group_data = group.to_dict()
 
     def execute(self) -> None:
         """Remove the item from the scene and its group."""
@@ -110,11 +113,17 @@ class RemoveItemCommand(Command):
         """Add the item back to the scene and restore group membership."""
         if self._executed:
             self.scene.addItem(self.item)
-            # Restore group membership
+            # Restore group membership (recreate group if it was auto-deleted)
             if self._group_manager and self._group_uuid and hasattr(self.item, "item_uuid"):
-                # Only restore if the group still exists
-                if self._group_manager.get_group(self._group_uuid):
-                    self._group_manager.add_item_to_group(self.item.item_uuid, self._group_uuid)
+                # Recreate group if it was auto-deleted
+                if not self._group_manager.get_group(self._group_uuid) and self._group_data:
+                    from .layer_group import LayerGroup
+
+                    group = LayerGroup.from_dict(self._group_data)
+                    self._group_manager.add_group(group)
+
+                # Add item back to group
+                self._group_manager.add_item_to_group(self.item.item_uuid, self._group_uuid)
             self._executed = False
 
 
@@ -218,14 +227,18 @@ class RemoveMultipleItemsCommand(Command):
         self._group_manager = group_manager
         self._executed = False
 
-        # Store group memberships for undo support
+        # Store group memberships and full group data for undo support
         self._item_groups: dict[str, str] = {}  # item_uuid -> group_uuid
+        self._group_data: dict[str, dict[str, Any]] = {}  # group_uuid -> group data
         if group_manager:
             for item in items:
                 if hasattr(item, "item_uuid"):
                     group = group_manager.get_item_group(item.item_uuid)
                     if group:
                         self._item_groups[item.item_uuid] = group.group_uuid
+                        # Store full group data (avoid duplicates)
+                        if group.group_uuid not in self._group_data:
+                            self._group_data[group.group_uuid] = group.to_dict()
 
     def execute(self) -> None:
         """Remove all items from the scene and their groups."""
@@ -244,12 +257,21 @@ class RemoveMultipleItemsCommand(Command):
         if self._executed:
             for item in self.items:
                 self.scene.addItem(item)
-            # Restore group memberships
+            # Restore group memberships (recreate groups if they were auto-deleted)
             if self._group_manager:
+                # First, recreate any auto-deleted groups
+                for group_uuid, group_data in self._group_data.items():
+                    if not self._group_manager.get_group(group_uuid):
+                        from .layer_group import LayerGroup
+
+                        group = LayerGroup.from_dict(group_data)
+                        self._group_manager.add_group(group)
+
+                # Then restore item memberships
                 for item in self.items:
                     if hasattr(item, "item_uuid"):
                         group_uuid = self._item_groups.get(item.item_uuid)
-                        if group_uuid and self._group_manager.get_group(group_uuid):
+                        if group_uuid:
                             self._group_manager.add_item_to_group(item.item_uuid, group_uuid)
             self._executed = False
 
@@ -440,3 +462,204 @@ class ZOrderCommand(Command):
         """Restore old z-values for all items."""
         for item in self.items:
             item.setZValue(self.old_z_values[item])
+
+
+# =============================================================================
+# Group Commands
+# =============================================================================
+
+
+class CreateGroupCommand(Command):
+    """Command to create a new group."""
+
+    def __init__(
+        self,
+        group_manager: GroupManager,
+        name: str,
+        item_uuids: list[str],
+        parent_group_uuid: str | None = None,
+    ):
+        """
+        Initialize CreateGroupCommand.
+
+        Args:
+            group_manager: The group manager to use
+            name: Name of the group
+            item_uuids: List of item UUIDs to add to the group
+            parent_group_uuid: Optional parent group UUID for nested groups
+        """
+        from .layer_group import LayerGroup
+
+        self._group_manager = group_manager
+        self._name = name
+        self._item_uuids = list(item_uuids)
+        self._parent_group_uuid = parent_group_uuid
+        self._group: LayerGroup | None = None
+        self._executed = False
+
+    def execute(self) -> None:
+        """Create the group."""
+        if not self._executed:
+            if self._group:
+                # Re-add an existing group (redo case)
+                self._group_manager.add_group(self._group)
+            else:
+                # First time creation
+                self._group = self._group_manager.create_group(
+                    self._name, self._item_uuids, self._parent_group_uuid
+                )
+            self._executed = True
+
+    def undo(self) -> None:
+        """Delete the group (keep items)."""
+        if self._executed and self._group:
+            self._group_manager.delete_group(self._group.group_uuid, keep_items=True)
+            self._executed = False
+
+
+class DeleteGroupCommand(Command):
+    """Command to delete a group."""
+
+    def __init__(
+        self,
+        group_manager: GroupManager,
+        group_uuid: str,
+        keep_items: bool = True,
+    ):
+        """
+        Initialize DeleteGroupCommand.
+
+        Args:
+            group_manager: The group manager to use
+            group_uuid: UUID of the group to delete
+            keep_items: If True, items remain in scene (ungrouped)
+        """
+        self._group_manager = group_manager
+        self._group_uuid = group_uuid
+        self._keep_items = keep_items
+        self._executed = False
+
+        # Store full group data for restoration
+        group = group_manager.get_group(group_uuid)
+        if group:
+            self._group_data: dict[str, Any] | None = group.to_dict()
+        else:
+            self._group_data = None
+
+        # If not keeping items, store the actual items for restoration
+        self._items: list[QtWidgets.QGraphicsItem] = []
+        if not keep_items and group:
+            self._items = group_manager.get_group_items(group_uuid)
+
+    def execute(self) -> None:
+        """Delete the group."""
+        if not self._executed and self._group_data:
+            self._group_manager.delete_group(self._group_uuid, keep_items=self._keep_items)
+            self._executed = True
+
+    def undo(self) -> None:
+        """Restore the group."""
+        if self._executed and self._group_data:
+            from .layer_group import LayerGroup
+
+            # Re-add items to scene if they were deleted
+            if not self._keep_items and self._items and self._group_manager.scene:
+                for item in self._items:
+                    self._group_manager.scene.addItem(item)
+
+            # Recreate the group
+            group = LayerGroup.from_dict(self._group_data)
+            self._group_manager.add_group(group)
+            self._executed = False
+
+
+class AddItemToGroupCommand(Command):
+    """Command to add an item to a group."""
+
+    def __init__(
+        self,
+        group_manager: GroupManager,
+        item_uuid: str,
+        group_uuid: str,
+    ):
+        """
+        Initialize AddItemToGroupCommand.
+
+        Args:
+            group_manager: The group manager to use
+            item_uuid: UUID of the item to add
+            group_uuid: UUID of the group to add to
+        """
+        self._group_manager = group_manager
+        self._item_uuid = item_uuid
+        self._target_group_uuid = group_uuid
+        self._executed = False
+
+        # Store previous group membership (if any)
+        prev_group = group_manager.get_item_group(item_uuid)
+        self._previous_group_uuid: str | None = prev_group.group_uuid if prev_group else None
+
+    def execute(self) -> None:
+        """Add item to the group."""
+        if not self._executed:
+            self._group_manager.add_item_to_group(self._item_uuid, self._target_group_uuid)
+            self._executed = True
+
+    def undo(self) -> None:
+        """Remove item from group (restore previous membership if any)."""
+        if self._executed:
+            self._group_manager.remove_item_from_group(self._item_uuid)
+            if self._previous_group_uuid:
+                self._group_manager.add_item_to_group(self._item_uuid, self._previous_group_uuid)
+            self._executed = False
+
+
+class RemoveItemFromGroupCommand(Command):
+    """Command to remove an item from its group."""
+
+    def __init__(
+        self,
+        group_manager: GroupManager,
+        item_uuid: str,
+    ):
+        """
+        Initialize RemoveItemFromGroupCommand.
+
+        Args:
+            group_manager: The group manager to use
+            item_uuid: UUID of the item to remove from its group
+        """
+        self._group_manager = group_manager
+        self._item_uuid = item_uuid
+        self._executed = False
+
+        # Store group membership for restoration
+        group = group_manager.get_item_group(item_uuid)
+        self._group_uuid: str | None = group.group_uuid if group else None
+
+        # Store full group data in case it gets auto-deleted
+        if group:
+            self._group_data: dict[str, Any] | None = group.to_dict()
+        else:
+            self._group_data = None
+
+    def execute(self) -> None:
+        """Remove item from its group."""
+        if not self._executed and self._group_uuid:
+            self._group_manager.remove_item_from_group(self._item_uuid)
+            self._executed = True
+
+    def undo(self) -> None:
+        """Restore item to its group (recreate group if auto-deleted)."""
+        if self._executed and self._group_uuid:
+            # Check if group still exists
+            if not self._group_manager.get_group(self._group_uuid) and self._group_data:
+                # Recreate the auto-deleted group
+                from .layer_group import LayerGroup
+
+                group = LayerGroup.from_dict(self._group_data)
+                self._group_manager.add_group(group)
+
+            # Add item back to group
+            self._group_manager.add_item_to_group(self._item_uuid, self._group_uuid)
+            self._executed = False
