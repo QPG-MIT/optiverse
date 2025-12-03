@@ -22,6 +22,41 @@ if TYPE_CHECKING:
     from ...objects.base_obj import BaseObj
 
 
+class ClickableLabel(QtWidgets.QLabel):
+    """
+    A QLabel that acts like a checkable button with proper center alignment.
+
+    Used for visibility and lock toggle icons in the layer panel.
+    """
+
+    clicked = QtCore.pyqtSignal()
+
+    def __init__(self, parent: QtWidgets.QWidget | None = None):
+        super().__init__(parent)
+        self._checked = False
+        self.setAlignment(
+            QtCore.Qt.AlignmentFlag.AlignHCenter | QtCore.Qt.AlignmentFlag.AlignVCenter
+        )
+        self.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.setContentsMargins(0, 0, 0, 0)
+        # Shift text up slightly to compensate for emoji baseline alignment
+        self.setStyleSheet("padding: 0px 0px 4px 0px; margin: 0px;")
+
+    def isChecked(self) -> bool:
+        """Return the checked state."""
+        return self._checked
+
+    def setChecked(self, checked: bool) -> None:
+        """Set the checked state."""
+        self._checked = checked
+
+    def mousePressEvent(self, event: QtGui.QMouseEvent | None) -> None:
+        """Handle mouse press to emit clicked signal."""
+        if event is not None and event.button() == QtCore.Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+
 class LayerItemWidget(QtWidgets.QWidget):
     """
     Custom widget for a layer item row.
@@ -51,24 +86,22 @@ class LayerItemWidget(QtWidgets.QWidget):
         layout.setContentsMargins(2, 2, 2, 2)
         layout.setSpacing(4)
 
-        # Visibility toggle
-        self._visibility_btn = QtWidgets.QToolButton()
-        self._visibility_btn.setCheckable(True)
+        # Visibility toggle - use ClickableLabel for proper center alignment
+        self._visibility_btn = ClickableLabel()
         self._visibility_btn.setChecked(is_visible)
         self._visibility_btn.setToolTip("Toggle visibility")
         self._visibility_btn.setFixedSize(20, 20)
         self._update_visibility_icon()
-        self._visibility_btn.toggled.connect(self._on_visibility_toggled)
+        self._visibility_btn.clicked.connect(self._on_visibility_clicked)
         layout.addWidget(self._visibility_btn)
 
-        # Lock toggle
-        self._lock_btn = QtWidgets.QToolButton()
-        self._lock_btn.setCheckable(True)
+        # Lock toggle - use ClickableLabel for proper center alignment
+        self._lock_btn = ClickableLabel()
         self._lock_btn.setChecked(is_locked)
         self._lock_btn.setToolTip("Toggle lock")
         self._lock_btn.setFixedSize(20, 20)
         self._update_lock_icon()
-        self._lock_btn.toggled.connect(self._on_lock_toggled)
+        self._lock_btn.clicked.connect(self._on_lock_clicked)
         layout.addWidget(self._lock_btn)
 
         # Type indicator for groups
@@ -96,15 +129,19 @@ class LayerItemWidget(QtWidgets.QWidget):
         else:
             self._lock_btn.setText("🔓")
 
-    def _on_visibility_toggled(self, checked: bool) -> None:
-        """Handle visibility toggle."""
+    def _on_visibility_clicked(self) -> None:
+        """Handle visibility click - toggle state."""
+        new_state = not self._visibility_btn.isChecked()
+        self._visibility_btn.setChecked(new_state)
         self._update_visibility_icon()
-        self.visibilityChanged.emit(checked)
+        self.visibilityChanged.emit(new_state)
 
-    def _on_lock_toggled(self, checked: bool) -> None:
-        """Handle lock toggle."""
+    def _on_lock_clicked(self) -> None:
+        """Handle lock click - toggle state."""
+        new_state = not self._lock_btn.isChecked()
+        self._lock_btn.setChecked(new_state)
         self._update_lock_icon()
-        self.lockChanged.emit(checked)
+        self.lockChanged.emit(new_state)
 
 
 class LayerTreeWidget(QtWidgets.QTreeWidget):
@@ -380,6 +417,9 @@ class LayerPanel(QtWidgets.QWidget):
         for tree_item in ungrouped_tree_items:
             self._setup_item_widget(tree_item)
 
+        # Apply expanded states AFTER items are added to tree (Qt ignores setExpanded before add)
+        self._apply_expanded_states(group_tree_items)
+
     def _build_group_tree_item_recursive(
         self,
         group: LayerGroup,
@@ -415,8 +455,8 @@ class LayerPanel(QtWidgets.QWidget):
                 child_item = self._create_item_tree_item(item)
                 group_item.addChild(child_item)
 
-        # Set expanded state
-        group_item.setExpanded(not group.collapsed)
+        # Note: setExpanded() is applied later in _apply_expanded_states()
+        # after all items are added to the tree (Qt ignores setExpanded before add)
 
         return group_item
 
@@ -459,6 +499,26 @@ class LayerPanel(QtWidgets.QWidget):
             else:
                 # Child is an item
                 self._setup_item_widget(child)
+
+    def _apply_expanded_states(
+        self, group_tree_items: dict[str, QtWidgets.QTreeWidgetItem]
+    ) -> None:
+        """
+        Apply expanded/collapsed states to group tree items.
+
+        Must be called AFTER items are added to the tree, as Qt ignores
+        setExpanded() for items not yet in the tree widget.
+
+        Args:
+            group_tree_items: Dict of group_uuid -> tree widget item
+        """
+        if not self._group_manager:
+            return
+
+        for group_uuid, tree_item in group_tree_items.items():
+            group = self._group_manager.get_group(group_uuid)
+            if group:
+                tree_item.setExpanded(not group.collapsed)
 
     def _create_group_tree_item(self, group: LayerGroup) -> QtWidgets.QTreeWidgetItem:
         """Create a tree item for a group."""
@@ -712,7 +772,7 @@ class LayerPanel(QtWidgets.QWidget):
 
     def _on_group_expanded(self, item: QtWidgets.QTreeWidgetItem) -> None:
         """Handle group expand."""
-        if not self._group_manager:
+        if self._updating or not self._group_manager:
             return
         group_uuid = item.data(0, self.GROUP_UUID_ROLE)
         if group_uuid:
@@ -720,7 +780,7 @@ class LayerPanel(QtWidgets.QWidget):
 
     def _on_group_collapsed(self, item: QtWidgets.QTreeWidgetItem) -> None:
         """Handle group collapse."""
-        if not self._group_manager:
+        if self._updating or not self._group_manager:
             return
         group_uuid = item.data(0, self.GROUP_UUID_ROLE)
         if group_uuid:
@@ -851,6 +911,9 @@ class LayerPanel(QtWidgets.QWidget):
                 item_uuid = tree_item.data(0, self.ITEM_UUID_ROLE)
                 item = self._get_item_by_uuid(item_uuid)
                 if item:
+                    # Remove from group first (triggers auto-delete if empty)
+                    if self._group_manager and item_uuid:
+                        self._group_manager.remove_item_from_group(item_uuid)
                     self._scene.removeItem(item)
 
         self.refresh()
@@ -944,6 +1007,9 @@ class LayerPanel(QtWidgets.QWidget):
                 item_uuid = item.data(0, self.ITEM_UUID_ROLE)
                 scene_item = self._get_item_by_uuid(item_uuid)
                 if scene_item and self._scene:
+                    # Remove from group first (triggers auto-delete if empty)
+                    if self._group_manager and item_uuid:
+                        self._group_manager.remove_item_from_group(item_uuid)
                     self._scene.removeItem(scene_item)
                 self.refresh()
 

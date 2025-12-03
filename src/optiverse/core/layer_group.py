@@ -197,6 +197,9 @@ class GroupManager(QtCore.QObject):
         """
         Remove an item from its group.
 
+        If the group becomes empty (no items and no child groups), it is
+        automatically deleted.
+
         Args:
             item_uuid: UUID of the item to remove
 
@@ -211,6 +214,13 @@ class GroupManager(QtCore.QObject):
             group = self._groups[group_uuid]
             if item_uuid in group.item_uuids:
                 group.item_uuids.remove(item_uuid)
+
+            # Auto-delete empty groups (no items and no child groups)
+            if not group.item_uuids and not self.get_child_groups(group_uuid):
+                # Delete the empty group (keep_items=True since there are none)
+                del self._item_to_group[item_uuid]
+                self.delete_group(group_uuid, keep_items=True)
+                return True
 
         del self._item_to_group[item_uuid]
         self.groupsChanged.emit()

@@ -15,6 +15,8 @@ from .protocols import Editable, HasParams, Undoable
 if TYPE_CHECKING:
     from PyQt6 import QtWidgets
 
+    from .layer_group import GroupManager
+
 
 class Command(ABC):
     """Abstract base class for undoable commands."""
@@ -69,28 +71,50 @@ class AddItemCommand(Command):
 class RemoveItemCommand(Command):
     """Command to remove an item from the scene."""
 
-    def __init__(self, scene: QtWidgets.QGraphicsScene, item: QtWidgets.QGraphicsItem):
+    def __init__(
+        self,
+        scene: QtWidgets.QGraphicsScene,
+        item: QtWidgets.QGraphicsItem,
+        group_manager: GroupManager | None = None,
+    ):
         """
         Initialize RemoveItemCommand.
 
         Args:
             scene: The graphics scene to remove the item from
             item: The graphics item to remove
+            group_manager: Optional group manager for group membership cleanup
         """
         self.scene = scene
         self.item = item
+        self._group_manager = group_manager
         self._executed = False
 
+        # Store group membership for undo support
+        self._group_uuid: str | None = None
+        if group_manager and hasattr(item, "item_uuid"):
+            group = group_manager.get_item_group(item.item_uuid)
+            if group:
+                self._group_uuid = group.group_uuid
+
     def execute(self) -> None:
-        """Remove the item from the scene."""
+        """Remove the item from the scene and its group."""
         if not self._executed:
+            # Remove from group first (triggers auto-delete if empty)
+            if self._group_manager and hasattr(self.item, "item_uuid"):
+                self._group_manager.remove_item_from_group(self.item.item_uuid)
             self.scene.removeItem(self.item)
             self._executed = True
 
     def undo(self) -> None:
-        """Add the item back to the scene."""
+        """Add the item back to the scene and restore group membership."""
         if self._executed:
             self.scene.addItem(self.item)
+            # Restore group membership
+            if self._group_manager and self._group_uuid and hasattr(self.item, "item_uuid"):
+                # Only restore if the group still exists
+                if self._group_manager.get_group(self._group_uuid):
+                    self._group_manager.add_item_to_group(self.item.item_uuid, self._group_uuid)
             self._executed = False
 
 
@@ -175,30 +199,58 @@ class AddMultipleItemsCommand(Command):
 class RemoveMultipleItemsCommand(Command):
     """Command to remove multiple items from the scene in a single operation."""
 
-    def __init__(self, scene: QtWidgets.QGraphicsScene, items: list[QtWidgets.QGraphicsItem]):
+    def __init__(
+        self,
+        scene: QtWidgets.QGraphicsScene,
+        items: list[QtWidgets.QGraphicsItem],
+        group_manager: GroupManager | None = None,
+    ):
         """
         Initialize RemoveMultipleItemsCommand.
 
         Args:
             scene: The graphics scene to remove items from
             items: The list of graphics items to remove
+            group_manager: Optional group manager for group membership cleanup
         """
         self.scene = scene
         self.items = items
+        self._group_manager = group_manager
         self._executed = False
 
+        # Store group memberships for undo support
+        self._item_groups: dict[str, str] = {}  # item_uuid -> group_uuid
+        if group_manager:
+            for item in items:
+                if hasattr(item, "item_uuid"):
+                    group = group_manager.get_item_group(item.item_uuid)
+                    if group:
+                        self._item_groups[item.item_uuid] = group.group_uuid
+
     def execute(self) -> None:
-        """Remove all items from the scene."""
+        """Remove all items from the scene and their groups."""
         if not self._executed:
+            # Remove from groups first (triggers auto-delete if empty)
+            if self._group_manager:
+                for item in self.items:
+                    if hasattr(item, "item_uuid"):
+                        self._group_manager.remove_item_from_group(item.item_uuid)
             for item in self.items:
                 self.scene.removeItem(item)
             self._executed = True
 
     def undo(self) -> None:
-        """Add all items back to the scene."""
+        """Add all items back to the scene and restore group memberships."""
         if self._executed:
             for item in self.items:
                 self.scene.addItem(item)
+            # Restore group memberships
+            if self._group_manager:
+                for item in self.items:
+                    if hasattr(item, "item_uuid"):
+                        group_uuid = self._item_groups.get(item.item_uuid)
+                        if group_uuid and self._group_manager.get_group(group_uuid):
+                            self._group_manager.add_item_to_group(item.item_uuid, group_uuid)
             self._executed = False
 
 

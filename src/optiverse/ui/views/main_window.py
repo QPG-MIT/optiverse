@@ -338,6 +338,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # Connect group manager to layer panel refresh
         self.group_manager.groupsChanged.connect(self.layer_panel.refresh)
 
+        # Set group manager on component ops for delete operations
+        self.component_ops.set_group_manager(self.group_manager)
+
         # Initial refresh to show any existing items
         QtCore.QTimer.singleShot(100, self.layer_panel.refresh)
 

@@ -152,15 +152,11 @@ class SceneEventHandler(QtCore.QObject):
         # --- Track item positions and rotations on mouse press ---
         if et == QtCore.QEvent.Type.GraphicsSceneMousePress:
             mev = cast(QtWidgets.QGraphicsSceneMouseEvent, ev)
-            # Convert QGraphicsSceneMouseEvent to QMouseEvent for drag handler
-            mouse_ev = QtGui.QMouseEvent(
-                QtCore.QEvent.Type.MouseButtonPress,
-                mev.pos(),  # localPos
-                mev.button(),
-                mev.buttons(),
-                mev.modifiers(),
+            # Pass scene position and modifiers directly to drag handler
+            # (mev.pos() is item-local coords, mev.scenePos() is scene coords)
+            self._drag_handler.handle_mouse_press_at_scene_pos(
+                mev.scenePos(), mev.modifiers()
             )
-            self._drag_handler.handle_mouse_press(mouse_ev)
 
         # --- Update group positions during drag ---
         if et == QtCore.QEvent.Type.GraphicsSceneMouseMove:
