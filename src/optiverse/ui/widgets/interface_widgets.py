@@ -51,12 +51,10 @@ class InterfaceTreeWidget(QtWidgets.QTreeWidget):
         with property widgets (EditableLabel, checkboxes, etc.) embedded in tree items.
         """
         # Check if focus is on an embedded widget inside this tree
-        app = QtGui.QGuiApplication.instance()
-        if app:
-            focused = app.focusWidget()
-            if focused is not None and focused is not self and self.isAncestorOf(focused):
-                # Don't scroll - user is interacting with an embedded widget
-                return
+        focused = QtWidgets.QApplication.focusWidget()
+        if focused is not None and focused is not self and self.isAncestorOf(focused):
+            # Don't scroll - user is interacting with an embedded widget
+            return
         super().scrollTo(index, hint)
 
 
