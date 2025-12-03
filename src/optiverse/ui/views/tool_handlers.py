@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, cast
+from typing import TYPE_CHECKING, Callable
 
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -797,7 +797,8 @@ class PathMeasureToolHandler:
             np.linalg.norm(points[j + 1] - points[j]) for j in range(len(points) - 1)
         )
         if total_length < 1e-6:
-            return cast(np.ndarray, points[0].copy())
+            first_point: np.ndarray = points[0].copy()
+            return first_point
 
         target_dist = param * total_length
         accumulated: float = 0.0
@@ -808,12 +809,13 @@ class PathMeasureToolHandler:
 
             if accumulated + segment_len >= target_dist:
                 t = (target_dist - accumulated) / segment_len if segment_len > 0 else 0
-                result = p1 + t * (p2 - p1)
-                return cast(np.ndarray, result)
+                interpolated: np.ndarray = p1 + t * (p2 - p1)
+                return interpolated
 
             accumulated = float(accumulated + segment_len)
 
-        return cast(np.ndarray, points[-1].copy())
+        final_result: np.ndarray = points[-1].copy()
+        return final_result
 
     def _find_param_on_ray(
         self, ray_data_list: list[RayPath], ray_index: int, click_pt: np.ndarray
