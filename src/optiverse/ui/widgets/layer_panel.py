@@ -22,69 +22,6 @@ if TYPE_CHECKING:
     from ...objects.base_obj import BaseObj
 
 
-class LayerTreeWidget(QtWidgets.QTreeWidget):
-    """
-    Tree widget for displaying scene layers.
-
-    Supports:
-    - Drag and drop to reorder z-position
-    - Click to select items in scene
-    - Context menu for layer operations
-    """
-
-    # Signals
-    itemsReordered = QtCore.pyqtSignal()  # Emitted when z-order changes via drag
-    deleteKeyPressed = QtCore.pyqtSignal()  # Emitted when Delete/Backspace pressed
-
-    def __init__(self, parent: QtWidgets.QWidget | None = None):
-        super().__init__(parent)
-
-        self.setHeaderHidden(True)
-        self.setIndentation(16)
-        self.setRootIsDecorated(True)
-        self.setAnimated(True)
-        self.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
-
-        # Enable drag and drop
-        self.setDragEnabled(True)
-        self.setAcceptDrops(True)
-        self.setDropIndicatorShown(True)
-        self.setDragDropMode(QtWidgets.QAbstractItemView.DragDropMode.InternalMove)
-
-        # Styling
-        self.setStyleSheet(
-            """
-            QTreeWidget::item {
-                padding: 4px 2px;
-            }
-            QTreeWidget::item:selected {
-                background-color: #3d5a80;
-                color: white;
-            }
-            QTreeWidget::item:hover {
-                background-color: #4a6fa5;
-            }
-        """
-        )
-
-    def keyPressEvent(self, event: QtGui.QKeyEvent | None) -> None:
-        """Handle key presses."""
-        if event is None:
-            return
-        if event.key() in (QtCore.Qt.Key.Key_Delete, QtCore.Qt.Key.Key_Backspace):
-            self.deleteKeyPressed.emit()
-            event.accept()
-        else:
-            super().keyPressEvent(event)
-
-    def dropEvent(self, event: QtGui.QDropEvent | None) -> None:
-        """Handle drop to reorder items."""
-        if event is None:
-            return
-        super().dropEvent(event)
-        self.itemsReordered.emit()
-
-
 class LayerItemWidget(QtWidgets.QWidget):
     """
     Custom widget for a layer item row.
@@ -134,10 +71,11 @@ class LayerItemWidget(QtWidgets.QWidget):
         self._lock_btn.toggled.connect(self._on_lock_toggled)
         layout.addWidget(self._lock_btn)
 
-        # Type indicator
-        type_label = QtWidgets.QLabel("📁" if is_group else "◆")
-        type_label.setFixedWidth(16)
-        layout.addWidget(type_label)
+        # Type indicator for groups
+        if is_group:
+            type_label = QtWidgets.QLabel("📁")
+            type_label.setFixedWidth(16)
+            layout.addWidget(type_label)
 
         # Name label
         self._name_label = QtWidgets.QLabel(name)
@@ -168,23 +106,120 @@ class LayerItemWidget(QtWidgets.QWidget):
         self._update_lock_icon()
         self.lockChanged.emit(checked)
 
-    def set_name(self, name: str) -> None:
-        """Update the displayed name."""
-        self._name_label.setText(name)
 
-    def set_visible(self, visible: bool) -> None:
-        """Set visibility state."""
-        self._visibility_btn.blockSignals(True)
-        self._visibility_btn.setChecked(visible)
-        self._update_visibility_icon()
-        self._visibility_btn.blockSignals(False)
+class LayerTreeWidget(QtWidgets.QTreeWidget):
+    """
+    Tree widget for displaying scene layers.
 
-    def set_locked(self, locked: bool) -> None:
-        """Set lock state."""
-        self._lock_btn.blockSignals(True)
-        self._lock_btn.setChecked(locked)
-        self._update_lock_icon()
-        self._lock_btn.blockSignals(False)
+    Supports:
+    - Drag and drop to reorder z-position
+    - Drag items into groups
+    - Click to select items in scene
+    - Context menu for layer operations
+    """
+
+    # Signals
+    itemsReordered = QtCore.pyqtSignal()  # Emitted when z-order changes via drag
+    deleteKeyPressed = QtCore.pyqtSignal()  # Emitted when Delete/Backspace pressed
+    itemDroppedInGroup = QtCore.pyqtSignal(str, str)  # item_uuid, group_uuid
+    itemRemovedFromGroup = QtCore.pyqtSignal(str)  # item_uuid (moved to top level)
+
+    def __init__(self, parent: QtWidgets.QWidget | None = None):
+        super().__init__(parent)
+
+        self.setHeaderHidden(True)
+        self.setIndentation(16)
+        self.setRootIsDecorated(True)
+        self.setAnimated(True)
+        self.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
+
+        # Enable drag and drop
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDropIndicatorShown(True)
+        self.setDragDropMode(QtWidgets.QAbstractItemView.DragDropMode.InternalMove)
+
+        # Styling
+        self.setStyleSheet(
+            """
+            QTreeWidget::item {
+                padding: 4px 2px;
+            }
+            QTreeWidget::item:selected {
+                background-color: #3d5a80;
+                color: white;
+            }
+            QTreeWidget::item:hover {
+                background-color: #4a6fa5;
+            }
+        """
+        )
+
+    def keyPressEvent(self, event: QtGui.QKeyEvent | None) -> None:
+        """Handle key presses."""
+        if event is None:
+            return
+        if event.key() in (QtCore.Qt.Key.Key_Delete, QtCore.Qt.Key.Key_Backspace):
+            self.deleteKeyPressed.emit()
+            event.accept()
+        else:
+            super().keyPressEvent(event)
+
+    def dropEvent(self, event: QtGui.QDropEvent | None) -> None:
+        """Handle drop to reorder items or add to groups."""
+        if event is None:
+            return
+
+        # Let Qt handle the actual move
+        super().dropEvent(event)
+
+        # After the drop, scan the tree and emit signals for group membership changes
+        self._sync_group_membership()
+
+        # Emit signal to trigger refresh (widgets get detached during drag)
+        self.itemsReordered.emit()
+
+    def _sync_group_membership(self) -> None:
+        """Scan tree structure and emit signals for group membership changes."""
+        # Collect items in each group based on current tree structure
+        items_in_groups: dict[str, list[str]] = {}  # group_uuid -> list of item_uuids
+        top_level_items: list[str] = []  # item_uuids at top level
+
+        for i in range(self.topLevelItemCount()):
+            top_item = self.topLevelItem(i)
+            if not top_item:
+                continue
+
+            is_group = top_item.data(0, QtCore.Qt.ItemDataRole.UserRole + 2)  # IS_GROUP_ROLE
+            if is_group:
+                group_uuid = top_item.data(0, QtCore.Qt.ItemDataRole.UserRole + 1)  # GROUP_UUID_ROLE
+                if group_uuid:
+                    items_in_groups[group_uuid] = []
+                    # Collect children
+                    for j in range(top_item.childCount()):
+                        child = top_item.child(j)
+                        if child:
+                            child_is_group = child.data(0, QtCore.Qt.ItemDataRole.UserRole + 2)
+                            if not child_is_group:
+                                item_uuid = child.data(0, QtCore.Qt.ItemDataRole.UserRole)
+                                if item_uuid:
+                                    items_in_groups[group_uuid].append(item_uuid)
+            else:
+                # Top-level item (not a group)
+                item_uuid = top_item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+                if item_uuid:
+                    top_level_items.append(item_uuid)
+
+        # Emit signals for items in groups
+        for group_uuid, item_uuids in items_in_groups.items():
+            for item_uuid in item_uuids:
+                self.itemDroppedInGroup.emit(item_uuid, group_uuid)
+
+        # Emit signals for items at top level (removed from groups)
+        for item_uuid in top_level_items:
+            self.itemRemovedFromGroup.emit(item_uuid)
+
+
 
 
 class LayerPanel(QtWidgets.QWidget):
@@ -208,6 +243,7 @@ class LayerPanel(QtWidgets.QWidget):
         self._scene: QtWidgets.QGraphicsScene | None = None
         self._group_manager: GroupManager | None = None
         self._updating = False  # Prevent recursive updates
+        self._z_counter = 100.0  # Used during z-order updates
 
         self._setup_ui()
 
@@ -248,6 +284,8 @@ class LayerPanel(QtWidgets.QWidget):
         self._tree = LayerTreeWidget()
         self._tree.itemSelectionChanged.connect(self._on_tree_selection_changed)
         self._tree.itemsReordered.connect(self._on_items_reordered)
+        self._tree.itemDroppedInGroup.connect(self._on_item_dropped_in_group)
+        self._tree.itemRemovedFromGroup.connect(self._on_item_removed_from_group)
         self._tree.deleteKeyPressed.connect(self._delete_selected)
         self._tree.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._show_context_menu)
@@ -293,7 +331,7 @@ class LayerPanel(QtWidgets.QWidget):
             self._updating = False
 
     def _rebuild_tree(self) -> None:
-        """Rebuild the tree from scene items."""
+        """Rebuild the tree from scene items, supporting nested groups."""
         self._tree.clear()
 
         if not self._scene:
@@ -315,43 +353,112 @@ class LayerPanel(QtWidgets.QWidget):
             for group in self._group_manager.get_all_groups():
                 grouped_uuids.update(group.item_uuids)
 
-        # Collect all tree items for deferred widget setup
-        all_tree_items: list[QtWidgets.QTreeWidgetItem] = []
-
-        # Add groups first
+        # Dictionary to track all created tree items for groups
         group_tree_items: dict[str, QtWidgets.QTreeWidgetItem] = {}
+
+        # Add only root groups (those without a parent) at top level
         if self._group_manager:
-            for group in self._group_manager.get_all_groups():
-                group_item = self._create_group_tree_item(group)
+            root_groups = self._group_manager.get_root_groups()
+            for group in root_groups:
+                group_item = self._build_group_tree_item_recursive(
+                    group, items_with_z, group_tree_items
+                )
                 self._tree.addTopLevelItem(group_item)
-                group_tree_items[group.group_uuid] = group_item
-                all_tree_items.append(group_item)
 
-                # Add group members as children
-                for z, item in items_with_z:
-                    if hasattr(item, "item_uuid") and item.item_uuid in group.item_uuids:
-                        child_item = self._create_item_tree_item(item)
-                        group_item.addChild(child_item)
-                        all_tree_items.append(child_item)
-
-                # Set expanded state
-                group_item.setExpanded(not group.collapsed)
-
-        # Add ungrouped items
+        # Add ungrouped items at top level
+        ungrouped_tree_items: list[QtWidgets.QTreeWidgetItem] = []
         for z, item in items_with_z:
             if hasattr(item, "item_uuid"):
                 if item.item_uuid not in grouped_uuids:
                     tree_item = self._create_item_tree_item(item)
                     self._tree.addTopLevelItem(tree_item)
-                    all_tree_items.append(tree_item)
+                    ungrouped_tree_items.append(tree_item)
 
-        # Now set up widgets for all items (they're now in the tree)
-        for tree_item in all_tree_items:
-            is_group = tree_item.data(0, self.IS_GROUP_ROLE)
+        # Set up widgets for all items (must be done after adding to tree)
+        self._setup_widgets_recursive(group_tree_items)
+
+        for tree_item in ungrouped_tree_items:
+            self._setup_item_widget(tree_item)
+
+    def _build_group_tree_item_recursive(
+        self,
+        group: LayerGroup,
+        items_with_z: list[tuple[float, QtWidgets.QGraphicsItem]],
+        group_tree_items: dict[str, QtWidgets.QTreeWidgetItem],
+    ) -> QtWidgets.QTreeWidgetItem:
+        """
+        Build a tree item for a group and its children recursively.
+
+        Args:
+            group: The LayerGroup to build
+            items_with_z: List of (z_value, item) tuples for scene items
+            group_tree_items: Dict to track created group tree items
+
+        Returns:
+            The created tree widget item for this group
+        """
+        group_item = self._create_group_tree_item(group)
+        group_tree_items[group.group_uuid] = group_item
+
+        # Add child groups first (nested groups)
+        if self._group_manager:
+            child_groups = self._group_manager.get_child_groups(group.group_uuid)
+            for child_group in child_groups:
+                child_group_item = self._build_group_tree_item_recursive(
+                    child_group, items_with_z, group_tree_items
+                )
+                group_item.addChild(child_group_item)
+
+        # Add group's direct items as children
+        for z, item in items_with_z:
+            if hasattr(item, "item_uuid") and item.item_uuid in group.item_uuids:
+                child_item = self._create_item_tree_item(item)
+                group_item.addChild(child_item)
+
+        # Set expanded state
+        group_item.setExpanded(not group.collapsed)
+
+        return group_item
+
+    def _setup_widgets_recursive(
+        self, group_tree_items: dict[str, QtWidgets.QTreeWidgetItem]
+    ) -> None:
+        """
+        Set up widgets for all groups and their children recursively.
+
+        Args:
+            group_tree_items: Dict of group_uuid -> tree widget item
+        """
+        for group_uuid, group_item in group_tree_items.items():
+            self._setup_group_widget(group_item)
+            # Set up widgets for all children (both items and nested groups)
+            self._setup_children_widgets_recursive(group_item, group_tree_items)
+
+    def _setup_children_widgets_recursive(
+        self,
+        parent_item: QtWidgets.QTreeWidgetItem,
+        group_tree_items: dict[str, QtWidgets.QTreeWidgetItem],
+    ) -> None:
+        """
+        Set up widgets for children of a tree item recursively.
+
+        Args:
+            parent_item: Parent tree widget item
+            group_tree_items: Dict of group_uuid -> tree widget item
+        """
+        for i in range(parent_item.childCount()):
+            child = parent_item.child(i)
+            if not child:
+                continue
+
+            is_group = child.data(0, self.IS_GROUP_ROLE)
             if is_group:
-                self._setup_group_widget(tree_item)
+                # Child is a nested group - widget already set up in _setup_widgets_recursive
+                # Just recurse to set up its children
+                self._setup_children_widgets_recursive(child, group_tree_items)
             else:
-                self._setup_item_widget(tree_item)
+                # Child is an item
+                self._setup_item_widget(child)
 
     def _create_group_tree_item(self, group: LayerGroup) -> QtWidgets.QTreeWidgetItem:
         """Create a tree item for a group."""
@@ -367,11 +474,11 @@ class LayerPanel(QtWidgets.QWidget):
         return tree_item
 
     def _setup_group_widget(self, tree_item: QtWidgets.QTreeWidgetItem) -> None:
-        """Set up the widget for a group tree item after it's added to the tree."""
+        """Set up the widget for a group tree item."""
         group_uuid = tree_item.data(0, self.GROUP_UUID_ROLE)
         if not group_uuid or not self._group_manager:
             return
-        
+
         group = self._group_manager.get_group(group_uuid)
         if not group:
             return
@@ -403,7 +510,7 @@ class LayerPanel(QtWidgets.QWidget):
         return tree_item
 
     def _setup_item_widget(self, tree_item: QtWidgets.QTreeWidgetItem) -> None:
-        """Set up the widget for an item tree item after it's added to the tree."""
+        """Set up the widget for an item tree item."""
         item_uuid = tree_item.data(0, self.ITEM_UUID_ROLE)
         if not item_uuid:
             return
@@ -457,12 +564,10 @@ class LayerPanel(QtWidgets.QWidget):
             for tree_item in self._tree.selectedItems():
                 is_group = tree_item.data(0, self.IS_GROUP_ROLE)
                 if is_group:
-                    # Select all items in group
+                    # Select all items in group (including nested groups)
                     group_uuid = tree_item.data(0, self.GROUP_UUID_ROLE)
                     if self._group_manager:
-                        group = self._group_manager.get_group(group_uuid)
-                        if group:
-                            selected_uuids.extend(group.item_uuids)
+                        self._collect_group_items_recursive(group_uuid, selected_uuids)
                 else:
                     item_uuid = tree_item.data(0, self.ITEM_UUID_ROLE)
                     if item_uuid:
@@ -477,6 +582,30 @@ class LayerPanel(QtWidgets.QWidget):
             self.selectionChanged.emit(selected_uuids)
         finally:
             self._updating = False
+
+    def _collect_group_items_recursive(
+        self, group_uuid: str, item_uuids: list[str]
+    ) -> None:
+        """
+        Recursively collect all item UUIDs from a group and its children.
+
+        Args:
+            group_uuid: UUID of the group
+            item_uuids: List to append item UUIDs to
+        """
+        if not self._group_manager:
+            return
+
+        group = self._group_manager.get_group(group_uuid)
+        if not group:
+            return
+
+        # Add direct items
+        item_uuids.extend(group.item_uuids)
+
+        # Recurse into child groups
+        for child_group in self._group_manager.get_child_groups(group_uuid):
+            self._collect_group_items_recursive(child_group.group_uuid, item_uuids)
 
     def sync_from_scene_selection(self) -> None:
         """Sync tree selection from scene selection."""
@@ -520,36 +649,59 @@ class LayerPanel(QtWidgets.QWidget):
             if child:
                 self._select_tree_item_recursive(child, uuids)
 
+    def _on_item_dropped_in_group(self, item_uuid: str, group_uuid: str) -> None:
+        """Handle item dropped into a group."""
+        if not self._group_manager:
+            return
+
+        # Add item to the group (this also removes from previous group if any)
+        self._group_manager.add_item_to_group(item_uuid, group_uuid)
+
+    def _on_item_removed_from_group(self, item_uuid: str) -> None:
+        """Handle item removed from a group (moved to top level)."""
+        if not self._group_manager:
+            return
+
+        # Remove item from its group
+        self._group_manager.remove_item_from_group(item_uuid)
+
     def _on_items_reordered(self) -> None:
-        """Handle drag-drop reorder - update z-values."""
+        """Handle drag-drop reorder - update z-values and refresh widgets."""
         if not self._scene:
             return
 
         # Rebuild z-order from tree order (top = highest z)
-        z = 100.0  # Start high so we have room
+        self._z_counter = 100.0  # Start high so we have room
 
         for i in range(self._tree.topLevelItemCount()):
             tree_item = self._tree.topLevelItem(i)
-            if not tree_item:
-                continue
+            if tree_item:
+                self._update_z_values_recursive(tree_item)
 
-            is_group = tree_item.data(0, self.IS_GROUP_ROLE)
-            if is_group:
-                # Update all items in group
-                for j in range(tree_item.childCount()):
-                    child = tree_item.child(j)
-                    if child:
-                        item_uuid = child.data(0, self.ITEM_UUID_ROLE)
-                        item = self._get_item_by_uuid(item_uuid)
-                        if item:
-                            item.setZValue(z)
-                            z -= 1.0
-            else:
-                item_uuid = tree_item.data(0, self.ITEM_UUID_ROLE)
-                item = self._get_item_by_uuid(item_uuid)
-                if item:
-                    item.setZValue(z)
-                    z -= 1.0
+        # Refresh to recreate widgets (they get detached during drag)
+        self.refresh()
+
+    def _update_z_values_recursive(self, tree_item: QtWidgets.QTreeWidgetItem) -> None:
+        """
+        Recursively update z-values for tree items.
+
+        Args:
+            tree_item: Tree item to process (group or item)
+        """
+        is_group = tree_item.data(0, self.IS_GROUP_ROLE)
+        if is_group:
+            # Process all children of the group
+            for j in range(tree_item.childCount()):
+                child = tree_item.child(j)
+                if child:
+                    self._update_z_values_recursive(child)
+        else:
+            # It's an item - update its z-value
+            item_uuid = tree_item.data(0, self.ITEM_UUID_ROLE)
+            item = self._get_item_by_uuid(item_uuid)
+            if item:
+                item.setZValue(self._z_counter)
+                self._z_counter -= 1.0
 
     def _on_item_double_clicked(
         self, item: QtWidgets.QTreeWidgetItem, column: int
@@ -587,21 +739,45 @@ class LayerPanel(QtWidgets.QWidget):
             item.set_locked(locked)
 
     def _set_group_visibility(self, group_uuid: str, visible: bool) -> None:
-        """Set visibility of all items in a group."""
+        """Set visibility of all items in a group (including nested groups)."""
         if not self._group_manager:
             return
+        self._set_group_visibility_recursive(group_uuid, visible)
+
+    def _set_group_visibility_recursive(self, group_uuid: str, visible: bool) -> None:
+        """Recursively set visibility for a group and all nested groups."""
+        if not self._group_manager:
+            return
+
+        # Set visibility for direct items
         items = self._group_manager.get_group_items(group_uuid)
         for item in items:
             item.setVisible(visible)
 
+        # Recurse into child groups
+        for child_group in self._group_manager.get_child_groups(group_uuid):
+            self._set_group_visibility_recursive(child_group.group_uuid, visible)
+
     def _set_group_locked(self, group_uuid: str, locked: bool) -> None:
-        """Set lock state of all items in a group."""
+        """Set lock state of all items in a group (including nested groups)."""
         if not self._group_manager:
             return
+        self._set_group_locked_recursive(group_uuid, locked)
+
+    def _set_group_locked_recursive(self, group_uuid: str, locked: bool) -> None:
+        """Recursively set lock state for a group and all nested groups."""
+        if not self._group_manager:
+            return
+
+        # Set lock for direct items
         items = self._group_manager.get_group_items(group_uuid)
         for item in items:
             if hasattr(item, "set_locked"):
                 item.set_locked(locked)
+
+        # Recurse into child groups
+        for child_group in self._group_manager.get_child_groups(group_uuid):
+            self._set_group_locked_recursive(child_group.group_uuid, locked)
 
     def _group_selected(self) -> None:
         """Group currently selected items."""

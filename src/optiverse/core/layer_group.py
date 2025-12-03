@@ -24,6 +24,7 @@ class LayerGroup:
 
     Groups are identified by UUID and contain references to item UUIDs.
     The visual hierarchy is managed by the LayerPanel, not Qt's item groups.
+    Supports nested groups via parent_group_uuid.
     """
 
     name: str
@@ -31,16 +32,20 @@ class LayerGroup:
     group_uuid: str = field(default_factory=lambda: str(uuid.uuid4()))
     collapsed: bool = False  # UI state for layer panel
     z_base: float = 0.0  # Base z-value for the group
+    parent_group_uuid: str | None = None  # UUID of parent group (for nested groups)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize group to dictionary."""
-        return {
+        data = {
             "name": self.name,
             "item_uuids": self.item_uuids.copy(),
             "group_uuid": self.group_uuid,
             "collapsed": self.collapsed,
             "z_base": self.z_base,
         }
+        if self.parent_group_uuid is not None:
+            data["parent_group_uuid"] = self.parent_group_uuid
+        return data
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> LayerGroup:
@@ -51,6 +56,7 @@ class LayerGroup:
             group_uuid=data.get("group_uuid", str(uuid.uuid4())),
             collapsed=data.get("collapsed", False),
             z_base=data.get("z_base", 0.0),
+            parent_group_uuid=data.get("parent_group_uuid"),
         )
 
 
@@ -83,7 +89,10 @@ class GroupManager(QtCore.QObject):
         return self._scene
 
     def create_group(
-        self, name: str, item_uuids: list[str] | None = None
+        self,
+        name: str,
+        item_uuids: list[str] | None = None,
+        parent_group_uuid: str | None = None,
     ) -> LayerGroup:
         """
         Create a new group with the given name and optional items.
@@ -91,11 +100,16 @@ class GroupManager(QtCore.QObject):
         Args:
             name: Display name for the group
             item_uuids: Optional list of item UUIDs to add to the group
+            parent_group_uuid: Optional UUID of a parent group (for nested groups)
 
         Returns:
             The created LayerGroup
         """
-        group = LayerGroup(name=name, item_uuids=item_uuids or [])
+        group = LayerGroup(
+            name=name,
+            item_uuids=item_uuids or [],
+            parent_group_uuid=parent_group_uuid,
+        )
 
         # Calculate z_base from items
         if item_uuids and self._scene:
@@ -118,7 +132,7 @@ class GroupManager(QtCore.QObject):
 
     def delete_group(self, group_uuid: str, keep_items: bool = True) -> None:
         """
-        Delete a group.
+        Delete a group and all its child groups.
 
         Args:
             group_uuid: UUID of the group to delete
@@ -128,7 +142,14 @@ class GroupManager(QtCore.QObject):
         if group_uuid not in self._groups:
             return
 
-        group = self._groups[group_uuid]
+        # First, recursively delete all child groups
+        child_groups = self.get_child_groups(group_uuid)
+        for child_group in child_groups:
+            self.delete_group(child_group.group_uuid, keep_items=keep_items)
+
+        group = self._groups.get(group_uuid)
+        if not group:
+            return  # Already deleted
 
         # Remove items from scene if requested
         if not keep_items and self._scene:
@@ -253,6 +274,22 @@ class GroupManager(QtCore.QObject):
         """Get all groups."""
         return list(self._groups.values())
 
+    def get_root_groups(self) -> list[LayerGroup]:
+        """Get all top-level groups (groups with no parent)."""
+        return [g for g in self._groups.values() if g.parent_group_uuid is None]
+
+    def get_child_groups(self, parent_uuid: str) -> list[LayerGroup]:
+        """
+        Get all groups that are children of the specified parent group.
+
+        Args:
+            parent_uuid: UUID of the parent group
+
+        Returns:
+            List of child groups
+        """
+        return [g for g in self._groups.values() if g.parent_group_uuid == parent_uuid]
+
     def rename_group(self, group_uuid: str, new_name: str) -> bool:
         """
         Rename a group.
@@ -287,7 +324,7 @@ class GroupManager(QtCore.QObject):
         return [group.to_dict() for group in self._groups.values()]
 
     def from_dict_list(self, data: list[dict[str, Any]]) -> None:
-        """Load groups from a list of dictionaries."""
+        """Load groups from a list of dictionaries (clears existing groups)."""
         self.clear()
         for group_data in data:
             group = LayerGroup.from_dict(group_data)
@@ -295,6 +332,28 @@ class GroupManager(QtCore.QObject):
             for item_uuid in group.item_uuids:
                 self._item_to_group[item_uuid] = group.group_uuid
         self.groupsChanged.emit()
+
+    def import_groups_from_dict_list(
+        self, data: list[dict[str, Any]]
+    ) -> list[LayerGroup]:
+        """
+        Import groups from a list of dictionaries without clearing existing groups.
+
+        Args:
+            data: List of group dictionaries to import
+
+        Returns:
+            List of imported LayerGroup objects
+        """
+        imported_groups = []
+        for group_data in data:
+            group = LayerGroup.from_dict(group_data)
+            self._groups[group.group_uuid] = group
+            for item_uuid in group.item_uuids:
+                self._item_to_group[item_uuid] = group.group_uuid
+            imported_groups.append(group)
+        self.groupsChanged.emit()
+        return imported_groups
 
     def group_selected_items(self, name: str = "Group") -> LayerGroup | None:
         """
@@ -332,4 +391,40 @@ class GroupManager(QtCore.QObject):
             group_uuid: UUID of the group to ungroup
         """
         self.delete_group(group_uuid, keep_items=True)
+
+    def add_group(self, group: LayerGroup) -> None:
+        """
+        Add an existing LayerGroup to the manager.
+
+        Useful for importing groups from files.
+
+        Args:
+            group: The LayerGroup to add
+        """
+        self._groups[group.group_uuid] = group
+
+        # Update item-to-group mapping
+        for item_uuid in group.item_uuids:
+            self._item_to_group[item_uuid] = group.group_uuid
+
+        self.groupCreated.emit(group.group_uuid)
+        self.groupsChanged.emit()
+
+    def set_group_parent(self, group_uuid: str, parent_uuid: str | None) -> bool:
+        """
+        Set the parent group for a group.
+
+        Args:
+            group_uuid: UUID of the group to modify
+            parent_uuid: UUID of the new parent group, or None to make it a root group
+
+        Returns:
+            True if successful, False if group doesn't exist
+        """
+        if group_uuid not in self._groups:
+            return False
+
+        self._groups[group_uuid].parent_group_uuid = parent_uuid
+        self.groupsChanged.emit()
+        return True
 

@@ -79,6 +79,11 @@ def main() -> int:
     Returns:
         Exit code (0 for success, 1 for error)
     """
+    # Install stderr filter to suppress harmless macOS warnings (TSM errors)
+    from ..platform.macos import install_macos_stderr_filter
+
+    install_macos_stderr_filter()
+
     # Configure basic logging
     logging.basicConfig(
         level=logging.INFO,

@@ -65,6 +65,10 @@ class FileController(QtCore.QObject):
             connect_item_signals=connect_item_signals,
         )
 
+        # Forward group_manager to file manager for saving/loading groups
+        if group_manager:
+            self.file_manager.set_group_manager(group_manager)
+
     def set_group_manager(self, group_manager: GroupManager) -> None:
         """Set the group manager for import-as-layer functionality."""
         self._group_manager = group_manager
@@ -205,8 +209,9 @@ class FileController(QtCore.QObject):
         """
         Import an assembly file as a new layer (group).
 
-        Does not clear the current scene. Creates a group containing
-        all imported items and adds them to the current scene.
+        Does not clear the current scene. Creates a parent group containing
+        all imported items. Preserves any group hierarchy from the imported file
+        as nested groups under the parent group.
 
         Returns:
             True if import was successful
@@ -231,7 +236,9 @@ class FileController(QtCore.QObject):
                 return False
 
             # Import items without clearing scene
-            imported_uuids = self._import_items_from_data(data)
+            imported_uuids, file_groups, grouped_uuids = self._import_items_from_data(
+                data
+            )
 
             if not imported_uuids:
                 QtWidgets.QMessageBox.information(
@@ -241,11 +248,31 @@ class FileController(QtCore.QObject):
                 )
                 return False
 
-            # Create a group for the imported items
+            # Use filename (without extension) as parent group name
+            group_name = os.path.splitext(os.path.basename(path))[0]
+
             if self._group_manager:
-                # Use filename (without extension) as group name
-                group_name = os.path.splitext(os.path.basename(path))[0]
-                self._group_manager.create_group(group_name, imported_uuids)
+                # Find ungrouped items (items not in any group from the file)
+                ungrouped_uuids = [
+                    uuid for uuid in imported_uuids if uuid not in grouped_uuids
+                ]
+
+                # Create the parent group with only ungrouped items
+                parent_group = self._group_manager.create_group(
+                    group_name, ungrouped_uuids
+                )
+
+                # Import groups from the file and set them as children of parent
+                if file_groups:
+                    imported_groups = self._group_manager.import_groups_from_dict_list(
+                        file_groups
+                    )
+                    # Set parent for all imported root groups (those without a parent)
+                    for group in imported_groups:
+                        if group.parent_group_uuid is None:
+                            self._group_manager.set_group_parent(
+                                group.group_uuid, parent_group.group_uuid
+                            )
 
             # Mark as modified and retrace
             self.mark_modified()
@@ -260,7 +287,9 @@ class FileController(QtCore.QObject):
 
         return False
 
-    def _import_items_from_data(self, data: dict) -> list[str]:
+    def _import_items_from_data(
+        self, data: dict
+    ) -> tuple[list[str], list[dict], set[str]]:
         """
         Import items from data dict without clearing scene.
 
@@ -268,7 +297,10 @@ class FileController(QtCore.QObject):
             data: Dictionary containing assembly data
 
         Returns:
-            List of imported item UUIDs
+            Tuple of:
+            - List of all imported item UUIDs
+            - List of group dicts from the file (for hierarchy preservation)
+            - Set of item UUIDs that were in groups in the file
         """
         from optiverse.objects.annotations.path_measure_item import PathMeasureItem
 
@@ -322,4 +354,10 @@ class FileController(QtCore.QObject):
             except (KeyError, ValueError, TypeError) as e:
                 self._log_service.error(f"Error importing rectangle: {e}", "Import")
 
-        return imported_uuids
+        # Get groups from the file and track which items are grouped
+        file_groups = data.get("groups", [])
+        grouped_uuids: set[str] = set()
+        for group_data in file_groups:
+            grouped_uuids.update(group_data.get("item_uuids", []))
+
+        return imported_uuids, file_groups, grouped_uuids
