@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, cast
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -270,7 +270,7 @@ class LayerPanel(QtWidgets.QWidget):
         if views := self._scene.views():
             window = views[0].window()
             if window is not None and hasattr(window, "undo_stack"):
-                return window.undo_stack
+                return cast("UndoStack | None", window.undo_stack)
         return None
 
     def refresh(self) -> None:
@@ -633,7 +633,7 @@ class LayerPanel(QtWidgets.QWidget):
         if not selected:
             return
 
-        from ...core.undo_commands import RemoveItemCommand, RemoveMultipleItemsCommand
+        from ...core.undo_commands import RemoveItemCommand
 
         undo_stack = self._get_undo_stack()
 
@@ -656,10 +656,10 @@ class LayerPanel(QtWidgets.QWidget):
                     scene_item = self._uuid_cache.get(uuid)
                     if scene_item:
                         if undo_stack:
-                            cmd = RemoveItemCommand(
+                            remove_cmd = RemoveItemCommand(
                                 self._scene, scene_item, self._group_manager
                             )
-                            undo_stack.push(cmd)
+                            undo_stack.push(remove_cmd)
                         else:
                             # Remove from group first (this triggers empty group cleanup)
                             if self._group_manager:

@@ -252,8 +252,8 @@ class FileController(QtCore.QObject):
             group_name = os.path.splitext(os.path.basename(path))[0]
 
             if self._group_manager:
-                from ...core.undo_commands import ImportAsLayerCommand
                 from ...core.layer_group import LayerGroup
+                from ...core.undo_commands import ImportAsLayerCommand
 
                 # Get UUIDs of imported items
                 imported_uuids = [

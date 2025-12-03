@@ -270,9 +270,9 @@ class RemoveMultipleItemsCommand(Command):
                 # Then restore item memberships
                 for item in self.items:
                     if hasattr(item, "item_uuid"):
-                        group_uuid = self._item_groups.get(item.item_uuid)
-                        if group_uuid:
-                            self._group_manager.add_item_to_group(item.item_uuid, group_uuid)
+                        item_group_uuid: str | None = self._item_groups.get(item.item_uuid)
+                        if item_group_uuid:
+                            self._group_manager.add_item_to_group(item.item_uuid, item_group_uuid)
             self._executed = False
 
 
@@ -745,8 +745,6 @@ class ImportAsLayerCommand(Command):
 
     def undo(self) -> None:
         """Remove imported items and groups."""
-        from .layer_group import LayerGroup
-
         # Remove imported groups (in reverse order to handle hierarchy)
         for group_data in reversed(self._imported_groups_data):
             group_uuid = group_data.get("group_uuid")
