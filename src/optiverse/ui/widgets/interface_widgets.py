@@ -9,7 +9,12 @@ This module contains:
 
 from __future__ import annotations
 
+from typing import Any
+
 from PyQt6 import QtCore, QtGui, QtWidgets
+
+from ...core import interface_types
+from ...core.interface_definition import InterfaceDefinition
 
 
 class InterfaceTreeWidget(QtWidgets.QTreeWidget):
@@ -41,7 +46,9 @@ class InterfaceTreeWidget(QtWidgets.QTreeWidget):
     def scrollTo(
         self,
         index: QtCore.QModelIndex,
-        hint: QtWidgets.QAbstractItemView.ScrollHint = QtWidgets.QAbstractItemView.ScrollHint.EnsureVisible,
+        hint: QtWidgets.QAbstractItemView.ScrollHint = (
+            QtWidgets.QAbstractItemView.ScrollHint.EnsureVisible
+        ),
     ):
         """Override to prevent scrolling when embedded widgets have focus.
 
