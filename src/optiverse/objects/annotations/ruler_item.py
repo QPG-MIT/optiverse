@@ -23,6 +23,7 @@ from ...core.ui_constants import (
     RULER_TOTAL_LABEL_PERP_OFFSET,
 )
 from ...core.zorder_utils import handle_z_order_from_menu
+from ...ui.theme_manager import is_dark_mode
 
 
 class RulerItem(QtWidgets.QGraphicsObject):
@@ -284,6 +285,7 @@ class RulerItem(QtWidgets.QGraphicsObject):
         seg_dx: float,
         seg_dy: float,
         is_selected: bool,
+        dark_mode: bool = False,
     ) -> None:
         """Draw a text label at the given position with proper rotation."""
         # Ensure text is always readable (flip direction if needed)
@@ -307,6 +309,9 @@ class RulerItem(QtWidgets.QGraphicsObject):
         if is_selected:
             bg_color = QtGui.QColor(255, 255, 255, RULER_LABEL_BG_ALPHA_SELECTED)
             text_color = QtGui.QColor(0, 120, 215)  # Selection blue
+        elif dark_mode:
+            bg_color = QtGui.QColor(40, 40, 40, RULER_LABEL_BG_ALPHA)  # Dark background
+            text_color = QtGui.QColor(255, 255, 255)  # White text
         else:
             bg_color = QtGui.QColor(255, 255, 255, RULER_LABEL_BG_ALPHA)
             text_color = QtGui.QColor(20, 20, 20)
@@ -334,10 +339,14 @@ class RulerItem(QtWidgets.QGraphicsObject):
 
         is_selected = self.isSelected()
 
-        # Line appearance based on selection
+        # Line appearance based on selection and theme
+        dark_mode = is_dark_mode()
         if is_selected:
             base_color = QtGui.QColor(0, 120, 215)  # Blue for selection
             line_width = RULER_LINE_WIDTH_SELECTED
+        elif dark_mode:
+            base_color = QtGui.QColor(255, 255, 255)  # White for dark mode
+            line_width = RULER_LINE_WIDTH
         else:
             base_color = QtGui.QColor(30, 30, 30)
             line_width = RULER_LINE_WIDTH
@@ -378,7 +387,12 @@ class RulerItem(QtWidgets.QGraphicsObject):
             dir_x, dir_y = dx / length, dy / length
             perp_x, perp_y = -dir_y, dir_x
 
-            bar_color = base_color if is_selected else QtGui.QColor(QtCore.Qt.GlobalColor.black)
+            if is_selected:
+                bar_color = base_color
+            elif dark_mode:
+                bar_color = QtGui.QColor(255, 255, 255)  # White for dark mode
+            else:
+                bar_color = QtGui.QColor(QtCore.Qt.GlobalColor.black)
             self._draw_bar(painter, self._points[i], dir_x, dir_y, perp_x, perp_y, bar_color)
 
         # Draw labels
@@ -389,19 +403,19 @@ class RulerItem(QtWidgets.QGraphicsObject):
                 seg_dx = self._points[i + 1].x() - self._points[i].x()
                 seg_dy = self._points[i + 1].y() - self._points[i].y()
                 seg_txt = f"{segment_lengths[i]:.1f} mm"
-                self._draw_label(painter, seg_mid, seg_txt, seg_dx, seg_dy, is_selected)
+                self._draw_label(painter, seg_mid, seg_txt, seg_dx, seg_dy, is_selected, dark_mode)
 
             # Total length label
             total_pos = self._compute_total_label_position()
             total_txt = f"Total: {total_length:.1f} mm"
-            self._draw_label(painter, total_pos, total_txt, 1.0, 0.0, is_selected)
+            self._draw_label(painter, total_pos, total_txt, 1.0, 0.0, is_selected, dark_mode)
         else:
             # Single segment: show total distance label
             mid = (self._points[0] + self._points[1]) * 0.5
             total_txt = f"{total_length:.1f} mm"
             seg_dx = self._points[1].x() - self._points[0].x()
             seg_dy = self._points[1].y() - self._points[0].y()
-            self._draw_label(painter, mid, total_txt, seg_dx, seg_dy, is_selected)
+            self._draw_label(painter, mid, total_txt, seg_dx, seg_dy, is_selected, dark_mode)
 
     # ========== Mouse Event Handling ==========
 
