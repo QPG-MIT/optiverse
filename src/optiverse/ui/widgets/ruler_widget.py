@@ -13,6 +13,21 @@ import math
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
+from .constants import (
+    RULER_DEFAULT_RANGE_MM,
+    RULER_FONT_SIZE,
+    RULER_INDICATOR_FILL,
+    RULER_INDICATOR_HEIGHT,
+    RULER_INDICATOR_STROKE,
+    RULER_INDICATOR_TRIANGLE_SIZE,
+    RULER_LABEL_HEIGHT,
+    RULER_LABEL_WIDTH,
+    RULER_MAJOR_TICK_OFFSET,
+    RULER_MINOR_TICK_SIZE,
+    RULER_SIZE,
+    RULER_TARGET_TICK_PIXELS,
+)
+
 
 class RulerWidget(QtWidgets.QWidget):
     """Base class for ruler widgets with position indicator."""
@@ -27,11 +42,11 @@ class RulerWidget(QtWidgets.QWidget):
         self._cursor_pos: float | None = None  # Position in mm
         self._scale: float = 1.0  # Screen pixels per mm
         self._offset: float = 0.0  # Offset in screen pixels
-        self._range_mm: tuple[float, float] = (-50.0, 50.0)  # Visible range in mm
+        self._range_mm: tuple[float, float] = RULER_DEFAULT_RANGE_MM
         self._show_mm: bool = True  # Show mm units (else show pixels)
 
         # Ruler dimensions
-        self.ruler_size = 25  # Height for horizontal, width for vertical
+        self.ruler_size = RULER_SIZE
 
         # Set size policy
         if orientation == self.HORIZONTAL:
@@ -91,7 +106,7 @@ class RulerWidget(QtWidgets.QWidget):
         if self._cursor_pos is not None:
             self._draw_indicator(painter, self._cursor_pos)
 
-    def _draw_horizontal_ruler(self, painter: QtGui.QPainter):
+    def _draw_horizontal_ruler(self, painter: QtGui.QPainter) -> None:
         """Draw horizontal ruler markings."""
         width = self.width()
         height = self.height()
@@ -107,7 +122,7 @@ class RulerWidget(QtWidgets.QWidget):
         text_color = self.palette().color(QtGui.QPalette.ColorRole.WindowText)
         painter.setPen(QtGui.QPen(text_color, 1))
         font = painter.font()
-        font.setPointSize(8)
+        font.setPointSize(RULER_FONT_SIZE)
         painter.setFont(font)
 
         # Start from first major tick before min_mm
@@ -122,7 +137,7 @@ class RulerWidget(QtWidgets.QWidget):
 
                 if is_major:
                     # Major tick (full height)
-                    tick_height = height - 5
+                    tick_height = height - RULER_MAJOR_TICK_OFFSET
                     painter.drawLine(int(screen_x), height - tick_height, int(screen_x), height)
 
                     # Draw label
@@ -133,19 +148,19 @@ class RulerWidget(QtWidgets.QWidget):
                         pixels = pos_mm / (self._scale / self._get_canvas_scale())
                         label = f"{pixels:.0f}"
 
+                    half_width = RULER_LABEL_WIDTH // 2
                     painter.drawText(
-                        QtCore.QRectF(screen_x - 30, 2, 60, 12),
+                        QtCore.QRectF(screen_x - half_width, 2, RULER_LABEL_WIDTH, RULER_LABEL_HEIGHT),
                         QtCore.Qt.AlignmentFlag.AlignCenter,
                         label,
                     )
                 else:
                     # Minor tick
-                    tick_height = 5
-                    painter.drawLine(int(screen_x), height - tick_height, int(screen_x), height)
+                    painter.drawLine(int(screen_x), height - RULER_MINOR_TICK_SIZE, int(screen_x), height)
 
             pos_mm += minor_interval_mm
 
-    def _draw_vertical_ruler(self, painter: QtGui.QPainter):
+    def _draw_vertical_ruler(self, painter: QtGui.QPainter) -> None:
         """Draw vertical ruler markings."""
         width = self.width()
         height = self.height()
@@ -161,7 +176,7 @@ class RulerWidget(QtWidgets.QWidget):
         text_color = self.palette().color(QtGui.QPalette.ColorRole.WindowText)
         painter.setPen(QtGui.QPen(text_color, 1))
         font = painter.font()
-        font.setPointSize(8)
+        font.setPointSize(RULER_FONT_SIZE)
         painter.setFont(font)
 
         # Start from first major tick before min_mm
@@ -176,7 +191,7 @@ class RulerWidget(QtWidgets.QWidget):
 
                 if is_major:
                     # Major tick (full width)
-                    tick_width = width - 5
+                    tick_width = width - RULER_MAJOR_TICK_OFFSET
                     painter.drawLine(width - tick_width, int(screen_y), width, int(screen_y))
 
                     # Draw label (rotated for vertical ruler)
@@ -187,21 +202,23 @@ class RulerWidget(QtWidgets.QWidget):
                         pixels = pos_mm / (self._scale / self._get_canvas_scale())
                         label = f"{pixels:.0f}"
 
+                    half_width = RULER_LABEL_WIDTH // 2
                     painter.save()
                     painter.translate(width - 2, screen_y)
                     painter.rotate(-90)
                     painter.drawText(
-                        QtCore.QRectF(-30, -10, 60, 12), QtCore.Qt.AlignmentFlag.AlignCenter, label
+                        QtCore.QRectF(-half_width, -10, RULER_LABEL_WIDTH, RULER_LABEL_HEIGHT),
+                        QtCore.Qt.AlignmentFlag.AlignCenter,
+                        label,
                     )
                     painter.restore()
                 else:
                     # Minor tick
-                    tick_width = 5
-                    painter.drawLine(width - tick_width, int(screen_y), width, int(screen_y))
+                    painter.drawLine(width - RULER_MINOR_TICK_SIZE, int(screen_y), width, int(screen_y))
 
             pos_mm += minor_interval_mm
 
-    def _draw_indicator(self, painter: QtGui.QPainter, pos_mm: float):
+    def _draw_indicator(self, painter: QtGui.QPainter, pos_mm: float) -> None:
         """Draw triangular cursor position indicator."""
         if self.orientation == self.HORIZONTAL:
             screen_x = self._mm_to_screen_x(pos_mm)
@@ -214,13 +231,13 @@ class RulerWidget(QtWidgets.QWidget):
             points = QtGui.QPolygonF(
                 [
                     QtCore.QPointF(screen_x, 0),
-                    QtCore.QPointF(screen_x - 5, 7),
-                    QtCore.QPointF(screen_x + 5, 7),
+                    QtCore.QPointF(screen_x - RULER_INDICATOR_TRIANGLE_SIZE, RULER_INDICATOR_HEIGHT),
+                    QtCore.QPointF(screen_x + RULER_INDICATOR_TRIANGLE_SIZE, RULER_INDICATOR_HEIGHT),
                 ]
             )
 
-            painter.setBrush(QtGui.QBrush(QtGui.QColor("#FF4444")))
-            painter.setPen(QtGui.QPen(QtGui.QColor("#CC0000"), 1))
+            painter.setBrush(QtGui.QBrush(QtGui.QColor(RULER_INDICATOR_FILL)))
+            painter.setPen(QtGui.QPen(QtGui.QColor(RULER_INDICATOR_STROKE), 1))
             painter.drawPolygon(points)
 
         else:  # VERTICAL
@@ -234,13 +251,13 @@ class RulerWidget(QtWidgets.QWidget):
             points = QtGui.QPolygonF(
                 [
                     QtCore.QPointF(0, screen_y),
-                    QtCore.QPointF(7, screen_y - 5),
-                    QtCore.QPointF(7, screen_y + 5),
+                    QtCore.QPointF(RULER_INDICATOR_HEIGHT, screen_y - RULER_INDICATOR_TRIANGLE_SIZE),
+                    QtCore.QPointF(RULER_INDICATOR_HEIGHT, screen_y + RULER_INDICATOR_TRIANGLE_SIZE),
                 ]
             )
 
-            painter.setBrush(QtGui.QBrush(QtGui.QColor("#FF4444")))
-            painter.setPen(QtGui.QPen(QtGui.QColor("#CC0000"), 1))
+            painter.setBrush(QtGui.QBrush(QtGui.QColor(RULER_INDICATOR_FILL)))
+            painter.setPen(QtGui.QPen(QtGui.QColor(RULER_INDICATOR_STROKE), 1))
             painter.drawPolygon(points)
 
     def _mm_to_screen_x(self, mm: float) -> float:
@@ -256,9 +273,8 @@ class RulerWidget(QtWidgets.QWidget):
 
     def _calculate_tick_interval(self) -> float:
         """Calculate appropriate tick interval based on scale."""
-        # Aim for major ticks every 50-100 pixels
-        target_pixels = 75
-        interval_mm = target_pixels / self._scale if self._scale > 0 else 10.0
+        # Aim for major ticks every ~75 pixels
+        interval_mm = RULER_TARGET_TICK_PIXELS / self._scale if self._scale > 0 else 10.0
 
         # Round to nice values (1, 2, 5, 10, 20, 50, 100, etc.)
         magnitude = 10 ** int(math.log10(interval_mm))

@@ -3,26 +3,17 @@
 from __future__ import annotations
 
 import json
-from typing import Protocol, runtime_checkable
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.constants import MIME_OPTICS_COMPONENT
-
-
-@runtime_checkable
-class HasComponentEditor(Protocol):
-    """Protocol marker for windows that can open component editor."""
-
-    def open_component_editor(self, component: dict | None = None) -> None:
-        """Open the component editor."""
-        ...
+from ..protocols import HasComponentEditor
 
 
 class LibraryTree(QtWidgets.QTreeWidget):
     """Drag-enabled library tree for component templates organized by category."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
         self.setHeaderHidden(True)
         self.setIconSize(QtCore.QSize(64, 64))
@@ -37,12 +28,12 @@ class LibraryTree(QtWidgets.QTreeWidget):
         # Expand all categories by default
         self.expandAll()
 
-    def focusOutEvent(self, event):
+    def focusOutEvent(self, event: QtGui.QFocusEvent | None) -> None:
         """Clear selection when focus leaves the library tree."""
         self.clearSelection()
         super().focusOutEvent(event)
 
-    def _show_context_menu(self, position):
+    def _show_context_menu(self, position: QtCore.QPoint) -> None:
         """Show context menu for component items."""
         item = self.itemAt(position)
         if not item:
@@ -64,14 +55,15 @@ class LibraryTree(QtWidgets.QTreeWidget):
         # Show menu at cursor position
         menu.exec(self.viewport().mapToGlobal(position))
 
-    def _edit_component(self, component_data: dict):
+    def _edit_component(self, component_data: dict) -> None:
         """Open component editor with the selected component loaded."""
         # Get the main window parent
         main_window = self.window()
         if isinstance(main_window, HasComponentEditor):
             main_window.open_component_editor(component_data)
 
-    def startDrag(self, actions):
+    def startDrag(self, actions: QtCore.Qt.DropAction) -> None:
+        """Start a drag operation for the selected component."""
         it = self.currentItem()
         if not it:
             return

@@ -289,3 +289,56 @@ QWidget#corner {
     border: 1px solid #3d3f46;
 }
 
+/* =============================================================================
+   Layer Panel Widgets
+   ============================================================================= */
+
+/* Layer Tree Widget */
+LayerTreeWidget {
+    background-color: #1a1c21;
+    color: white;
+    border: 1px solid #3d3f46;
+}
+
+LayerTreeWidget::item {
+    padding: 4px 2px;
+}
+
+LayerTreeWidget::item:selected {
+    background-color: #3d5a80;
+    color: white;
+}
+
+LayerTreeWidget::item:hover {
+    background-color: #4a6fa5;
+}
+
+/* Interface Tree Panel */
+InterfaceTreeWidget::item:selected {
+    background-color: #4d4f56;
+    color: white;
+}
+
+/* Clickable Label (visibility/lock toggles) */
+ClickableLabel {
+    padding: 0px 0px 4px 0px;
+    margin: 0px;
+}
+
+/* Editable Label */
+EditableLabel QLabel {
+    padding: 2px;
+}
+
+/* Layer Panel Title */
+QLabel#layerPanelTitle {
+    font-weight: bold;
+    font-size: 11pt;
+}
+
+/* Placeholder Labels (empty state) */
+QLabel#placeholderLabel {
+    color: gray;
+    font-style: italic;
+}
+
