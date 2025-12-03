@@ -52,6 +52,12 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         self._tree.setIndentation(INTERFACE_TREE_INDENTATION)
         self._tree.setRootIsDecorated(True)
         self._tree.setAnimated(True)
+
+        # Disable expand on double-click to prevent interference with embedded widgets
+        # Users can still expand/collapse via the arrow or keyboard
+        self._tree.setExpandsOnDoubleClick(False)
+
+        # Enable multi-selection
         self._tree.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
         self._tree.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._tree.setHorizontalScrollMode(QtWidgets.QAbstractItemView.ScrollMode.ScrollPerPixel)
@@ -79,10 +85,14 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         self._tree.itemCollapsed.connect(self._on_item_collapsed)
         self._tree.itemChanged.connect(self._on_item_renamed)
 
-        # Whitespace click handling
-        viewport = self._tree.viewport()
-        if viewport is not None:
-            viewport.installEventFilter(self)
+        # Connect Delete/Backspace key handler
+        self._tree.deleteKeyPressed.connect(self._handle_delete_key)
+
+        # Connect F2 rename key handler
+        self._tree.renameKeyPressed.connect(self._handle_rename_key)
+
+        # Allow clicking on white space to deselect
+        self._tree.viewport().installEventFilter(self)
 
         layout.addWidget(self._tree, 1)
 
@@ -204,12 +214,13 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         item = QtWidgets.QTreeWidgetItem()
         display_name = interface.name if interface.name else f"Interface {index + 1}"
         item.setText(0, display_name)
-        flags = (
-            item.flags()
-            | QtCore.Qt.ItemFlag.ItemIsSelectable
-            | QtCore.Qt.ItemFlag.ItemIsEditable
-        )
-        item.setFlags(flags)
+
+        # Make item selectable but NOT editable via double-click
+        # (double-click is reserved for EditableLabel widgets in the property panel)
+        # Use F2 key or context menu to rename interfaces instead
+        item.setFlags(item.flags() | QtCore.Qt.ItemFlag.ItemIsSelectable)
+
+        # Store interface index in item data for later retrieval
         item.setData(0, QtCore.Qt.ItemDataRole.UserRole, index)
 
         prop_widget = InterfacePropertiesWidget(interface, show_coordinates=True)
@@ -229,14 +240,16 @@ class InterfaceTreePanel(QtWidgets.QWidget):
 
         return item
 
-    def _rebuild_tree(self) -> None:
-        if self._tree is None:
+    def _on_item_clicked(self, item: QtWidgets.QTreeWidgetItem, column: int):
+        """Handle tree item clicks."""
+        # Ignore clicks on child items (property widgets) -
+        # only handle clicks on top-level interface headers
+        if item.parent() is not None:
             return
 
-        self._tree.clear()
-        self._tree_items.clear()
-        self._property_widgets.clear()
-        self._child_items.clear()
+        # Get all selected top-level items
+        selected_items = self._tree.selectedItems()
+        selected_indices = []
 
         for i, interface in enumerate(self._interfaces):
             item = self._create_tree_item(interface, i)
@@ -291,10 +304,51 @@ class InterfaceTreePanel(QtWidgets.QWidget):
             for index in sorted(indices, reverse=True):
                 self.remove_interface(index)
 
-    def _on_rename_key(self) -> None:
+    def _handle_rename_key(self):
         """Handle F2 key press - rename selected interface."""
-        if self._tree is None:
+        # Get current item
+        item = self._tree.currentItem()
+        if item is None:
             return
+
+        # Get top-level item
+        while item.parent() is not None:
+            item = item.parent()
+
+        index = self._tree.indexOfTopLevelItem(item)
+        if index < 0 or index >= len(self._interfaces):
+            return
+
+        # Show rename dialog
+        current_name = self._interfaces[index].name or f"Interface {index + 1}"
+        new_name, ok = QtWidgets.QInputDialog.getText(
+            self,
+            "Rename Interface",
+            "Enter new name:",
+            QtWidgets.QLineEdit.EchoMode.Normal,
+            current_name,
+        )
+
+        if ok and new_name.strip():
+            new_name = new_name.strip()
+            self._interfaces[index].name = new_name
+            item.setText(0, new_name)
+            self.interfacesChanged.emit()
+
+    def eventFilter(self, obj: QtCore.QObject | None, event: QtCore.QEvent | None) -> bool:
+        """Filter events to allow deselection by clicking on white space."""
+        if obj is None or event is None:
+            return super().eventFilter(obj, event)
+        # Handle mouse clicks on viewport
+        if obj == self._tree.viewport() and event.type() == QtCore.QEvent.Type.MouseButtonPress:
+            mouse_event = cast(QtGui.QMouseEvent, event)
+            # Check if click is on empty space (no item at position)
+            item = self._tree.itemAt(mouse_event.pos())
+            if item is None:
+                # Clicked on white space - deselect all
+                self._tree.clearSelection()
+                self.interfaceSelected.emit(-1)
+                return False  # Let event continue
 
         item = self._tree.currentItem()
         if item is None:
