@@ -8,6 +8,7 @@ All models are serializable and can be used independently of PyQt.
 from .geometry import CurvedSegment, GeometrySegment, LineSegment
 from .optical_interface import OpticalInterface
 from .optical_properties import (
+    BeamBlockProperties,
     BeamsplitterProperties,
     DichroicProperties,
     LensProperties,
@@ -27,6 +28,7 @@ __all__ = [
     "BeamsplitterProperties",
     "WaveplateProperties",
     "DichroicProperties",
+    "BeamBlockProperties",
     "OpticalProperties",
     "OpticalInterface",
 ]

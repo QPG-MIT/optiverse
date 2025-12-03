@@ -276,6 +276,21 @@ def _trace_single_ray(
             nearest_intersection.tangent,
         )
 
+        # Handle absorption case (empty output_rays)
+        # The ray path ends at the absorption point and should be rendered
+        if not output_rays:
+            # Ray was absorbed - save the path up to the absorption point
+            alpha = int(255 * max(0.0, min(1.0, current_ray.intensity)))
+            paths.append(
+                RayPath(
+                    points=current_ray.path_points,
+                    rgba=(base_rgb[0], base_rgb[1], base_rgb[2], alpha),
+                    polarization=current_ray.polarization,
+                    wavelength_nm=current_ray.wavelength_nm,
+                )
+            )
+            continue
+
         # Track last element and propagate engine-specific fields to output rays
         for out_ray in output_rays:
             # Use ray object as key (Ray objects are hashable via id)

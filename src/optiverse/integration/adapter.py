@@ -17,6 +17,7 @@ import numpy as np
 # Phase 1: Unified interface model
 from ..data import OpticalInterface
 from ..data.optical_properties import (
+    BeamBlockProperties,
     BeamsplitterProperties,
     DichroicProperties,
     LensProperties,
@@ -27,6 +28,7 @@ from ..data.optical_properties import (
 
 # Phase 2: Polymorphic elements
 from ..raytracing.elements import (
+    BeamBlock,
     Beamsplitter,
     Dichroic,
     IOpticalElement,
@@ -86,6 +88,10 @@ def create_polymorphic_element(optical_iface: OpticalInterface) -> IOpticalEleme
     elif element_type == "dichroic":
         assert isinstance(properties, DichroicProperties)
         return Dichroic(optical_iface)
+
+    elif element_type == "beam_block":
+        assert isinstance(properties, BeamBlockProperties)
+        return BeamBlock(optical_iface)
 
     else:
         raise ValueError(f"Unknown element type: {element_type}")
@@ -307,6 +313,10 @@ def create_legacy_optical_element_from_interface(
         elem.is_curved = getattr(iface, "is_curved", False)  # type: ignore[attr-defined]
         elem.radius_of_curvature_mm = getattr(iface, "radius_of_curvature_mm", 0.0)  # type: ignore[attr-defined]
         return elem
+
+    elif element_type == "beam_block":
+        # Beam block absorbs all incident rays
+        return OpticalElement(kind="block", p1=p1, p2=p2)
 
     else:
         # Unknown type - return None or raise error

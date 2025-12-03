@@ -85,6 +85,18 @@ class DichroicProperties:
     pass_type: str  # "longpass" or "shortpass"
 
 
+@dataclass
+class BeamBlockProperties:
+    """
+    Properties for a beam block (absorber).
+
+    Absorbs all incident rays, terminating ray propagation at the hit point.
+    Used for beam dumps, stops, and baffles.
+    """
+
+    pass  # No properties needed - beam blocks simply absorb
+
+
 # Union type for type-safe property handling
 OpticalProperties = Union[
     RefractiveProperties,
@@ -93,4 +105,5 @@ OpticalProperties = Union[
     BeamsplitterProperties,
     WaveplateProperties,
     DichroicProperties,
+    BeamBlockProperties,
 ]

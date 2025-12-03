@@ -7,6 +7,7 @@ Each element type implements the IOpticalElement interface.
 # No imports needed - types are only used in type hints elsewhere
 
 from .base import IOpticalElement
+from .beam_block import BeamBlockElement
 from .beamsplitter import BeamsplitterElement
 from .dichroic import DichroicElement
 from .lens import LensElement
@@ -101,6 +102,18 @@ class Dichroic(DichroicElement):
         )
 
 
+class BeamBlock(BeamBlockElement):
+    """Beam block that accepts OpticalInterface with curved geometry support."""
+
+    def __init__(self, optical_iface):
+        self._geometry = optical_iface.geometry
+        self.interface = optical_iface
+        super().__init__(
+            p1=optical_iface.geometry.p1,
+            p2=optical_iface.geometry.p2,
+        )
+
+
 __all__ = [
     "IOpticalElement",
     # Base element classes
@@ -110,6 +123,7 @@ __all__ = [
     "BeamsplitterElement",
     "WaveplateElement",
     "DichroicElement",
+    "BeamBlockElement",
     # Wrapper classes with curved geometry support
     "Mirror",
     "Lens",
@@ -117,4 +131,5 @@ __all__ = [
     "Beamsplitter",
     "Waveplate",
     "Dichroic",
+    "BeamBlock",
 ]
