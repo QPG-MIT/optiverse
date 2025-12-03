@@ -15,6 +15,7 @@ from ...core.constants import (
     SCENE_SIZE_MM,
 )
 from ...core.editor_state import EditorState
+from ...core.layer_group import GroupManager
 from ...core.protocols import Editable
 from ...core.snap_helper import SnapHelper
 from ...core.ui_constants import (
@@ -41,6 +42,7 @@ from ..controllers.component_operations import ComponentOperationsHandler
 from ..controllers.item_drag_handler import ItemDragHandler
 from ..controllers.library_manager import LibraryManager
 from ..controllers.ray_renderer import RayRenderer
+from ..widgets.layer_panel import LayerPanel
 from ..widgets.library_tree import LibraryTree
 from .log_window import LogWindow
 from .placement_handler import PlacementHandler
@@ -80,6 +82,7 @@ class MainWindow(QtWidgets.QMainWindow):
     act_add_rectangle: QtGui.QAction
     act_inspect: QtGui.QAction
     act_measure_path: QtGui.QAction
+    _tool_action_group: QtGui.QActionGroup  # type: ignore[misc]
     act_measure_angle: QtGui.QAction
     act_zoom_in: QtGui.QAction
     act_zoom_out: QtGui.QAction
@@ -100,6 +103,7 @@ class MainWindow(QtWidgets.QMainWindow):
     act_show_log: QtGui.QAction
     act_collaborate: QtGui.QAction
     act_disconnect: QtGui.QAction
+    act_import_as_layer: QtGui.QAction
     collab_status_label: QtWidgets.QLabel
 
     def __init__(self):
@@ -149,6 +153,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.log_service = get_log_service()
         self.log_service.debug("MainWindow.__init__ called", "Init")
 
+        # Group manager for layer grouping
+        self.group_manager = GroupManager(self.scene)
+
         # Load saved preferences
         self.magnetic_snap = self.settings_service.get_value("magnetic_snap", True, bool)
 
@@ -167,6 +174,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Build library dock first (needed before menus reference libDock)
         self._build_library_dock()
+
+        # Build layer panel dock (for z-order and grouping)
+        self._build_layer_dock()
 
         # Tool mode controller - manages inspect, path measure, angle measure, placement modes
         self.tool_controller = ToolModeController(
@@ -212,6 +222,7 @@ class MainWindow(QtWidgets.QMainWindow):
             get_ray_data=self._get_ray_data,
             parent_widget=self,
             connect_item_signals=self._connect_item_signals,
+            group_manager=self.group_manager,
         )
         # Connect file controller signals
         self.file_controller.traceRequested.connect(self._schedule_retrace)
@@ -258,6 +269,7 @@ class MainWindow(QtWidgets.QMainWindow):
             undo_stack=self.undo_stack,
             snap_to_grid_getter=self._get_snap_to_grid,
             schedule_retrace=self._schedule_retrace,
+            group_manager=self.group_manager,
         )
 
         # Component operations handler - copy, paste, delete, drop
@@ -311,6 +323,37 @@ class MainWindow(QtWidgets.QMainWindow):
             broadcast_add_item=self.collaboration_manager.broadcast_add_item,
         )
 
+    def _build_layer_dock(self):
+        """Build layer panel dock for z-order management and grouping."""
+        self.layerDock = QtWidgets.QDockWidget("Layers", self)
+        self.layerDock.setObjectName("layerDock")
+        self.layer_panel = LayerPanel(self)
+        self.layer_panel.set_scene(self.scene)
+        self.layer_panel.set_group_manager(self.group_manager)
+        self.layerDock.setWidget(self.layer_panel)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.layerDock)
+
+        # Connect layer panel selection to scene selection sync
+        self.scene.selectionChanged.connect(self._sync_layer_panel_selection)
+
+        # Connect group manager to layer panel refresh
+        self.group_manager.groupsChanged.connect(self.layer_panel.refresh)
+
+        # Set group manager on component ops for delete operations
+        self.component_ops.set_group_manager(self.group_manager)
+
+        # Initial refresh to show any existing items
+        QtCore.QTimer.singleShot(100, self.layer_panel.refresh)
+
+    def _sync_layer_panel_selection(self):
+        """Sync layer panel selection when scene selection changes."""
+        self.layer_panel.sync_from_scene_selection()
+
+    def _refresh_layer_panel(self):
+        """Refresh the layer panel to reflect scene changes."""
+        if hasattr(self, "layer_panel"):
+            self.layer_panel.refresh()
+
     def _init_event_handlers(self):
         """Initialize handlers that require actions to be created first."""
         # Ruler placement handler
@@ -361,13 +404,18 @@ class MainWindow(QtWidgets.QMainWindow):
         elif isinstance(item, RulerItem):
             item.commandCreated.connect(self.undo_stack.push)
 
+        # Refresh layer panel when item is added
+        self._refresh_layer_panel()
+
     def on_drop_component(self, rec: dict, scene_pos: QtCore.QPointF):
         """Handle component drop from library (delegated to component_ops)."""
         self.component_ops.on_drop_component(rec, scene_pos)
+        self._refresh_layer_panel()
 
     def delete_selected(self):
         """Delete selected items (delegated to component_ops)."""
         self.component_ops.delete_selected()
+        self._refresh_layer_panel()
 
     def copy_selected(self):
         """Copy selected items to clipboard (delegated to component_ops)."""
@@ -381,16 +429,19 @@ class MainWindow(QtWidgets.QMainWindow):
         cursor_scene = self.view.mapToScene(cursor_view)
 
         self.component_ops.paste_items(cursor_scene)
+        self._refresh_layer_panel()
 
     def _do_undo(self):
         """Undo last action and retrace rays."""
         self.undo_stack.undo()
         self._schedule_retrace()
+        self._refresh_layer_panel()
 
     def _do_redo(self):
         """Redo last undone action and retrace rays."""
         self.undo_stack.redo()
         self._schedule_retrace()
+        self._refresh_layer_panel()
 
     def _toggle_ruler_placement(self, on: bool):
         """Toggle ruler placement mode (delegated to RulerPlacementHandler)."""
@@ -484,6 +535,23 @@ class MainWindow(QtWidgets.QMainWindow):
             for item in self.scene.items():
                 if isinstance(item, Editable):
                     item.edited.connect(self._maybe_retrace)
+            # Refresh layer panel
+            self.layer_panel.refresh()
+
+    def import_assembly_as_layer(self):
+        """Import an assembly file as a new layer (grouped items)."""
+        if self.file_controller.import_as_layer():
+            # Connect edited signal for newly imported optical components
+            for item in self.scene.items():
+                if isinstance(item, Editable):
+                    # Only connect if not already connected
+                    try:
+                        item.edited.disconnect(self._maybe_retrace)
+                    except TypeError:
+                        pass
+                    item.edited.connect(self._maybe_retrace)
+            # Refresh layer panel
+            self.layer_panel.refresh()
 
     # ----- Settings -----
     def _toggle_autotrace(self, on: bool):

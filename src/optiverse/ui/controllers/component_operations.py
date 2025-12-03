@@ -13,6 +13,7 @@ from PyQt6 import QtCore, QtWidgets
 from ...core.log_categories import LogCategory
 
 if TYPE_CHECKING:
+    from ...core.layer_group import GroupManager
     from ...core.undo_stack import UndoStack
     from ...services.collaboration_manager import CollaborationManager
     from ...services.log_service import LogService
@@ -36,6 +37,7 @@ class ComponentOperationsHandler:
         schedule_retrace: Callable,
         set_paste_enabled: Callable[[bool], None],
         parent_widget: QtWidgets.QWidget,
+        group_manager: GroupManager | None = None,
     ):
         """
         Initialize the component operations handler.
@@ -50,6 +52,7 @@ class ComponentOperationsHandler:
             schedule_retrace: Callable to schedule ray retracing
             set_paste_enabled: Callable to enable/disable paste action
             parent_widget: Parent widget for dialogs
+            group_manager: Optional group manager for group membership cleanup on delete
         """
         self.scene = scene
         self.undo_stack = undo_stack
@@ -60,9 +63,14 @@ class ComponentOperationsHandler:
         self._schedule_retrace = schedule_retrace
         self._set_paste_enabled = set_paste_enabled
         self.parent_widget = parent_widget
+        self._group_manager = group_manager
 
         # Clipboard for copy/paste
         self._clipboard: list = []
+
+    def set_group_manager(self, group_manager: GroupManager) -> None:
+        """Set the group manager for delete operations."""
+        self._group_manager = group_manager
 
     def on_drop_component(self, rec: dict, scene_pos: QtCore.QPointF):
         """
@@ -155,9 +163,9 @@ class ComponentOperationsHandler:
         # Use a single command for all deletions
         if items_to_delete:
             if len(items_to_delete) == 1:
-                cmd = RemoveItemCommand(self.scene, items_to_delete[0])
+                cmd = RemoveItemCommand(self.scene, items_to_delete[0], self._group_manager)
             else:
-                cmd = RemoveMultipleItemsCommand(self.scene, items_to_delete)
+                cmd = RemoveMultipleItemsCommand(self.scene, items_to_delete, self._group_manager)
             self.undo_stack.push(cmd)
 
         self._schedule_retrace()

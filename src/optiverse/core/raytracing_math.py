@@ -39,9 +39,11 @@ def normalize(v: np.ndarray) -> np.ndarray:
     """Normalize a vector. JIT-compiled for performance when numba is available."""
     n = math.sqrt(v[0] ** 2 + v[1] ** 2)
     if n == 0.0:
-        return v.copy()
+        zero_vec: np.ndarray = v.copy()
+        return zero_vec
     else:
-        return v / n
+        normalized_vec: np.ndarray = v / n
+        return normalized_vec
 
 
 def user_angle_to_qt(user_deg: float) -> float:

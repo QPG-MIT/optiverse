@@ -194,7 +194,7 @@ class PathMeasureItem(QtWidgets.QGraphicsObject):
 
             accumulated += float(segment_len)
 
-        return self._full_path_points[-1].copy()
+        return cast(np.ndarray, self._full_path_points[-1].copy())
 
     def update_path(self, new_points: list[np.ndarray]):
         """

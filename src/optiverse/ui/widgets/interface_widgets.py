@@ -5,17 +5,11 @@ This module contains:
 - InterfaceTreeWidget: Tree widget with delete key handling
 - EditableLabel: Double-click-to-edit label widget
 - ColoredCircleLabel: Color indicator label
-- PropertyListWidget: Interface property editor
 """
 
 from __future__ import annotations
 
-from typing import Any
-
 from PyQt6 import QtCore, QtGui, QtWidgets
-
-from ...core import interface_types
-from ...core.interface_definition import InterfaceDefinition
 
 
 class InterfaceTreeWidget(QtWidgets.QTreeWidget):
@@ -28,11 +22,8 @@ class InterfaceTreeWidget(QtWidgets.QTreeWidget):
         """Override to handle Delete/Backspace and F2 keys."""
         if event is None:
             return
-        # Check if Delete or Backspace key is pressed
         if event.key() in (QtCore.Qt.Key.Key_Delete, QtCore.Qt.Key.Key_Backspace):
-            # Only handle if we're not currently editing an item
             if self.state() != QtWidgets.QAbstractItemView.State.EditingState:
-                # Emit signal so parent panel can handle deletion
                 self.deleteKeyPressed.emit()
                 event.accept()
                 return
@@ -68,10 +59,7 @@ class InterfaceTreeWidget(QtWidgets.QTreeWidget):
 
 
 class EditableLabel(QtWidgets.QWidget):
-    """
-    A label that becomes editable when double-clicked.
-    More compact than always-visible text fields.
-    """
+    """A label that becomes editable when double-clicked."""
 
     valueChanged = QtCore.pyqtSignal(str)
 
@@ -80,28 +68,21 @@ class EditableLabel(QtWidgets.QWidget):
         self._value = initial_value
         self._editing = False
 
-        # Create layout
         layout = QtWidgets.QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Create stacked widget to switch between label and line edit
         self._stack = QtWidgets.QStackedWidget()
 
-        # Label for display mode
         self._label = QtWidgets.QLabel(initial_value)
-        self._label.setStyleSheet("QLabel { padding: 2px; }")
         self._stack.addWidget(self._label)
 
-        # Line edit for edit mode
         self._edit = QtWidgets.QLineEdit(initial_value)
         self._edit.returnPressed.connect(self._finish_editing)
         self._edit.editingFinished.connect(self._finish_editing)
         self._stack.addWidget(self._edit)
 
         layout.addWidget(self._stack)
-
-        # Start in label mode
         self._stack.setCurrentWidget(self._label)
 
     def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent | None):
@@ -112,7 +93,7 @@ class EditableLabel(QtWidgets.QWidget):
         event.accept()
         self._start_editing()
 
-    def _start_editing(self):
+    def _start_editing(self) -> None:
         """Switch to edit mode."""
         if self._editing:
             return
@@ -122,7 +103,7 @@ class EditableLabel(QtWidgets.QWidget):
         self._edit.setFocus()
         self._edit.selectAll()
 
-    def _finish_editing(self):
+    def _finish_editing(self) -> None:
         """Finish editing and switch back to label mode."""
         if not self._editing:
             return
@@ -138,7 +119,7 @@ class EditableLabel(QtWidgets.QWidget):
 
         self._stack.setCurrentWidget(self._label)
 
-    def setText(self, text: str):
+    def setText(self, text: str) -> None:
         """Set the displayed text value."""
         self._value = text
         self._label.setText(text)
@@ -149,7 +130,7 @@ class EditableLabel(QtWidgets.QWidget):
         """Get the current text value."""
         return self._value
 
-    def setPlaceholderText(self, text: str):
+    def setPlaceholderText(self, text: str) -> None:
         """Set placeholder text for the edit field."""
         self._edit.setPlaceholderText(text)
 
@@ -159,55 +140,15 @@ class ColoredCircleLabel(QtWidgets.QLabel):
 
     def __init__(self, color: str, size: int = 12, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
+        self._color = color
+        self._size = size
         self.setFixedSize(size, size)
+        self._update_style()
+
+    def _update_style(self) -> None:
+        """Update the stylesheet for the circle."""
         self.setStyleSheet(
-            f"""
-            QLabel {{
-                background-color: {color};
-                border-radius: {size // 2}px;
-            }}
-        """
-        )
-
-
-class PropertyListWidget(QtWidgets.QWidget):
-    """Simple vertical property list for an interface."""
-
-    propertyChanged = QtCore.pyqtSignal()
-
-    def __init__(self, interface: InterfaceDefinition, parent: QtWidgets.QWidget | None = None):
-        super().__init__(parent)
-        self.interface = interface
-        self._updating = False
-        self._property_widgets: dict[str, QtWidgets.QWidget] = {}
-
-        self._setup_ui()
-
-    def _setup_ui(self):
-        """Create the simple vertical property layout."""
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(15, 3, 5, 3)
-        layout.setSpacing(2)
-
-        # Create form layout for properties
-        self._form = QtWidgets.QFormLayout()
-        self._form.setContentsMargins(0, 0, 0, 0)
-        self._form.setVerticalSpacing(3)
-        self._form.setHorizontalSpacing(10)
-        self._form.setLabelAlignment(
-            QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter
-        )
-        self._form.setFieldGrowthPolicy(QtWidgets.QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-
-        # Populate form
-        self._populate_form()
-
-        layout.addLayout(self._form)
-        layout.addStretch()
-
-        # Set proper size policy for smooth scrolling
-        self.setSizePolicy(
-            QtWidgets.QSizePolicy.Policy.Preferred, QtWidgets.QSizePolicy.Policy.MinimumExpanding
+            f"QLabel {{ background-color: {self._color}; border-radius: {self._size // 2}px; }}"
         )
 
     def _populate_form(self):

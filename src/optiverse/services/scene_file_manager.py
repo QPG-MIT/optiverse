@@ -20,6 +20,7 @@ from ..core.exceptions import AssemblyLoadError, AssemblySaveError
 from ..core.protocols import Serializable
 
 if TYPE_CHECKING:
+    from ..core.layer_group import GroupManager
     from .log_service import LogService
 
 
@@ -63,6 +64,11 @@ class SceneFileManager:
         self._autosave_path: str | None = None
         self._unsaved_id: str | None = None
         self._is_modified = False
+        self._group_manager: GroupManager | None = None
+
+    def set_group_manager(self, group_manager: GroupManager) -> None:
+        """Set the group manager for saving/loading groups."""
+        self._group_manager = group_manager
 
     @property
     def saved_file_path(self) -> str | None:
@@ -126,6 +132,7 @@ class SceneFileManager:
             "texts": [],  # type: ignore[assignment]
             "rectangles": [],  # type: ignore[assignment]
             "path_measures": [],  # type: ignore[assignment]
+            "groups": [],  # type: ignore[assignment]
         }
 
         for it in self.scene.items():
@@ -139,6 +146,10 @@ class SceneFileManager:
                 data["rectangles"].append(it.to_dict())
             elif isinstance(it, PathMeasureItem):
                 data["path_measures"].append(it.to_dict())
+
+        # Serialize groups
+        if self._group_manager:
+            data["groups"] = self._group_manager.to_dict_list()
 
         return data
 
@@ -201,6 +212,10 @@ class SceneFileManager:
             if isinstance(it, (BaseObj, RulerItem, TextNoteItem, RectangleItem)):
                 self.scene.removeItem(it)
 
+        # Clear groups
+        if self._group_manager:
+            self._group_manager.clear()
+
         # Load items
         for item_data in data.get("items", []):
             try:
@@ -232,6 +247,10 @@ class SceneFileManager:
             except (KeyError, ValueError, TypeError) as e:
                 # KeyError: missing required fields, ValueError/TypeError: invalid data
                 self.log_service.error(f"Error loading path measure: {e}", "Load")
+
+        # Load groups
+        if self._group_manager and "groups" in data:
+            self._group_manager.from_dict_list(data.get("groups", []))
 
     def _format_time_ago(self, delta: datetime.timedelta) -> str:
         """Format timedelta as human-readable string."""
@@ -300,7 +319,7 @@ class SceneFileManager:
 
             # Import here to avoid circular import
             from ..ui.theme_manager import question as theme_aware_question
-            
+
             reply = theme_aware_question(
                 self.parent_widget,
                 "Recover Autosave?",
@@ -386,7 +405,7 @@ class SceneFileManager:
         """
         # Import here to avoid circular import
         from ..ui.theme_manager import question as theme_aware_question
-        
+
         return theme_aware_question(
             self.parent_widget,
             "Unsaved Changes",

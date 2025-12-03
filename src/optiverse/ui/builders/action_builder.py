@@ -98,6 +98,11 @@ class ActionBuilder:
         w.act_save_as.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         w.act_save_as.triggered.connect(w.save_assembly_as)
 
+        w.act_import_as_layer = QtGui.QAction("Import Assembly as Layer…", w)
+        w.act_import_as_layer.setShortcut(QtGui.QKeySequence("Ctrl+Shift+I"))
+        w.act_import_as_layer.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
+        w.act_import_as_layer.triggered.connect(w.import_assembly_as_layer)
+
         # --- Edit Actions ---
         w.act_undo = QtGui.QAction("Undo", w)
         w.act_undo.setShortcut(QtGui.QKeySequence("Ctrl+Z"))
@@ -287,17 +292,18 @@ class ActionBuilder:
 
         # Create exclusive action group for tool buttons
         # ExclusiveOptional allows unchecking all (clicking checked action unchecks it)
-        w._tool_action_group = QtGui.QActionGroup(w)
-        w._tool_action_group.setExclusive(True)
-        w._tool_action_group.setExclusionPolicy(
+        tool_action_group = QtGui.QActionGroup(w)
+        tool_action_group.setExclusive(True)
+        tool_action_group.setExclusionPolicy(
             QtGui.QActionGroup.ExclusionPolicy.ExclusiveOptional
         )
+        w._tool_action_group = tool_action_group  # type: ignore[attr-defined]
 
         # Helper to set icon and register for theme switching
         def add_toolbar_action(action: QtGui.QAction, icon_name: str) -> None:
             action.setIcon(QtGui.QIcon(_get_icon_path(icon_name, dark_mode)))
             toolbar.addAction(action)
-            w._tool_action_group.addAction(action)
+            tool_action_group.addAction(action)
             self._toolbar_icon_map.append((action, icon_name))
 
         # Source button
@@ -338,7 +344,7 @@ class ActionBuilder:
 
     def refresh_toolbar_icons(self, dark_mode: bool) -> None:
         """Refresh all toolbar icons for the given theme.
-        
+
         Args:
             dark_mode: If True, use dark mode (inverted) icons
         """
@@ -359,6 +365,8 @@ class ActionBuilder:
         mFile.addAction(w.act_open)
         mFile.addAction(w.act_save)
         mFile.addAction(w.act_save_as)
+        mFile.addSeparator()
+        mFile.addAction(w.act_import_as_layer)
 
         # Edit menu
         mEdit = mb.addMenu("&Edit")
@@ -392,6 +400,7 @@ class ActionBuilder:
         if mView is None:
             return
         mView.addAction(w.libDock.toggleViewAction())
+        mView.addAction(w.layerDock.toggleViewAction())
         mView.addSeparator()
         mView.addAction(w.act_zoom_in)
         mView.addAction(w.act_zoom_out)
@@ -449,6 +458,7 @@ class ActionBuilder:
         w.addAction(w.act_open)
         w.addAction(w.act_save)
         w.addAction(w.act_save_as)
+        w.addAction(w.act_import_as_layer)
 
         # Edit actions
         w.addAction(w.act_undo)

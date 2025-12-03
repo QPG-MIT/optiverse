@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "optiverse"
-version = "0.2.5"
+version = "0.2.7"
 description = "Optiverse: 2D ray-optics sandbox and component editor (PyQt6, modular)"
 readme = "README.md"
 requires-python = ">=3.9"  # 3.9-3.11 recommended for Numba JIT speedup

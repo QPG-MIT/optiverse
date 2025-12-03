@@ -2,6 +2,7 @@
 Handler for item drag, move, and rotation tracking.
 
 Extracts position/rotation tracking and undo command creation from MainWindow.
+Supports group movement where all items in a group move together.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Callable
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 if TYPE_CHECKING:
+    from ...core.layer_group import GroupManager
     from ...core.undo_stack import UndoStack
 
 
@@ -22,6 +24,15 @@ class ItemDragHandler:
     undo commands on mouse release.
     """
 
+    # Class-level tracking for multi-selection drag (used by BaseObj to block movement)
+    _current_secondary_items: set[QtWidgets.QGraphicsItem] = set()
+    # Class-level storage for secondary item offsets (used by BaseObj to get correct position)
+    _secondary_item_offsets: dict[QtWidgets.QGraphicsItem, QtCore.QPointF] = {}
+    # Class-level reference to primary drag item (used by BaseObj to calculate position)
+    _current_primary_item: QtWidgets.QGraphicsItem | None = None
+    # Class-level storage for primary item's target position (updated during itemChange)
+    _primary_target_position: QtCore.QPointF | None = None
+
     def __init__(
         self,
         scene: QtWidgets.QGraphicsScene,
@@ -29,6 +40,7 @@ class ItemDragHandler:
         undo_stack: UndoStack,
         snap_to_grid_getter: Callable[[], bool],
         schedule_retrace: Callable[[], None],
+        group_manager: GroupManager | None = None,
     ):
         """
         Initialize the drag handler.
@@ -39,35 +51,122 @@ class ItemDragHandler:
             undo_stack: Undo stack for command creation
             snap_to_grid_getter: Callable returning whether snap to grid is enabled
             schedule_retrace: Callable to schedule ray retracing
+            group_manager: Optional group manager for group movement
         """
         self.scene = scene
         self.view = view
         self.undo_stack = undo_stack
         self._get_snap_to_grid = snap_to_grid_getter
         self._schedule_retrace = schedule_retrace
+        self._group_manager = group_manager
 
         # Position tracking state
         self._item_positions: dict[QtWidgets.QGraphicsItem, QtCore.QPointF] = {}
         self._item_rotations: dict[QtWidgets.QGraphicsItem, float] = {}
         self._item_group_states: dict[str, Any] = {}
 
+        # Group movement tracking (for LayerGroup items)
+        self._dragging_group = False
+        self._group_items: list[QtWidgets.QGraphicsItem] = []
+        self._group_offsets: dict[QtWidgets.QGraphicsItem, QtCore.QPointF] = {}
+        self._primary_drag_item: QtWidgets.QGraphicsItem | None = None
+        self._last_primary_pos: QtCore.QPointF | None = None  # For delta calculation
+
+        # Multi-selection tracking (for any multi-selected items, not just groups)
+        self._dragging_multi_selection = False
+        self._multi_selection_offsets: dict[QtWidgets.QGraphicsItem, QtCore.QPointF] = {}
+
+    @classmethod
+    def is_secondary_drag_item(cls, item: QtWidgets.QGraphicsItem) -> bool:
+        """Check if an item is a secondary item in a multi-selection drag.
+
+        Secondary items should block Qt's automatic movement and instead
+        follow the primary item to preserve relative positions.
+        """
+        return item in cls._current_secondary_items
+
+    @classmethod
+    def get_secondary_item_target_pos(cls, item: QtWidgets.QGraphicsItem) -> QtCore.QPointF | None:
+        """Get the correct target position for a secondary item.
+
+        Returns the position based on primary item's TARGET position (after snap) + stored offset,
+        or None if this item is not a secondary drag item.
+
+        Uses _primary_target_position if available (set during primary's itemChange),
+        otherwise falls back to primary.pos().
+        """
+        if item not in cls._current_secondary_items:
+            return None
+        if cls._current_primary_item is None:
+            return None
+        offset = cls._secondary_item_offsets.get(item)
+        if offset is None:
+            return None
+        # Use target position if available (set during primary's itemChange), otherwise use current
+        primary_pos = (
+            cls._primary_target_position
+            if cls._primary_target_position is not None
+            else cls._current_primary_item.pos()
+        )
+        return primary_pos + offset
+
+    @classmethod
+    def set_primary_target_position(cls, target_pos: QtCore.QPointF) -> None:
+        """Set the primary item's target position (called from primary's itemChange after snap)."""
+        cls._primary_target_position = target_pos
+
+    def set_group_manager(self, group_manager: GroupManager) -> None:
+        """Set the group manager for group movement support."""
+        self._group_manager = group_manager
+
     def handle_mouse_press(self, event: QtGui.QMouseEvent):
         """
         Track item positions and rotations on mouse press.
 
+        Legacy method - prefer handle_mouse_press_at_scene_pos for correct coordinates.
+        """
+        # Map view coordinates to scene coordinates
+        if hasattr(self.view, "mapToScene"):
+            scene_pos = self.view.mapToScene(event.pos())
+        else:
+            scene_pos = QtCore.QPointF(event.pos())
+        self.handle_mouse_press_at_scene_pos(scene_pos, event.modifiers())
+
+    def handle_mouse_press_at_scene_pos(
+        self, scene_pos: QtCore.QPointF, modifiers: QtCore.Qt.KeyboardModifier
+    ):
+        """
+        Track item positions and rotations on mouse press.
+
+        Also handles group movement - when one grouped item is pressed,
+        all group members are tracked for coordinated movement.
+
         Args:
-            event: Mouse event from the scene
+            scene_pos: Mouse position in scene coordinates
+            modifiers: Keyboard modifiers active during press
         """
         from ...objects import BaseObj, RectangleItem
         from ...objects.annotations import RulerItem, TextNoteItem
 
         # Check if this is a rotation operation (Ctrl modifier)
-        is_rotation_mode = event.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier
+        is_rotation_mode = modifiers & QtCore.Qt.KeyboardModifier.ControlModifier
 
         # Clear previous tracking state
         self._item_positions.clear()
         self._item_rotations.clear()
         self._item_group_states.clear()
+        self._dragging_group = False
+        self._group_items.clear()
+        self._group_offsets.clear()
+        self._primary_drag_item = None
+        self._last_primary_pos = None
+        self._dragging_multi_selection = False
+        self._multi_selection_offsets.clear()
+        # Clear class-level state
+        ItemDragHandler._current_secondary_items.clear()
+        ItemDragHandler._secondary_item_offsets.clear()
+        ItemDragHandler._current_primary_item = None
+        ItemDragHandler._primary_target_position = None
 
         # Get already-selected items
         selected_items = [
@@ -76,12 +175,7 @@ class ItemDragHandler:
             if isinstance(it, (BaseObj, RulerItem, TextNoteItem, RectangleItem))
         ]
 
-        # Also track the item under the mouse cursor (may not be selected yet)
-        # QMouseEvent doesn't have scenePos, use pos() mapped to scene
-        if hasattr(self.view, "mapToScene"):
-            scene_pos: QtCore.QPointF = self.view.mapToScene(event.pos())
-        else:
-            scene_pos = QtCore.QPointF(event.pos())
+        # Find the item under the mouse cursor (the one being directly dragged)
         clicked_item = self.scene.itemAt(scene_pos, QtGui.QTransform())
 
         # Walk up parent hierarchy to find the actual draggable item
@@ -89,8 +183,51 @@ class ItemDragHandler:
             if isinstance(clicked_item, (BaseObj, RulerItem, TextNoteItem, RectangleItem)):
                 if clicked_item not in selected_items:
                     selected_items.append(clicked_item)
+                self._primary_drag_item = clicked_item
                 break
             clicked_item = clicked_item.parentItem()
+
+        # Check for group membership and expand selection
+        if self._group_manager and self._primary_drag_item:
+            grouped_items = self._group_manager.get_grouped_items(self._primary_drag_item)
+            if len(grouped_items) > 1:
+                self._dragging_group = True
+                self._group_items = grouped_items
+                # Store initial primary position for delta calculation
+                self._last_primary_pos = QtCore.QPointF(self._primary_drag_item.pos())
+                # Store offsets relative to primary item (for reference)
+                primary_pos = self._primary_drag_item.pos()
+                for item in grouped_items:
+                    if item != self._primary_drag_item:
+                        offset = item.pos() - primary_pos
+                        self._group_offsets[item] = offset
+                        # Add to selected items for position tracking
+                        if (
+                            isinstance(item, (BaseObj, RulerItem, TextNoteItem, RectangleItem))
+                            and item not in selected_items
+                        ):
+                            selected_items.append(item)
+
+        # Track secondary items for multi-selection drag
+        # This applies to both grouped items AND multiple selected items
+        if self._primary_drag_item and len(selected_items) > 1:
+            self._dragging_multi_selection = True
+            primary_pos = self._primary_drag_item.pos()
+            # Set class-level primary reference for BaseObj.itemChange()
+            ItemDragHandler._current_primary_item = self._primary_drag_item
+
+            for item in selected_items:
+                if item != self._primary_drag_item:
+                    # Store offset relative to primary
+                    offset = item.pos() - primary_pos
+                    self._multi_selection_offsets[item] = offset
+                    # Set class-level tracking for BaseObj.itemChange()
+                    ItemDragHandler._current_secondary_items.add(item)
+                    ItemDragHandler._secondary_item_offsets[item] = offset
+
+            # Initialize last primary position for update_group_positions
+            if self._last_primary_pos is None:
+                self._last_primary_pos = QtCore.QPointF(primary_pos)
 
         # Store initial positions
         for it in selected_items:
@@ -111,6 +248,42 @@ class ItemDragHandler:
                     if isinstance(it, (BaseObj, RectangleItem))
                 },
             }
+
+    def update_group_positions(self) -> None:
+        """
+        Update positions of all secondary items during drag.
+
+        Uses offset-based positioning: each secondary item is placed at
+        primary.pos() + stored_offset. This correctly handles magnetic snap
+        by preserving relative positions regardless of where the primary snaps.
+
+        Handles both LayerGroup items and arbitrary multi-selection.
+        """
+        if not self._primary_drag_item:
+            return
+
+        # Must be dragging either a group or multi-selection
+        if not self._dragging_group and not self._dragging_multi_selection:
+            return
+
+        primary_pos = self._primary_drag_item.pos()
+
+        # For grouped items, use offset-based positioning
+        for item, offset in self._group_offsets.items():
+            item.setPos(primary_pos + offset)
+
+        # For multi-selected items (may overlap with group), use offset-based positioning
+        for item, offset in self._multi_selection_offsets.items():
+            # Don't double-move items that are already in _group_offsets
+            if item not in self._group_offsets:
+                item.setPos(primary_pos + offset)
+
+        # Update last position (still needed for undo tracking)
+        self._last_primary_pos = QtCore.QPointF(primary_pos)
+
+    def is_dragging_group(self) -> bool:
+        """Check if currently dragging a group or multi-selection."""
+        return self._dragging_group or self._dragging_multi_selection
 
     def handle_mouse_release(self) -> bool:
         """
@@ -211,6 +384,18 @@ class ItemDragHandler:
         self._item_positions.clear()
         self._item_rotations.clear()
         self._item_group_states.clear()
+        self._dragging_group = False
+        self._group_items.clear()
+        self._group_offsets.clear()
+        self._primary_drag_item = None
+        self._last_primary_pos = None
+        self._dragging_multi_selection = False
+        self._multi_selection_offsets.clear()
+        # Clear class-level state
+        ItemDragHandler._current_secondary_items.clear()
+        ItemDragHandler._secondary_item_offsets.clear()
+        ItemDragHandler._current_primary_item = None
+        ItemDragHandler._primary_target_position = None
 
         # Schedule retrace
         self._schedule_retrace()
