@@ -300,6 +300,7 @@ class InterfaceRenderer:
                 chord_mid_y = (y1 + y2) / 2
 
                 # Arc center (same signs as _draw_curved_line)
+                # Cartesian Sign Convention: positive R = center to the right
                 if radius_mm > 0:
                     center_x = chord_mid_x - nx * h
                     center_y = chord_mid_y - ny * h
@@ -392,7 +393,8 @@ class InterfaceRenderer:
             p: QPainter instance
             x1, y1: First endpoint (screen coordinates)
             x2, y2: Second endpoint (screen coordinates)
-            radius_mm: Radius of curvature in mm (positive = convex left)
+            radius_mm: Radius of curvature in mm (Cartesian Sign Convention:
+                       positive = center to the right/downstream)
             img_rect: Image rectangle for bounds
         """
         # Convert radius to screen pixels
@@ -421,8 +423,7 @@ class InterfaceRenderer:
         ny = dx / chord
 
         # Arc center (on one side of the chord based on radius sign)
-        # Note: radius_mm sign is defined in mm (Y-up) coords, but (nx, ny) is in screen (Y-down)
-        # The Y-flip reverses the perpendicular direction, so we use opposite signs
+        # Cartesian Sign Convention: positive R = center to the RIGHT (downstream)
         if radius_mm > 0:
             cx = mid_x - nx * h
             cy = mid_y - ny * h
@@ -431,10 +432,8 @@ class InterfaceRenderer:
             cy = mid_y + ny * h
 
         # Calculate start and end angles
-        # Note: Qt's arcTo uses Y-up angle convention (90° = up), but we're in screen coords (Y-down)
-        # Negate Y differences to convert from screen to Qt's angle convention
-        angle1 = math.degrees(math.atan2(cy - y1, x1 - cx))
-        angle2 = math.degrees(math.atan2(cy - y2, x2 - cx))
+        angle1 = math.degrees(math.atan2(y1 - cy, x1 - cx))
+        angle2 = math.degrees(math.atan2(y2 - cy, x2 - cx))
 
         # Ensure we draw the correct arc (shorter one)
         span = angle2 - angle1
