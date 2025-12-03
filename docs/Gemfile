@@ -6,9 +6,6 @@ gem "just-the-docs"
 # GitHub Pages gem includes Jekyll and all dependencies
 gem "github-pages", group: :jekyll_plugins
 
-# Theme
-gem "jekyll-theme-just-the-docs"
-
 # Plugins
 group :jekyll_plugins do
   gem "jekyll-seo-tag"
