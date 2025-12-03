@@ -298,6 +298,9 @@ class ComponentItem(BaseObj):
         d = math.sqrt(r * r - half_chord * half_chord)
 
         # Center position (direction depends on sign of radius)
+        # Cartesian Sign Convention: positive R = center to the RIGHT (downstream)
+        # Note: Component editor uses mm coords directly but Qt renders Y-down,
+        # so we flip signs compared to canvas (which already converts mm to screen)
         if radius_mm > 0:
             center_x = mid_x + d * perp_x
             center_y = mid_y + d * perp_y
@@ -305,9 +308,9 @@ class ComponentItem(BaseObj):
             center_x = mid_x - d * perp_x
             center_y = mid_y - d * perp_y
 
-        # Calculate angles
-        angle1 = math.atan2(p1.y() - center_y, p1.x() - center_x) * 180.0 / math.pi
-        angle2 = math.atan2(p2.y() - center_y, p2.x() - center_x) * 180.0 / math.pi
+        # Calculate angles (flip Y for Qt's Y-down rendering)
+        angle1 = math.atan2(center_y - p1.y(), p1.x() - center_x) * 180.0 / math.pi
+        angle2 = math.atan2(center_y - p2.y(), p2.x() - center_x) * 180.0 / math.pi
 
         # Span angle (always draw shorter arc)
         span = angle2 - angle1

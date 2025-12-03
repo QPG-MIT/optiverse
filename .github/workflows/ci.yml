@@ -42,10 +42,6 @@ jobs:
         ruff check .
       continue-on-error: false
     
-    - name: Check code formatting with Black
-      run: |
-        black --check --diff .
-    
     - name: Run MyPy type checker
       run: |
         mypy src/

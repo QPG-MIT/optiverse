@@ -228,8 +228,8 @@ class GraphicsView(QtWidgets.QGraphicsView):
                     v_bar.setValue(v_bar.value() - pixel_delta.y())
                 # Force full viewport update to ensure grid redraws cleanly
                 viewport = self.viewport()
-            if viewport is not None:
-                viewport.update()
+                if viewport is not None:
+                    viewport.update()
                 e.accept()
                 return
 
@@ -246,8 +246,8 @@ class GraphicsView(QtWidgets.QGraphicsView):
 
                 self.zoomChanged.emit()
                 viewport = self.viewport()
-            if viewport is not None:
-                viewport.update()
+                if viewport is not None:
+                    viewport.update()
                 # Sync ray overlay transform
                 self._update_ray_gl_transform()
                 e.accept()
