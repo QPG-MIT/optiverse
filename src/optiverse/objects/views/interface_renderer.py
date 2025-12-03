@@ -246,65 +246,134 @@ class InterfaceRenderer:
         img_rect: QtCore.QRect,
     ) -> None:
         """
-        Draw half-circle indicator showing which side has higher refractive index.
+        Draw a half-and-half colored circle at the midpoint of a refractive interface.
 
-        The half-circle is drawn on the side with the higher refractive index,
-        indicating where the light will bend towards.
+        The circle is split perpendicular to the line direction (or tangent for curved lines):
+        - Left half (toward n1 endpoint): Yellow
+        - Right half (toward n2 endpoint): Purple
+
+        Args:
+            p: QPainter instance
+            x1, y1: First endpoint (screen coordinates) - n1 side
+            x2, y2: Second endpoint (screen coordinates) - n2 side
+            interface: InterfaceDefinition object with curvature info
+            img_rect: Image rectangle for coordinate conversion
         """
-        n1 = interface.n1
-        n2 = interface.n2
+        # Check if this is a curved interface
+        is_curved = interface and hasattr(interface, "is_curved") and interface.is_curved
+        has_curvature = (
+            is_curved
+            and hasattr(interface, "radius_of_curvature_mm")
+            and abs(interface.radius_of_curvature_mm) > 0.1
+        )
 
-        # Determine which side is denser (higher n)
-        higher_n_side = 1 if n1 > n2 else 2
-
-        # Calculate line properties
+        # Calculate chord properties
         dx = x2 - x1
         dy = y2 - y1
-        length = math.sqrt(dx * dx + dy * dy)
-        if length < 1e-6:
-            return
+        chord_length = math.sqrt(dx * dx + dy * dy)
 
-        # Normal vector (perpendicular to line)
-        nx = -dy / length
-        ny = dx / length
+        if chord_length < 1:
+            return  # Line too short, skip indicator
 
-        # Center of the line
+        # Default to chord midpoint and direction
         mid_x = (x1 + x2) / 2
         mid_y = (y1 + y2) / 2
+        tangent_angle_rad = math.atan2(dy, dx)
 
-        # Radius for the indicator arc (proportional to line length)
-        radius = min(length * 0.15, 20)
+        # For curved lines, calculate arc midpoint and tangent
+        if has_curvature:
+            radius_mm = interface.radius_of_curvature_mm
+            radius_px = self._coord_system.mm_to_screen_radius(radius_mm)
 
-        # Determine the direction of the arc based on which side has higher n
-        # Side 1 (n1) is the "left" side (positive normal direction)
-        # Side 2 (n2) is the "right" side (negative normal direction)
-        if higher_n_side == 1:
-            arc_center_x = mid_x + nx * 2
-            arc_center_y = mid_y + ny * 2
-        else:
-            arc_center_x = mid_x - nx * 2
-            arc_center_y = mid_y - ny * 2
+            # Only adjust for curves if radius is reasonable relative to chord
+            if radius_px >= chord_length / 2:
+                # Calculate arc center (SAME logic as _draw_curved_line)
+                half_chord = chord_length / 2
+                h = math.sqrt(radius_px * radius_px - half_chord * half_chord)
 
-        # Calculate angle of the line
-        angle = math.degrees(math.atan2(dy, dx))
+                # Normal to chord (perpendicular direction)
+                nx = -dy / chord_length
+                ny = dx / chord_length
 
-        # Create the arc path
-        path = QtGui.QPainterPath()
-        rect = QtCore.QRectF(arc_center_x - radius, arc_center_y - radius, radius * 2, radius * 2)
+                # Chord midpoint
+                chord_mid_x = (x1 + x2) / 2
+                chord_mid_y = (y1 + y2) / 2
 
-        # Start and span angles for a half-circle on the correct side
-        if higher_n_side == 1:
-            start_angle = angle + 90
-        else:
-            start_angle = angle - 90
+                # Arc center (same signs as _draw_curved_line)
+                if radius_mm > 0:
+                    center_x = chord_mid_x - nx * h
+                    center_y = chord_mid_y - ny * h
+                else:
+                    center_x = chord_mid_x + nx * h
+                    center_y = chord_mid_y + ny * h
 
-        path.arcMoveTo(rect, start_angle)
-        path.arcTo(rect, start_angle, 180)
+                # Calculate angles from center to endpoints
+                angle1 = math.atan2(y1 - center_y, x1 - center_x)
+                angle2 = math.atan2(y2 - center_y, x2 - center_x)
 
-        # Draw the arc with a semi-transparent fill
-        p.setPen(QtGui.QPen(QtGui.QColor(100, 100, 200, 150), 1.5))
-        p.setBrush(QtGui.QBrush(QtGui.QColor(100, 100, 200, 50)))
-        p.drawPath(path)
+                # Arc midpoint angle (average of endpoint angles)
+                # Need to handle wraparound correctly
+                angle_diff = angle2 - angle1
+                while angle_diff > math.pi:
+                    angle_diff -= 2 * math.pi
+                while angle_diff < -math.pi:
+                    angle_diff += 2 * math.pi
+
+                mid_angle = angle1 + angle_diff / 2
+
+                # Arc midpoint position (point on circle at mid_angle)
+                mid_x = center_x + radius_px * math.cos(mid_angle)
+                mid_y = center_y + radius_px * math.sin(mid_angle)
+
+                # Tangent at arc midpoint is perpendicular to radial direction
+                tangent_angle_rad = mid_angle + math.pi / 2
+
+        # Circle properties
+        circle_radius = 8  # pixels
+
+        # Define colors (matching the property panel indicators)
+        yellow_n1 = QtGui.QColor(255, 215, 0)  # Yellow for n1 side (#FFD700)
+        purple_n2 = QtGui.QColor(147, 112, 219)  # Purple for n2 side (#9370DB)
+
+        # Save painter state
+        p.save()
+
+        # Draw the circle split ALONG the line direction
+        # The split line runs parallel to the interface
+        # Yellow on the n1 side (toward point 1), Purple on the n2 side (toward point 2)
+
+        p.setPen(QtCore.Qt.PenStyle.NoPen)
+
+        # The split should align with the line direction
+        # For a vertical line (90deg), split should be vertical
+        # For a horizontal line (0deg), split should be horizontal
+        # To split ALONG the line (not perpendicular), we rotate by 90deg and negate to fix direction
+
+        # Draw n1 half (Yellow) - the half toward point 1
+        p.setBrush(QtGui.QBrush(yellow_n1))
+        start_angle_deg = -math.degrees(tangent_angle_rad)
+        span_angle_deg = 180
+
+        rect = QtCore.QRectF(
+            mid_x - circle_radius,
+            mid_y - circle_radius,
+            circle_radius * 2,
+            circle_radius * 2,
+        )
+        p.drawPie(rect, int(start_angle_deg * 16), int(span_angle_deg * 16))
+
+        # Draw n2 half (Purple) - the half toward point 2
+        p.setBrush(QtGui.QBrush(purple_n2))
+        start_angle_deg = 180 - math.degrees(tangent_angle_rad)
+        p.drawPie(rect, int(start_angle_deg * 16), int(span_angle_deg * 16))
+
+        # Draw outline for better visibility
+        p.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0, 180), 1))
+        p.setBrush(QtCore.Qt.BrushStyle.NoBrush)
+        p.drawEllipse(rect)
+
+        # Restore painter state
+        p.restore()
 
     def _draw_curved_line(
         self,
@@ -352,16 +421,20 @@ class InterfaceRenderer:
         ny = dx / chord
 
         # Arc center (on one side of the chord based on radius sign)
+        # Note: radius_mm sign is defined in mm (Y-up) coords, but (nx, ny) is in screen (Y-down)
+        # The Y-flip reverses the perpendicular direction, so we use opposite signs
         if radius_mm > 0:
-            cx = mid_x + nx * h
-            cy = mid_y + ny * h
-        else:
             cx = mid_x - nx * h
             cy = mid_y - ny * h
+        else:
+            cx = mid_x + nx * h
+            cy = mid_y + ny * h
 
         # Calculate start and end angles
-        angle1 = math.degrees(math.atan2(y1 - cy, x1 - cx))
-        angle2 = math.degrees(math.atan2(y2 - cy, x2 - cx))
+        # Note: Qt's arcTo uses Y-up angle convention (90° = up), but we're in screen coords (Y-down)
+        # Negate Y differences to convert from screen to Qt's angle convention
+        angle1 = math.degrees(math.atan2(cy - y1, x1 - cx))
+        angle2 = math.degrees(math.atan2(cy - y2, x2 - cx))
 
         # Ensure we draw the correct arc (shorter one)
         span = angle2 - angle1
@@ -373,10 +446,11 @@ class InterfaceRenderer:
         # Create arc rectangle
         rect = QtCore.QRectF(cx - radius_px, cy - radius_px, radius_px * 2, radius_px * 2)
 
-        # Draw the arc
+        # Draw the arc (stroke only, no fill)
         path = QtGui.QPainterPath()
         path.arcMoveTo(rect, angle1)
         path.arcTo(rect, angle1, span)
+        p.setBrush(QtCore.Qt.BrushStyle.NoBrush)
         p.drawPath(path)
 
     def draw_bounding_box(
