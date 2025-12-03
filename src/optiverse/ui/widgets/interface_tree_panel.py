@@ -57,8 +57,23 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         self._tree.setHorizontalScrollMode(QtWidgets.QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._tree.setUniformRowHeights(False)
 
+        # Disable expand on double-click to prevent interference with embedded widgets
+        # Users can still expand/collapse via the arrow or keyboard
+        self._tree.setExpandsOnDoubleClick(False)
+
+        # Custom styling to keep text readable when selected
+        self._tree.setStyleSheet(
+            """
+            QTreeWidget::item:selected {
+                background-color: #d0d0d0;
+                color: black;
+            }
+        """
+        )
+
         # Connect signals
         self._tree.deleteKeyPressed.connect(self._on_delete_key)
+        self._tree.renameKeyPressed.connect(self._on_rename_key)
         self._tree.itemClicked.connect(self._on_item_clicked)
         self._tree.itemExpanded.connect(self._on_item_expanded)
         self._tree.itemCollapsed.connect(self._on_item_collapsed)
@@ -275,6 +290,37 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         if reply == QtWidgets.QMessageBox.StandardButton.Yes:
             for index in sorted(indices, reverse=True):
                 self.remove_interface(index)
+
+    def _on_rename_key(self) -> None:
+        """Handle F2 key press - rename selected interface."""
+        if self._tree is None:
+            return
+
+        item = self._tree.currentItem()
+        if item is None:
+            return
+
+        # Get top-level item
+        top_item = self.get_top_level_item(item)
+        index = self._tree.indexOfTopLevelItem(top_item)
+        if index < 0 or index >= len(self._interfaces):
+            return
+
+        # Show rename dialog
+        current_name = self._interfaces[index].name or f"Interface {index + 1}"
+        new_name, ok = QtWidgets.QInputDialog.getText(
+            self,
+            "Rename Interface",
+            "Enter new name:",
+            QtWidgets.QLineEdit.EchoMode.Normal,
+            current_name,
+        )
+
+        if ok and new_name.strip():
+            new_name = new_name.strip()
+            self._interfaces[index].name = new_name
+            top_item.setText(0, new_name)
+            self.interfacesChanged.emit()
 
     def _move_up(self) -> None:
         if self._tree is None:

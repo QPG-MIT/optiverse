@@ -13,12 +13,13 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 
 class InterfaceTreeWidget(QtWidgets.QTreeWidget):
-    """Custom QTreeWidget that handles Delete/Backspace keys for interface deletion."""
+    """Custom QTreeWidget that handles Delete/Backspace and F2 keys."""
 
     deleteKeyPressed = QtCore.pyqtSignal()
+    renameKeyPressed = QtCore.pyqtSignal()
 
     def keyPressEvent(self, event: QtGui.QKeyEvent | None) -> None:
-        """Override to handle Delete/Backspace keys."""
+        """Override to handle Delete/Backspace and F2 keys."""
         if event is None:
             return
         if event.key() in (QtCore.Qt.Key.Key_Delete, QtCore.Qt.Key.Key_Backspace):
@@ -26,7 +27,33 @@ class InterfaceTreeWidget(QtWidgets.QTreeWidget):
                 self.deleteKeyPressed.emit()
                 event.accept()
                 return
+        # Check if F2 key is pressed (standard rename key)
+        if event.key() == QtCore.Qt.Key.Key_F2:
+            if self.state() != QtWidgets.QAbstractItemView.State.EditingState:
+                self.renameKeyPressed.emit()
+                event.accept()
+                return
+        # Pass to parent for all other keys or when editing
         super().keyPressEvent(event)
+
+    def scrollTo(
+        self,
+        index: QtCore.QModelIndex,
+        hint: QtWidgets.QAbstractItemView.ScrollHint = QtWidgets.QAbstractItemView.ScrollHint.EnsureVisible,
+    ):
+        """Override to prevent scrolling when embedded widgets have focus.
+
+        This prevents the tree from scrolling when the user is interacting
+        with property widgets (EditableLabel, checkboxes, etc.) embedded in tree items.
+        """
+        # Check if focus is on an embedded widget inside this tree
+        app = QtWidgets.QApplication.instance()
+        if app:
+            focused = app.focusWidget()
+            if focused is not None and focused is not self and self.isAncestorOf(focused):
+                # Don't scroll - user is interacting with an embedded widget
+                return
+        super().scrollTo(index, hint)
 
 
 class EditableLabel(QtWidgets.QWidget):
@@ -60,7 +87,8 @@ class EditableLabel(QtWidgets.QWidget):
         """Switch to edit mode on double-click."""
         if event is None:
             return
-        super().mouseDoubleClickEvent(event)
+        # Accept the event to prevent propagation to parent tree widget
+        event.accept()
         self._start_editing()
 
     def _start_editing(self) -> None:
