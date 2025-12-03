@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 
@@ -39,9 +39,9 @@ def normalize(v: np.ndarray) -> np.ndarray:
     """Normalize a vector. JIT-compiled for performance when numba is available."""
     n = math.sqrt(v[0] ** 2 + v[1] ** 2)
     if n == 0.0:
-        return v.copy()
+        return cast(np.ndarray, v.copy())
     else:
-        return v / n
+        return cast(np.ndarray, v / n)
 
 
 def user_angle_to_qt(user_deg: float) -> float:

@@ -1,12 +1,12 @@
 """Custom widgets for Optiverse UI."""
 
+from .interface_properties_widget import InterfacePropertiesWidget
+from .interface_tree_panel import InterfaceTreePanel
 from .interface_widgets import (
     ColoredCircleLabel,
     EditableLabel,
     InterfaceTreeWidget,
 )
-from .interface_properties_widget import InterfacePropertiesWidget
-from .interface_tree_panel import InterfaceTreePanel
 from .layer_panel import (
     ClickableLabel,
     LayerItemWidget,

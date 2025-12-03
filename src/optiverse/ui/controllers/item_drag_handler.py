@@ -64,14 +64,14 @@ class ItemDragHandler:
         self._item_positions: dict[QtWidgets.QGraphicsItem, QtCore.QPointF] = {}
         self._item_rotations: dict[QtWidgets.QGraphicsItem, float] = {}
         self._item_group_states: dict[str, Any] = {}
-        
+
         # Group movement tracking (for LayerGroup items)
         self._dragging_group = False
         self._group_items: list[QtWidgets.QGraphicsItem] = []
         self._group_offsets: dict[QtWidgets.QGraphicsItem, QtCore.QPointF] = {}
         self._primary_drag_item: QtWidgets.QGraphicsItem | None = None
         self._last_primary_pos: QtCore.QPointF | None = None  # For delta calculation
-        
+
         # Multi-selection tracking (for any multi-selected items, not just groups)
         self._dragging_multi_selection = False
         self._multi_selection_offsets: dict[QtWidgets.QGraphicsItem, QtCore.QPointF] = {}
@@ -79,7 +79,7 @@ class ItemDragHandler:
     @classmethod
     def is_secondary_drag_item(cls, item: QtWidgets.QGraphicsItem) -> bool:
         """Check if an item is a secondary item in a multi-selection drag.
-        
+
         Secondary items should block Qt's automatic movement and instead
         follow the primary item to preserve relative positions.
         """
@@ -88,10 +88,10 @@ class ItemDragHandler:
     @classmethod
     def get_secondary_item_target_pos(cls, item: QtWidgets.QGraphicsItem) -> QtCore.QPointF | None:
         """Get the correct target position for a secondary item.
-        
+
         Returns the position based on primary item's TARGET position (after snap) + stored offset,
         or None if this item is not a secondary drag item.
-        
+
         Uses _primary_target_position if available (set during primary's itemChange),
         otherwise falls back to primary.pos().
         """
@@ -103,9 +103,13 @@ class ItemDragHandler:
         if offset is None:
             return None
         # Use target position if available (set during primary's itemChange), otherwise use current
-        primary_pos = cls._primary_target_position if cls._primary_target_position is not None else cls._current_primary_item.pos()
+        primary_pos = (
+            cls._primary_target_position
+            if cls._primary_target_position is not None
+            else cls._current_primary_item.pos()
+        )
         return primary_pos + offset
-    
+
     @classmethod
     def set_primary_target_position(cls, target_pos: QtCore.QPointF) -> None:
         """Set the primary item's target position (called from primary's itemChange after snap)."""
@@ -118,7 +122,7 @@ class ItemDragHandler:
     def handle_mouse_press(self, event: QtGui.QMouseEvent):
         """
         Track item positions and rotations on mouse press.
-        
+
         Legacy method - prefer handle_mouse_press_at_scene_pos for correct coordinates.
         """
         # Map view coordinates to scene coordinates
@@ -198,7 +202,10 @@ class ItemDragHandler:
                         offset = item.pos() - primary_pos
                         self._group_offsets[item] = offset
                         # Add to selected items for position tracking
-                        if item not in selected_items:
+                        if (
+                            isinstance(item, (BaseObj, RulerItem, TextNoteItem, RectangleItem))
+                            and item not in selected_items
+                        ):
                             selected_items.append(item)
 
         # Track secondary items for multi-selection drag
@@ -208,7 +215,7 @@ class ItemDragHandler:
             primary_pos = self._primary_drag_item.pos()
             # Set class-level primary reference for BaseObj.itemChange()
             ItemDragHandler._current_primary_item = self._primary_drag_item
-            
+
             for item in selected_items:
                 if item != self._primary_drag_item:
                     # Store offset relative to primary
@@ -217,7 +224,7 @@ class ItemDragHandler:
                     # Set class-level tracking for BaseObj.itemChange()
                     ItemDragHandler._current_secondary_items.add(item)
                     ItemDragHandler._secondary_item_offsets[item] = offset
-            
+
             # Initialize last primary position for update_group_positions
             if self._last_primary_pos is None:
                 self._last_primary_pos = QtCore.QPointF(primary_pos)
@@ -249,12 +256,12 @@ class ItemDragHandler:
         Uses offset-based positioning: each secondary item is placed at
         primary.pos() + stored_offset. This correctly handles magnetic snap
         by preserving relative positions regardless of where the primary snaps.
-        
+
         Handles both LayerGroup items and arbitrary multi-selection.
         """
         if not self._primary_drag_item:
             return
-        
+
         # Must be dragging either a group or multi-selection
         if not self._dragging_group and not self._dragging_multi_selection:
             return
@@ -264,7 +271,7 @@ class ItemDragHandler:
         # For grouped items, use offset-based positioning
         for item, offset in self._group_offsets.items():
             item.setPos(primary_pos + offset)
-        
+
         # For multi-selected items (may overlap with group), use offset-based positioning
         for item, offset in self._multi_selection_offsets.items():
             # Don't double-move items that are already in _group_offsets

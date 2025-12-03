@@ -81,7 +81,7 @@ class FileController(QtCore.QObject):
         self._autosave_timer.timeout.connect(self._do_autosave)
 
         # Connect undo stack to modification tracking
-        undo_stack.commandPushed.connect(self._on_command_pushed)
+        self._undo_stack.commandPushed.connect(self._on_command_pushed)
 
     @property
     def saved_file_path(self) -> str | None:
@@ -302,9 +302,8 @@ class FileController(QtCore.QObject):
             - List of group dicts from the file (for hierarchy preservation)
             - Set of item UUIDs that were in groups in the file
         """
-        from optiverse.objects.annotations.path_measure_item import PathMeasureItem
 
-        from ...objects import BaseObj, RectangleItem
+        from ...objects import RectangleItem
         from ...objects.annotations import RulerItem, TextNoteItem
         from ...objects.type_registry import deserialize_item
 

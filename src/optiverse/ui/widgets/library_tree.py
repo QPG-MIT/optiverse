@@ -50,10 +50,13 @@ class LibraryTree(QtWidgets.QTreeWidget):
         # Create context menu
         menu = QtWidgets.QMenu(self)
         edit_action = menu.addAction("Edit Component")
-        edit_action.triggered.connect(lambda: self._edit_component(payload))
+        if edit_action is not None:
+            edit_action.triggered.connect(lambda: self._edit_component(payload))
 
         # Show menu at cursor position
-        menu.exec(self.viewport().mapToGlobal(position))
+        viewport = self.viewport()
+        if viewport is not None:
+            menu.exec(viewport.mapToGlobal(position))
 
     def _edit_component(self, component_data: dict) -> None:
         """Open component editor with the selected component loaded."""

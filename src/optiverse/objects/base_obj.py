@@ -106,7 +106,7 @@ class BaseObj(QtWidgets.QGraphicsObject):
                         main_window = views[0].window()
                         # Check if this is the primary drag item
                         is_primary = ItemDragHandler._current_primary_item is self
-                        
+
                         # Check if magnetic snap is enabled and this is an interactive move
                         if isinstance(main_window, HasSnapping) and main_window.magnetic_snap:
                             # value is the new position being proposed
@@ -132,8 +132,11 @@ class BaseObj(QtWidgets.QGraphicsObject):
                                     ItemDragHandler.set_primary_target_position(new_pos)
                                 views[0].clear_snap_guides()
                         elif is_primary:
-                            # Magnetic snap disabled, but still set target position for secondary items
-                            ItemDragHandler.set_primary_target_position(value)
+                            # Magnetic snap disabled, but still set target position
+                            # for secondary items
+                            ItemDragHandler.set_primary_target_position(
+                                value
+                            )
 
         if change in (
             QtWidgets.QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged,

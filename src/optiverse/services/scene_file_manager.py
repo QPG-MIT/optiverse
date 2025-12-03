@@ -319,7 +319,7 @@ class SceneFileManager:
 
             # Import here to avoid circular import
             from ..ui.theme_manager import question as theme_aware_question
-            
+
             reply = theme_aware_question(
                 self.parent_widget,
                 "Recover Autosave?",
@@ -405,7 +405,7 @@ class SceneFileManager:
         """
         # Import here to avoid circular import
         from ..ui.theme_manager import question as theme_aware_question
-        
+
         return theme_aware_question(
             self.parent_widget,
             "Unsaved Changes",

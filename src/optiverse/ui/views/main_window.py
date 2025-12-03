@@ -82,6 +82,7 @@ class MainWindow(QtWidgets.QMainWindow):
     act_add_rectangle: QtGui.QAction
     act_inspect: QtGui.QAction
     act_measure_path: QtGui.QAction
+    _tool_action_group: QtGui.QActionGroup  # type: ignore[misc]
     act_measure_angle: QtGui.QAction
     act_zoom_in: QtGui.QAction
     act_zoom_out: QtGui.QAction

@@ -14,7 +14,7 @@ from typing import Protocol, runtime_checkable
 class HasComponentEditor(Protocol):
     """
     Protocol for windows that can open a component editor.
-    
+
     Used by LibraryTree to communicate with the main window without
     direct imports.
     """
@@ -22,7 +22,7 @@ class HasComponentEditor(Protocol):
     def open_component_editor(self, component: dict | None = None) -> None:
         """
         Open the component editor.
-        
+
         Args:
             component: Optional component data to load into the editor.
                       If None, opens with default/empty state.
@@ -30,11 +30,11 @@ class HasComponentEditor(Protocol):
         ...
 
 
-@runtime_checkable  
+@runtime_checkable
 class HasUndoStack(Protocol):
     """
     Protocol for windows that have an undo stack.
-    
+
     Used to access undo functionality without direct coupling.
     """
 

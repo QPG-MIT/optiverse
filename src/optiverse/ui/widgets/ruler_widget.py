@@ -150,13 +150,23 @@ class RulerWidget(QtWidgets.QWidget):
 
                     half_width = RULER_LABEL_WIDTH // 2
                     painter.drawText(
-                        QtCore.QRectF(screen_x - half_width, 2, RULER_LABEL_WIDTH, RULER_LABEL_HEIGHT),
+                        QtCore.QRectF(
+                            screen_x - half_width,
+                            2,
+                            RULER_LABEL_WIDTH,
+                            RULER_LABEL_HEIGHT,
+                        ),
                         QtCore.Qt.AlignmentFlag.AlignCenter,
                         label,
                     )
                 else:
                     # Minor tick
-                    painter.drawLine(int(screen_x), height - RULER_MINOR_TICK_SIZE, int(screen_x), height)
+                    painter.drawLine(
+                        int(screen_x),
+                        height - RULER_MINOR_TICK_SIZE,
+                        int(screen_x),
+                        height,
+                    )
 
             pos_mm += minor_interval_mm
 
@@ -214,7 +224,12 @@ class RulerWidget(QtWidgets.QWidget):
                     painter.restore()
                 else:
                     # Minor tick
-                    painter.drawLine(width - RULER_MINOR_TICK_SIZE, int(screen_y), width, int(screen_y))
+                    painter.drawLine(
+                        width - RULER_MINOR_TICK_SIZE,
+                        int(screen_y),
+                        width,
+                        int(screen_y),
+                    )
 
             pos_mm += minor_interval_mm
 
@@ -231,8 +246,14 @@ class RulerWidget(QtWidgets.QWidget):
             points = QtGui.QPolygonF(
                 [
                     QtCore.QPointF(screen_x, 0),
-                    QtCore.QPointF(screen_x - RULER_INDICATOR_TRIANGLE_SIZE, RULER_INDICATOR_HEIGHT),
-                    QtCore.QPointF(screen_x + RULER_INDICATOR_TRIANGLE_SIZE, RULER_INDICATOR_HEIGHT),
+                    QtCore.QPointF(
+                        screen_x - RULER_INDICATOR_TRIANGLE_SIZE,
+                        RULER_INDICATOR_HEIGHT,
+                    ),
+                    QtCore.QPointF(
+                        screen_x + RULER_INDICATOR_TRIANGLE_SIZE,
+                        RULER_INDICATOR_HEIGHT,
+                    ),
                 ]
             )
 
@@ -251,8 +272,14 @@ class RulerWidget(QtWidgets.QWidget):
             points = QtGui.QPolygonF(
                 [
                     QtCore.QPointF(0, screen_y),
-                    QtCore.QPointF(RULER_INDICATOR_HEIGHT, screen_y - RULER_INDICATOR_TRIANGLE_SIZE),
-                    QtCore.QPointF(RULER_INDICATOR_HEIGHT, screen_y + RULER_INDICATOR_TRIANGLE_SIZE),
+                    QtCore.QPointF(
+                        RULER_INDICATOR_HEIGHT,
+                        screen_y - RULER_INDICATOR_TRIANGLE_SIZE,
+                    ),
+                    QtCore.QPointF(
+                        RULER_INDICATOR_HEIGHT,
+                        screen_y + RULER_INDICATOR_TRIANGLE_SIZE,
+                    ),
                 ]
             )
 

@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 from PyQt6 import QtCore, QtWidgets
 
 if TYPE_CHECKING:
-    from ..objects.base_obj import BaseObj
+    pass
 
 
 @dataclass

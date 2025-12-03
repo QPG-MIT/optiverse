@@ -434,8 +434,10 @@ class InterfacePropertiesWidget(QtWidgets.QWidget):
         # Clear form
         while form.count() > 0:
             item = form.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            if item is not None:
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
 
         self._property_widgets[idx].clear()
         self._populate_form(idx, self._interfaces[idx], form)
@@ -471,7 +473,13 @@ class InterfacePropertiesWidget(QtWidgets.QWidget):
                         # Handle coordinates
                         if prop_name in ("X₁", "Y₁", "X₂", "Y₂"):
                             if isinstance(widget, EditableLabel):
-                                attr = {"X₁": "x1_mm", "Y₁": "y1_mm", "X₂": "x2_mm", "Y₂": "y2_mm"}[prop_name]
+                                attr_map = {
+                                    "X₁": "x1_mm",
+                                    "Y₁": "y1_mm",
+                                    "X₂": "x2_mm",
+                                    "Y₂": "y2_mm",
+                                }
+                                attr = attr_map[prop_name]
                                 widget.setText(f"{getattr(interface, attr):.3f}")
                             continue
 

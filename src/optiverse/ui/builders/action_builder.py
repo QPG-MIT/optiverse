@@ -292,17 +292,18 @@ class ActionBuilder:
 
         # Create exclusive action group for tool buttons
         # ExclusiveOptional allows unchecking all (clicking checked action unchecks it)
-        w._tool_action_group = QtGui.QActionGroup(w)
-        w._tool_action_group.setExclusive(True)
-        w._tool_action_group.setExclusionPolicy(
+        tool_action_group = QtGui.QActionGroup(w)
+        tool_action_group.setExclusive(True)
+        tool_action_group.setExclusionPolicy(
             QtGui.QActionGroup.ExclusionPolicy.ExclusiveOptional
         )
+        w._tool_action_group = tool_action_group  # type: ignore[attr-defined]
 
         # Helper to set icon and register for theme switching
         def add_toolbar_action(action: QtGui.QAction, icon_name: str) -> None:
             action.setIcon(QtGui.QIcon(_get_icon_path(icon_name, dark_mode)))
             toolbar.addAction(action)
-            w._tool_action_group.addAction(action)
+            tool_action_group.addAction(action)
             self._toolbar_icon_map.append((action, icon_name))
 
         # Source button
@@ -343,7 +344,7 @@ class ActionBuilder:
 
     def refresh_toolbar_icons(self, dark_mode: bool) -> None:
         """Refresh all toolbar icons for the given theme.
-        
+
         Args:
             dark_mode: If True, use dark mode (inverted) icons
         """

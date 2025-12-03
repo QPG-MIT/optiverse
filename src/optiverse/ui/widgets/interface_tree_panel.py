@@ -65,7 +65,9 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         self._tree.itemChanged.connect(self._on_item_renamed)
 
         # Whitespace click handling
-        self._tree.viewport().installEventFilter(self)
+        viewport = self._tree.viewport()
+        if viewport is not None:
+            viewport.installEventFilter(self)
 
         layout.addWidget(self._tree, 1)
 
@@ -88,8 +90,9 @@ class InterfaceTreePanel(QtWidgets.QWidget):
             display_name = interface_types.get_type_display_name(type_name)
             emoji = interface_types.get_type_emoji(type_name)
             action = self._add_menu.addAction(f"{emoji} {display_name}")
-            action.setData(type_name)
-            action.triggered.connect(lambda checked=False, t=type_name: self._add_interface(t))
+            if action is not None:
+                action.setData(type_name)
+                action.triggered.connect(lambda checked=False, t=type_name: self._add_interface(t))
 
         self._add_btn.setMenu(self._add_menu)
         header_layout.addWidget(self._add_btn)
@@ -134,8 +137,11 @@ class InterfaceTreePanel(QtWidgets.QWidget):
     @staticmethod
     def get_top_level_item(item: QtWidgets.QTreeWidgetItem) -> QtWidgets.QTreeWidgetItem:
         """Get the top-level parent of a tree item."""
-        while item.parent() is not None:
-            item = item.parent()
+        while True:
+            parent = item.parent()
+            if parent is None:
+                break
+            item = parent
         return item
 
     def _get_selected_top_level_indices(self) -> list[int]:
@@ -174,14 +180,21 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         interface.y2_mm = 0.0
         self.add_interface(interface)
 
-    def _create_tree_item(self, interface: InterfaceDefinition, index: int) -> QtWidgets.QTreeWidgetItem:
+    def _create_tree_item(
+        self, interface: InterfaceDefinition, index: int
+    ) -> QtWidgets.QTreeWidgetItem:
         if self._tree is None:
             raise RuntimeError("Tree not initialized")
 
         item = QtWidgets.QTreeWidgetItem()
         display_name = interface.name if interface.name else f"Interface {index + 1}"
         item.setText(0, display_name)
-        item.setFlags(item.flags() | QtCore.Qt.ItemFlag.ItemIsSelectable | QtCore.Qt.ItemFlag.ItemIsEditable)
+        flags = (
+            item.flags()
+            | QtCore.Qt.ItemFlag.ItemIsSelectable
+            | QtCore.Qt.ItemFlag.ItemIsEditable
+        )
+        item.setFlags(flags)
         item.setData(0, QtCore.Qt.ItemDataRole.UserRole, index)
 
         prop_widget = InterfacePropertiesWidget(interface, show_coordinates=True)
@@ -250,7 +263,10 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         if not indices:
             return
 
-        msg = f"Delete interface {indices[0] + 1}?" if len(indices) == 1 else f"Delete {len(indices)} interfaces?"
+        if len(indices) == 1:
+            msg = f"Delete interface {indices[0] + 1}?"
+        else:
+            msg = f"Delete {len(indices)} interfaces?"
         reply = QtWidgets.QMessageBox.question(
             self, "Delete Interface" if len(indices) == 1 else "Delete Interfaces", msg,
             QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No
@@ -381,7 +397,11 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         return len(self._interfaces)
 
     def move_interface(self, from_index: int, to_index: int) -> None:
-        if 0 <= from_index < len(self._interfaces) and 0 <= to_index < len(self._interfaces) and from_index != to_index:
+        if (
+            0 <= from_index < len(self._interfaces)
+            and 0 <= to_index < len(self._interfaces)
+            and from_index != to_index
+        ):
             interface = self._interfaces.pop(from_index)
             self._interfaces.insert(to_index, interface)
             self._rebuild_tree()

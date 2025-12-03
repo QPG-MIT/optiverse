@@ -226,17 +226,18 @@ def apply_theme(dark_mode: bool) -> None:
 def is_dark_mode() -> bool:
     """
     Check if the application is currently in dark mode.
-    
+
     Returns:
         True if dark mode is active, False otherwise
     """
     try:
         app = QtWidgets.QApplication.instance()
-        if not app:
+        if not app or not isinstance(app, QtWidgets.QApplication):
             return False
         palette = app.palette()
         bg_color = palette.color(QtGui.QPalette.ColorRole.Window)
-        return bg_color.lightness() < 128
+        lightness: int = bg_color.lightness()
+        return lightness < 128
     except (AttributeError, RuntimeError):
         return False
 
@@ -251,17 +252,17 @@ def question(
 ) -> QtWidgets.QMessageBox.StandardButton:
     """
     Show a question dialog with theme-aware icon colors.
-    
+
     This is a drop-in replacement for QMessageBox.question that ensures
     the question mark icon is visible in dark mode.
-    
+
     Args:
         parent: Parent widget
         title: Dialog title
         text: Message text
         buttons: Standard buttons to show
         default_button: Default button
-        
+
     Returns:
         The button that was pressed
     """
@@ -271,12 +272,12 @@ def question(
     msg_box.setText(text)
     msg_box.setStandardButtons(buttons)
     msg_box.setDefaultButton(default_button)
-    
+
     # Center align the text label
     text_label = msg_box.findChild(QtWidgets.QLabel, "qt_msgbox_label")
     if text_label is not None:
         text_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-    
+
     # In dark mode, invert the icon to make it visible
     if is_dark_mode():
         # Get the standard icon from QStyle
@@ -294,5 +295,6 @@ def question(
                 img.invertPixels(QtGui.QImage.InvertMode.InvertRgb)  # Invert RGB, preserve alpha
                 inverted_pixmap = QtGui.QPixmap.fromImage(img)
                 msg_box.setIconPixmap(inverted_pixmap)
-    
-    return msg_box.exec()
+
+    result = msg_box.exec()
+    return QtWidgets.QMessageBox.StandardButton(result)

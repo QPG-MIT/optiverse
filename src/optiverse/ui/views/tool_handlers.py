@@ -797,7 +797,7 @@ class PathMeasureToolHandler:
             np.linalg.norm(points[j + 1] - points[j]) for j in range(len(points) - 1)
         )
         if total_length < 1e-6:
-            return points[0].copy()
+            return cast(np.ndarray, points[0].copy())
 
         target_dist = param * total_length
         accumulated: float = 0.0
@@ -813,7 +813,7 @@ class PathMeasureToolHandler:
 
             accumulated = float(accumulated + segment_len)
 
-        return points[-1].copy()
+        return cast(np.ndarray, points[-1].copy())
 
     def _find_param_on_ray(
         self, ray_data_list: list[RayPath], ray_index: int, click_pt: np.ndarray
