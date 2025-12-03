@@ -556,7 +556,6 @@ class DeleteGroupCommand(Command):
         self._group_manager = group_manager
         self._group_uuid = group_uuid
         self._keep_items = keep_items
-        self._executed = False
 
         # Store full group data for restoration
         group = group_manager.get_group(group_uuid)
@@ -571,25 +570,40 @@ class DeleteGroupCommand(Command):
             self._items = group_manager.get_group_items(group_uuid)
 
     def execute(self) -> None:
-        """Delete the group."""
-        if not self._executed and self._group_data:
+        """Delete the group (works for both initial execute and redo)."""
+        if not self._group_data:
+            return
+
+        # Check if group exists (it should after undo recreated it)
+        if self._group_manager.get_group(self._group_uuid):
             self._group_manager.delete_group(self._group_uuid, keep_items=self._keep_items)
-            self._executed = True
 
     def undo(self) -> None:
         """Restore the group."""
-        if self._executed and self._group_data:
-            from .layer_group import LayerGroup
+        if not self._group_data:
+            return
 
-            # Re-add items to scene if they were deleted
-            if not self._keep_items and self._items and self._group_manager.scene:
-                for item in self._items:
-                    self._group_manager.scene.addItem(item)
+        from .layer_group import LayerGroup
 
-            # Recreate the group
-            group = LayerGroup.from_dict(self._group_data)
-            self._group_manager.add_group(group)
-            self._executed = False
+        # Re-add items to scene if they were deleted
+        if not self._keep_items and self._items and self._group_manager.scene:
+            for item in self._items:
+                self._group_manager.scene.addItem(item)
+
+        # If this was a subgroup, remove items from parent first
+        # (they were moved there during delete)
+        parent_group_uuid = self._group_data.get("parent_group_uuid")
+        item_uuids = self._group_data.get("item_uuids", [])
+        if self._keep_items and parent_group_uuid:
+            parent = self._group_manager.get_group(parent_group_uuid)
+            if parent:
+                for item_uuid in item_uuids:
+                    if item_uuid in parent.item_uuids:
+                        parent.item_uuids.remove(item_uuid)
+
+        # Recreate the group
+        group = LayerGroup.from_dict(self._group_data)
+        self._group_manager.add_group(group)
 
 
 class AddItemToGroupCommand(Command):
@@ -682,3 +696,69 @@ class RemoveItemFromGroupCommand(Command):
             # Add item back to group
             self._group_manager.add_item_to_group(self._item_uuid, self._group_uuid)
             self._executed = False
+
+
+class ImportAsLayerCommand(Command):
+    """Command to import an assembly file as a layer (group)."""
+
+    def __init__(
+        self,
+        scene: QtWidgets.QGraphicsScene,
+        group_manager: GroupManager,
+        items: list[QtWidgets.QGraphicsItem],
+        parent_group_data: dict[str, Any],
+        imported_groups_data: list[dict[str, Any]],
+    ):
+        """
+        Initialize ImportAsLayerCommand.
+
+        Args:
+            scene: The graphics scene
+            group_manager: The group manager
+            items: List of imported items
+            parent_group_data: Data for the parent group (as dict)
+            imported_groups_data: List of imported group data dicts
+        """
+        self._scene = scene
+        self._group_manager = group_manager
+        self._items = items
+        self._parent_group_data = parent_group_data
+        self._imported_groups_data = imported_groups_data
+
+    def execute(self) -> None:
+        """Add items and groups to scene (for redo)."""
+        from .layer_group import LayerGroup
+
+        # Add items to scene
+        for item in self._items:
+            if item.scene() is None:
+                self._scene.addItem(item)
+
+        # Recreate parent group
+        parent_group = LayerGroup.from_dict(self._parent_group_data)
+        self._group_manager.add_group(parent_group)
+
+        # Recreate imported groups
+        for group_data in self._imported_groups_data:
+            group = LayerGroup.from_dict(group_data)
+            self._group_manager.add_group(group)
+
+    def undo(self) -> None:
+        """Remove imported items and groups."""
+        from .layer_group import LayerGroup
+
+        # Remove imported groups (in reverse order to handle hierarchy)
+        for group_data in reversed(self._imported_groups_data):
+            group_uuid = group_data.get("group_uuid")
+            if group_uuid and self._group_manager.get_group(group_uuid):
+                self._group_manager.delete_group(group_uuid, keep_items=True)
+
+        # Remove parent group
+        parent_uuid = self._parent_group_data.get("group_uuid")
+        if parent_uuid and self._group_manager.get_group(parent_uuid):
+            self._group_manager.delete_group(parent_uuid, keep_items=True)
+
+        # Remove items from scene
+        for item in self._items:
+            if item.scene() is not None:
+                self._scene.removeItem(item)

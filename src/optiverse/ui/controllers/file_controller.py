@@ -235,12 +235,12 @@ class FileController(QtCore.QObject):
                 )
                 return False
 
-            # Import items without clearing scene
-            imported_uuids, file_groups, grouped_uuids = self._import_items_from_data(
+            # Import items without clearing scene (but don't add to scene yet)
+            imported_items, file_groups, grouped_uuids = self._import_items_for_layer(
                 data
             )
 
-            if not imported_uuids:
+            if not imported_items:
                 QtWidgets.QMessageBox.information(
                     self._parent,
                     "Import Complete",
@@ -252,40 +252,120 @@ class FileController(QtCore.QObject):
             group_name = os.path.splitext(os.path.basename(path))[0]
 
             if self._group_manager:
+                from ...core.undo_commands import ImportAsLayerCommand
+                from ...core.layer_group import LayerGroup
+
+                # Get UUIDs of imported items
+                imported_uuids = [
+                    item.item_uuid for item in imported_items
+                    if hasattr(item, "item_uuid")
+                ]
+
                 # Find ungrouped items (items not in any group from the file)
                 ungrouped_uuids = [
                     uuid for uuid in imported_uuids if uuid not in grouped_uuids
                 ]
 
-                # Create the parent group with only ungrouped items
-                parent_group = self._group_manager.create_group(
-                    group_name, ungrouped_uuids
-                )
+                # Create parent group data (but don't add yet)
+                parent_group = LayerGroup(name=group_name, item_uuids=ungrouped_uuids)
+                parent_group_data = parent_group.to_dict()
 
-                # Import groups from the file and set them as children of parent
-                if file_groups:
-                    imported_groups = self._group_manager.import_groups_from_dict_list(
-                        file_groups
-                    )
-                    # Set parent for all imported root groups (those without a parent)
-                    for group in imported_groups:
-                        if group.parent_group_uuid is None:
-                            self._group_manager.set_group_parent(
-                                group.group_uuid, parent_group.group_uuid
-                            )
+                # Prepare imported groups data with parent relationships
+                imported_groups_data = []
+                for group_data in file_groups:
+                    # Set parent for root groups
+                    if group_data.get("parent_group_uuid") is None:
+                        group_data["parent_group_uuid"] = parent_group.group_uuid
+                    imported_groups_data.append(group_data)
+
+                # Create and execute the command (adds items and groups)
+                cmd = ImportAsLayerCommand(
+                    self._scene,
+                    self._group_manager,
+                    imported_items,
+                    parent_group_data,
+                    imported_groups_data,
+                )
+                self._undo_stack.push(cmd)
+
+                # Connect signals for imported items
+                if self._connect_item_signals:
+                    for item in imported_items:
+                        self._connect_item_signals(item)
 
             # Mark as modified and retrace
             self.mark_modified()
             self.traceRequested.emit()
 
             self._log_service.info(
-                f"Imported {len(imported_uuids)} items as layer '{group_name}'",
+                f"Imported {len(imported_items)} items as layer '{group_name}'",
                 "Import",
             )
 
             return True
 
         return False
+
+    def _import_items_for_layer(
+        self, data: dict
+    ) -> tuple[list[QtWidgets.QGraphicsItem], list[dict], set[str]]:
+        """
+        Create items from data dict without adding to scene.
+
+        Args:
+            data: Dictionary containing assembly data
+
+        Returns:
+            Tuple of:
+            - List of created items (not yet in scene)
+            - List of group dicts from the file (for hierarchy preservation)
+            - Set of item UUIDs that were in groups in the file
+        """
+        from ...objects import RectangleItem
+        from ...objects.annotations import RulerItem, TextNoteItem
+        from ...objects.type_registry import deserialize_item
+
+        imported_items: list[QtWidgets.QGraphicsItem] = []
+
+        # Create optical items
+        for item_data in data.get("items", []):
+            try:
+                item = deserialize_item(item_data)
+                imported_items.append(item)
+            except (KeyError, ValueError, TypeError) as e:
+                self._log_service.error(f"Error importing item: {e}", "Import")
+
+        # Create rulers
+        for ruler_data in data.get("rulers", []):
+            try:
+                ruler = RulerItem.from_dict(ruler_data)
+                imported_items.append(ruler)
+            except (KeyError, ValueError, TypeError) as e:
+                self._log_service.error(f"Error importing ruler: {e}", "Import")
+
+        # Create text notes
+        for note_data in data.get("text_notes", []):
+            try:
+                note = TextNoteItem.from_dict(note_data)
+                imported_items.append(note)
+            except (KeyError, ValueError, TypeError) as e:
+                self._log_service.error(f"Error importing text note: {e}", "Import")
+
+        # Create rectangles
+        for rect_data in data.get("rectangles", []):
+            try:
+                rect = RectangleItem.from_dict(rect_data)
+                imported_items.append(rect)
+            except (KeyError, ValueError, TypeError) as e:
+                self._log_service.error(f"Error importing rectangle: {e}", "Import")
+
+        # Get group info
+        file_groups = data.get("groups", [])
+        grouped_uuids: set[str] = set()
+        for group_data in file_groups:
+            grouped_uuids.update(group_data.get("item_uuids", []))
+
+        return imported_items, file_groups, grouped_uuids
 
     def _import_items_from_data(
         self, data: dict

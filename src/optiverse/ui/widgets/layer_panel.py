@@ -588,20 +588,42 @@ class LayerPanel(QtWidgets.QWidget):
     def _ungroup_selected(self) -> None:
         if not self._group_manager:
             return
+
+        group_uuid_to_ungroup: str | None = None
+
+        # First, check if a group is directly selected in the tree
         for item in self._tree.selectedItems():
             if item.data(0, IS_GROUP_ROLE):
-                group_uuid = item.data(0, GROUP_UUID_ROLE)
-                undo_stack = self._get_undo_stack()
-                if undo_stack:
-                    cmd = DeleteGroupCommand(
-                        self._group_manager,
-                        group_uuid,
-                        keep_items=True,
-                    )
-                    undo_stack.push(cmd)
-                else:
-                    self._group_manager.ungroup(group_uuid)
-                return
+                group_uuid_to_ungroup = item.data(0, GROUP_UUID_ROLE)
+                break
+
+        # If no group directly selected, check if selected items belong to a common group
+        if not group_uuid_to_ungroup and self._scene:
+            selected_scene_items = self._scene.selectedItems()
+            if selected_scene_items:
+                groups = set()
+                for scene_item in selected_scene_items:
+                    if hasattr(scene_item, "item_uuid"):
+                        group = self._group_manager.get_item_group(scene_item.item_uuid)
+                        if group:
+                            groups.add(group.group_uuid)
+                # If all selected items are in the same group, ungroup that group
+                if len(groups) == 1:
+                    group_uuid_to_ungroup = groups.pop()
+
+        if group_uuid_to_ungroup:
+            undo_stack = self._get_undo_stack()
+            if undo_stack:
+                cmd = DeleteGroupCommand(
+                    self._group_manager,
+                    group_uuid_to_ungroup,
+                    keep_items=True,
+                )
+                undo_stack.push(cmd)
+            else:
+                self._group_manager.ungroup(group_uuid_to_ungroup)
+            return
+
         QtWidgets.QMessageBox.information(self, "Ungroup", "Please select a group to ungroup.")
 
     def _delete_selected(self) -> None:

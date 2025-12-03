@@ -144,7 +144,7 @@ class GroupManager(QtCore.QObject):
 
         Args:
             group_uuid: UUID of the group to delete
-            keep_items: If True, items remain in scene (ungrouped).
+            keep_items: If True, items remain in scene (ungrouped or moved to parent).
                        If False, items are also deleted from scene.
         """
         if group_uuid not in self._groups:
@@ -165,10 +165,19 @@ class GroupManager(QtCore.QObject):
                 if hasattr(item, "item_uuid") and item.item_uuid in group.item_uuids:
                     self._scene.removeItem(item)
 
-        # Clear item-to-group mapping
+        # Handle item-to-group mapping
+        parent_group_uuid = group.parent_group_uuid
         for item_uuid in group.item_uuids:
             if self._item_to_group.get(item_uuid) == group_uuid:
-                del self._item_to_group[item_uuid]
+                if keep_items and parent_group_uuid and parent_group_uuid in self._groups:
+                    # Move items to parent group
+                    parent = self._groups[parent_group_uuid]
+                    if item_uuid not in parent.item_uuids:
+                        parent.item_uuids.append(item_uuid)
+                    self._item_to_group[item_uuid] = parent_group_uuid
+                else:
+                    # Ungroup completely
+                    del self._item_to_group[item_uuid]
 
         del self._groups[group_uuid]
         self.groupDeleted.emit(group_uuid)
