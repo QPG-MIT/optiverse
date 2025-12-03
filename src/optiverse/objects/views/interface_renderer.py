@@ -348,7 +348,8 @@ class InterfaceRenderer:
         # The split should align with the line direction
         # For a vertical line (90deg), split should be vertical
         # For a horizontal line (0deg), split should be horizontal
-        # To split ALONG the line (not perpendicular), we rotate by 90deg and negate to fix direction
+        # To split ALONG the line (not perpendicular), we rotate by 90deg
+        # and negate to fix direction
 
         # Draw n1 half (Yellow) - the half toward point 1
         p.setBrush(QtGui.QBrush(yellow_n1))
