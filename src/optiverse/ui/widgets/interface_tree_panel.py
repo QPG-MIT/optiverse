@@ -86,7 +86,9 @@ class InterfaceTreePanel(QtWidgets.QWidget):
         self._tree.itemChanged.connect(self._on_item_renamed)
 
         # Allow clicking on white space to deselect
-        self._tree.viewport().installEventFilter(self)
+        viewport = self._tree.viewport()
+        if viewport is not None:
+            viewport.installEventFilter(self)
 
         layout.addWidget(self._tree, 1)
 
