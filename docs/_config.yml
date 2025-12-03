@@ -3,7 +3,7 @@
 
 title: Optiverse Documentation
 description: Comprehensive documentation for Optiverse optical simulation software
-theme: just-the-docs
+remote_theme: just-the-docs/just-the-docs
 
 # Site settings
 url: "https://qpg-mit.github.io"
@@ -34,6 +34,7 @@ kramdown:
 
 # Plugins
 plugins:
+  - jekyll-remote-theme
   - jekyll-seo-tag
 
 # Exclude files from processing
