@@ -13,9 +13,24 @@ Physics background:
 
 import numpy as np
 
-from optiverse.core.models import OpticalElement, Polarization, SourceParams
+from optiverse.core.models import Polarization, SourceParams
 from optiverse.core.raytracing_math import transform_polarization_beamsplitter
-from optiverse.core.use_cases import trace_rays
+from optiverse.data import BeamsplitterProperties, LineSegment, OpticalInterface
+from optiverse.integration import create_polymorphic_element
+from optiverse.raytracing import trace_rays_polymorphic
+
+
+def _create_pbs(pbs_axis_deg: float):
+    """Create a PBS element with specified transmission axis."""
+    geom = LineSegment(np.array([0.0, -50.0]), np.array([0.0, 50.0]))
+    props = BeamsplitterProperties(
+        transmission=0.5,
+        reflection=0.5,
+        is_polarizing=True,
+        polarization_axis_deg=pbs_axis_deg,
+    )
+    iface = OpticalInterface(geometry=geom, properties=props)
+    return create_polymorphic_element(iface)
 
 
 class TestPBSArbitraryAngles:
@@ -33,17 +48,8 @@ class TestPBSArbitraryAngles:
             polarization_type="horizontal",
         )
 
-        # PBS with horizontal transmission axis (0°)
-        # Element at 45° with transmission axis at -45° relative gives 0° absolute
-        pbs = OpticalElement(
-            kind="bs",
-            p1=np.array([0.0, -50.0]),
-            p2=np.array([0.0, 50.0]),
-            is_polarizing=True,
-            pbs_transmission_axis_deg=0.0,  # Horizontal transmission axis
-        )
-
-        paths = trace_rays([pbs], [src])
+        pbs = _create_pbs(0.0)  # Horizontal transmission axis
+        paths = trace_rays_polymorphic([pbs], [src])
 
         # Should have 1 path (transmitted), no reflected path
         assert len(paths) == 1, f"Expected 1 path (transmitted), got {len(paths)}"
@@ -61,15 +67,8 @@ class TestPBSArbitraryAngles:
             polarization_type="vertical",
         )
 
-        pbs = OpticalElement(
-            kind="bs",
-            p1=np.array([0.0, -50.0]),
-            p2=np.array([0.0, 50.0]),
-            is_polarizing=True,
-            pbs_transmission_axis_deg=0.0,  # Horizontal transmission axis
-        )
-
-        paths = trace_rays([pbs], [src])
+        pbs = _create_pbs(0.0)  # Horizontal transmission axis
+        paths = trace_rays_polymorphic([pbs], [src])
 
         # Should have 1 path (reflected), no transmitted path
         assert len(paths) == 1, f"Expected 1 path (reflected), got {len(paths)}"
@@ -80,15 +79,8 @@ class TestPBSArbitraryAngles:
             x_mm=-100.0, y_mm=0.0, angle_deg=0.0, n_rays=1, spread_deg=0.0, polarization_type="+45"
         )
 
-        pbs = OpticalElement(
-            kind="bs",
-            p1=np.array([0.0, -50.0]),
-            p2=np.array([0.0, 50.0]),
-            is_polarizing=True,
-            pbs_transmission_axis_deg=0.0,  # Horizontal transmission axis
-        )
-
-        paths = trace_rays([pbs], [src])
+        pbs = _create_pbs(0.0)  # Horizontal transmission axis
+        paths = trace_rays_polymorphic([pbs], [src])
 
         # Should have 2 paths (50% transmitted, 50% reflected)
         assert len(paths) == 2, f"Expected 2 paths (50/50 split), got {len(paths)}"
@@ -105,15 +97,8 @@ class TestPBSArbitraryAngles:
             polarization_angle_deg=30.0,
         )
 
-        pbs = OpticalElement(
-            kind="bs",
-            p1=np.array([0.0, -50.0]),
-            p2=np.array([0.0, 50.0]),
-            is_polarizing=True,
-            pbs_transmission_axis_deg=30.0,  # 30° transmission axis
-        )
-
-        paths = trace_rays([pbs], [src])
+        pbs = _create_pbs(30.0)  # 30° transmission axis
+        paths = trace_rays_polymorphic([pbs], [src])
 
         # Should have 1 path (transmitted) - polarization aligned with axis
         assert len(paths) == 1, f"Expected 1 path (transmitted), got {len(paths)}"
@@ -130,15 +115,8 @@ class TestPBSArbitraryAngles:
             polarization_angle_deg=120.0,  # 90° from 30° axis
         )
 
-        pbs = OpticalElement(
-            kind="bs",
-            p1=np.array([0.0, -50.0]),
-            p2=np.array([0.0, 50.0]),
-            is_polarizing=True,
-            pbs_transmission_axis_deg=30.0,  # 30° transmission axis
-        )
-
-        paths = trace_rays([pbs], [src])
+        pbs = _create_pbs(30.0)  # 30° transmission axis
+        paths = trace_rays_polymorphic([pbs], [src])
 
         # Should have 1 path (reflected) - polarization perpendicular to axis
         assert len(paths) == 1, f"Expected 1 path (reflected), got {len(paths)}"
@@ -156,15 +134,8 @@ class TestPBSArbitraryAngles:
             polarization_angle_deg=30.0,
         )
 
-        pbs = OpticalElement(
-            kind="bs",
-            p1=np.array([0.0, -50.0]),
-            p2=np.array([0.0, 50.0]),
-            is_polarizing=True,
-            pbs_transmission_axis_deg=60.0,  # 60° transmission axis
-        )
-
-        paths = trace_rays([pbs], [src])
+        pbs = _create_pbs(60.0)  # 60° transmission axis
+        paths = trace_rays_polymorphic([pbs], [src])
 
         # Should have 2 paths with intensity ratio ~3:1
         assert len(paths) == 2, f"Expected 2 paths, got {len(paths)}"

@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
-Performance Benchmark: Legacy vs Polymorphic Raytracing
+Performance Benchmark: Polymorphic Raytracing Engine
 
-This script benchmarks the performance difference between the legacy
-and new polymorphic raytracing engines.
+This script benchmarks the polymorphic raytracing engine with and without
+parallel processing to measure the performance benefits.
 
 Usage:
     python benchmark_raytracing.py
@@ -20,10 +20,9 @@ from pathlib import Path
 import numpy as np
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from optiverse.core.models import OpticalElement, SourceParams
-from optiverse.core.use_cases import trace_rays as trace_rays_legacy
+from optiverse.core.models import SourceParams
 from optiverse.data import (
     BeamsplitterProperties,
     LensProperties,
@@ -35,7 +34,7 @@ from optiverse.integration import create_polymorphic_element
 from optiverse.raytracing import trace_rays_polymorphic
 
 
-def create_test_scene(num_elements: int) -> tuple[list[OpticalElement], list]:
+def create_test_scene(num_elements: int) -> list:
     """
     Create a test scene with specified number of elements.
 
@@ -43,9 +42,8 @@ def create_test_scene(num_elements: int) -> tuple[list[OpticalElement], list]:
         num_elements: Number of optical elements to create
 
     Returns:
-        Tuple of (legacy_elements, polymorphic_elements)
+        List of polymorphic elements
     """
-    legacy_elements = []
     poly_elements = []
 
     # Mix of different element types
@@ -56,27 +54,13 @@ def create_test_scene(num_elements: int) -> tuple[list[OpticalElement], list]:
         element_type = element_types[i % len(element_types)]
 
         if element_type == "mirror":
-            # Legacy
-            legacy_elem = OpticalElement(
-                kind="mirror", p1=np.array([x, -20.0]), p2=np.array([x, 20.0])
-            )
-            legacy_elements.append(legacy_elem)
-
-            # Polymorphic
             geom = LineSegment(np.array([x, -20.0]), np.array([x, 20.0]))
-            props = MirrorProperties(reflectivity=99.0)
+            props = MirrorProperties(reflectivity=1.0)
             iface = OpticalInterface(geometry=geom, properties=props)
             poly_elem = create_polymorphic_element(iface)
             poly_elements.append(poly_elem)
 
         elif element_type == "lens":
-            # Legacy
-            legacy_elem = OpticalElement(
-                kind="lens", p1=np.array([x, -20.0]), p2=np.array([x, 20.0]), efl_mm=100.0
-            )
-            legacy_elements.append(legacy_elem)
-
-            # Polymorphic
             geom = LineSegment(np.array([x, -20.0]), np.array([x, 20.0]))
             props = LensProperties(efl_mm=100.0)
             iface = OpticalInterface(geometry=geom, properties=props)
@@ -84,26 +68,15 @@ def create_test_scene(num_elements: int) -> tuple[list[OpticalElement], list]:
             poly_elements.append(poly_elem)
 
         elif element_type == "beamsplitter":
-            # Legacy
-            legacy_elem = OpticalElement(
-                kind="bs",
-                p1=np.array([x, -20.0]),
-                p2=np.array([x, 20.0]),
-                split_T=70.0,
-                split_R=30.0,
-                is_polarizing=False,
-                pbs_transmission_axis_deg=0.0,
-            )
-            legacy_elements.append(legacy_elem)
-
-            # Polymorphic
             geom = LineSegment(np.array([x, -20.0]), np.array([x, 20.0]))
-            props = BeamsplitterProperties(split_T=70.0, split_R=30.0, is_polarizing=False)
+            props = BeamsplitterProperties(
+                transmission=0.7, reflection=0.3, is_polarizing=False, polarization_axis_deg=0.0
+            )
             iface = OpticalInterface(geometry=geom, properties=props)
             poly_elem = create_polymorphic_element(iface)
             poly_elements.append(poly_elem)
 
-    return legacy_elements, poly_elements
+    return poly_elements
 
 
 def create_test_source(num_rays: int) -> SourceParams:
@@ -130,39 +103,9 @@ def create_test_source(num_rays: int) -> SourceParams:
     )
 
 
-def benchmark_legacy(
-    elements: list[OpticalElement], source: SourceParams, iterations: int = 10
-) -> tuple[float, int]:
+def benchmark_sequential(elements: list, source: SourceParams, iterations: int = 10) -> tuple[float, int]:
     """
-    Benchmark the legacy raytracing engine.
-
-    Args:
-        elements: List of OpticalElement objects
-        source: Source parameters
-        iterations: Number of iterations to run
-
-    Returns:
-        Tuple of (average_time_ms, total_paths)
-    """
-    times = []
-    total_paths = 0
-
-    for _ in range(iterations):
-        start = time.perf_counter()
-        paths = trace_rays_legacy(elements, [source], max_events=80)
-        elapsed = time.perf_counter() - start
-        times.append(elapsed * 1000)  # Convert to ms
-        total_paths = len(paths)
-
-    avg_time = np.mean(times)
-    return avg_time, total_paths
-
-
-def benchmark_polymorphic(
-    elements: list, source: SourceParams, iterations: int = 10
-) -> tuple[float, int]:
-    """
-    Benchmark the polymorphic raytracing engine.
+    Benchmark the polymorphic raytracing engine in sequential mode.
 
     Args:
         elements: List of IOpticalElement objects
@@ -177,7 +120,35 @@ def benchmark_polymorphic(
 
     for _ in range(iterations):
         start = time.perf_counter()
-        paths = trace_rays_polymorphic(elements, [source], max_events=80)
+        paths = trace_rays_polymorphic(elements, [source], max_events=80, parallel=False)
+        elapsed = time.perf_counter() - start
+        times.append(elapsed * 1000)  # Convert to ms
+        total_paths = len(paths)
+
+    avg_time = np.mean(times)
+    return avg_time, total_paths
+
+
+def benchmark_parallel(elements: list, source: SourceParams, iterations: int = 10) -> tuple[float, int]:
+    """
+    Benchmark the polymorphic raytracing engine in parallel mode.
+
+    Args:
+        elements: List of IOpticalElement objects
+        source: Source parameters
+        iterations: Number of iterations to run
+
+    Returns:
+        Tuple of (average_time_ms, total_paths)
+    """
+    times = []
+    total_paths = 0
+
+    for _ in range(iterations):
+        start = time.perf_counter()
+        paths = trace_rays_polymorphic(
+            elements, [source], max_events=80, parallel=True, parallel_threshold=1
+        )
         elapsed = time.perf_counter() - start
         times.append(elapsed * 1000)  # Convert to ms
         total_paths = len(paths)
@@ -188,7 +159,7 @@ def benchmark_polymorphic(
 
 def run_benchmark(num_elements: int, num_rays: int, iterations: int = 10):
     """
-    Run a complete benchmark comparing legacy and polymorphic engines.
+    Run a complete benchmark comparing sequential and parallel modes.
 
     Args:
         num_elements: Number of optical elements in the scene
@@ -201,45 +172,45 @@ def run_benchmark(num_elements: int, num_rays: int, iterations: int = 10):
 
     # Create test scene
     print("Creating test scene...")
-    legacy_elements, poly_elements = create_test_scene(num_elements)
+    poly_elements = create_test_scene(num_elements)
     source = create_test_source(num_rays)
 
-    # Benchmark legacy
-    print("\nBenchmarking LEGACY engine...")
-    legacy_time, legacy_paths = benchmark_legacy(legacy_elements, source, iterations)
-    print(f"  Average time: {legacy_time:.2f} ms")
-    print(f"  Total paths: {legacy_paths}")
+    # Benchmark sequential
+    print("\nBenchmarking SEQUENTIAL mode...")
+    seq_time, seq_paths = benchmark_sequential(poly_elements, source, iterations)
+    print(f"  Average time: {seq_time:.2f} ms")
+    print(f"  Total paths: {seq_paths}")
 
-    # Benchmark polymorphic
-    print("\nBenchmarking POLYMORPHIC engine...")
-    poly_time, poly_paths = benchmark_polymorphic(poly_elements, source, iterations)
-    print(f"  Average time: {poly_time:.2f} ms")
-    print(f"  Total paths: {poly_paths}")
+    # Benchmark parallel
+    print("\nBenchmarking PARALLEL mode...")
+    par_time, par_paths = benchmark_parallel(poly_elements, source, iterations)
+    print(f"  Average time: {par_time:.2f} ms")
+    print(f"  Total paths: {par_paths}")
 
     # Calculate speedup
-    speedup = legacy_time / poly_time if poly_time > 0 else 0
-    improvement_pct = ((legacy_time - poly_time) / legacy_time * 100) if legacy_time > 0 else 0
+    speedup = seq_time / par_time if par_time > 0 else 0
+    improvement_pct = ((seq_time - par_time) / seq_time * 100) if seq_time > 0 else 0
 
     # Results
     print(f"\n{'=' * 80}")
     print("RESULTS:")
     print(f"{'=' * 80}")
-    print(f"  Legacy time:       {legacy_time:.2f} ms")
-    print(f"  Polymorphic time:  {poly_time:.2f} ms")
+    print(f"  Sequential time:   {seq_time:.2f} ms")
+    print(f"  Parallel time:     {par_time:.2f} ms")
     print(f"  Speedup:           {speedup:.2f}x")
     print(f"  Improvement:       {improvement_pct:.1f}%")
-    print(f"  Path count match:  {'✓' if legacy_paths == poly_paths else '✗'}")
+    print(f"  Path count match:  {'✓' if seq_paths == par_paths else '✗'}")
     print(f"{'=' * 80}\n")
 
     return {
         "num_elements": num_elements,
         "num_rays": num_rays,
-        "legacy_time_ms": legacy_time,
-        "poly_time_ms": poly_time,
+        "seq_time_ms": seq_time,
+        "par_time_ms": par_time,
         "speedup": speedup,
         "improvement_pct": improvement_pct,
-        "legacy_paths": legacy_paths,
-        "poly_paths": poly_paths,
+        "seq_paths": seq_paths,
+        "par_paths": par_paths,
     }
 
 
@@ -248,31 +219,31 @@ def run_scaling_benchmark():
     Run benchmarks with increasing scene complexity to test scaling.
     """
     print(f"\n{'#' * 80}")
-    print("SCALING BENCHMARK: Testing with increasing scene complexity")
+    print("SCALING BENCHMARK: Testing with increasing ray counts")
     print(f"{'#' * 80}\n")
 
     results = []
 
-    # Test with different numbers of elements
-    element_counts = [10, 25, 50, 100]
-    ray_count = 50
+    # Test with different numbers of rays (parallel benefits show with more rays)
+    ray_counts = [10, 25, 50, 100, 200]
+    element_count = 30
     iterations = 5
 
-    for num_elements in element_counts:
-        result = run_benchmark(num_elements, ray_count, iterations)
+    for num_rays in ray_counts:
+        result = run_benchmark(element_count, num_rays, iterations)
         results.append(result)
 
     # Summary table
     print(f"\n{'=' * 80}")
     print("SCALING SUMMARY:")
     print(f"{'=' * 80}")
-    print(f"{'Elements':<12} {'Rays':<8} {'Legacy (ms)':<15} {'Poly (ms)':<15} {'Speedup':<10}")
+    print(f"{'Elements':<12} {'Rays':<8} {'Sequential (ms)':<18} {'Parallel (ms)':<18} {'Speedup':<10}")
     print(f"{'-' * 80}")
 
     for r in results:
         print(
             f"{r['num_elements']:<12} {r['num_rays']:<8} "
-            f"{r['legacy_time_ms']:<15.2f} {r['poly_time_ms']:<15.2f} "
+            f"{r['seq_time_ms']:<18.2f} {r['par_time_ms']:<18.2f} "
             f"{r['speedup']:<10.2f}x"
         )
 
@@ -286,7 +257,7 @@ def run_scaling_benchmark():
 def main():
     """Main entry point for the benchmark script."""
     parser = argparse.ArgumentParser(
-        description="Benchmark legacy vs polymorphic raytracing engines"
+        description="Benchmark polymorphic raytracing engine (sequential vs parallel)"
     )
     parser.add_argument(
         "--elements", type=int, default=50, help="Number of optical elements (default: 50)"
@@ -298,14 +269,14 @@ def main():
         "--iterations", type=int, default=10, help="Number of iterations to average (default: 10)"
     )
     parser.add_argument(
-        "--scaling", action="store_true", help="Run scaling benchmark with multiple scene sizes"
+        "--scaling", action="store_true", help="Run scaling benchmark with multiple ray counts"
     )
 
     args = parser.parse_args()
 
     print(f"\n{'#' * 80}")
-    print("RAYTRACING PERFORMANCE BENCHMARK")
-    print("Comparing Legacy vs Polymorphic Engines")
+    print("POLYMORPHIC RAYTRACING PERFORMANCE BENCHMARK")
+    print("Comparing Sequential vs Parallel Processing")
     print(f"{'#' * 80}\n")
 
     if args.scaling:
