@@ -103,7 +103,9 @@ def create_test_source(num_rays: int) -> SourceParams:
     )
 
 
-def benchmark_sequential(elements: list, source: SourceParams, iterations: int = 10) -> tuple[float, int]:
+def benchmark_sequential(
+    elements: list, source: SourceParams, iterations: int = 10
+) -> tuple[float, int]:
     """
     Benchmark the polymorphic raytracing engine in sequential mode.
 
@@ -129,7 +131,9 @@ def benchmark_sequential(elements: list, source: SourceParams, iterations: int =
     return avg_time, total_paths
 
 
-def benchmark_parallel(elements: list, source: SourceParams, iterations: int = 10) -> tuple[float, int]:
+def benchmark_parallel(
+    elements: list, source: SourceParams, iterations: int = 10
+) -> tuple[float, int]:
     """
     Benchmark the polymorphic raytracing engine in parallel mode.
 
@@ -237,7 +241,10 @@ def run_scaling_benchmark():
     print(f"\n{'=' * 80}")
     print("SCALING SUMMARY:")
     print(f"{'=' * 80}")
-    print(f"{'Elements':<12} {'Rays':<8} {'Sequential (ms)':<18} {'Parallel (ms)':<18} {'Speedup':<10}")
+    print(
+        f"{'Elements':<12} {'Rays':<8} {'Sequential (ms)':<18} "
+        f"{'Parallel (ms)':<18} {'Speedup':<10}"
+    )
     print(f"{'-' * 80}")
 
     for r in results:

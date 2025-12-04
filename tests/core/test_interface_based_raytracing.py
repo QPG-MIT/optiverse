@@ -19,7 +19,6 @@ from optiverse.core.models import (
 from optiverse.data import (
     LensProperties,
     LineSegment,
-    MirrorProperties,
     OpticalInterface,
     RefractiveProperties,
 )
