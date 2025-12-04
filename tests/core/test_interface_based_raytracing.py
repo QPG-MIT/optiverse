@@ -13,12 +13,34 @@ import pytest
 from optiverse.core.interface_definition import InterfaceDefinition
 from optiverse.core.models import (
     ComponentParams,
-    OpticalElement,
     RefractiveInterface,
     SourceParams,
 )
-from optiverse.core.use_cases import trace_rays
+from optiverse.data import (
+    LensProperties,
+    LineSegment,
+    OpticalInterface,
+    RefractiveProperties,
+)
+from optiverse.integration import create_polymorphic_element
 from optiverse.objects import ComponentItem
+from optiverse.raytracing import trace_rays_polymorphic
+
+
+def _create_refractive_element(p1: np.ndarray, p2: np.ndarray, n1: float, n2: float):
+    """Helper to create a refractive interface element."""
+    geom = LineSegment(p1, p2)
+    props = RefractiveProperties(n1=n1, n2=n2)
+    iface = OpticalInterface(geometry=geom, properties=props)
+    return create_polymorphic_element(iface)
+
+
+def _create_lens_element(p1: np.ndarray, p2: np.ndarray, efl_mm: float):
+    """Helper to create a lens element."""
+    geom = LineSegment(p1, p2)
+    props = LensProperties(efl_mm=efl_mm)
+    iface = OpticalInterface(geometry=geom, properties=props)
+    return create_polymorphic_element(iface)
 
 
 class TestMultiInterfaceRaytracing:
@@ -64,20 +86,17 @@ class TestMultiInterfaceRaytracing:
         interfaces_scene = lens.get_interfaces_scene()
         assert len(interfaces_scene) == 3
 
-        # Create OpticalElements from interfaces
+        # Create polymorphic elements from interfaces
         elements = []
         for p1, p2, iface in interfaces_scene:
-            elem = OpticalElement(kind="refractive_interface", p1=p1, p2=p2)
-            elem.n1 = iface.n1
-            elem.n2 = iface.n2
-            elem.is_beam_splitter = False
+            elem = _create_refractive_element(p1, p2, iface.n1, iface.n2)
             elements.append(elem)
 
         # Create a source
         source = SourceParams(x_mm=-50.0, y_mm=0.0, angle_deg=0.0, n_rays=1, ray_length_mm=200.0)
 
         # Trace rays
-        paths = trace_rays(elements, [source], max_events=10)
+        paths = trace_rays_polymorphic(elements, [source], max_events=10)
 
         # Should have ray paths (at least transmitted and reflected)
         assert len(paths) > 0
@@ -178,12 +197,9 @@ class TestRaytracingIntegration:
             interfaces_scene = item.get_interfaces_scene()
             for p1, p2, iface in interfaces_scene:
                 if iface.element_type == "lens":
-                    elem = OpticalElement(kind="lens", p1=p1, p2=p2, efl_mm=iface.efl_mm)
+                    elem = _create_lens_element(p1, p2, iface.efl_mm)
                 elif iface.element_type == "refractive_interface":
-                    elem = OpticalElement(kind="refractive_interface", p1=p1, p2=p2)
-                    elem.n1 = iface.n1
-                    elem.n2 = iface.n2
-                    elem.is_beam_splitter = False
+                    elem = _create_refractive_element(p1, p2, iface.n1, iface.n2)
                 else:
                     continue
                 elements.append(elem)
@@ -193,7 +209,7 @@ class TestRaytracingIntegration:
 
         # Trace rays
         source = SourceParams(x_mm=-100.0, y_mm=0.0, angle_deg=0.0, n_rays=3, ray_length_mm=300.0)
-        paths = trace_rays(elements, [source], max_events=20)
+        paths = trace_rays_polymorphic(elements, [source], max_events=20)
 
         # Should have ray paths
         assert len(paths) > 0
@@ -219,13 +235,10 @@ class TestRaytracingIntegration:
             is_beam_splitter=False,
         )
 
-        # Create OpticalElement for raytracing
+        # Create polymorphic element for raytracing
         p1 = np.array([iface.x1_mm, iface.y1_mm])
         p2 = np.array([iface.x2_mm, iface.y2_mm])
-        elem = OpticalElement(kind="refractive_interface", p1=p1, p2=p2)
-        elem.n1 = iface.n1
-        elem.n2 = iface.n2
-        elem.is_beam_splitter = False
+        elem = _create_refractive_element(p1, p2, iface.n1, iface.n2)
 
         # Source at origin, traveling right (+X direction)
         source = SourceParams(
@@ -237,7 +250,7 @@ class TestRaytracingIntegration:
         )
 
         # Trace rays
-        paths = trace_rays([elem], [source], max_events=5)
+        paths = trace_rays_polymorphic([elem], [source], max_events=5)
 
         # Should have at least one path (transmitted ray)
         assert len(paths) >= 1

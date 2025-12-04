@@ -10,6 +10,7 @@ from typing import Any, cast
 
 from .geometry import CurvedSegment, GeometrySegment, LineSegment
 from .optical_properties import (
+    BeamBlockProperties,
     BeamsplitterProperties,
     DichroicProperties,
     LensProperties,
@@ -58,6 +59,8 @@ class OpticalInterface:
             return "waveplate"
         elif isinstance(self.properties, DichroicProperties):
             return "dichroic"
+        elif isinstance(self.properties, BeamBlockProperties):
+            return "beam_block"
         else:
             return "unknown"
 
@@ -206,6 +209,9 @@ class OpticalInterface:
                     n1=old_interface.n1, n2=old_interface.n2, curvature_radius_mm=curvature
                 ),
             )
+        elif element_type == "beam_block":
+            # Beam block absorbs all incident rays
+            properties = cast(OpticalProperties, BeamBlockProperties())
         else:
             # Default to refractive
             properties = cast(

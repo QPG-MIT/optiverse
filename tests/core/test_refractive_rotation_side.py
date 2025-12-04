@@ -1,11 +1,17 @@
+"""
+Test refractive interface consistency regardless of endpoint orientation.
+"""
+
 from __future__ import annotations
 
 import math
 
 import numpy as np
 
-from optiverse.core.models import OpticalElement, SourceParams
-from optiverse.core.use_cases import trace_rays
+from optiverse.core.models import SourceParams
+from optiverse.data import LineSegment, OpticalInterface, RefractiveProperties
+from optiverse.integration import create_polymorphic_element
+from optiverse.raytracing import trace_rays_polymorphic
 
 
 def _unit(vec: np.ndarray) -> np.ndarray:
@@ -19,12 +25,10 @@ def _path_last_direction(points: list[np.ndarray]) -> np.ndarray:
     return _unit(points[-1] - points[-2])
 
 
-def _directions_after_first_event(
-    elements: list[OpticalElement], source: SourceParams
-) -> list[np.ndarray]:
+def _directions_after_first_event(elements: list, source: SourceParams) -> list[np.ndarray]:
     # Limit to one interaction so the last segment reflects/transmits
     # immediately after the interface
-    paths = trace_rays(elements, [source], max_events=1)
+    paths = trace_rays_polymorphic(elements, [source], max_events=1)
     dirs: list[np.ndarray] = []
     for p in paths:
         if len(p.points) >= 2:
@@ -42,21 +46,22 @@ def _angles_sorted(dirs: list[np.ndarray]) -> list[float]:
     return sorted(angs)
 
 
+def _create_refractive_element(p1: np.ndarray, p2: np.ndarray, n1: float = 1.0, n2: float = 1.5):
+    """Create a refractive interface element."""
+    geom = LineSegment(p1, p2)
+    props = RefractiveProperties(n1=n1, n2=n2)
+    iface = OpticalInterface(geometry=geom, properties=props)
+    return create_polymorphic_element(iface)
+
+
 def test_refractive_interface_rotation_side_consistency():
     # Diagonal interface (45°) to ensure non-normal incidence for a horizontal ray
     p1 = np.array([-10.0, -10.0], dtype=float)
     p2 = np.array([+10.0, +10.0], dtype=float)
 
     # Same physical interface, two orientations (swap endpoints simulates 180° rotation of tangent)
-    e1 = OpticalElement(kind="refractive_interface", p1=p1, p2=p2)
-    e1.n1 = 1.0
-    e1.n2 = 1.5
-    e1.is_beam_splitter = False
-
-    e2 = OpticalElement(kind="refractive_interface", p1=p2, p2=p1)
-    e2.n1 = 1.0
-    e2.n2 = 1.5
-    e2.is_beam_splitter = False
+    e1 = _create_refractive_element(p1, p2, n1=1.0, n2=1.5)
+    e2 = _create_refractive_element(p2, p1, n1=1.0, n2=1.5)
 
     # Source from the left going right, slightly off-axis to avoid degenerate cases
     src = SourceParams(

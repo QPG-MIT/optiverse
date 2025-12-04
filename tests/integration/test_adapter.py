@@ -25,7 +25,7 @@ from optiverse.data import (
     RefractiveProperties,
     WaveplateProperties,
 )
-from optiverse.raytracing import Polarization, Ray
+from optiverse.raytracing import Polarization, Ray, trace_rays_polymorphic
 from optiverse.raytracing.elements import (
     Beamsplitter,
     Dichroic,
@@ -71,7 +71,8 @@ class TestLegacyToOpticalInterface:
 
         assert new_iface.get_element_type() == "mirror"
         assert isinstance(new_iface.properties, MirrorProperties)
-        assert new_iface.properties.reflectivity == 99.0
+        # Note: reflectivity is stored as 0-1 in new system, 0-100 in legacy
+        assert new_iface.properties.reflectivity == 0.99
 
     def test_convert_refractive_interface(self):
         """Test converting a legacy refractive interface (from RefractiveInterface)."""
@@ -81,7 +82,7 @@ class TestLegacyToOpticalInterface:
 
         new_iface = OpticalInterface.from_legacy_refractive_interface(legacy)
 
-        assert new_iface.get_element_type() == "refractive_interface"
+        assert new_iface.get_element_type() == "refractive"
         assert isinstance(new_iface.properties, RefractiveProperties)
         assert new_iface.properties.n1 == 1.0
         assert new_iface.properties.n2 == 1.5
@@ -102,12 +103,13 @@ class TestLegacyToOpticalInterface:
 
         new_iface = OpticalInterface.from_legacy_interface_definition(legacy)
 
-        assert new_iface.get_element_type() == "beam_splitter"
+        assert new_iface.get_element_type() == "beamsplitter"
         assert isinstance(new_iface.properties, BeamsplitterProperties)
-        assert new_iface.properties.split_T == 70.0
-        assert new_iface.properties.split_R == 30.0
+        # Note: split values are stored as 0-1 in new system, 0-100 in legacy
+        assert new_iface.properties.transmission == 0.70
+        assert new_iface.properties.reflection == 0.30
         assert new_iface.properties.is_polarizing is True
-        assert new_iface.properties.pbs_transmission_axis_deg == 45.0
+        assert new_iface.properties.polarization_axis_deg == 45.0
 
     def test_convert_waveplate_interface(self):
         """Test converting a polarizing_interface (waveplate) interface."""
@@ -173,7 +175,7 @@ class TestOpticalInterfaceToPolymorphicElement:
     def test_convert_to_mirror_element(self):
         """Test converting OpticalInterface (mirror) to Mirror element."""
         geom = LineSegment(np.array([0, -10]), np.array([0, 10]))
-        props = MirrorProperties(reflectivity=99.0)
+        props = MirrorProperties(reflectivity=0.99)
         iface = OpticalInterface(geometry=geom, properties=props, name="Test Mirror")
 
         # This is the adapter function we'll implement
@@ -184,7 +186,7 @@ class TestOpticalInterfaceToPolymorphicElement:
         assert isinstance(element, Mirror)
         assert isinstance(element, IOpticalElement)
         # Verify element can interact with rays
-        assert hasattr(element, "interact_with_ray")
+        assert hasattr(element, "interact")
 
     def test_convert_to_lens_element(self):
         """Test converting OpticalInterface (lens) to Lens element."""
@@ -215,7 +217,7 @@ class TestOpticalInterfaceToPolymorphicElement:
     def test_convert_to_beamsplitter_element(self):
         """Test converting OpticalInterface (beamsplitter) to Beamsplitter element."""
         geom = LineSegment(np.array([30, -10]), np.array([30, 10]))
-        props = BeamsplitterProperties(split_T=50.0, split_R=50.0)
+        props = BeamsplitterProperties(transmission=0.5, reflection=0.5)
         iface = OpticalInterface(geometry=geom, properties=props)
 
         from optiverse.integration.adapter import create_polymorphic_element
@@ -240,11 +242,9 @@ class TestOpticalInterfaceToPolymorphicElement:
 
     def test_convert_to_dichroic_element(self):
         """Test converting OpticalInterface (dichroic) to Dichroic element."""
-        from optiverse.data.optical_properties import PassType
-
         geom = LineSegment(np.array([50, -10]), np.array([50, 10]))
         props = DichroicProperties(
-            cutoff_wavelength_nm=550.0, transition_width_nm=10.0, pass_type=PassType.LONGPASS
+            cutoff_wavelength_nm=550.0, transition_width_nm=10.0, pass_type="longpass"
         )
         iface = OpticalInterface(geometry=geom, properties=props)
 
@@ -300,9 +300,9 @@ class TestEndToEndIntegration:
         assert isinstance(lens_element, IOpticalElement)
         assert isinstance(mirror_element, IOpticalElement)
 
-        # Both should have the interact_with_ray method
-        assert callable(getattr(lens_element, "interact_with_ray", None))
-        assert callable(getattr(mirror_element, "interact_with_ray", None))
+        # Both should have the interact method
+        assert callable(getattr(lens_element, "interact", None))
+        assert callable(getattr(mirror_element, "interact", None))
 
     def test_full_scene_conversion(self):
         """Test converting a scene with multiple legacy interfaces to polymorphic elements."""
@@ -344,81 +344,54 @@ class TestEndToEndIntegration:
         for element in polymorphic_elements:
             assert isinstance(element, IOpticalElement)
 
+    def test_full_raytracing_pipeline(self):
+        """Test full raytracing with polymorphic elements."""
+        # Create elements
+        geom = LineSegment(np.array([50.0, -20.0]), np.array([50.0, 20.0]))
+        props = MirrorProperties(reflectivity=1.0)
+        iface = OpticalInterface(geometry=geom, properties=props)
 
-class TestBackwardCompatibility:
-    """Test that the adapter maintains backward compatibility with existing scenes."""
+        from optiverse.integration.adapter import create_polymorphic_element
 
-    def test_old_system_still_works(self):
-        """Verify the old raytracing system still works (no breaking changes)."""
-        # This test ensures we haven't broken existing functionality
-        from optiverse.core.models import OpticalElement
-        from optiverse.core.use_cases import trace_rays as old_trace_rays
+        mirror = create_polymorphic_element(iface)
 
-        # Create old-style elements
-        old_lens = OpticalElement(
-            kind="lens", p1=np.array([10.0, -10.0]), p2=np.array([10.0, 10.0]), efl_mm=50.0
+        # Create source
+        source = SourceParams(
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            n_rays=1,
+            ray_length_mm=200.0,
+            polarization_type="horizontal",
         )
 
-        old_mirror = OpticalElement(
-            kind="mirror", p1=np.array([60.0, -10.0]), p2=np.array([60.0, 10.0])
-        )
+        # Trace
+        paths = trace_rays_polymorphic([mirror], [source], max_events=10)
 
-        # Create old-style source
-        old_source = SourceParams(
-            pos_mm=np.array([0.0, 0.0]), angle_deg=0.0, num_rays=5, wavelength_nm=633.0
-        )
+        assert len(paths) >= 1
+        assert hasattr(paths[0], "points")
+        assert hasattr(paths[0], "rgba")
 
-        # Old system should still work
-        paths = old_trace_rays([old_lens, old_mirror], [old_source], max_events=10)
 
-        # Should return RayPath objects
-        assert isinstance(paths, list)
-        # Each path should have points
-        for path in paths:
-            assert hasattr(path, "points")
-            assert hasattr(path, "rgba")
+class TestFeatureFlagSwitching:
+    """Test that conversion works correctly."""
 
-    def test_feature_flag_switching(self):
-        """Test that we can switch between old and new systems via feature flag."""
-        # This test ensures graceful migration path
-        # In the real implementation, this would be controlled by a config setting
-
+    def test_polymorphic_conversion(self):
+        """Test that polymorphic conversion works."""
         legacy_interfaces = [
             InterfaceDefinition(
                 x1_mm=10, y1_mm=-10, x2_mm=10, y2_mm=10, element_type="lens", efl_mm=50
             ),
         ]
 
-        # Flag OFF → Use old system (this should still work)
-        USE_NEW_RAYTRACING = False
+        from optiverse.integration.adapter import convert_legacy_interfaces
 
-        if USE_NEW_RAYTRACING:
-            from optiverse.integration.adapter import convert_legacy_interfaces
-
-            elements = convert_legacy_interfaces(legacy_interfaces)
-            assert isinstance(elements[0], IOpticalElement)
-        else:
-            # Old conversion path (what currently exists in MainWindow)
-            from optiverse.core.models import OpticalElement
-
-            legacy_interfaces[0]
-            elem = OpticalElement(
-                kind="lens", p1=np.array([10, -10]), p2=np.array([10, 10]), efl_mm=50
-            )
-            assert elem.kind == "lens"
-
-        # Flag ON → Use new system
-        USE_NEW_RAYTRACING = True
-
-        if USE_NEW_RAYTRACING:
-            from optiverse.integration.adapter import convert_legacy_interfaces
-
-            elements = convert_legacy_interfaces(legacy_interfaces)
-            assert isinstance(elements[0], IOpticalElement)
+        elements = convert_legacy_interfaces(legacy_interfaces)
+        assert isinstance(elements[0], IOpticalElement)
 
 
 class TestPerformanceComparison:
-    """Compare performance of old vs new systems (benchmark tests)."""
+    """Benchmark the conversion overhead."""
 
     def test_conversion_performance(self):
         """Benchmark the conversion overhead."""

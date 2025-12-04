@@ -4,13 +4,20 @@ Tests for polarization functionality.
 
 import numpy as np
 
-from optiverse.core.models import OpticalElement, Polarization, SourceParams
+from optiverse.core.models import Polarization, SourceParams
 from optiverse.core.raytracing_math import (
     transform_polarization_beamsplitter,
     transform_polarization_lens,
     transform_polarization_mirror,
 )
-from optiverse.core.use_cases import trace_rays
+from optiverse.data import (
+    BeamsplitterProperties,
+    LineSegment,
+    MirrorProperties,
+    OpticalInterface,
+)
+from optiverse.integration import create_polymorphic_element
+from optiverse.raytracing import trace_rays_polymorphic
 
 
 class TestPolarization:
@@ -184,7 +191,7 @@ class TestRayTracingWithPolarization:
         )
 
         # No optical elements
-        paths = trace_rays([], [src])
+        paths = trace_rays_polymorphic([], [src])
 
         assert len(paths) > 0
         # Each path should have polarization
@@ -204,9 +211,12 @@ class TestRayTracingWithPolarization:
         )
 
         # Add a mirror
-        mirror = OpticalElement(kind="mirror", p1=np.array([0.0, -50.0]), p2=np.array([0.0, 50.0]))
+        geom = LineSegment(np.array([0.0, -50.0]), np.array([0.0, 50.0]))
+        props = MirrorProperties(reflectivity=1.0)
+        iface = OpticalInterface(geometry=geom, properties=props)
+        mirror = create_polymorphic_element(iface)
 
-        paths = trace_rays([mirror], [src])
+        paths = trace_rays_polymorphic([mirror], [src])
 
         # Should have ray paths (source ray + reflected ray segments)
         assert len(paths) > 0
@@ -227,15 +237,17 @@ class TestRayTracingWithPolarization:
         )
 
         # PBS at 45 degrees
-        pbs = OpticalElement(
-            kind="bs",
-            p1=np.array([0.0, -50.0]),
-            p2=np.array([0.0, 50.0]),
+        geom = LineSegment(np.array([0.0, -50.0]), np.array([0.0, 50.0]))
+        props = BeamsplitterProperties(
+            transmission=0.5,
+            reflection=0.5,
             is_polarizing=True,
-            pbs_transmission_axis_deg=0.0,  # Horizontal transmission
+            polarization_axis_deg=0.0,  # Horizontal transmission
         )
+        iface = OpticalInterface(geometry=geom, properties=props)
+        pbs = create_polymorphic_element(iface)
 
-        paths = trace_rays([pbs], [src])
+        paths = trace_rays_polymorphic([pbs], [src])
 
         # Should have multiple ray paths (transmitted and reflected)
         # The 45-degree input should split into both outputs

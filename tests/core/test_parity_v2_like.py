@@ -1,16 +1,23 @@
+"""
+Test parity with v2-like raytracing formulas using the polymorphic engine.
+"""
+
 import math
 
 import numpy as np
 
+from optiverse.core.models import SourceParams
+from optiverse.data import LensProperties, LineSegment, MirrorProperties, OpticalInterface
+from optiverse.integration import create_polymorphic_element
+from optiverse.raytracing import trace_rays_polymorphic
+
 
 def test_thin_lens_deflection_matches_v2_formula():
-    from optiverse.core.models import OpticalElement, SourceParams
-    from optiverse.core.use_cases import trace_rays
-
     # Lens centered at origin along x-axis; ray passes at x=+10 mm above optical axis
-    lens = OpticalElement(
-        kind="lens", p1=np.array([-50.0, 0.0]), p2=np.array([50.0, 0.0]), efl_mm=100.0
-    )
+    geom = LineSegment(np.array([-50.0, 0.0]), np.array([50.0, 0.0]))
+    props = LensProperties(efl_mm=100.0)
+    iface = OpticalInterface(geometry=geom, properties=props)
+    lens = create_polymorphic_element(iface)
 
     # Source at (10, -100) shooting straight up (along +Y)
     src = SourceParams(
@@ -23,7 +30,7 @@ def test_thin_lens_deflection_matches_v2_formula():
         spread_deg=0.0,
     )
 
-    paths = trace_rays([lens], [src], max_events=1)
+    paths = trace_rays_polymorphic([lens], [src], max_events=1)
     assert len(paths) >= 1
     pts = paths[0].points
     # after hit we should have at least 3 points (start, hit, post-advance)
@@ -42,15 +49,15 @@ def test_thin_lens_deflection_matches_v2_formula():
 
 
 def test_mirror_reflection_angle_parity():
-    from optiverse.core.models import OpticalElement, SourceParams
-    from optiverse.core.use_cases import trace_rays
-
     # 45° mirror: segment rotated 45° CCW so normal faces roughly right-down
     # Build segment endpoints at 45° around origin
     L = 100.0
     p1 = np.array([-L / math.sqrt(8), -L / math.sqrt(8)])
     p2 = np.array([L / math.sqrt(8), L / math.sqrt(8)])
-    mirror = OpticalElement(kind="mirror", p1=p1, p2=p2)
+    geom = LineSegment(p1, p2)
+    props = MirrorProperties(reflectivity=1.0)
+    iface = OpticalInterface(geometry=geom, properties=props)
+    mirror = create_polymorphic_element(iface)
 
     # Ray coming from left to right
     src = SourceParams(
@@ -62,7 +69,7 @@ def test_mirror_reflection_angle_parity():
         ray_length_mm=400.0,
         spread_deg=0.0,
     )
-    paths = trace_rays([mirror], [src], max_events=2)
+    paths = trace_rays_polymorphic([mirror], [src], max_events=2)
     assert len(paths) >= 1
     pts = paths[0].points
     assert len(pts) >= 3

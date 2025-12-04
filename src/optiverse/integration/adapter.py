@@ -12,11 +12,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import numpy as np
-
 # Phase 1: Unified interface model
 from ..data import OpticalInterface
 from ..data.optical_properties import (
+    BeamBlockProperties,
     BeamsplitterProperties,
     DichroicProperties,
     LensProperties,
@@ -27,6 +26,7 @@ from ..data.optical_properties import (
 
 # Phase 2: Polymorphic elements
 from ..raytracing.elements import (
+    BeamBlock,
     Beamsplitter,
     Dichroic,
     IOpticalElement,
@@ -40,7 +40,7 @@ _logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..core.interface_definition import InterfaceDefinition
-    from ..core.models import OpticalElement, RefractiveInterface
+    from ..core.models import RefractiveInterface
 
 
 def create_polymorphic_element(optical_iface: OpticalInterface) -> IOpticalElement:
@@ -86,6 +86,10 @@ def create_polymorphic_element(optical_iface: OpticalInterface) -> IOpticalEleme
     elif element_type == "dichroic":
         assert isinstance(properties, DichroicProperties)
         return Dichroic(optical_iface)
+
+    elif element_type == "beam_block":
+        assert isinstance(properties, BeamBlockProperties)
+        return BeamBlock(optical_iface)
 
     else:
         raise ValueError(f"Unknown element type: {element_type}")
@@ -173,17 +177,24 @@ def convert_scene_to_polymorphic(scene_items) -> list[IOpticalElement]:
 
                     # UPDATE geometry with CURRENT scene coordinates
                     # This is essential for dynamic updates when items move!
+                    # We must CREATE NEW geometry objects to ensure derived values
+                    # (like center of curvature) are recalculated correctly.
+                    from ..data.geometry import CurvedSegment, LineSegment
+
                     if (
                         hasattr(optical_iface.geometry, "is_curved")
                         and optical_iface.geometry.is_curved
                     ):
-                        # For curved geometry, preserve radius and curvature
-                        optical_iface.geometry.p1 = p1
-                        optical_iface.geometry.p2 = p2
+                        # For curved geometry, create new CurvedSegment with updated endpoints
+                        # This ensures the center of curvature is recalculated
+                        optical_iface.geometry = CurvedSegment(
+                            p1=p1,
+                            p2=p2,
+                            radius_of_curvature_mm=optical_iface.geometry.radius_of_curvature_mm,
+                        )
                     else:
-                        # For flat geometry, just update endpoints
-                        optical_iface.geometry.p1 = p1
-                        optical_iface.geometry.p2 = p2
+                        # For flat geometry, create new LineSegment
+                        optical_iface.geometry = LineSegment(p1=p1, p2=p2)
 
                     # Convert OpticalInterface to polymorphic element
                     element = create_polymorphic_element(optical_iface)
@@ -196,118 +207,3 @@ def convert_scene_to_polymorphic(scene_items) -> list[IOpticalElement]:
                 continue
 
     return elements
-
-
-def create_legacy_optical_element_from_interface(
-    p1: np.ndarray, p2: np.ndarray, iface: InterfaceDefinition | RefractiveInterface
-) -> OpticalElement:
-    """
-    Create a legacy OpticalElement from an interface.
-
-    This is the OLD conversion path (what currently exists in
-    MainWindow._create_element_from_interface).
-    We keep this for backward compatibility during the migration period.
-
-    Args:
-        p1: Start point in scene coordinates
-        p2: End point in scene coordinates
-        iface: InterfaceDefinition or RefractiveInterface
-
-    Returns:
-        A legacy OpticalElement object
-    """
-    from ..core.models import OpticalElement, RefractiveInterface
-
-    # Handle legacy RefractiveInterface objects
-    if isinstance(iface, RefractiveInterface):
-        elem = OpticalElement(kind="refractive_interface", p1=p1, p2=p2)
-        elem.n1 = iface.n1  # type: ignore[attr-defined]
-        elem.n2 = iface.n2  # type: ignore[attr-defined]
-        elem.is_beam_splitter = iface.is_beam_splitter  # type: ignore[attr-defined]
-        if elem.is_beam_splitter:  # type: ignore[attr-defined]
-            elem.split_T = iface.split_T
-            elem.split_R = iface.split_R
-            elem.is_polarizing = iface.is_polarizing
-            elem.pbs_transmission_axis_deg = iface.pbs_transmission_axis_deg
-        return elem
-
-    # Handle InterfaceDefinition objects
-    element_type = iface.element_type
-
-    if element_type == "lens":
-        return OpticalElement(kind="lens", p1=p1, p2=p2, efl_mm=iface.efl_mm)
-
-    elif element_type == "mirror":
-        return OpticalElement(kind="mirror", p1=p1, p2=p2)
-
-    elif element_type in ["beam_splitter", "beamsplitter"]:
-        return OpticalElement(
-            kind="bs",
-            p1=p1,
-            p2=p2,
-            split_T=iface.split_T,
-            split_R=iface.split_R,
-            is_polarizing=iface.is_polarizing,
-            pbs_transmission_axis_deg=iface.pbs_transmission_axis_deg,
-        )
-
-    elif element_type == "dichroic":
-        return OpticalElement(
-            kind="dichroic",
-            p1=p1,
-            p2=p2,
-            cutoff_wavelength_nm=iface.cutoff_wavelength_nm,
-            transition_width_nm=iface.transition_width_nm,
-            pass_type=iface.pass_type,
-        )
-
-    elif element_type == "polarizing_interface":
-        # Handle polarizing interface (currently only waveplates are implemented)
-        if iface.polarizer_subtype == "waveplate":
-            # Get angle_deg from parent item if available
-            angle_deg = 0.0
-            if hasattr(iface, "angle_deg"):
-                angle_deg_val = iface.angle_deg
-                if callable(angle_deg_val):
-                    angle_deg = angle_deg_val()
-                else:
-                    angle_deg = float(angle_deg_val)
-
-            return OpticalElement(
-                kind="waveplate",
-                p1=p1,
-                p2=p2,
-                phase_shift_deg=iface.phase_shift_deg,
-                fast_axis_deg=iface.fast_axis_deg,
-                angle_deg=angle_deg,
-            )
-        else:
-            # Future: handle other polarizer subtypes
-            raise ValueError(f"Unsupported polarizer subtype: {iface.polarizer_subtype}")
-
-    elif element_type == "waveplate":
-        # Legacy support for old "waveplate" element type
-        phase_shift_deg = getattr(iface, "phase_shift_deg", 90.0)
-        fast_axis_deg = getattr(iface, "fast_axis_deg", 0.0)
-        angle_deg = 0.0
-
-        return OpticalElement(
-            kind="waveplate",
-            p1=p1,
-            p2=p2,
-            phase_shift_deg=phase_shift_deg,
-            fast_axis_deg=fast_axis_deg,
-            angle_deg=angle_deg,
-        )
-
-    elif element_type == "refractive_interface":
-        elem = OpticalElement(kind="refractive_interface", p1=p1, p2=p2)
-        elem.n1 = iface.n1  # type: ignore[attr-defined]
-        elem.n2 = iface.n2  # type: ignore[attr-defined]
-        elem.is_curved = getattr(iface, "is_curved", False)  # type: ignore[attr-defined]
-        elem.radius_of_curvature_mm = getattr(iface, "radius_of_curvature_mm", 0.0)  # type: ignore[attr-defined]
-        return elem
-
-    else:
-        # Unknown type - return None or raise error
-        return None  # type: ignore[return-value]
