@@ -7,6 +7,8 @@
 
 Optiverse is a powerful, interactive tool for designing and simulating optical systems. Create complex setups with mirrors, lenses, beamsplitters, and custom components, then visualize ray propagation in real-time with hardware-accelerated rendering.
 
+> **⚠️ Alpha Version**: This software is currently in alpha. Bugs are expected and features may change. Please report any issues you encounter.
+
 ## Features
 
 - **Interactive Ray Tracing**: Real-time visualization of light propagation through optical systems
