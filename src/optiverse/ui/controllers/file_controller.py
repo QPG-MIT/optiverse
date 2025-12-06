@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 from ...core.constants import AUTOSAVE_DEBOUNCE_MS
 from ...services.error_handler import ErrorContext
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
     from ...core.layer_group import GroupManager
     from ...core.undo_stack import UndoStack
     from ...services.log_service import LogService
+    from ...services.settings_service import SettingsService
 
 
 class FileController(QtCore.QObject):
@@ -34,6 +36,8 @@ class FileController(QtCore.QObject):
     traceRequested = QtCore.pyqtSignal()
     # Signal emitted when window title should be updated
     windowTitleChanged = QtCore.pyqtSignal(str)
+    # Signal emitted when recent files list changes
+    recentFilesChanged = QtCore.pyqtSignal()
 
     def __init__(
         self,
@@ -44,6 +48,7 @@ class FileController(QtCore.QObject):
         parent_widget: QtWidgets.QWidget,
         connect_item_signals: Callable | None = None,
         group_manager: GroupManager | None = None,
+        settings_service: SettingsService | None = None,
     ):
         super().__init__(parent_widget)
 
@@ -54,6 +59,7 @@ class FileController(QtCore.QObject):
         self._log_service = log_service
         self._scene = scene
         self._connect_item_signals = connect_item_signals
+        self._settings_service = settings_service
 
         # Create file manager
         self.file_manager = SceneFileManager(
@@ -166,6 +172,7 @@ class FileController(QtCore.QObject):
         with ErrorContext("while saving assembly", suppress=True):
             if self.saved_file_path:
                 self.file_manager.save_to_file(self.saved_file_path)
+                self._add_recent_file(self.saved_file_path)
             else:
                 self.save_assembly_as()
 
@@ -177,6 +184,65 @@ class FileController(QtCore.QObject):
             )
             if path:
                 self.file_manager.save_to_file(path)
+                self._add_recent_file(path)
+
+    def new_assembly(self) -> bool:
+        """
+        Create a new empty assembly.
+
+        Prompts to save if there are unsaved changes.
+
+        Returns:
+            True if new assembly was created, False if cancelled
+        """
+        with ErrorContext("while creating new assembly", suppress=True):
+            if self._is_modified:
+                reply = self.prompt_save_changes()
+                if reply == QtWidgets.QMessageBox.StandardButton.Cancel:
+                    return False
+
+            # Clear the scene
+            self._clear_scene()
+
+            # Reset file path
+            self.file_manager.saved_file_path = None
+
+            # Clear undo stack
+            self._undo_stack.clear()
+
+            # Mark as clean (new file)
+            self.mark_clean()
+
+            # Update title
+            self._update_window_title()
+
+            # Request retrace (clears rays)
+            self.traceRequested.emit()
+
+            return True
+        return False
+
+    def close_assembly(self) -> bool:
+        """
+        Close the current assembly.
+
+        Prompts to save if there are unsaved changes.
+        Resets to an untitled state.
+
+        Returns:
+            True if assembly was closed, False if cancelled
+        """
+        return self.new_assembly()
+
+    def _clear_scene(self) -> None:
+        """Clear all items from the scene."""
+        # Clear groups first
+        if self._group_manager:
+            self._group_manager.clear()
+
+        # Remove all items from scene
+        for item in list(self._scene.items()):
+            self._scene.removeItem(item)
 
     def open_assembly(self) -> bool:
         """
@@ -200,10 +266,315 @@ class FileController(QtCore.QObject):
             if not self.file_manager.open_file(path):
                 return False
 
+            # Add to recent files
+            self._add_recent_file(path)
+
         # Clear undo history after loading
         self._undo_stack.clear()
         self.traceRequested.emit()
         return True
+
+    def open_recent_file(self, path: str) -> bool:
+        """
+        Open a file from the recent files list.
+
+        Args:
+            path: File path to open
+
+        Returns:
+            True if file was opened successfully
+        """
+        with ErrorContext("while opening recent file", suppress=True):
+            if not Path(path).exists():
+                QtWidgets.QMessageBox.warning(
+                    self._parent,
+                    "File Not Found",
+                    f"The file no longer exists:\n{path}",
+                )
+                # Remove from recent files
+                if self._settings_service:
+                    files = self._settings_service.get_recent_files()
+                    files = [f for f in files if f != path]
+                    self._settings_service.set_value("recent_files", files)
+                    self.recentFilesChanged.emit()
+                return False
+
+            if self._is_modified:
+                reply = self.prompt_save_changes()
+                if reply == QtWidgets.QMessageBox.StandardButton.Cancel:
+                    return False
+
+            if not self.file_manager.open_file(path):
+                return False
+
+            # Add to recent files (moves to front)
+            self._add_recent_file(path)
+
+        # Clear undo history after loading
+        self._undo_stack.clear()
+        self.traceRequested.emit()
+        return True
+
+    def _add_recent_file(self, path: str) -> None:
+        """Add a file to the recent files list."""
+        if self._settings_service:
+            self._settings_service.add_recent_file(path)
+            self.recentFilesChanged.emit()
+
+    def get_recent_files(self) -> list[str]:
+        """Get list of recent files."""
+        if self._settings_service:
+            return self._settings_service.get_recent_files()
+        return []
+
+    # --- Export Methods ---
+
+    # Export constants
+    _EXPORT_MARGIN_MM = 20  # Margin around exported content in mm
+    _DEFAULT_PNG_SCALE = 4.0  # Default scale factor for PNG (4x = 288 DPI)
+    _DEFAULT_PDF_DPI = 300  # Default DPI for PDF export
+    _MM_TO_POINTS = 72.0 / 25.4  # Conversion factor: mm to points (1 pt = 1/72 inch)
+
+    def _get_export_rect(self) -> QtCore.QRectF | None:
+        """
+        Get the scene bounding rect for export with margin.
+
+        Returns:
+            QRectF with margin added, or None if scene is empty
+        """
+        rect = self._scene.itemsBoundingRect()
+        if rect.isEmpty():
+            QtWidgets.QMessageBox.information(
+                self._parent,
+                "Export",
+                "Nothing to export - the scene is empty.",
+            )
+            return None
+        rect.adjust(
+            -self._EXPORT_MARGIN_MM,
+            -self._EXPORT_MARGIN_MM,
+            self._EXPORT_MARGIN_MM,
+            self._EXPORT_MARGIN_MM,
+        )
+        return rect
+
+    def _show_export_success(self, path: str, format_name: str) -> None:
+        """Show export success message and log."""
+        self._log_service.info(f"Exported {format_name} to: {path}", "Export")
+        QtWidgets.QMessageBox.information(
+            self._parent,
+            "Export Successful",
+            f"{format_name} exported to:\n{path}",
+        )
+
+    def _show_export_failure(self, path: str) -> None:
+        """Show export failure message."""
+        QtWidgets.QMessageBox.critical(
+            self._parent,
+            "Export Failed",
+            f"Failed to save file to:\n{path}",
+        )
+
+    def export_image(self) -> bool:
+        """
+        Export the scene to an image file (PNG or SVG).
+
+        Shows a dialog for format selection and save location.
+
+        Returns:
+            True if export was successful
+        """
+        with ErrorContext("while exporting image", suppress=True):
+            # Get save path with filter for supported formats
+            path, selected_filter = QtWidgets.QFileDialog.getSaveFileName(
+                self._parent,
+                "Export Image",
+                "",
+                "PNG Image (*.png);;SVG Image (*.svg)",
+            )
+            if not path:
+                return False
+
+            # Ensure correct extension and delegate to appropriate method
+            if "svg" in selected_filter.lower():
+                if not path.lower().endswith(".svg"):
+                    path += ".svg"
+                return self._export_svg(path)
+            else:
+                if not path.lower().endswith(".png"):
+                    path += ".png"
+                return self._export_png(path)
+
+        return False
+
+    def _export_png(self, path: str) -> bool:
+        """Export scene to PNG file."""
+        with ErrorContext("while exporting PNG", suppress=True):
+            # Get export rect (checks for empty scene)
+            rect = self._get_export_rect()
+            if rect is None:
+                return False
+
+            # Ask user for scale factor
+            scale, ok = QtWidgets.QInputDialog.getDouble(
+                self._parent,
+                "Export Resolution",
+                "Scale factor (1x = 72 DPI, 4x = 288 DPI):",
+                value=self._DEFAULT_PNG_SCALE,
+                min=1.0,
+                max=10.0,
+                decimals=1,
+            )
+            if not ok:
+                return False
+
+            # Create image at selected resolution
+            width = int(rect.width() * scale)
+            height = int(rect.height() * scale)
+
+            image = QtGui.QImage(width, height, QtGui.QImage.Format.Format_ARGB32)
+            image.fill(QtCore.Qt.GlobalColor.white)
+
+            # Render scene to image
+            painter = QtGui.QPainter(image)
+            painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+            target_rect = QtCore.QRectF(0, 0, width, height)
+            self._scene.render(painter, target_rect, rect)
+            painter.end()
+
+            # Flip image vertically to correct for Y-up scene coordinates
+            image = image.mirrored(False, True)
+
+            # Save image
+            if image.save(path):
+                self._show_export_success(path, "Image")
+                return True
+            else:
+                self._show_export_failure(path)
+                return False
+
+        return False
+
+    def _export_svg(self, path: str) -> bool:
+        """Export scene to SVG file."""
+        from PyQt6 import QtSvg
+
+        with ErrorContext("while exporting SVG", suppress=True):
+            # Get export rect (checks for empty scene)
+            rect = self._get_export_rect()
+            if rect is None:
+                return False
+
+            width = int(rect.width())
+            height = int(rect.height())
+
+            # Create SVG generator
+            generator = QtSvg.QSvgGenerator()
+            generator.setFileName(path)
+            generator.setSize(QtCore.QSize(width, height))
+            generator.setViewBox(QtCore.QRect(0, 0, width, height))
+            generator.setTitle("Optiverse Export")
+
+            # Render scene to SVG with Y-flip transform for correct orientation
+            painter = QtGui.QPainter(generator)
+            painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+            # Apply Y-flip: translate to bottom, then flip
+            painter.translate(0, height)
+            painter.scale(1, -1)
+            target_rect = QtCore.QRectF(0, 0, width, height)
+            self._scene.render(painter, target_rect, rect)
+            painter.end()
+
+            # Verify file was created
+            if Path(path).exists():
+                self._show_export_success(path, "SVG")
+                return True
+            else:
+                self._show_export_failure(path)
+                return False
+
+        return False
+
+    def export_pdf(self) -> bool:
+        """
+        Export the scene to a PDF file.
+
+        Shows a dialog for save location.
+
+        Returns:
+            True if export was successful
+        """
+        with ErrorContext("while exporting PDF", suppress=True):
+            path, _ = QtWidgets.QFileDialog.getSaveFileName(
+                self._parent,
+                "Export PDF",
+                "",
+                "PDF Document (*.pdf)",
+            )
+            if not path:
+                return False
+
+            # Ensure correct extension
+            if not path.lower().endswith(".pdf"):
+                path += ".pdf"
+
+            # Get export rect (checks for empty scene)
+            rect = self._get_export_rect()
+            if rect is None:
+                return False
+
+            # Ask user for DPI
+            dpi, ok = QtWidgets.QInputDialog.getInt(
+                self._parent,
+                "Export Resolution",
+                "PDF resolution (DPI):",
+                value=self._DEFAULT_PDF_DPI,
+                min=72,
+                max=600,
+                step=50,
+            )
+            if not ok:
+                return False
+
+            # Create PDF writer
+            from PyQt6.QtGui import QPageSize, QPdfWriter
+
+            writer = QPdfWriter(path)
+            writer.setResolution(dpi)
+
+            # Set page size (convert mm to points)
+            width_pt = rect.width() * self._MM_TO_POINTS
+            height_pt = rect.height() * self._MM_TO_POINTS
+
+            page_size = QPageSize(
+                QtCore.QSizeF(width_pt, height_pt),
+                QPageSize.Unit.Point,
+            )
+            writer.setPageSize(page_size)
+            writer.setPageMargins(QtCore.QMarginsF(0, 0, 0, 0))
+
+            # Calculate target size in device pixels
+            width_px = int(rect.width() * dpi / 25.4)
+            height_px = int(rect.height() * dpi / 25.4)
+
+            # Render scene to PDF with Y-flip transform
+            painter = QtGui.QPainter(writer)
+            painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+            painter.translate(0, height_px)
+            painter.scale(1, -1)
+            target_rect = QtCore.QRectF(0, 0, width_px, height_px)
+            self._scene.render(painter, target_rect, rect)
+            painter.end()
+
+            # Verify file was created
+            if Path(path).exists():
+                self._show_export_success(path, "PDF")
+                return True
+            else:
+                self._show_export_failure(path)
+                return False
+
+        return False
 
     def import_as_layer(self) -> bool:
         """

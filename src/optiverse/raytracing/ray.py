@@ -119,6 +119,7 @@ class RayPath:
     rgba: tuple[int, int, int, int]  # Color with alpha
     polarization: Polarization  # Final polarization state
     wavelength_nm: float  # Wavelength in nanometers
+    source_index: int = 0  # Index of the source that emitted this ray
 
 
 # Alias for backward compatibility and simpler imports

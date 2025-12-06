@@ -1,4 +1,10 @@
-"""Layer panel widget for managing scene items by z-order."""
+"""Layer panel widget for managing scene items by z-order.
+
+Architecture:
+- LayerModel: Single source of truth for z-order (holds ordered list of UUIDs)
+- LayerTreeWidget: View that displays model state and handles drag-drop
+- LayerPanel: Controller coordinating model, view, and scene
+"""
 
 from __future__ import annotations
 
@@ -14,12 +20,11 @@ from ...core.undo_commands import (
     RemoveItemFromGroupCommand,
 )
 from ...core.zorder_utils import apply_z_order_change
+from ..models import LayerModel
 from .constants import (
     LAYER_ITEM_MARGIN,
     LAYER_ITEM_SPACING,
     TOGGLE_BUTTON_SIZE,
-    Z_ORDER_INITIAL_VALUE,
-    Z_ORDER_STEP,
     Icons,
 )
 
@@ -159,6 +164,14 @@ class LayerTreeWidget(QtWidgets.QTreeWidget):
         target_item = self.itemAt(event.position().toPoint())
         drop_indicator = self.dropIndicatorPosition()
 
+        # Prevent dropping onto non-group items (would create invalid parent-child)
+        # Only allow: reordering (between items) or dropping into groups
+        if target_item and not target_item.data(0, IS_GROUP_ROLE):
+            if drop_indicator == QtWidgets.QAbstractItemView.DropIndicatorPosition.OnItem:
+                # Reject drop onto non-group items
+                event.ignore()
+                return
+
         moved_uuids = [item.data(0, ITEM_UUID_ROLE) for item in self.selectedItems()
                        if not item.data(0, IS_GROUP_ROLE) and item.data(0, ITEM_UUID_ROLE)]
 
@@ -185,16 +198,25 @@ class LayerTreeWidget(QtWidgets.QTreeWidget):
 
 
 class LayerPanel(QtWidgets.QWidget):
-    """Main layer panel widget."""
+    """
+    Main layer panel widget.
+    
+    Coordinates between LayerModel (source of truth) and LayerTreeWidget (view).
+    """
 
     selectionChanged = QtCore.pyqtSignal(list)
+    zOrderChanged = QtCore.pyqtSignal()  # Emitted when z-order changes (for retrace)
 
     def __init__(self, parent: QtWidgets.QWidget | None = None):
         super().__init__(parent)
         self._scene: QtWidgets.QGraphicsScene | None = None
         self._group_manager: GroupManager | None = None
         self._uuid_cache: dict[str, QtWidgets.QGraphicsItem] = {}
-        self._z_counter = Z_ORDER_INITIAL_VALUE
+        
+        # LayerModel is the single source of truth for z-order
+        self._model = LayerModel(self)
+        self._model.orderChanged.connect(self._on_model_order_changed)
+        
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -258,6 +280,12 @@ class LayerPanel(QtWidgets.QWidget):
 
     def set_scene(self, scene: QtWidgets.QGraphicsScene) -> None:
         self._scene = scene
+        self._model.set_scene(scene)
+
+    @property
+    def model(self) -> LayerModel:
+        """Get the layer model (single source of truth for z-order)."""
+        return self._model
 
     def set_group_manager(self, group_manager: GroupManager) -> None:
         self._group_manager = group_manager
@@ -274,28 +302,35 @@ class LayerPanel(QtWidgets.QWidget):
         return None
 
     def refresh(self) -> None:
+        """Sync model with scene and rebuild tree."""
         if not self._scene:
             return
+        
+        # First: sync model with scene (batch operation, single emit if changed)
+        self._model.sync_with_scene()
+        
+        # Then: rebuild tree from model (read-only operation)
         self._tree.blockSignals(True)
         try:
-            self._rebuild_tree()
+            self._rebuild_tree_from_model()
         finally:
             self._tree.blockSignals(False)
 
-    def _rebuild_tree(self) -> None:
+    def _rebuild_tree_from_model(self) -> None:
+        """Rebuild tree from model order (read-only - model already synced)."""
         self._tree.clear()
         self._uuid_cache.clear()
 
         if not self._scene:
             return
 
-        # Build cache and get sorted items
-        items_with_z = []
+        # Build cache from scene items
         for item in self._scene.items():
             if hasattr(item, "item_uuid") and hasattr(item, "type_name"):
-                items_with_z.append((item.zValue(), item))
                 self._uuid_cache[item.item_uuid] = item
-        items_with_z.sort(key=lambda x: x[0], reverse=True)
+
+        # Get order from model (already synced by refresh())
+        model_order = self._model.get_order()
 
         # Get grouped UUIDs
         grouped = set()
@@ -308,12 +343,13 @@ class LayerPanel(QtWidgets.QWidget):
         # Add groups
         if self._group_manager:
             for group in self._group_manager.get_root_groups():
-                self._tree.addTopLevelItem(self._build_group_item(group, items_with_z, group_items))
+                self._tree.addTopLevelItem(self._build_group_item(group, model_order, group_items))
 
-        # Add ungrouped items
+        # Add ungrouped items in model order
         ungrouped: list[QtWidgets.QTreeWidgetItem] = []
-        for _z, item in items_with_z:
-            if hasattr(item, "item_uuid") and item.item_uuid not in grouped:
+        for uuid in model_order:
+            if uuid not in grouped and uuid in self._uuid_cache:
+                item = self._uuid_cache[uuid]
                 tree_item = self._create_item(item)
                 self._tree.addTopLevelItem(tree_item)
                 ungrouped.append(tree_item)
@@ -349,7 +385,7 @@ class LayerPanel(QtWidgets.QWidget):
     def _build_group_item(
         self,
         group: LayerGroup,
-        items_with_z: list,
+        model_order: list[str],
         group_items: dict,
     ) -> QtWidgets.QTreeWidgetItem:
         tree_item = QtWidgets.QTreeWidgetItem()
@@ -366,15 +402,13 @@ class LayerPanel(QtWidgets.QWidget):
 
         if self._group_manager:
             for child in self._group_manager.get_child_groups(group.group_uuid):
-                tree_item.addChild(self._build_group_item(child, items_with_z, group_items))
+                tree_item.addChild(self._build_group_item(child, model_order, group_items))
 
-        filtered_items = [
-            (z, i)
-            for z, i in items_with_z
-            if hasattr(i, "item_uuid") and i.item_uuid in group.item_uuids
-        ]
-        for _z, item in sorted(filtered_items, key=lambda x: x[0], reverse=True):
-            tree_item.addChild(self._create_item(item))
+        # Add items in model order (model is source of truth)
+        for uuid in model_order:
+            if uuid in group.item_uuids and uuid in self._uuid_cache:
+                item = self._uuid_cache[uuid]
+                tree_item.addChild(self._create_item(item))
 
         return tree_item
 
@@ -473,20 +507,34 @@ class LayerPanel(QtWidgets.QWidget):
                 undo_stack = window.undo_stack
         apply_z_order_change(items, operation, self._scene, undo_stack)
 
-    def _update_z_from_tree(self) -> None:
-        self._z_counter = Z_ORDER_INITIAL_VALUE
-        for i in range(self._tree.topLevelItemCount()):
-            if item := self._tree.topLevelItem(i):
-                self._update_z_recursive(item)
+    def _on_model_order_changed(self) -> None:
+        """Handle model order change - apply z-values and signal for retrace."""
+        # Model already applied z-values to scene in _apply_to_scene()
+        # Just emit signal for ray retrace
+        self.zOrderChanged.emit()
 
-    def _update_z_recursive(self, tree_item: QtWidgets.QTreeWidgetItem) -> None:
-        if tree_item.data(0, IS_GROUP_ROLE):
-            for i in range(tree_item.childCount()):
-                if child := tree_item.child(i):
-                    self._update_z_recursive(child)
-        elif (uuid := tree_item.data(0, ITEM_UUID_ROLE)) and (item := self._uuid_cache.get(uuid)):
-            item.setZValue(self._z_counter)
-            self._z_counter -= Z_ORDER_STEP
+    def _collect_uuids_from_tree(
+        self, uuids: list[str], parent: QtWidgets.QTreeWidgetItem | None = None
+    ) -> None:
+        """Collect item UUIDs from tree in top-to-bottom order."""
+        if parent is None:
+            # Top-level items
+            for i in range(self._tree.topLevelItemCount()):
+                if tree_item := self._tree.topLevelItem(i):
+                    self._collect_uuids_from_tree(uuids, tree_item)
+        elif parent.data(0, IS_GROUP_ROLE):
+            # Group - recurse into children
+            for i in range(parent.childCount()):
+                if child := parent.child(i):
+                    self._collect_uuids_from_tree(uuids, child)
+        else:
+            # Regular item - add UUID to list
+            if uuid := parent.data(0, ITEM_UUID_ROLE):
+                uuids.append(uuid)
+            # Recurse into children (defensive)
+            for i in range(parent.childCount()):
+                if child := parent.child(i):
+                    self._collect_uuids_from_tree(uuids, child)
 
     # --- Selection Sync ---
 
@@ -534,9 +582,16 @@ class LayerPanel(QtWidgets.QWidget):
             self._select_in_tree(uuids, item)
 
     def _on_reordered(self) -> None:
-        if self._scene:
-            self._update_z_from_tree()
-            self.refresh()
+        """Handle tree reorder - extract new order from tree and update model."""
+        if not self._scene:
+            return
+        
+        # Extract new order from tree (tree was reordered by drag-drop)
+        new_order: list[str] = []
+        self._collect_uuids_from_tree(new_order)
+        
+        # Update model with new order (model will apply z-values and emit signal)
+        self._model.reorder(new_order)
 
     # --- Actions ---
 

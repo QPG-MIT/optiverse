@@ -5,6 +5,8 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
+from optiverse import __version__
+
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 
@@ -64,9 +66,15 @@ def to_np(p: QtCore.QPointF) -> np.ndarray:
 
 class MainWindow(QtWidgets.QMainWindow):
     # Action attributes (initialized by ActionBuilder)
+    act_new: QtGui.QAction
     act_open: QtGui.QAction
     act_save: QtGui.QAction
     act_save_as: QtGui.QAction
+    act_close: QtGui.QAction
+    act_export_image: QtGui.QAction
+    act_export_pdf: QtGui.QAction
+    act_quit: QtGui.QAction
+    menu_recent: QtWidgets.QMenu
     act_undo: QtGui.QAction
     act_redo: QtGui.QAction
     act_delete: QtGui.QAction
@@ -108,7 +116,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("2D Ray Optics Sandbox — Top View (mm/cm grid)")
+        self.setWindowTitle(self._format_window_title("Untitled"))
         self.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
 
         # Set window icon
@@ -223,10 +231,11 @@ class MainWindow(QtWidgets.QMainWindow):
             parent_widget=self,
             connect_item_signals=self._connect_item_signals,
             group_manager=self.group_manager,
+            settings_service=self.settings_service,
         )
         # Connect file controller signals
         self.file_controller.traceRequested.connect(self._schedule_retrace)
-        self.file_controller.windowTitleChanged.connect(self.setWindowTitle)
+        self.file_controller.windowTitleChanged.connect(self._on_window_title_changed)
 
         # Collaboration controller - handles hosting/joining sessions
         self.collab_controller = CollaborationController(
@@ -291,6 +300,14 @@ class MainWindow(QtWidgets.QMainWindow):
     # Grid is now drawn in GraphicsView.drawBackground() for much better performance
     # No need for _draw_grid() method anymore!
 
+    def _format_window_title(self, subtitle: str) -> str:
+        """Format window title with version and subtitle."""
+        return f"Optiverse v{__version__} — {subtitle}"
+
+    def _on_window_title_changed(self, subtitle: str) -> None:
+        """Handle window title change from file controller."""
+        self.setWindowTitle(self._format_window_title(subtitle))
+
     def _build_library_dock(self):
         """Build component library dock with categorized tree view."""
         self.libDock = QtWidgets.QDockWidget("Component Library", self)
@@ -338,6 +355,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Connect group manager to layer panel refresh
         self.group_manager.groupsChanged.connect(self.layer_panel.refresh)
+
+        # Connect z-order changes to retrace (so rays update their z-values)
+        self.layer_panel.zOrderChanged.connect(self._schedule_retrace)
 
         # Set group manager on component ops for delete operations
         self.component_ops.set_group_manager(self.group_manager)
@@ -520,6 +540,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_measure_angle.setChecked(False)
 
     # ----- Save / Load (delegated to FileController) -----
+    def new_assembly(self):
+        """Create new assembly (delegated to file controller)."""
+        if self.file_controller.new_assembly():
+            # Refresh layer panel
+            self.layer_panel.refresh()
+
     def save_assembly(self):
         """Quick save (delegated to file controller)."""
         self.file_controller.save_assembly()
@@ -537,6 +563,34 @@ class MainWindow(QtWidgets.QMainWindow):
                     item.edited.connect(self._maybe_retrace)
             # Refresh layer panel
             self.layer_panel.refresh()
+
+    def open_recent_file(self, path: str):
+        """Open a recent file (delegated to file controller)."""
+        if self.file_controller.open_recent_file(path):
+            # Connect edited signal for optical components
+            for item in self.scene.items():
+                if isinstance(item, Editable):
+                    item.edited.connect(self._maybe_retrace)
+            # Refresh layer panel
+            self.layer_panel.refresh()
+
+    def close_assembly(self):
+        """Close current assembly (delegated to file controller)."""
+        if self.file_controller.close_assembly():
+            # Refresh layer panel
+            self.layer_panel.refresh()
+
+    def export_image(self):
+        """Export scene to image (delegated to file controller)."""
+        self.file_controller.export_image()
+
+    def export_pdf(self):
+        """Export scene to PDF (delegated to file controller)."""
+        self.file_controller.export_pdf()
+
+    def quit_application(self):
+        """Quit the application (triggers close event which handles unsaved changes)."""
+        self.close()
 
     def import_assembly_as_layer(self):
         """Import an assembly file as a new layer (grouped items)."""

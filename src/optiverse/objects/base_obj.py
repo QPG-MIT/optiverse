@@ -65,6 +65,11 @@ class BaseObj(QtWidgets.QGraphicsObject):
         self.setAcceptHoverEvents(True)
         self.setCursor(QtCore.Qt.CursorShape.OpenHandCursor)
         self.setTransformOriginPoint(0.0, 0.0)
+        
+        # New items start with high z-value so they appear at top of layer tree
+        # Layer panel normalizes z-values to sequential integers on refresh
+        self.setZValue(float('inf'))
+        
         self._ready = False  # Set to True after full initialization
 
         # Rotation handlers (extracted for cleaner code)

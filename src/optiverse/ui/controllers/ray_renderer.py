@@ -2,6 +2,9 @@
 
 This module handles the visual rendering of traced ray paths to the scene,
 using either OpenGL hardware acceleration or software fallback.
+
+Each source's rays are rendered at the source's z-value + 0.1, so rays
+appear just above their source and move together in the layer tree.
 """
 
 from __future__ import annotations
@@ -11,8 +14,12 @@ from typing import TYPE_CHECKING
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 if TYPE_CHECKING:
+    from ...objects import SourceItem
     from ..objects import GraphicsView  # type: ignore[misc]
     from ..raytracing import RayPath  # type: ignore[misc]
+
+# Offset for rays above their source (keeps source icon visible)
+RAY_Z_OFFSET = 0.1
 
 
 class RayRenderer:
@@ -21,6 +28,9 @@ class RayRenderer:
 
     Handles both hardware-accelerated OpenGL rendering and software fallback
     using QGraphicsPathItem.
+    
+    Rays are rendered per-source at source.zValue() + 0.1, so they move
+    together with their source in the layer tree.
     """
 
     def __init__(
@@ -43,6 +53,9 @@ class RayRenderer:
 
         # Ray width in pixels
         self._ray_width_px: float = 2.0
+        
+        # Cache of sources for z-value lookup
+        self._sources: list[SourceItem] = []
 
     @property
     def ray_width_px(self) -> float:
@@ -53,6 +66,15 @@ class RayRenderer:
     def ray_width_px(self, value: float):
         """Set the ray width in pixels."""
         self._ray_width_px = float(value)
+
+    def set_sources(self, sources: list[SourceItem]) -> None:
+        """
+        Set the list of sources for z-value lookup.
+        
+        Args:
+            sources: List of SourceItem objects in the same order as raytracing
+        """
+        self._sources = list(sources)
 
     def clear(self) -> None:
         """Remove all ray graphics from scene."""
@@ -77,6 +99,8 @@ class RayRenderer:
 
         Uses OpenGL hardware acceleration if available, otherwise falls back
         to software rendering with QGraphicsPathItem.
+        
+        Each source's rays are rendered at source.zValue() + 0.1.
 
         Args:
             paths: List of RayPath objects to render
@@ -84,6 +108,8 @@ class RayRenderer:
         # Try OpenGL rendering first (100x+ faster)
         if self.view.has_ray_overlay():
             # Use hardware-accelerated OpenGL rendering
+            # Note: OpenGL overlay doesn't support per-source z-ordering
+            # It renders all rays in a single layer above the scene
             self.view.update_ray_overlay(paths, self._ray_width_px)
             # No need to create QGraphicsPathItem objects
             self._update_path_measures(paths)
@@ -93,9 +119,26 @@ class RayRenderer:
         self._render_software(paths)
         self._update_path_measures(paths)
 
+    def _get_source_z_value(self, source_index: int) -> float:
+        """
+        Get the z-value for rays from a given source.
+        
+        Args:
+            source_index: Index of the source
+            
+        Returns:
+            z-value for rays (source z-value + offset)
+        """
+        if 0 <= source_index < len(self._sources):
+            return self._sources[source_index].zValue() + RAY_Z_OFFSET
+        # Fallback if source not found
+        return RAY_Z_OFFSET
+
     def _render_software(self, paths: list[RayPath]) -> None:
         """
         Software fallback rendering using QGraphicsPathItem.
+        
+        Each source's rays are rendered at source.zValue() + 0.1.
 
         Args:
             paths: List of RayPath objects to render
@@ -137,7 +180,10 @@ class RayRenderer:
             pen.setWidthF(self._ray_width_px * RAY_WIDTH_OPENGL_SCALE)
             pen.setCosmetic(True)
             item.setPen(pen)
-            item.setZValue(10)
+            
+            # Set z-value based on source (rays render just above their source)
+            z_value = self._get_source_z_value(p.source_index)
+            item.setZValue(z_value)
 
             self.scene.addItem(item)
             self.ray_items.append(item)

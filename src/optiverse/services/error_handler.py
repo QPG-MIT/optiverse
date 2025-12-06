@@ -111,17 +111,101 @@ class ErrorHandler:
                 _logger.debug("Details:\n%s", details)
             return
 
-        # Create error dialog
-        msg_box = QtWidgets.QMessageBox()
-        msg_box.setIcon(QtWidgets.QMessageBox.Icon.Critical)
-        msg_box.setWindowTitle(title)
-        msg_box.setText(message)
+        # Create a custom dialog for better control over text selection
+        dialog = QtWidgets.QDialog()
+        dialog.setWindowTitle(title)
+        dialog.setModal(True)
+        dialog.setMinimumWidth(450)
 
+        layout = QtWidgets.QVBoxLayout(dialog)
+        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+
+        # Header with icon and title
+        header_layout = QtWidgets.QHBoxLayout()
+        header_layout.setSpacing(12)
+
+        icon_label = QtWidgets.QLabel()
+        icon_label.setPixmap(
+            dialog.style()
+            .standardIcon(QtWidgets.QStyle.StandardPixmap.SP_MessageBoxCritical)
+            .pixmap(32, 32)
+        )
+        icon_label.setFixedSize(32, 32)
+        header_layout.addWidget(icon_label, 0, QtCore.Qt.AlignmentFlag.AlignTop)
+
+        # Main message in a read-only text edit (fully selectable and copyable)
+        message_text = QtWidgets.QPlainTextEdit()
+        message_text.setPlainText(message)
+        message_text.setReadOnly(True)
+        message_text.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        message_text.setMaximumHeight(100)
+        # Style to look like a label but be selectable
+        message_text.setStyleSheet(
+            "QPlainTextEdit { background: transparent; border: none; }"
+        )
+        header_layout.addWidget(message_text, 1)
+
+        layout.addLayout(header_layout)
+
+        # Detailed text area (if provided)
+        details_text: QtWidgets.QPlainTextEdit | None = None
         if details:
-            msg_box.setDetailedText(details)
+            # Collapsible details section
+            details_button = QtWidgets.QPushButton("Show Details...")
+            details_button.setCheckable(True)
+            details_button.setFlat(True)
+            details_button.setStyleSheet("QPushButton { text-align: left; }")
 
-        msg_box.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Ok)
-        msg_box.exec()
+            details_text = QtWidgets.QPlainTextEdit()
+            details_text.setPlainText(details)
+            details_text.setReadOnly(True)
+            details_text.setLineWrapMode(QtWidgets.QPlainTextEdit.LineWrapMode.NoWrap)
+            details_text.setMinimumHeight(150)
+            details_text.setMaximumHeight(250)
+            details_text.hide()
+
+            def toggle_details(checked: bool):
+                if details_text is not None:
+                    details_text.setVisible(checked)
+                details_button.setText("Hide Details" if checked else "Show Details...")
+                dialog.adjustSize()
+
+            details_button.toggled.connect(toggle_details)
+            layout.addWidget(details_button)
+            layout.addWidget(details_text)
+
+        # Button row
+        button_layout = QtWidgets.QHBoxLayout()
+        button_layout.setSpacing(8)
+
+        # Copy button - copies full error info
+        copy_button = QtWidgets.QPushButton("Copy to Clipboard")
+
+        def copy_error():
+            clipboard = QtWidgets.QApplication.clipboard()
+            full_text = f"{title}\n\n{message}"
+            if details:
+                full_text += f"\n\nDetails:\n{details}"
+            if clipboard:
+                clipboard.setText(full_text)
+                copy_button.setText("Copied!")
+                QtCore.QTimer.singleShot(1500, lambda: copy_button.setText("Copy to Clipboard"))
+
+        copy_button.clicked.connect(copy_error)
+        button_layout.addWidget(copy_button)
+
+        button_layout.addStretch()
+
+        # OK button
+        ok_button = QtWidgets.QPushButton("OK")
+        ok_button.setDefault(True)
+        ok_button.clicked.connect(dialog.accept)
+        button_layout.addWidget(ok_button)
+
+        layout.addLayout(button_layout)
+
+        dialog.exec()
 
     def handle_error(self, error: Exception, context: str = "", show_dialog: bool = True):
         """

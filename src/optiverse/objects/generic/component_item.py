@@ -142,7 +142,7 @@ class ComponentItem(BaseObj):
             self._picked_line_offset_mm = (cx, cy)
 
             self._update_geom()
-            self.setZValue(0)
+            # Note: z-value is set by layer panel based on tree position
 
         elif self.params.image_path and (
             not self.params.interfaces or len(self.params.interfaces) == 0
@@ -163,7 +163,7 @@ class ComponentItem(BaseObj):
             self._picked_line_offset_mm = (0.0, 0.0)
 
             self._update_geom()
-            self.setZValue(-10)  # Render backgrounds behind optical elements
+            # Note: z-value is set by layer panel based on tree position
 
     def boundingRect(self) -> QtCore.QRectF:
         """Return bounding rectangle."""

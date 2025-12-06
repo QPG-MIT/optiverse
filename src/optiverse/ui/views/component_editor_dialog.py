@@ -87,6 +87,10 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.undo_stack = UndoStack()
         self.undo_stack.canUndoChanged.connect(self._update_undo_actions)
         self.undo_stack.canRedoChanged.connect(self._update_undo_actions)
+        self.undo_stack.commandPushed.connect(self._mark_modified)
+
+        # Track unsaved changes
+        self._modified = False
 
         # Library I/O handler (initialized after UI setup in _build_library_dock)
         self._library_io: ComponentLibraryIO | None = None
@@ -98,9 +102,11 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.canvas_with_rulers = CanvasWithRulers(self.canvas)
         self.setCentralWidget(self.canvas_with_rulers)
         self.canvas.linesChanged.connect(self._on_canvas_lines_changed)
+        self.canvas.linesChanged.connect(self._mark_modified)
         self.canvas.lineSelected.connect(self._on_canvas_line_selected)
         self.canvas.linesSelected.connect(self._on_canvas_lines_selected)
         self.canvas.linesMoved.connect(self._on_canvas_lines_moved)
+        self.canvas.linesMoved.connect(self._mark_modified)
 
         # Image handler
         self._image_handler = ComponentImageHandler(
@@ -215,10 +221,19 @@ class ComponentEditor(QtWidgets.QMainWindow):
         sc_redo.setContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
         sc_redo.activated.connect(self.undo_stack.redo)
 
+        # Save shortcut
+        sc_save = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Save, self)
+        sc_save.setContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
+        sc_save.activated.connect(self.save_component)
+
     def _update_undo_actions(self):
         """Update undo/redo action states (called by undo stack signals)."""
         # Actions can be added here if needed
         pass
+
+    def _mark_modified(self):
+        """Mark the component as having unsaved changes."""
+        self._modified = True
 
     def _build_side_dock(self):
         """Build side dock with component settings (v2 interface-based)."""
@@ -234,6 +249,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         info_form = QtWidgets.QFormLayout()
 
         self.name_edit = QtWidgets.QLineEdit()
+        self.name_edit.textChanged.connect(self._mark_modified)
         info_form.addRow("Name", self.name_edit)
 
         # Category selector (editable to allow custom categories)
@@ -254,6 +270,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
             ]
         )
         self.category_combo.setToolTip("Select a category or type a custom one")
+        self.category_combo.currentTextChanged.connect(self._mark_modified)
         info_form.addRow("Category", self.category_combo)
 
         # OBJECT HEIGHT (mm) -> physical size reference for calibration
@@ -266,6 +283,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
             "Physical height for calibration (typically size of first interface)"
         )
         self.object_height_mm.valueChanged.connect(self._on_object_height_changed)
+        self.object_height_mm.valueChanged.connect(self._mark_modified)
         info_form.addRow("Object Height", self.object_height_mm)
 
         layout.addLayout(info_form)
@@ -279,6 +297,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         # Interface tree panel (collapsible with simplified properties)
         self.interface_panel = InterfaceTreePanel()
         self.interface_panel.interfacesChanged.connect(self._on_interfaces_changed)
+        self.interface_panel.interfacesChanged.connect(self._mark_modified)
         self.interface_panel.interfaceSelected.connect(self._on_interface_panel_selection)
         self.interface_panel.interfacesSelected.connect(self._on_interface_panel_multi_selection)
         layout.addWidget(self.interface_panel, 1)  # Stretch factor 1
@@ -294,6 +313,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self.notes = QtWidgets.QPlainTextEdit()
         self.notes.setPlaceholderText("Optional notes…")
         self.notes.setMaximumHeight(60)
+        self.notes.textChanged.connect(self._mark_modified)
         notes_form.addRow("Notes", self.notes)
         layout.addLayout(notes_form)
 
@@ -888,10 +908,17 @@ class ComponentEditor(QtWidgets.QMainWindow):
         # Sync to canvas
         self._sync_interfaces_to_canvas()
 
-    def save_component(self):
-        """Save component to library (delegated to library_io)."""
+    def save_component(self) -> bool:
+        """Save component to library (delegated to library_io).
+
+        Returns:
+            True if save was successful, False otherwise.
+        """
         if self._library_io:
-            self._library_io.save_component()
+            if self._library_io.save_component():
+                self._modified = False
+                return True
+        return False
 
     def export_component(self):
         """Export current component to a folder (delegated to library_io)."""
@@ -912,6 +939,32 @@ class ComponentEditor(QtWidgets.QMainWindow):
         """Load component library from a custom path (delegated to library_io)."""
         if self._library_io:
             self._library_io.load_library_from_path()
+
+    def closeEvent(self, event: QtGui.QCloseEvent):
+        """Handle window close event, prompting to save unsaved changes."""
+        if self._modified:
+            reply = QtWidgets.QMessageBox.question(
+                self,
+                "Unsaved Changes",
+                "You have unsaved changes. Do you want to save before closing?",
+                QtWidgets.QMessageBox.StandardButton.Save
+                | QtWidgets.QMessageBox.StandardButton.Discard
+                | QtWidgets.QMessageBox.StandardButton.Cancel,
+                QtWidgets.QMessageBox.StandardButton.Save,
+            )
+
+            if reply == QtWidgets.QMessageBox.StandardButton.Save:
+                if self.save_component():
+                    event.accept()
+                else:
+                    # Save failed or was cancelled, don't close
+                    event.ignore()
+            elif reply == QtWidgets.QMessageBox.StandardButton.Discard:
+                event.accept()
+            else:  # Cancel
+                event.ignore()
+        else:
+            event.accept()
 
 
 # Keep old name for backward compatibility

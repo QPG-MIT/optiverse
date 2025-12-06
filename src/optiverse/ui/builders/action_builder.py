@@ -83,10 +83,26 @@ class ActionBuilder:
         w = self.window
 
         # --- File Actions ---
+        w.act_new = QtGui.QAction("New", w)
+        w.act_new.setShortcut(QtGui.QKeySequence.StandardKey.New)
+        w.act_new.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
+        w.act_new.triggered.connect(w.new_assembly)
+
         w.act_open = QtGui.QAction("Open Assembly…", w)
         w.act_open.setShortcut(QtGui.QKeySequence.StandardKey.Open)
         w.act_open.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         w.act_open.triggered.connect(w.open_assembly)
+
+        # Recent files submenu (populated dynamically)
+        w.menu_recent = QtWidgets.QMenu("Open Recent", w)
+        self._update_recent_files_menu()
+        # Connect to update when recent files change
+        w.file_controller.recentFilesChanged.connect(self._update_recent_files_menu)
+
+        w.act_close = QtGui.QAction("Close", w)
+        w.act_close.setShortcut(QtGui.QKeySequence.StandardKey.Close)
+        w.act_close.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
+        w.act_close.triggered.connect(w.close_assembly)
 
         w.act_save = QtGui.QAction("Save", w)
         w.act_save.setShortcut(QtGui.QKeySequence("Ctrl+S"))
@@ -102,6 +118,18 @@ class ActionBuilder:
         w.act_import_as_layer.setShortcut(QtGui.QKeySequence("Ctrl+Shift+I"))
         w.act_import_as_layer.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
         w.act_import_as_layer.triggered.connect(w.import_assembly_as_layer)
+
+        w.act_export_image = QtGui.QAction("Export Image…", w)
+        w.act_export_image.triggered.connect(w.export_image)
+
+        w.act_export_pdf = QtGui.QAction("Export PDF…", w)
+        w.act_export_pdf.triggered.connect(w.export_pdf)
+
+        w.act_quit = QtGui.QAction("Quit", w)
+        w.act_quit.setShortcut(QtGui.QKeySequence.StandardKey.Quit)
+        w.act_quit.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
+        w.act_quit.triggered.connect(w.quit_application)
+        w.act_quit.setMenuRole(QtGui.QAction.MenuRole.QuitRole)
 
         # --- Edit Actions ---
         w.act_undo = QtGui.QAction("Undo", w)
@@ -351,6 +379,40 @@ class ActionBuilder:
         for action, icon_name in self._toolbar_icon_map:
             action.setIcon(QtGui.QIcon(_get_icon_path(icon_name, dark_mode)))
 
+    def _update_recent_files_menu(self) -> None:
+        """Update the recent files submenu with current list."""
+        w = self.window
+        w.menu_recent.clear()
+
+        recent_files = w.file_controller.get_recent_files()
+        if not recent_files:
+            no_recent = w.menu_recent.addAction("No Recent Files")
+            if no_recent:
+                no_recent.setEnabled(False)
+            return
+
+        for i, path in enumerate(recent_files):
+            # Show filename with number prefix
+            filename = Path(path).name
+            action = w.menu_recent.addAction(f"{i + 1}. {filename}")
+            if action:
+                action.setToolTip(path)
+                # Use partial to capture the path
+                action.triggered.connect(partial(w.open_recent_file, path))
+
+        # Add clear recent files option
+        w.menu_recent.addSeparator()
+        clear_action = w.menu_recent.addAction("Clear Recent Files")
+        if clear_action:
+            clear_action.triggered.connect(self._clear_recent_files)
+
+    def _clear_recent_files(self) -> None:
+        """Clear the recent files list."""
+        w = self.window
+        if w.settings_service:
+            w.settings_service.clear_recent_files()
+            w.file_controller.recentFilesChanged.emit()
+
     def build_menubar(self) -> None:
         """Build the menu bar."""
         w = self.window
@@ -362,11 +424,20 @@ class ActionBuilder:
         mFile = mb.addMenu("&File")
         if mFile is None:
             return
+        mFile.addAction(w.act_new)
         mFile.addAction(w.act_open)
+        mFile.addMenu(w.menu_recent)
+        mFile.addSeparator()
+        mFile.addAction(w.act_close)
         mFile.addAction(w.act_save)
         mFile.addAction(w.act_save_as)
         mFile.addSeparator()
         mFile.addAction(w.act_import_as_layer)
+        mFile.addSeparator()
+        mFile.addAction(w.act_export_image)
+        mFile.addAction(w.act_export_pdf)
+        mFile.addSeparator()
+        mFile.addAction(w.act_quit)
 
         # Edit menu
         mEdit = mb.addMenu("&Edit")
@@ -455,10 +526,13 @@ class ActionBuilder:
         w = self.window
 
         # File actions
+        w.addAction(w.act_new)
         w.addAction(w.act_open)
+        w.addAction(w.act_close)
         w.addAction(w.act_save)
         w.addAction(w.act_save_as)
         w.addAction(w.act_import_as_layer)
+        w.addAction(w.act_quit)
 
         # Edit actions
         w.addAction(w.act_undo)

@@ -33,6 +33,7 @@ class SourceItem(BaseObj):
     def __init__(self, params: SourceParams, item_uuid: str | None = None):
         super().__init__(item_uuid)
         self.params = params
+        # Note: z-value is set by layer panel based on tree position
         self._color = qcolor_from_hex(self.params.color_hex)
         self._update_shape()
         self.setPos(self.params.x_mm, self.params.y_mm)

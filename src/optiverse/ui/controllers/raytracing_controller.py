@@ -141,7 +141,7 @@ class RaytracingController(QtCore.QObject):
             from ...core.models import SourceParams
             from ...objects import SourceItem
 
-            # Collect sources
+            # Collect sources (order matters for ray z-ordering)
             sources: list[SourceItem] = []
             for it in self._scene.items():
                 if isinstance(it, SourceItem):
@@ -149,6 +149,9 @@ class RaytracingController(QtCore.QObject):
 
             if not sources:
                 return
+
+            # Pass sources to renderer for z-value lookup
+            self._ray_renderer.set_sources(sources)
 
             # Convert scene to polymorphic elements using the integration adapter
             try:
