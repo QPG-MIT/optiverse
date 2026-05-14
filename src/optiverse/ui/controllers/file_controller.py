@@ -663,10 +663,67 @@ class FileController(QtCore.QObject):
             True if export was successful
         """
         from ...export.pyopticl_dialogs import BaseplateOptionsDialog, MissingStepWarningDialog
-        from ...export.pyopticl_exporter import BaseplateOptions, analyse_scene, export_scene
+        from ...export.pyopticl_exporter import (
+            BaseplateOptions,
+            _sanitize_stem,
+            analyse_scene,
+            export_scene,
+        )
 
         with ErrorContext("while exporting PyOpticL layout", suppress=True):
+            from ...platform.paths import to_absolute_path
+
             scene_data = self.file_manager.serialize_scene()
+
+            all_items = scene_data.get("items", [])
+            step_before = [
+                (d.get("name", "?"), d.get("step_file_path", ""))
+                for d in all_items if d.get("step_file_path")
+            ]
+            self._log_service.info(
+                f"PyOpticL export: {len(all_items)} items, "
+                f"{len(step_before)} with step_file_path before resolution",
+                "Export",
+            )
+            for name, sfp in step_before:
+                self._log_service.info(
+                    f"  STEP (raw): {name!r} -> {sfp!r}", "Export"
+                )
+
+            # Resolve portable step_file_path values (@component/...,
+            # @library/..., relative) back to absolute paths so the
+            # exporter can find the actual STEP files on disk.
+            roots = (
+                self._library_service.get_all_roots()
+                if self._library_service
+                else None
+            )
+            self._log_service.info(
+                f"  Library roots for resolution: {roots}", "Export"
+            )
+            for item_data in all_items:
+                sfp = item_data.get("step_file_path")
+                if sfp:
+                    resolved = to_absolute_path(sfp, roots) or ""
+                    # If the resolved path does not exist on disk, try to
+                    # find the file by scanning library component folders
+                    # (handles bare relative paths like "step/KS05.step").
+                    if resolved and not os.path.isfile(resolved) and roots:
+                        basename = os.path.basename(sfp)
+                        for lib_root in roots:
+                            for candidate in lib_root.rglob(basename):
+                                if candidate.is_file():
+                                    resolved = str(candidate)
+                                    break
+                            if os.path.isfile(resolved):
+                                break
+                    self._log_service.info(
+                        f"  STEP resolve: {sfp!r} -> {resolved!r} "
+                        f"(exists={os.path.isfile(resolved)})",
+                        "Export",
+                    )
+                    item_data["step_file_path"] = resolved
+
             items, warnings = analyse_scene(scene_data)
 
             if warnings:
@@ -679,18 +736,21 @@ class FileController(QtCore.QObject):
                 return False
             options = opts_dlg.get_options()
 
-            export_dir = QtWidgets.QFileDialog.getExistingDirectory(
+            default_name = _sanitize_stem(options.label) or "pyopticl_export"
+            export_dir, _ = QtWidgets.QFileDialog.getSaveFileName(
                 self._parent,
-                "Choose folder for PyOpticL layout export",
-                "",
-                QtWidgets.QFileDialog.Option.ShowDirsOnly,
+                "Save PyOpticL Layout Folder As",
+                default_name,
+                "PyOpticL Layout Folder (*)",
             )
             if not export_dir:
                 return False
+            if export_dir.endswith(".py"):
+                export_dir = export_dir[:-3]
 
             success, skipped = export_scene(scene_data, export_dir, options)
             if success:
-                self._log_service.info(f"PyOpticL layout exported to {export_dir}")
+                self._show_export_success(export_dir, "PyOpticL Layout")
             return success
 
         return False

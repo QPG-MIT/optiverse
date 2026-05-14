@@ -91,11 +91,12 @@ def _interface_to_pyopticl(iface_dict: dict[str, Any]) -> str | None:
         ratio = iface_dict.get("split_R", 50.0) / 100.0
         pol = iface_dict.get("pbs_transmission_axis_deg")
         is_pol = iface_dict.get("is_polarizing", False)
+        diag = length * math.sqrt(2)
         parts = [
             "position=(0, 0, 0)",
             "rotation=(0, 0, -45)",
-            f'width=dim({length:.1f}, "mm") * 1.414',
-            f'height=dim({length:.1f}, "mm") * 1.414',
+            f'width=dim({diag:.1f}, "mm")',
+            f'height=dim({diag:.1f}, "mm")',
         ]
         if is_pol and pol is not None:
             parts.append(f"ref_polarization={pol:.1f}")
@@ -127,6 +128,9 @@ def _interface_to_pyopticl(iface_dict: dict[str, Any]) -> str | None:
                 f"fast_axis_angle={fast_axis:.1f})"
             )
         return None
+
+    if etype == "beam_block":
+        return f"Stop(position=(0, 0, 0), rotation=(0, 0, 0), diameter={diameter_expr})"
 
     return None
 
@@ -259,51 +263,124 @@ def generate_script(
     lines.append(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
     lines.append('"""')
     lines.append("")
-    lines.append("from PyOpticL.beam_path import BeamPath, Lens, Reflection, Waveplate")
+    lines.append(
+        "from PyOpticL.beam_path import BeamPath, Lens, Reflection, Stop, Waveplate"
+    )
     lines.append("from PyOpticL.layout import Component")
     lines.append("from PyOpticL.library import baseplate")
-    lines.append("from PyOpticL.utils import Dimension as dim, import_model")
+    lines.append(
+        "from PyOpticL.utils import Dimension as dim, import_model, "
+        "fix_relative_imports"
+    )
+    lines.append("from PyOpticL.utils import cylinder_shape, box_shape")
     lines.append("")
+    lines.append("fix_relative_imports()")
     lines.append("")
 
-    # Component definitions (one class per component with a STEP file)
+    if options.metric:
+        lines.append("from PyOpticL.settings import set_measurement_system")
+        lines.append('set_measurement_system("metric")')
+        lines.append("")
+
+    # Warn about identity orientation on imported models
+    has_step = any(
+        not it.is_source and it.step_file_path for it in items
+    )
+    if has_step:
+        lines.append(
+            "# NOTE: Imported STEP model orientations are set to identity."
+        )
+        lines.append(
+            "# Open each model's .json file in models/ and use PyOpticL's"
+        )
+        lines.append(
+            "# 'Get Orientation' tool in FreeCAD to set correct values."
+        )
+        lines.append("")
+
+    lines.append("")
+
+    # Component definitions
     comp_class_map: dict[int, str] = {}
     class_counter = 0
 
     for idx, item in enumerate(items):
-        if item.is_source or not item.step_file_path:
+        if item.is_source:
             continue
 
-        class_counter += 1
-        class_name = f"component_{class_counter}_def"
-        comp_class_map[idx] = class_name
-
-        step_stem = _sanitize_stem(os.path.splitext(item.step_filename or "part")[0])
-
-        lines.append(f"class {class_name}:")
-        lines.append(f'    """Definition for: {item.label}"""')
-        lines.append('    object_group = "optics"')
-        lines.append("    object_color = (0.5, 0.5, 0.8)")
-        lines.append("")
-        lines.append("    def shape(self):")
-        lines.append(f'        return import_model("{step_stem}", directory="models")')
-        lines.append("")
-
-        # Interfaces
+        # Determine if this component has exportable interfaces
         iface_strs: list[str] = []
         for iface in item.interfaces:
             code = _interface_to_pyopticl(iface)
             if code:
                 iface_strs.append(code)
 
-        if iface_strs:
+        if item.step_file_path:
+            # Component with STEP file: use mesh class variable
+            class_counter += 1
+            class_name = f"component_{class_counter}_def"
+            comp_class_map[idx] = class_name
+
+            step_stem = _sanitize_stem(
+                os.path.splitext(item.step_filename or "part")[0]
+            )
+
+            lines.append(f"class {class_name}:")
+            lines.append(f'    """Definition for: {item.label}"""')
+            lines.append('    object_group = "optics"')
+            lines.append("    object_color = (0.5, 0.5, 0.8)")
+            lines.append(
+                f'    mesh = import_model("{step_stem}", directory="models")'
+            )
+            lines.append("")
+
+            if iface_strs:
+                lines.append("    def interfaces(self):")
+                lines.append("        return [")
+                for s in iface_strs:
+                    lines.append(f"            {s},")
+                lines.append("        ]")
+            lines.append("")
+            lines.append("")
+
+        elif iface_strs:
+            # Component without STEP but with exportable interfaces:
+            # generate a definition with primitive geometry so beam
+            # path simulation still works.
+            class_counter += 1
+            class_name = f"component_{class_counter}_def"
+            comp_class_map[idx] = class_name
+
+            # Use the first interface's diameter for simple geometry
+            first_iface = item.interfaces[0] if item.interfaces else {}
+            x1 = first_iface.get("x1_mm", 0.0)
+            y1 = first_iface.get("y1_mm", 0.0)
+            x2 = first_iface.get("x2_mm", 0.0)
+            y2 = first_iface.get("y2_mm", 0.0)
+            iface_len = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+            if iface_len < 1.0:
+                iface_len = 25.4  # default 1 inch
+
+            lines.append(f"class {class_name}:")
+            lines.append(f'    """Definition for: {item.label} (no 3D model)"""')
+            lines.append('    object_group = "optics"')
+            lines.append("    object_color = (0.5, 0.5, 0.8)")
+            lines.append("    object_transparency = 50")
+            lines.append("")
+            lines.append("    def shape(self):")
+            lines.append(
+                f"        return cylinder_shape("
+                f"diameter={iface_len:.1f}, height=3.0, "
+                f"rotation=(0, 90, 0))"
+            )
+            lines.append("")
             lines.append("    def interfaces(self):")
             lines.append("        return [")
             for s in iface_strs:
                 lines.append(f"            {s},")
             lines.append("        ]")
-        lines.append("")
-        lines.append("")
+            lines.append("")
+            lines.append("")
 
     # Layout function
     lines.append("def exported_layout(x=0, y=0, angle=0):")
@@ -351,7 +428,9 @@ def generate_script(
             lines.append(f"        rotation={rot:.2f},")
             lines.append("    )")
         else:
-            lines.append(f"    # SKIPPED: {item.label} (no STEP file attached)")
+            lines.append(
+                f"    # SKIPPED: {item.label} (no STEP file or interfaces)"
+            )
         lines.append("")
 
     lines.append("    return bp")
@@ -412,17 +491,33 @@ def export_scene(
         return False, warnings
 
     for item in items:
-        if not item.step_file_path or not os.path.isfile(item.step_file_path):
+        if not item.step_file_path:
+            _logger.info("STEP skip (no path): %s", item.label)
+            continue
+        if not os.path.isfile(item.step_file_path):
+            _logger.info(
+                "STEP skip (file missing): %s -> %s",
+                item.label, item.step_file_path,
+            )
             continue
         stem = _sanitize_stem(os.path.splitext(item.step_filename or "part")[0])
         model_dir = os.path.join(models_root, stem)
         try:
             os.makedirs(model_dir, exist_ok=True)
             shutil.copy2(item.step_file_path, os.path.join(model_dir, f"{stem}.step"))
+            _logger.info("STEP copied: %s -> %s", item.label, model_dir)
             with open(os.path.join(model_dir, f"{stem}.json"), "w", encoding="utf-8") as f:
                 json.dump(
-                    {"translation": [0.0, 0.0, 0.0], "rotation": [0.0, 0.0, 0.0]},
+                    {
+                        "translation": [0.0, 0.0, 0.0],
+                        "rotation": [0.0, 0.0, 0.0],
+                        "_note": (
+                            "Run PyOpticL 'Get Orientation' in FreeCAD"
+                            " to set correct values"
+                        ),
+                    },
                     f,
+                    indent=2,
                 )
         except OSError:
             _logger.warning("Could not write model files for: %s", item.step_file_path)
