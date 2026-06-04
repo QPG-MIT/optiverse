@@ -5,7 +5,7 @@ This module provides a clean, polymorphic raytracing implementation with
 no UI dependencies. Can be used independently or in background threads.
 
 Architecture:
-    - Ray: Data structure for ray state
+    - RayState: Data structure for ray state
     - RayPath: Data structure for traced path
     - Polarization: Jones vector formalism
     - IOpticalElement: Interface for all optical elements
