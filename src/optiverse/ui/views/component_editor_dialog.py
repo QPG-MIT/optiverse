@@ -16,7 +16,7 @@ from ..widgets.interface_tree_panel import InterfaceTreePanel
 from ..widgets.ruler_widget import CanvasWithRulers
 from ..widgets.smart_spinbox import SmartDoubleSpinBox
 from .component_image_handler import ComponentImageHandler
-from .component_library_io import ComponentLibraryIO, _pick_existing_directory
+from .component_library_io import ComponentLibraryIO, _pick_existing_directory, _pick_open_file
 from .zemax_importer import ZemaxImporter
 
 _logger = logging.getLogger(__name__)
@@ -110,6 +110,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
         self._original_name: str | None = None
         self._component_source: str | None = None  # "builtin", "user", or None (new)
 
+        # STEP file attached during STEP import (persisted in component folder on save)
+        self._step_file_path: str | None = None
+
         # Back-reference to main window (set externally after construction)
         self._main_window: QtWidgets.QWidget | None = None
 
@@ -179,6 +182,10 @@ class ComponentEditor(QtWidgets.QMainWindow):
         act = file_menu.addAction("Import &Zemax\u2026")
         if act:
             act.triggered.connect(self._import_zemax)
+
+        act = file_menu.addAction("Import &STEP\u2026")
+        if act:
+            act.triggered.connect(self._import_step)
 
         act = file_menu.addAction("&Import Component\u2026")
         if act:
@@ -567,6 +574,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
         # Reset editing context
         self._original_name = None
         self._component_source = None
+        self._step_file_path = None
 
         # Status message
         status_bar = self.statusBar()
@@ -726,6 +734,63 @@ class ComponentEditor(QtWidgets.QMainWindow):
             if status_bar is not None:
                 status_bar.showMessage(f"Imported {num_interfaces} interfaces from Zemax")
 
+    def _import_step(self):
+        """Import a STEP file as the component image via 3-D preview."""
+        from ...cad.step_preview_dialog import StepPreviewDialog
+        from ...cad.step_renderer import (
+            is_cad_available,
+            load_step_mesh,
+            missing_dependency_message,
+        )
+
+        if not is_cad_available():
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Missing Dependencies",
+                missing_dependency_message()
+                or "cadquery/OCP is required for STEP import.",
+            )
+            return
+
+        path, _ = _pick_open_file(
+            self,
+            "Import STEP File",
+            "",
+            "STEP Files (*.step *.stp);;All Files (*)",
+        )
+        if not path:
+            return
+
+        result = load_step_mesh(path)
+        if result is None:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Import Failed",
+                f"Could not load or tessellate:\n{path}",
+            )
+            return
+
+        vertices, faces, face_colors = result
+        dlg = StepPreviewDialog(
+            vertices,
+            faces,
+            face_colors=face_colors,
+            parent=self,
+        )
+        if dlg.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+
+        if dlg.result_pixmap and not dlg.result_pixmap.isNull():
+            self._set_image(dlg.result_pixmap, path)
+            self._step_file_path = path
+            if dlg.result_height_mm > 0:
+                self.object_height_mm.setValue(dlg.result_height_mm)
+            status_bar = self.statusBar()
+            if status_bar is not None:
+                status_bar.showMessage(
+                    f"Imported STEP projection from {Path(path).name}", 5000
+                )
+
     def _load_component_record(self, component: ComponentRecord):
         """Load a ComponentRecord into the editor."""
         # Clear existing
@@ -831,6 +896,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
             interfaces=interfaces,
             category=category,
             notes=self.notes.toPlainText().strip(),
+            step_file_path=self._step_file_path or "",
         )
 
     def copy_component_json(self):
@@ -930,6 +996,9 @@ class ComponentEditor(QtWidgets.QMainWindow):
         # Track editing context for save guards
         self._original_name = rec.name
         self._component_source = data.get("_source")
+
+        # Restore attached STEP file path
+        self._step_file_path = rec.step_file_path or None
 
         # Load image if available
         if rec.image_path and os.path.exists(rec.image_path):

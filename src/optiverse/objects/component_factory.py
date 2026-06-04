@@ -159,6 +159,7 @@ class ComponentFactory:
             name=name,
             category=data.get("category"),
             notes=data.get("notes"),
+            step_file_path=data.get("step_file_path"),
         )
 
         # Store reference line if present (proper field, not dynamic attribute)

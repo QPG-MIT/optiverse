@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Arrow key nudging** (#89): Move selected items with arrow keys (0.1 mm step) or Shift+Arrow (1.0 mm step); both step sizes are configurable in Preferences → Canvas & Editing
 - **Configurable ruler label positioning** (#90): Ruler labels can be placed Above, Below, Left, or Right relative to the segment via the Edit dialog; setting is serialized and fully undoable
 - **Cross-instance copy/paste** (#34): Items copied in one Optiverse window can be pasted into another via the system clipboard (uses custom MIME type for serialization)
+- **PyOpticL export**: New File menu entry **Export PyOpticL Layout…** produces a self-contained folder (`<name>.py` plus `models/<stem>/<stem>.step` and `<stem>.json` per component) shaped exactly the way `PyOpticL.utils.import_model` expects, ready to run in FreeCAD with the PyOpticL workbench. Components must have an attached STEP file (set when importing a STEP into a component); a warning dialog lists any without one before export
 
 ### Changed
 

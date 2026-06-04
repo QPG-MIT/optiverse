@@ -60,12 +60,14 @@ class StorageService:
         if self._library_root is None or not self._library_root.exists():
             return []
 
-        folders = []
-        for item in self._library_root.iterdir():
-            if item.is_dir() and (item / "component.json").exists():
-                folders.append(item)
-
-        return folders
+        return sorted(
+            (
+                item
+                for item in self._library_root.iterdir()
+                if item.is_dir() and (item / "component.json").exists()
+            ),
+            key=lambda item: item.name.casefold(),
+        )
 
     def load_library(self) -> list[dict[str, Any]]:
         """
@@ -85,9 +87,14 @@ class StorageService:
                 # Resolve image path relative to component folder
                 image_path = data.get("image_path", "")
                 if image_path and not Path(image_path).is_absolute():
-                    # Convert relative path to absolute (relative to component folder)
                     abs_image_path = (folder / image_path).resolve()
                     data["image_path"] = str(abs_image_path)
+
+                # Resolve STEP file path relative to component folder
+                step_path = data.get("step_file_path", "")
+                if step_path and not Path(step_path).is_absolute():
+                    abs_step_path = (folder / step_path).resolve()
+                    data["step_file_path"] = str(abs_step_path)
 
                 # Deserialize and re-serialize to normalize
                 rec = deserialize_component(data, self.settings_service)
@@ -97,7 +104,7 @@ class StorageService:
                 # Convert back to dict with absolute paths for UI
                 component_dict = {
                     "name": rec.name,
-                    "image_path": rec.image_path,  # Already absolute from deserialize
+                    "image_path": rec.image_path,
                     "object_height_mm": float(rec.object_height_mm),
                     "angle_deg": float(rec.angle_deg),
                     "notes": rec.notes or "",
@@ -105,6 +112,9 @@ class StorageService:
 
                 if rec.category:
                     component_dict["category"] = rec.category
+
+                if rec.step_file_path:
+                    component_dict["step_file_path"] = rec.step_file_path
 
                 if rec.interfaces:
                     component_dict["interfaces"] = [iface.to_dict() for iface in rec.interfaces]
@@ -126,6 +136,8 @@ class StorageService:
                 component.json
                 images/
                     image_file.png
+                step/              (if STEP file attached)
+                    model.step
 
         Args:
             rec: ComponentRecord to save
@@ -171,9 +183,28 @@ class StorageService:
 
                     saved_image_path = f"images/{dest_image.name}"
 
-        # Create a copy of the record with relative image path
+        # Handle STEP file path
+        saved_step_path = ""
+        if rec.step_file_path:
+            source_step = Path(rec.step_file_path)
+            if source_step.exists():
+                step_folder = component_folder / "step"
+                step_folder.mkdir(exist_ok=True)
+
+                try:
+                    source_step.resolve().relative_to(step_folder.resolve())
+                    saved_step_path = f"step/{source_step.name}"
+                except ValueError:
+                    dest_step = step_folder / source_step.name
+                    if not self._same_file(source_step, dest_step):
+                        shutil.copy2(source_step, dest_step)
+                    saved_step_path = f"step/{dest_step.name}"
+
+        # Create a copy of the record with relative paths
         serialized = serialize_component(rec, self.settings_service)
-        serialized["image_path"] = saved_image_path  # Store as relative path
+        serialized["image_path"] = saved_image_path
+        if saved_step_path:
+            serialized["step_file_path"] = saved_step_path
 
         # Save component.json
         json_path = component_folder / "component.json"
@@ -241,6 +272,12 @@ class StorageService:
             if image_path and not Path(image_path).is_absolute():
                 abs_image_path = (component_folder / image_path).resolve()
                 data["image_path"] = str(abs_image_path)
+
+            # Resolve STEP file path
+            step_path = data.get("step_file_path", "")
+            if step_path and not Path(step_path).is_absolute():
+                abs_step_path = (component_folder / step_path).resolve()
+                data["step_file_path"] = str(abs_step_path)
 
             return data  # type: ignore[no-any-return]
         except (json.JSONDecodeError, OSError, KeyError) as e:

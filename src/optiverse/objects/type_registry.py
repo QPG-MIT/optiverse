@@ -170,41 +170,46 @@ def serialize_item(item: Serializable) -> dict[str, Any]:
     # Add type marker
     d["_type"] = item.type_name
 
+    # Resolve library roots once (used for both image_path and step_file_path)
+    library_roots = None
+    try:
+        if hasattr(item, "scene") and callable(item.scene):
+            scene = item.scene()
+        else:
+            scene = None
+        if scene:
+            views = scene.views()
+            if views:
+                view = views[0]
+                main_window = view.window()
+                if isinstance(main_window, HasSettings):
+                    library_roots = get_all_library_roots(main_window.settings)
+    except (AttributeError, RuntimeError):
+        pass
+
     # Convert image path to portable format (component-relative preferred)
     if "image_path" in d and d["image_path"]:
-        # Try to get library roots from the item's scene/view context
-        library_roots = None
-        try:
-            # Get the scene from the item
-            if hasattr(item, "scene") and callable(item.scene):
-                scene = item.scene()
-            else:
-                scene = None
-            if scene:
-                # Get all views for this scene
-                views = scene.views()
-                if views:
-                    # Get the main window from the view
-                    view = views[0]
-                    main_window = view.window()
-                    if isinstance(main_window, HasSettings):
-                        library_roots = get_all_library_roots(main_window.settings)
-        except (AttributeError, RuntimeError):
-            # If we can't get library roots, that's okay - will use defaults
-            pass
-
-        # Try component-relative first (PREFERRED - library name independent)
         component_relative = make_component_relative(d["image_path"], library_roots)
         if component_relative:
             d["image_path"] = component_relative
         else:
-            # Try library-relative (backward compatibility)
             lib_relative = make_library_relative(d["image_path"], library_roots)
             if lib_relative:
                 d["image_path"] = lib_relative
             else:
-                # Fall back to package-relative (for built-in components)
                 d["image_path"] = to_relative_path(d["image_path"])
+
+    # Convert STEP file path to portable format (same strategy as image_path)
+    if "step_file_path" in d and d["step_file_path"]:
+        step_comp_rel = make_component_relative(d["step_file_path"], library_roots)
+        if step_comp_rel:
+            d["step_file_path"] = step_comp_rel
+        else:
+            step_lib_rel = make_library_relative(d["step_file_path"], library_roots)
+            if step_lib_rel:
+                d["step_file_path"] = step_lib_rel
+            else:
+                d["step_file_path"] = to_relative_path(d["step_file_path"])
 
     # Explicitly serialize interfaces using their to_dict() method
     if "interfaces" in d and d["interfaces"]:
@@ -259,9 +264,12 @@ def deserialize_item(
     d = data.copy()
 
     # Convert library-relative or package-relative path to absolute
+    roots = library_roots if library_roots is not None else get_all_library_roots()
     if "image_path" in d and d["image_path"]:
-        roots = library_roots if library_roots is not None else get_all_library_roots()
         d["image_path"] = to_absolute_path(d["image_path"], roots)
+
+    if "step_file_path" in d and d["step_file_path"]:
+        d["step_file_path"] = to_absolute_path(d["step_file_path"], roots)
 
     # Deserialize interfaces from dicts to InterfaceDefinition objects
     if "interfaces" in d and d["interfaces"]:

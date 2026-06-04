@@ -134,6 +134,7 @@ class ComponentRecord:
     angle_deg: float = 0.0  # optical axis angle (degrees)
     category: str = ""  # Component category (e.g., "background", "lenses", "mirrors")
     notes: str = ""
+    step_file_path: str = ""  # Path to original STEP file (for PyOpticL 3-D export)
 
 
 def serialize_component(rec: ComponentRecord, settings_service=None) -> dict[str, Any]:
@@ -189,6 +190,16 @@ def serialize_component(rec: ComponentRecord, settings_service=None) -> dict[str
     if rec.interfaces:
         base["interfaces"] = [iface.to_dict() for iface in rec.interfaces]
 
+    # Serialize STEP file path (same portable-path strategy as image_path)
+    if rec.step_file_path:
+        library_roots_for_step = get_all_library_roots(settings_service)
+        step_relative = make_library_relative(rec.step_file_path, library_roots_for_step)
+        if step_relative:
+            base["step_file_path"] = step_relative
+        else:
+            rel = to_relative_path(rec.step_file_path)
+            base["step_file_path"] = rel if isinstance(rel, str) else str(rel)
+
     return base
 
 
@@ -237,6 +248,14 @@ def deserialize_component(data: dict[str, Any], settings_service=None) -> Compon
     category = str(data.get("category", ""))
     notes = str(data.get("notes", ""))
 
+    # Resolve STEP file path (same strategy as image_path)
+    step_file_path_raw = str(data.get("step_file_path", ""))
+    step_file_path: str = ""
+    if step_file_path_raw:
+        library_roots_for_step = get_all_library_roots(settings_service)
+        abs_step = to_absolute_path(step_file_path_raw, library_roots_for_step)
+        step_file_path = abs_step if abs_step is not None else ""
+
     # Deserialize interfaces (single current schema, Y-up; no legacy fallback)
     interfaces: list[InterfaceDefinition] = []
     interfaces_data = data.get("interfaces")
@@ -255,6 +274,7 @@ def deserialize_component(data: dict[str, Any], settings_service=None) -> Compon
         angle_deg=angle_deg,
         category=category,
         notes=notes,
+        step_file_path=step_file_path,
     )
 
 
@@ -508,6 +528,7 @@ class ComponentParams:
     # Metadata
     category: str | None = None
     notes: str | None = None
+    step_file_path: str | None = None  # Original STEP file (for PyOpticL 3-D export)
 
     def __post_init__(self):
         """Ensure interfaces list exists."""

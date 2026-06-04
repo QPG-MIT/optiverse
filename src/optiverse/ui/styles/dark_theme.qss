@@ -283,6 +283,25 @@ QDialog {
     color: white;
 }
 
+/* File Dialog */
+QFileDialog QToolButton {
+    background-color: #2d2f36;
+    color: white;
+    border: 1px solid #3d3f46;
+    border-radius: 3px;
+    padding: 3px;
+    min-width: 24px;
+    min-height: 24px;
+}
+
+QFileDialog QToolButton:hover {
+    background-color: #3d3f46;
+}
+
+QFileDialog QToolButton:pressed {
+    background-color: #23252b;
+}
+
 /* Message Box */
 QMessageBox {
     background-color: #1a1c21;
@@ -400,4 +419,3 @@ QLabel#placeholderLabel {
     color: gray;
     font-style: italic;
 }
-

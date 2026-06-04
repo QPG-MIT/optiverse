@@ -42,6 +42,7 @@ def apply_record_to_component_item(
     item.params.notes = rec.notes or ""
     if rec.image_path:
         item.params.image_path = rec.image_path
+    item.params.step_file_path = rec.step_file_path or None
 
     item._update_geom()
     item._maybe_attach_sprite()

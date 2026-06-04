@@ -41,6 +41,19 @@ class InterfaceTreeWidget(QtWidgets.QTreeWidget):
         # Pass to parent for all other keys or when editing
         super().keyPressEvent(event)
 
+    def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent | None) -> None:
+        """Ignore tree double-click behavior to avoid scroll jumps.
+
+        The interface panel embeds spin boxes, combo boxes, and checkboxes inside
+        tree rows. Letting QTreeWidget process double-clicks can call scrollTo()
+        while those child editors are receiving focus, which causes the component
+        editor panel to jump. Expansion by double-click is disabled separately;
+        F2 remains the explicit rename path.
+        """
+        if event is not None:
+            event.accept()
+        return
+
     def scrollTo(
         self,
         index: QtCore.QModelIndex,

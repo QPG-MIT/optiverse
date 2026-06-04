@@ -87,6 +87,8 @@ module = [
     "numba.*",
     "Foundation.*",
     "AppKit.*",
+    "OCP.*",
+    "pyqtgraph.*",
     "optiverse.ui.objects",
     "optiverse.ui.raytracing",
 ]

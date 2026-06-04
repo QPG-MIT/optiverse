@@ -130,6 +130,9 @@ class ActionBuilder:
         w.act_export_pdf = QtGui.QAction("Export PDF…", w)
         w.act_export_pdf.triggered.connect(w.export_pdf)
 
+        w.act_export_pyopticl = QtGui.QAction("Export PyOpticL Layout\u2026", w)
+        w.act_export_pyopticl.triggered.connect(w.export_pyopticl)
+
         w.act_quit = QtGui.QAction("Quit", w)
         w.act_quit.setShortcut(QtGui.QKeySequence.StandardKey.Quit)
         w.act_quit.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
@@ -446,6 +449,7 @@ class ActionBuilder:
         mFile.addSeparator()
         mFile.addAction(w.act_export_image)
         mFile.addAction(w.act_export_pdf)
+        mFile.addAction(w.act_export_pyopticl)
         mFile.addSeparator()
         mFile.addAction(w.act_quit)
 

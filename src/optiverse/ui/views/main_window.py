@@ -67,6 +67,7 @@ class MainWindow(QtWidgets.QMainWindow):
     act_close: QtGui.QAction
     act_export_image: QtGui.QAction
     act_export_pdf: QtGui.QAction
+    act_export_pyopticl: QtGui.QAction
     act_quit: QtGui.QAction
     act_link_assembly: QtGui.QAction
     menu_recent: QtWidgets.QMenu
@@ -699,6 +700,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def export_pdf(self):
         """Export scene to PDF (delegated to file controller)."""
         self.file_controller.export_pdf()
+
+    def export_pyopticl(self):
+        """Export scene to PyOpticL script (delegated to file controller)."""
+        self.file_controller.export_pyopticl()
 
     def quit_application(self):
         """Quit the application (triggers close event which handles unsaved changes)."""

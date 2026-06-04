@@ -176,3 +176,22 @@ def test_component_editor_backward_compat_name(qtbot):
 
     assert editor is not None
     assert hasattr(editor, "saved")  # New feature should be present
+
+
+@pytest.mark.skipif(not HAVE_PYQT6, reason="PyQt6 not available")
+def test_cancel_step_import_keeps_component_editor_open(qtbot, monkeypatch):
+    """Canceling the STEP file picker should not close the component editor."""
+    from optiverse.services.storage_service import StorageService
+    from optiverse.ui.views import component_editor_dialog as dialog_mod
+    from optiverse.ui.views.component_editor_dialog import ComponentEditor
+
+    editor = ComponentEditor(storage=StorageService())
+    qtbot.addWidget(editor)
+    editor.show()
+
+    monkeypatch.setattr("optiverse.cad.step_renderer.is_cad_available", lambda: True)
+    monkeypatch.setattr(dialog_mod, "_pick_open_file", lambda *args, **kwargs: ("", ""))
+
+    editor._import_step()
+
+    assert editor.isVisible()

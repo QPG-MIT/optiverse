@@ -519,6 +519,8 @@ class ComponentItem(BaseObj):
             "notes": self.params.notes or "",
             "angle_deg": self.params.angle_deg,
         }
+        if self.params.step_file_path:
+            data["step_file_path"] = self.params.step_file_path
         if self.params.interfaces:
             data["interfaces"] = [iface.to_dict() for iface in self.params.interfaces]
         return data

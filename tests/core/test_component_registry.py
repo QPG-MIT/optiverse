@@ -31,6 +31,23 @@ class TestComponentRegistry:
         components = ComponentRegistry.get_standard_components()
         assert isinstance(components, list) and len(components) > 0
 
+    def test_component_definition_discovery_order_is_deterministic(self, tmp_path):
+        """Component discovery should not depend on filesystem iteration order."""
+        from optiverse.objects.definitions_loader import _iter_component_json_files
+
+        for folder_name in ["z_component", "A_component", "m_component"]:
+            folder = tmp_path / folder_name
+            folder.mkdir()
+            (folder / "component.json").write_text("{}", encoding="utf-8")
+
+        folders = _iter_component_json_files(tmp_path)
+
+        assert [folder.name for folder in folders] == [
+            "A_component",
+            "m_component",
+            "z_component",
+        ]
+
     def test_standard_components_have_required_fields(self):
         """All standard components should have required v2 fields."""
         from optiverse.objects.component_registry import ComponentRegistry
