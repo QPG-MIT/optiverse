@@ -30,7 +30,10 @@ def _iter_component_json_files(library_path: Path | None = None) -> list[Path]:
     root = library_path if library_path else _library_root()
     if not root.exists():
         return []
-    return [p for p in root.iterdir() if p.is_dir() and (p / "component.json").exists()]
+    return sorted(
+        (p for p in root.iterdir() if p.is_dir() and (p / "component.json").exists()),
+        key=lambda p: p.name.casefold(),
+    )
 
 
 def load_component_records(

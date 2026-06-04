@@ -60,12 +60,14 @@ class StorageService:
         if self._library_root is None or not self._library_root.exists():
             return []
 
-        folders = []
-        for item in self._library_root.iterdir():
-            if item.is_dir() and (item / "component.json").exists():
-                folders.append(item)
-
-        return folders
+        return sorted(
+            (
+                item
+                for item in self._library_root.iterdir()
+                if item.is_dir() and (item / "component.json").exists()
+            ),
+            key=lambda item: item.name.casefold(),
+        )
 
     def load_library(self) -> list[dict[str, Any]]:
         """

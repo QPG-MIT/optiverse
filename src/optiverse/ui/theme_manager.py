@@ -54,6 +54,12 @@ QHeaderView::section {
 QListWidget { background-color: #1a1c21; color: white; border: 1px solid #3d3f46; }
 QListWidget::item:selected { background-color: #3d5a80; color: white; }
 QDialog { background-color: #1a1c21; color: white; }
+QFileDialog QToolButton {
+    background-color: #2d2f36; color: white; border: 1px solid #3d3f46;
+    border-radius: 3px; padding: 3px; min-width: 24px; min-height: 24px;
+}
+QFileDialog QToolButton:hover { background-color: #3d3f46; }
+QFileDialog QToolButton:pressed { background-color: #23252b; }
 """
 
 _LIGHT_STYLESHEET_FALLBACK = """
@@ -85,6 +91,12 @@ QHeaderView::section {
 QListWidget { background-color: white; color: black; border: 1px solid #c0c0c0; }
 QListWidget::item:selected { background-color: #0A84FF; color: white; }
 QDialog { background-color: white; color: black; }
+QFileDialog QToolButton {
+    background-color: #2d2f36; color: white; border: 1px solid #3d3f46;
+    border-radius: 3px; padding: 3px; min-width: 24px; min-height: 24px;
+}
+QFileDialog QToolButton:hover { background-color: #3d3f46; }
+QFileDialog QToolButton:pressed { background-color: #23252b; }
 """
 
 

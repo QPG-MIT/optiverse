@@ -16,7 +16,7 @@ from ..widgets.interface_tree_panel import InterfaceTreePanel
 from ..widgets.ruler_widget import CanvasWithRulers
 from ..widgets.smart_spinbox import SmartDoubleSpinBox
 from .component_image_handler import ComponentImageHandler
-from .component_library_io import ComponentLibraryIO, _pick_existing_directory
+from .component_library_io import ComponentLibraryIO, _pick_existing_directory, _pick_open_file
 from .zemax_importer import ZemaxImporter
 
 _logger = logging.getLogger(__name__)
@@ -752,7 +752,7 @@ class ComponentEditor(QtWidgets.QMainWindow):
             )
             return
 
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+        path, _ = _pick_open_file(
             self,
             "Import STEP File",
             "",
