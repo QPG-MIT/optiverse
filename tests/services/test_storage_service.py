@@ -1,3 +1,6 @@
+from pathlib import Path
+
+
 def test_storage_library_roundtrip(tmp_path, monkeypatch):
     # Force paths under tmp
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -41,7 +44,7 @@ def test_storage_roundtrips_attached_step_file(tmp_path):
 
     assert saved is not None
     saved_step = saved["step_file_path"]
-    assert saved_step.endswith("step/model.step")
+    assert Path(saved_step).parts[-2:] == ("step", "model.step")
     assert (library / "step_component" / "step" / "model.step").is_file()
 
     loaded = svc.load_library()
