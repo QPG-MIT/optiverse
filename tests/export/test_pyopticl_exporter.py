@@ -1,6 +1,11 @@
 """Tests for the PyOpticL exporter module."""
 
 import json
+import runpy
+import shutil
+import sys
+import types
+from pathlib import Path
 
 from optiverse.export.pyopticl_exporter import (
     BaseplateOptions,
@@ -453,6 +458,35 @@ class TestExportSceneFolderLayout:
         assert f'import_model("{stem}"' in script
         assert f'mesh = import_model("{stem}"' in script
 
+    def test_exported_script_runs_after_folder_is_moved(self, tmp_path, monkeypatch):
+        step_src = tmp_path / "Thorlabs KM05.STEP"
+        step_src.write_bytes(b"ISO-10303-21 fake step content")
+
+        export_dir = tmp_path / "my_layout"
+        success, _ = export_scene(
+            self._scene_with_one_step(str(step_src)),
+            str(export_dir),
+            BaseplateOptions(),
+        )
+        assert success is True
+
+        moved_dir = tmp_path / "relocated" / "my_layout"
+        shutil.copytree(export_dir, moved_dir)
+
+        script_path = moved_dir / "my_layout.py"
+        script_text = script_path.read_text(encoding="utf-8")
+        assert str(step_src) not in script_text
+        assert str(export_dir) not in script_text
+        assert 'import_model("Thorlabs_KM05", directory="models")' in script_text
+
+        import_calls: list[tuple[str, str]] = []
+        _install_pyopticl_stubs(monkeypatch, import_calls)
+
+        monkeypatch.chdir(moved_dir)
+        runpy.run_path(str(script_path), run_name="__main__")
+
+        assert import_calls == [("Thorlabs_KM05", "models")]
+
     def test_missing_step_file_does_not_fail_export(self, tmp_path):
         scene = self._scene_with_one_step("/nonexistent/file.step")
         export_dir = tmp_path / "out"
@@ -465,3 +499,64 @@ class TestExportSceneFolderLayout:
         assert _sanitize_stem("foo bar/baz") == "foo_bar_baz"
         assert _sanitize_stem("") == "part"
         assert _sanitize_stem("OK-name_1.0") == "OK-name_1.0"
+
+
+def _install_pyopticl_stubs(monkeypatch, import_calls: list[tuple[str, str]]) -> None:
+    class _Component:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def add(self, item, *args, **kwargs):
+            return item
+
+        def recompute(self):
+            pass
+
+    class _BeamPath:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    class _Interface:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    def _dim(value, unit):
+        return (value, unit)
+
+    def _import_model(name, directory="models"):
+        model_dir = Path.cwd() / directory / name
+        assert model_dir.is_dir()
+        assert (model_dir / f"{name}.step").is_file()
+        assert (model_dir / f"{name}.json").is_file()
+        import_calls.append((name, directory))
+        return object()
+
+    def _fix_relative_imports():
+        pass
+
+    pyopticl = types.ModuleType("PyOpticL")
+    beam_path = types.ModuleType("PyOpticL.beam_path")
+    beam_path.BeamPath = _BeamPath
+    beam_path.Lens = _Interface
+    beam_path.Reflection = _Interface
+    beam_path.Stop = _Interface
+    beam_path.Waveplate = _Interface
+
+    layout = types.ModuleType("PyOpticL.layout")
+    layout.Component = _Component
+
+    library = types.ModuleType("PyOpticL.library")
+    library.baseplate = lambda *args, **kwargs: object()
+
+    utils = types.ModuleType("PyOpticL.utils")
+    utils.Dimension = _dim
+    utils.import_model = _import_model
+    utils.fix_relative_imports = _fix_relative_imports
+    utils.cylinder_shape = lambda *args, **kwargs: object()
+    utils.box_shape = lambda *args, **kwargs: object()
+
+    monkeypatch.setitem(sys.modules, "PyOpticL", pyopticl)
+    monkeypatch.setitem(sys.modules, "PyOpticL.beam_path", beam_path)
+    monkeypatch.setitem(sys.modules, "PyOpticL.layout", layout)
+    monkeypatch.setitem(sys.modules, "PyOpticL.library", library)
+    monkeypatch.setitem(sys.modules, "PyOpticL.utils", utils)
