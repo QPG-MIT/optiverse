@@ -282,6 +282,9 @@ class ActionBuilder:
         w.act_clear = QtGui.QAction("Clear Rays", w)
         w.act_clear.triggered.connect(w.clear_rays)
 
+        w.act_point_spread = QtGui.QAction("Point Spread Function...", w)
+        w.act_point_spread.triggered.connect(w.show_point_spread_function_dialog)
+
         w.act_editor = QtGui.QAction("Component Editor…", w)
         w.act_editor.setShortcut("Ctrl+E")
         w.act_editor.setShortcutContext(QtCore.Qt.ShortcutContext.WindowShortcut)
@@ -502,6 +505,7 @@ class ActionBuilder:
             return
         mTools.addAction(w.act_retrace)
         mTools.addAction(w.act_clear)
+        mTools.addAction(w.act_point_spread)
         mTools.addSeparator()
         mTools.addAction(w.act_inspect)
         # Path Measure hidden: feature is buggy (toolbar button also hidden)
