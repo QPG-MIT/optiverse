@@ -1,0 +1,128 @@
+{
+  "version": "2.0",
+  "items": [
+    {
+      "_type": "source",
+      "x_mm": -100.0,
+      "y_mm": 0.0,
+      "angle_deg": 0.0,
+      "size_mm": 5.0,
+      "n_rays": 9,
+      "ray_length_mm": 600.0,
+      "spread_deg": 0.0,
+      "color_hex": "#22cc55",
+      "wavelength_nm": 780.0,
+      "polarization_type": "horizontal",
+      "polarization_angle_deg": 0.0,
+      "source_type": "ray",
+      "beam_waist_mm": 0.5,
+      "item_uuid": "src-0001",
+      "locked": false,
+      "z_value": 0.0
+    },
+    {
+      "_type": "component",
+      "x_mm": 0.0,
+      "y_mm": 0.0,
+      "angle_deg": 45.0,
+      "object_height_mm": 25.4,
+      "mm_per_pixel": 0.05,
+      "name": "Beamsplitter 50/50",
+      "image_path": "@component/bs_5050/images/bs_5050.png",
+      "reference_line_mm": [-12.7, 0.0, 12.7, 0.0],
+      "interfaces": [
+        {
+          "x1_mm": -12.7,
+          "y1_mm": 0.0,
+          "x2_mm": 12.7,
+          "y2_mm": 0.0,
+          "element_type": "beam_splitter",
+          "name": "",
+          "split_T": 50.0,
+          "split_R": 50.0,
+          "is_polarizing": false
+        }
+      ],
+      "category": "beamsplitters",
+      "notes": "",
+      "item_uuid": "cmp-0001",
+      "locked": false,
+      "z_value": 1.0
+    },
+    {
+      "_type": "component",
+      "x_mm": 120.0,
+      "y_mm": 0.0,
+      "angle_deg": 90.0,
+      "object_height_mm": 25.4,
+      "mm_per_pixel": 0.05,
+      "name": "Mirror",
+      "image_path": "@component/flat_mirror/images/flat_mirror.png",
+      "reference_line_mm": [-12.7, 0.0, 12.7, 0.0],
+      "interfaces": [
+        {
+          "x1_mm": -12.7,
+          "y1_mm": 0.0,
+          "x2_mm": 12.7,
+          "y2_mm": 0.0,
+          "element_type": "mirror",
+          "name": "",
+          "reflectivity": 100.0
+        }
+      ],
+      "category": "mirrors",
+      "notes": "",
+      "item_uuid": "cmp-0002",
+      "locked": false,
+      "z_value": 2.0
+    }
+  ],
+  "rulers": [
+    {
+      "type": "ruler",
+      "points": [[-100.0, 0.0], [0.0, 0.0]],
+      "item_uuid": "rul-0001",
+      "z_value": 0.0
+    }
+  ],
+  "texts": [
+    {
+      "type": "text",
+      "text": "Input beam",
+      "x": -90.0,
+      "y": -10.0,
+      "color": "#0a0a28",
+      "point_size": 11.0,
+      "item_uuid": "txt-0001",
+      "z_value": 0.0
+    }
+  ],
+  "angle_measures": [
+    {
+      "type": "angle_measure",
+      "vertex": [0.0, 0.0],
+      "point1": [120.0, 0.0],
+      "point2": [0.0, 120.0],
+      "item_uuid": "ang-0001",
+      "z_value": 0.0
+    }
+  ],
+  "rectangles": [],
+  "path_measures": [],
+  "layer_state": {
+    "version": 1,
+    "nodes": [
+      {
+        "uuid": "grp-0001",
+        "type": "group",
+        "name": "Beam path",
+        "collapsed": false,
+        "children": [
+          { "uuid": "src-0001", "type": "item" },
+          { "uuid": "cmp-0001", "type": "item" }
+        ]
+      },
+      { "uuid": "cmp-0002", "type": "item" }
+    ]
+  }
+}

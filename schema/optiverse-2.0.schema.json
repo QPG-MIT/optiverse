@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://optiverse.dev/schema/optiverse-2.0.schema.json",
+  "title": "Optiverse Layout 2.0",
+  "description": "The canonical Optiverse project layout format shared by the desktop app and the web project-zip interchange. This schema is the drift guard: both repos validate the same golden fixtures against it in CI so the two apps cannot silently diverge.",
+  "type": "object",
+  "required": ["version", "items"],
+  "properties": {
+    "version": { "const": "2.0" },
+    "items": { "type": "array", "items": { "$ref": "#/$defs/item" } },
+    "rulers": { "type": "array", "items": { "$ref": "#/$defs/ruler" } },
+    "texts": { "type": "array", "items": { "$ref": "#/$defs/text" } },
+    "angle_measures": {
+      "description": "Optiverse-web interchange EXTENSION (not emitted by the desktop app, which does not persist angle measurements). Carried so web angle annotations survive a web -> zip -> web round-trip; the desktop ignores this key.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/angle_measure" }
+    },
+    "rectangles": { "type": "array" },
+    "path_measures": { "type": "array" },
+    "layer_state": { "$ref": "#/$defs/layer_state" }
+  },
+  "$defs": {
+    "item": {
+      "type": "object",
+      "required": ["_type"],
+      "properties": {
+        "_type": { "enum": ["component", "source"] },
+        "x_mm": { "type": "number" },
+        "y_mm": { "type": "number" },
+        "angle_deg": { "type": "number" },
+        "item_uuid": { "type": "string" },
+        "z_value": { "type": "number" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "_type": { "const": "component" } } },
+          "then": {
+            "required": ["x_mm", "y_mm", "angle_deg", "image_path", "interfaces"],
+            "properties": {
+              "image_path": { "type": "string" },
+              "object_height_mm": { "type": "number" },
+              "interfaces": { "type": "array", "items": { "$ref": "#/$defs/interface" } }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "_type": { "const": "source" } } },
+          "then": {
+            "required": ["x_mm", "y_mm", "angle_deg"],
+            "properties": {
+              "wavelength_nm": { "type": "number" },
+              "n_rays": { "type": "number" }
+            }
+          }
+        }
+      ]
+    },
+    "interface": {
+      "type": "object",
+      "required": ["element_type", "x1_mm", "y1_mm", "x2_mm", "y2_mm"],
+      "properties": {
+        "element_type": {
+          "enum": [
+            "beam_block",
+            "lens",
+            "mirror",
+            "beam_splitter",
+            "dichroic",
+            "polarizing_interface",
+            "polarizer",
+            "waveplate",
+            "pbs",
+            "detector",
+            "refractive",
+            "faraday"
+          ]
+        },
+        "x1_mm": { "type": "number" },
+        "y1_mm": { "type": "number" },
+        "x2_mm": { "type": "number" },
+        "y2_mm": { "type": "number" },
+        "name": { "type": "string" },
+        "efl_mm": { "type": "number" },
+        "reflectivity": { "type": "number" },
+        "clear_aperture_mm": { "type": "number" },
+        "split_T": { "type": "number" },
+        "split_R": { "type": "number" },
+        "is_polarizing": { "type": "boolean" },
+        "pbs_transmission_axis_deg": { "type": "number" }
+      }
+    },
+    "ruler": {
+      "type": "object",
+      "required": ["type", "points"],
+      "properties": {
+        "type": { "const": "ruler" },
+        "points": {
+          "type": "array",
+          "items": { "type": "array", "items": { "type": "number" }, "minItems": 2 }
+        },
+        "item_uuid": { "type": "string" }
+      }
+    },
+    "angle_measure": {
+      "type": "object",
+      "required": ["type", "vertex", "point1", "point2"],
+      "properties": {
+        "type": { "const": "angle_measure" },
+        "vertex": { "type": "array", "items": { "type": "number" }, "minItems": 2 },
+        "point1": { "type": "array", "items": { "type": "number" }, "minItems": 2 },
+        "point2": { "type": "array", "items": { "type": "number" }, "minItems": 2 },
+        "item_uuid": { "type": "string" }
+      }
+    },
+    "text": {
+      "type": "object",
+      "required": ["type", "text", "x", "y"],
+      "properties": {
+        "type": { "const": "text" },
+        "text": { "type": "string" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "point_size": { "type": "number" },
+        "item_uuid": { "type": "string" }
+      }
+    },
+    "layer_state": {
+      "type": "object",
+      "required": ["nodes"],
+      "properties": {
+        "version": { "type": "integer" },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } }
+      }
+    },
+    "node": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["group", "item"] },
+        "uuid": { "type": "string" },
+        "name": { "type": "string" },
+        "collapsed": { "type": "boolean" },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/node" } }
+      }
+    }
+  }
+}
