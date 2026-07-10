@@ -105,6 +105,11 @@ class ComponentOperationsHandler:
         # Connect signals
         self._connect_item_signals(item)
 
+        # Auto-index duplicate names (e.g. second "Lens" becomes "Lens 2")
+        from ...objects.naming import assign_unique_name
+
+        assign_unique_name(self.scene, item)
+
         # Add to scene with undo support
         cmd = AddItemCommand(self.scene, item, self._layer_state)
         self.undo_stack.push(cmd)

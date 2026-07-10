@@ -405,6 +405,11 @@ class PlacementHandler:
         if component_type not in ("text", "rectangle"):
             self._connect_item_signals(placed_item)
 
+        # Auto-index duplicate names (e.g. second "Lens" becomes "Lens 2")
+        from ...objects.naming import assign_unique_name
+
+        assign_unique_name(self.scene, placed_item)
+
         # Add to scene with undo support
         cmd = AddItemCommand(self.scene, placed_item, self._layer_state)
         self.undo_stack.push(cmd)

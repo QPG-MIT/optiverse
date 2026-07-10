@@ -171,6 +171,12 @@ class LayerPanel(QtWidgets.QWidget):
     def _do_refresh(self) -> None:
         if not self._scene:
             return
+        # Never reset the model while the user is renaming a layer: a
+        # beginResetModel/endResetModel tears down the open inline editor and the
+        # typed name is lost. Defer until the edit finishes.
+        if self._tree.state() == QtWidgets.QAbstractItemView.State.EditingState:
+            self._refresh_timer.start(100)
+            return
         self._model.set_context(
             scene=self._scene,
             layer_state=self._layer_state,
@@ -279,6 +285,11 @@ class LayerPanel(QtWidgets.QWidget):
 
     def _do_sync_from_scene_selection(self) -> None:
         if not self._scene:
+            return
+        # Selecting a layer for rename triggers this sync; clearing/reselecting
+        # the tree's selection mid-edit closes the inline editor before the name
+        # is committed. Skip while editing — a later selection change re-syncs.
+        if self._tree.state() == QtWidgets.QAbstractItemView.State.EditingState:
             return
         uuids = {
             item.item_uuid for item in self._scene.selectedItems() if hasattr(item, "item_uuid")

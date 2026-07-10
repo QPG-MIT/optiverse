@@ -263,6 +263,9 @@ class SourceParams:
     x_mm: float = -400.0
     y_mm: float = 0.0
     angle_deg: float = 0.0
+    # Custom layer-panel name (None = fall back to the "Source" type label).
+    # Without this field a source rename had nowhere to be stored and reverted.
+    name: str | None = None
     size_mm: float = 10.0
     n_rays: int = 9
     ray_length_mm: float = 1000.0
