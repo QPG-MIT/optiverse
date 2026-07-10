@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Zoom-invariant ruler rendering** (#80): Ruler endpoint bars, labels, selection bounds, and hit-test areas now maintain constant screen size regardless of zoom level, matching the existing cosmetic-pen line behavior
 
+### Fixed
+
+- **Negative-focal-length lenses** (#102): Diverging lenses (f < 0) now correctly transmit and diverge rays instead of reflecting them back toward the source. The ideal thin-lens deflection now uses the ray-slope law `tan(θ_out) = tan(θ_in) − y/f`, which focuses an off-axis parallel bundle to a single point (`f·tan θ`) and matches the web engine's tracer
+
 ## [0.3.4] - 2026-04-30
 
 ### Added
