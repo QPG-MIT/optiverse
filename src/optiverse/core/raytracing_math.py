@@ -13,7 +13,7 @@ try:
     NUMBA_AVAILABLE = True
 except ImportError:
     # Fallback: no-op decorator if numba isn't available
-    def jit(*args, **kwargs):
+    def jit(*args, **kwargs):  # type: ignore[no-redef]
         def decorator(func):
             return func
 
@@ -561,7 +561,7 @@ def compute_dichroic_reflectance(
 
 def refract_vector_snell(
     v_in: np.ndarray, n_hat: np.ndarray, n1: float, n2: float
-) -> tuple[np.ndarray | None, bool]:
+) -> tuple[np.ndarray, bool]:
     """
     Apply Snell's law to refract a ray at an interface.
 
@@ -572,9 +572,9 @@ def refract_vector_snell(
         n2: Refractive index of transmitted medium
 
     Returns:
-        Tuple of (refracted_direction, is_total_reflection)
-        - refracted_direction: Refracted ray direction (normalized),
-          or None if total internal reflection
+        Tuple of (direction, is_total_reflection)
+        - direction: Refracted ray direction (normalized), or the reflected
+          direction if total internal reflection occurs
         - is_total_reflection: True if total internal reflection occurs
 
     Physics:
