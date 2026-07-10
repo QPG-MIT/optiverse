@@ -267,6 +267,7 @@ class TextNoteItem(QtWidgets.QGraphicsTextItem):
 
         new_item = TextNoteItem(self.toPlainText())
 
+        new_item.display_name = self.display_name  # keep custom layer name for indexing
         new_item.setDefaultTextColor(self.defaultTextColor())
         new_item.setFont(self.font())
         new_item.setZValue(self.zValue())

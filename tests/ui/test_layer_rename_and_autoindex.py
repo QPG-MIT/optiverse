@@ -38,38 +38,9 @@ def _uuid_index(model, item):
 
 
 # --------------------------------------------------------------------------- #
-# Defect 2: source rename must persist (SourceParams.name now exists)
-# --------------------------------------------------------------------------- #
-def test_source_rename_persists_at_model_level(qtbot):
-    from PyQt6 import QtCore
-
-    from optiverse.core.layer_tree_state import LayerTreeState
-    from optiverse.core.models import SourceParams
-    from optiverse.core.undo_stack import UndoStack
-    from optiverse.objects.sources.source_item import SourceItem
-    from optiverse.ui.models.layer_item_model import LayerItemModel
-
-    scene = QtWidgets.QGraphicsScene()
-    src = SourceItem(SourceParams())
-    scene.addItem(src)
-    ls = LayerTreeState()
-    ls.add_item(src.item_uuid, None, 0, emit=False)
-
-    model = LayerItemModel()
-    model.set_context(scene=scene, layer_state=ls, undo_stack=UndoStack())
-    idx = _uuid_index(model, src)
-
-    # Default label falls back to the type name.
-    assert model.data(idx, int(QtCore.Qt.ItemDataRole.DisplayRole)) == "Source"
-
-    ok = model.setData(idx, "Pump Laser", int(QtCore.Qt.ItemDataRole.EditRole))
-    assert ok is True
-    assert src.params.name == "Pump Laser"
-    assert model.data(idx, int(QtCore.Qt.ItemDataRole.DisplayRole)) == "Pump Laser"
-
-
-# --------------------------------------------------------------------------- #
-# Defect 1: rename must survive a refresh/sync that fires while the editor is open
+# Defect 1 + 2: rename must survive a refresh/sync firing while the editor is
+# open, and must persist for a source (whose name had nowhere to be stored).
+# Renaming here drives the full model/view path: setData -> RenameNodeCommand.
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("kind", ["source", "text"])
 def test_rename_survives_refresh_and_sync_during_edit(qtbot, kind):
@@ -115,40 +86,26 @@ def test_rename_survives_refresh_and_sync_during_edit(qtbot, kind):
 
 
 # --------------------------------------------------------------------------- #
-# Feature: auto-indexing duplicate names
+# Auto-indexing through real scene items (logic is unit-tested in
+# tests/core/test_naming.py; this checks it against actual QGraphicsItems).
 # --------------------------------------------------------------------------- #
-def test_assign_unique_name_indexes_duplicates(qtbot):
+def test_assign_unique_name_indexes_real_items(qtbot):
     from optiverse.core.models import SourceParams
-    from optiverse.objects.naming import assign_unique_name, item_label
+    from optiverse.objects.naming import assign_unique_names, item_label
     from optiverse.objects.sources.source_item import SourceItem
 
     scene = QtWidgets.QGraphicsScene()
-    labels = []
-    for _ in range(3):
-        s = SourceItem(SourceParams())
-        assign_unique_name(scene, s)  # compare before adding
-        scene.addItem(s)
-        labels.append(item_label(s))
+    original = SourceItem(SourceParams())
+    scene.addItem(original)  # label "Source" already present
 
-    assert labels == ["Source", "Source 2", "Source 3"]
+    batch = [SourceItem(SourceParams()), SourceItem(SourceParams())]
+    assign_unique_names(scene, batch)  # simulates pasting/duplicating two clones
 
-
-def test_assign_unique_name_fills_gap(qtbot):
-    from optiverse.objects.annotations.text_note_item import TextNoteItem
-    from optiverse.objects.naming import assign_unique_name, item_label
-
-    scene = QtWidgets.QGraphicsScene()
-    keep = []
-    for _ in range(3):  # Text, Text 2, Text 3
-        t = TextNoteItem("Text")
-        assign_unique_name(scene, t)
-        scene.addItem(t)
-        keep.append(t)
-    scene.removeItem(keep[1])  # remove "Text 2"
-
-    t = TextNoteItem("Text")
-    assign_unique_name(scene, t)
-    assert item_label(t) == "Text 2"  # gap refilled
+    assert [item_label(original), item_label(batch[0]), item_label(batch[1])] == [
+        "Source",
+        "Source 2",
+        "Source 3",
+    ]
 
 
 # --------------------------------------------------------------------------- #
@@ -173,3 +130,20 @@ def test_text_display_name_survives_serialization(qtbot):
     note.display_name = "Collimator Label"
     restored = TextNoteItem.from_dict(note.to_dict())
     assert restored.display_name == "Collimator Label"
+
+
+def test_clone_preserves_display_name_for_indexing(qtbot):
+    """Duplicating a renamed text note keeps the custom name so it indexes on it."""
+    from optiverse.objects.annotations.text_note_item import TextNoteItem
+    from optiverse.objects.naming import assign_unique_names, item_label
+
+    scene = QtWidgets.QGraphicsScene()
+    original = TextNoteItem("body")
+    original.display_name = "My Note"
+    scene.addItem(original)
+
+    clone = original.clone((10.0, 10.0))
+    assert clone.display_name == "My Note"
+
+    assign_unique_names(scene, [clone])
+    assert item_label(clone) == "My Note 2"

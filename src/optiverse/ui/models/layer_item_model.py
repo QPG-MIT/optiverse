@@ -440,14 +440,12 @@ class LayerItemModel(QtCore.QAbstractItemModel):
             self._layer_state.remove_item(uid, emit=False)
 
     def _get_item_name(self, uuid: str) -> str:
+        from ...objects.naming import item_label
+
         item = self._get_live_item(uuid)
         if not item:
             return "Item"
-        if hasattr(item, "display_name") and item.display_name:
-            return str(item.display_name)
-        if hasattr(item, "params") and hasattr(item.params, "name") and item.params.name:
-            return str(item.params.name)
-        return item.type_name.replace("_", " ").title() if hasattr(item, "type_name") else "Item"
+        return item_label(item)
 
     def _uuids_from_indexes(self, indexes: list[QtCore.QModelIndex]) -> list[str]:
         uuids: list[str] = []
