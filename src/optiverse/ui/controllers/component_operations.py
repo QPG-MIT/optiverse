@@ -105,6 +105,11 @@ class ComponentOperationsHandler:
         # Connect signals
         self._connect_item_signals(item)
 
+        # Auto-index duplicate names (e.g. second "Lens" becomes "Lens 2")
+        from ...objects.naming import assign_unique_name
+
+        assign_unique_name(self.scene, item)
+
         # Add to scene with undo support
         cmd = AddItemCommand(self.scene, item, self._layer_state)
         self.undo_stack.push(cmd)
@@ -329,6 +334,12 @@ class ComponentOperationsHandler:
                 f"Successfully pasted {len(pasted_items)} item(s)", LogCategory.COPY_PASTE
             )
 
+            # Auto-index duplicate names across the scene and within this batch
+            # (a pasted/duplicated "Lens" becomes "Lens 2", two at once "Lens 2"/"Lens 3")
+            from ...objects.naming import assign_unique_names
+
+            assign_unique_names(self.scene, pasted_items)
+
             cmd = PasteItemsCommand(self.scene, pasted_items, self._layer_state)
             self.undo_stack.push(cmd)
 
@@ -423,6 +434,11 @@ class ComponentOperationsHandler:
         for it in items:
             it.setPos(it.pos().x() + dx, it.pos().y() + dy)
             self._connect_item_signals(it)
+
+        # Auto-index duplicate names against the scene and within this batch
+        from ...objects.naming import assign_unique_names
+
+        assign_unique_names(self.scene, items)
 
         cmd = PasteItemsCommand(self.scene, items, self._layer_state)
         self.undo_stack.push(cmd)

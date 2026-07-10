@@ -267,6 +267,7 @@ class TextNoteItem(QtWidgets.QGraphicsTextItem):
 
         new_item = TextNoteItem(self.toPlainText())
 
+        new_item.display_name = self.display_name  # keep custom layer name for indexing
         new_item.setDefaultTextColor(self.defaultTextColor())
         new_item.setFont(self.font())
         new_item.setZValue(self.zValue())
@@ -290,6 +291,8 @@ class TextNoteItem(QtWidgets.QGraphicsTextItem):
         }
         if self._locked:
             d["locked"] = True
+        if self.display_name:
+            d["display_name"] = self.display_name
         if self.owner_uuid is not None:
             d["owner_uuid"] = self.owner_uuid
             d["owner_offset_x"] = float(self._owner_offset.x())
@@ -319,6 +322,8 @@ class TextNoteItem(QtWidgets.QGraphicsTextItem):
             item.setZValue(float(d["z_value"]))
         if d.get("locked"):
             item.set_locked(True)
+        if d.get("display_name"):
+            item.display_name = str(d["display_name"])
 
         # Restore autolabel link
         owner_uuid = d.get("owner_uuid")
