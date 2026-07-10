@@ -234,6 +234,46 @@ class TestLensElement:
         assert refracted.direction[0] > 0  # Still going forward
         assert refracted.direction[1] < 0  # Deflected downward
 
+    def test_negative_focal_length_diverges_forward(self):
+        """Regression (#102): a negative-focal-length lens must stay transmissive.
+
+        A diverging lens should pass the ray forward and bend it *away* from the
+        optical axis. Previously the deflection used atan2(y, f), which for f < 0
+        returned a rear-hemisphere angle and reflected the ray backward, making the
+        lens behave like a mirror.
+        """
+        from optiverse.raytracing.elements import LensElement
+        from optiverse.raytracing.ray import Polarization, RayState
+
+        # Vertical diverging lens at x=0, f=-50mm
+        lens = LensElement(p1=np.array([0.0, -15.0]), p2=np.array([0.0, 15.0]), efl_mm=-50.0)
+
+        # Off-axis ray at y=10mm, parallel to axis
+        ray = RayState(
+            position=np.array([-10.0, 10.0]),
+            direction=np.array([1.0, 0.0]),
+            intensity=1.0,
+            polarization=Polarization.horizontal(),
+            wavelength_nm=633.0,
+            path=[],
+            events=0,
+        )
+
+        hit_point = np.array([0.0, 10.0])
+        normal = np.array([1.0, 0.0])
+        tangent = np.array([0.0, 1.0])
+
+        refracted = lens.interact(ray, hit_point, normal, tangent)[0]
+
+        # Must keep going forward (transmit), NOT reflect backward like a mirror.
+        assert refracted.direction[0] > 0
+        # Must diverge: an above-axis ray bends further away from the axis (upward).
+        assert refracted.direction[1] > 0
+        # Virtual extension crosses the axis on the incident side at distance |f|:
+        # the outgoing slope magnitude equals |y / f| = 10 / 50 = 0.2.
+        slope = refracted.direction[1] / refracted.direction[0]
+        assert slope == pytest.approx(10.0 / 50.0, rel=1e-6)
+
 
 class TestRefractiveElement:
     """Test RefractiveElement implementation"""

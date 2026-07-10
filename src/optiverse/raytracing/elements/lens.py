@@ -71,8 +71,13 @@ class LensElement(IOpticalElement):
         # Apply ideal thin lens equation: θ_out = θ_in - arctan(y/f)
         # The arctan form is the exact angle subtended by height y at
         # distance f, giving perfect focusing at all ray heights.
+        # Use single-argument atan(y/f), NOT atan2(y, f): for f < 0 the
+        # two-argument form returns an angle in the rear hemisphere, which
+        # sends the ray backward (the lens acts as a mirror). atan(y/f)
+        # keeps the deflection in (-π/2, π/2) so a negative-focal-length
+        # lens stays transmissive and diverges the beam.
         if abs(self.efl_mm) > 1e-12:
-            theta_out = theta_in - math.atan2(y, self.efl_mm)
+            theta_out = theta_in - math.atan(y / self.efl_mm)
         else:
             theta_out = theta_in  # Infinite focal length = no deflection
 
@@ -121,7 +126,9 @@ class LensElement(IOpticalElement):
             y = float(np.dot(hit_point - center, tvec))
             a_t = float(np.dot(v, tvec))
             theta_in = math.atan2(a_t, a_n)
-            theta_out = theta_in - math.atan2(y, f)
+            # atan(y/f), not atan2(y, f): keeps a negative-f lens transmissive
+            # instead of reflecting (see interact()).
+            theta_out = theta_in - math.atan(y / f)
             f_local = f * (1.0 + (y / f) ** 2)
             direction_out = math.cos(theta_out) * n + math.sin(theta_out) * tvec
             norm_out = float(np.linalg.norm(direction_out))
