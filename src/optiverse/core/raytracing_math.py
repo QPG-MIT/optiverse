@@ -12,8 +12,12 @@ try:
 
     NUMBA_AVAILABLE = True
 except ImportError:
-    # Fallback: no-op decorator if numba isn't available
-    def jit(*args, **kwargs):  # type: ignore[no-redef]
+    # Fallback: no-op decorator if numba isn't available. mypy flags the
+    # redefinition differently depending on whether numba is importable in the
+    # analysis environment (no-redef when it is, misc when it isn't), so both
+    # codes are suppressed for cross-platform CI. warn_unused_ignores is off,
+    # so the code that doesn't apply on a given platform is harmless.
+    def jit(*args, **kwargs):  # type: ignore[no-redef,misc]
         def decorator(func):
             return func
 
