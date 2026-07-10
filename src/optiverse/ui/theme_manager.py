@@ -208,6 +208,31 @@ def _create_light_palette() -> QtGui.QPalette:
     return palette
 
 
+def _set_color_scheme(dark_mode: bool) -> None:
+    """
+    Pin Qt's color scheme so native styling matches the applied theme.
+
+    Uses ``QStyleHints.setColorScheme`` (Qt 6.8+). On older Qt versions the
+    setter is unavailable and this is a no-op - the QSS/palette still apply,
+    only the native-chrome override (e.g. Windows dark-mode menu bar) is
+    unavailable to correct.
+
+    Args:
+        dark_mode: True to request the dark color scheme, False for light.
+    """
+    style_hints = QtGui.QGuiApplication.styleHints()
+    setter = getattr(style_hints, "setColorScheme", None)
+    if setter is None:
+        return
+    scheme = (
+        QtCore.Qt.ColorScheme.Dark if dark_mode else QtCore.Qt.ColorScheme.Light
+    )
+    try:
+        setter(scheme)
+    except (AttributeError, TypeError) as e:
+        _logger.debug("Could not set color scheme: %s", e)
+
+
 def apply_theme(dark_mode: bool) -> None:
     """
     Apply the appropriate theme (stylesheet + palette) based on dark mode setting.
@@ -224,6 +249,16 @@ def apply_theme(dark_mode: bool) -> None:
     if not app or not isinstance(app, QtWidgets.QApplication):
         _logger.warning("No QApplication instance - cannot apply theme")
         return
+
+    # Pin Qt's color scheme to match the app theme.
+    #
+    # On Windows 11, Qt's native style paints native chrome (most visibly the
+    # QMenuBar's top-level items) using the OS color scheme, ignoring the QSS
+    # `color` and the application palette. When the OS is in dark mode but the
+    # app is in light mode, this renders white menu-bar text on the light
+    # menu-bar background - i.e. invisible. Forcing the color scheme keeps the
+    # native rendering consistent with the theme we actually applied.
+    _set_color_scheme(dark_mode)
 
     # Apply stylesheet and palette
     if dark_mode:

@@ -25,12 +25,17 @@ def _iter_component_json_files(library_path: Path | None = None) -> list[Path]:
         library_path: Optional custom library path. If None, uses built-in library.
 
     Returns:
-        List of Path objects to component folders
+        List of Path objects to component folders, sorted by folder name for a
+        deterministic order across platforms (iterdir() order is filesystem
+        dependent and differs between Linux/Windows/macOS).
     """
     root = library_path if library_path else _library_root()
     if not root.exists():
         return []
-    return [p for p in root.iterdir() if p.is_dir() and (p / "component.json").exists()]
+    folders = [
+        p for p in root.iterdir() if p.is_dir() and (p / "component.json").exists()
+    ]
+    return sorted(folders, key=lambda p: p.name)
 
 
 def load_component_records(
