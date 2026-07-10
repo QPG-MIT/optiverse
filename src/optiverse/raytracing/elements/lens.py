@@ -1,10 +1,8 @@
 """
 Lens element implementation.
 
-Implements an ideal thin lens using the exact (non-paraxial) deflection formula.
+Implements an ideal thin lens using the exact ray-slope (f·tanθ) deflection law.
 """
-
-import math
 
 import numpy as np
 
@@ -15,13 +13,21 @@ from .base import IOpticalElement
 
 class LensElement(IOpticalElement):
     """
-    Ideal thin lens element (non-paraxial).
+    Ideal thin lens element.
 
-    Uses the exact deflection formula: θ_out = θ_in - arctan(y/f)
-    which produces perfect focusing at all ray heights, not just near
-    the optical axis. The paraxial approximation θ_out = θ_in - y/f
-    is the small-angle linearization that introduces spurious aberration
-    at large impact parameters.
+    Uses the ray-slope deflection law:  tan(θ_out) = tan(θ_in) − y/f
+
+    This is the exact transformation for an ideal (distortion-free) thin lens:
+    a bundle of parallel rays incident at any angle θ_in converges to a single
+    point in the focal plane at height f·tan(θ_in), for any ray height y. The
+    earlier θ_out = θ_in − arctan(y/f) form only focuses on-axis bundles and
+    smears off-axis ones; the plain-angle θ_out = θ_in − y/f form is the
+    small-angle linearization that aberrates at large ray heights.
+
+    Building the exit direction as (normal + slope·tangent) also keeps its
+    forward component positive, so the lens is always transmissive — it never
+    reflects, for either sign of f. This matches the web engine's thin-lens
+    deflection (GeometricEngine.thinLens / optiverse_engine _thin_lens).
     """
 
     def __init__(self, p1: np.ndarray, p2: np.ndarray, efl_mm: float):
@@ -45,12 +51,15 @@ class LensElement(IOpticalElement):
         self, ray: RayState, hit_point: np.ndarray, normal: np.ndarray, tangent: np.ndarray
     ) -> list[RayState]:
         """
-        Deflect ray using ideal (non-paraxial) thin lens equation.
+        Deflect ray using the ideal thin lens ray-slope law.
 
         Physics:
-        - Exact formula: θ_out = θ_in - arctan(y/f)
-        - This ensures a collimated beam at any height y converges
-          exactly to the focal point, without spherical-like aberration.
+        - Exact law: tan(θ_out) = tan(θ_in) − y/f, i.e. the exit ray slope
+          (measured from the lens normal) is reduced by y/f. A parallel bundle
+          at any angle focuses to a single point in the focal plane (f·tanθ).
+        - Constructing the exit direction as (normal + slope·tangent) keeps the
+          forward component positive, so the lens never reflects: a converging
+          lens focuses, a diverging (f < 0) lens diverges — never a mirror.
         - Polarization unchanged through ideal lens
         """
         # Ensure normal points in ray propagation direction
@@ -62,27 +71,18 @@ class LensElement(IOpticalElement):
         y = float(np.dot(hit_point - center, tangent))
 
         # Decompose ray direction into normal and tangent components
-        a_n = float(np.dot(ray.direction, normal))
-        a_t = float(np.dot(ray.direction, tangent))
+        a_n = float(np.dot(ray.direction, normal))  # cos(θ_in) ≥ 0 (normal flipped forward)
+        a_t = float(np.dot(ray.direction, tangent))  # sin(θ_in); a_t / a_n = tan(θ_in)
 
-        # Compute incident angle
-        theta_in = math.atan2(a_t, a_n)
-
-        # Apply ideal thin lens equation: θ_out = θ_in - arctan(y/f)
-        # The arctan form is the exact angle subtended by height y at
-        # distance f, giving perfect focusing at all ray heights.
-        # Use single-argument atan(y/f), NOT atan2(y, f): for f < 0 the
-        # two-argument form returns an angle in the rear hemisphere, which
-        # sends the ray backward (the lens acts as a mirror). atan(y/f)
-        # keeps the deflection in (-π/2, π/2) so a negative-focal-length
-        # lens stays transmissive and diverges the beam.
-        if abs(self.efl_mm) > 1e-12:
-            theta_out = theta_in - math.atan(y / self.efl_mm)
+        # Apply the ideal thin lens: tan(θ_out) = tan(θ_in) − y/f. The exit
+        # direction (normal + slope·tangent) always points forward, so the lens
+        # stays transmissive for either sign of f. Skip when the focal length is
+        # infinite or the ray grazes the lens (tan θ_in undefined) → pass through.
+        if abs(self.efl_mm) > 1e-12 and a_n >= 1e-9:
+            slope = a_t / a_n - y / self.efl_mm
+            direction_out = normalize(normal + slope * tangent)
         else:
-            theta_out = theta_in  # Infinite focal length = no deflection
-
-        # Reconstruct direction from angle
-        direction_out = normalize(math.cos(theta_out) * normal + math.sin(theta_out) * tangent)
+            direction_out = normalize(ray.direction)
 
         # Polarization unchanged through ideal lens
         EPS_ADV = 1e-3
@@ -125,16 +125,16 @@ class LensElement(IOpticalElement):
             center = 0.5 * (self.p1 + self.p2)
             y = float(np.dot(hit_point - center, tvec))
             a_t = float(np.dot(v, tvec))
-            theta_in = math.atan2(a_t, a_n)
-            # atan(y/f), not atan2(y, f): keeps a negative-f lens transmissive
-            # instead of reflecting (see interact()).
-            theta_out = theta_in - math.atan(y / f)
-            f_local = f * (1.0 + (y / f) ** 2)
-            direction_out = math.cos(theta_out) * n + math.sin(theta_out) * tvec
+            # Same ray-slope deflection as interact(), so the Gaussian ABCD uses
+            # the matching exit direction (mirrors web GeometricEngine.lensQ):
+            # tan(θ_out) = tan(θ_in) − y/f, direction = normal + slope·tangent.
+            slope = a_t / cos_theta_in - y / f
+            direction_out = n + slope * tvec
             norm_out = float(np.linalg.norm(direction_out))
             if norm_out > 1e-12:
                 direction_out = direction_out / norm_out
             cos_theta_out = max(abs(float(np.dot(direction_out, n))), 1e-12)
+            f_local = f * (1.0 + (y / f) ** 2)
             A = cos_theta_out / cos_theta_in
             C = -1.0 / (f_local * cos_theta_in)
             return apply_abcd(q, A, 0.0, C, 1.0)
