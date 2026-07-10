@@ -234,6 +234,86 @@ class TestLensElement:
         assert refracted.direction[0] > 0  # Still going forward
         assert refracted.direction[1] < 0  # Deflected downward
 
+    def test_negative_focal_length_diverges_forward(self):
+        """Regression (#102): a negative-focal-length lens must stay transmissive.
+
+        A diverging lens should pass the ray forward and bend it *away* from the
+        optical axis. The ray-slope law tan(θ_out) = tan(θ_in) − y/f builds the
+        exit direction as (normal + slope·tangent), whose forward component is
+        always positive, so the lens can never reflect for either sign of f.
+        """
+        from optiverse.raytracing.elements import LensElement
+        from optiverse.raytracing.ray import Polarization, RayState
+
+        # Vertical diverging lens at x=0, f=-50mm
+        lens = LensElement(p1=np.array([0.0, -15.0]), p2=np.array([0.0, 15.0]), efl_mm=-50.0)
+
+        # Off-axis ray at y=10mm, parallel to axis
+        ray = RayState(
+            position=np.array([-10.0, 10.0]),
+            direction=np.array([1.0, 0.0]),
+            intensity=1.0,
+            polarization=Polarization.horizontal(),
+            wavelength_nm=633.0,
+            path=[],
+            events=0,
+        )
+
+        hit_point = np.array([0.0, 10.0])
+        normal = np.array([1.0, 0.0])
+        tangent = np.array([0.0, 1.0])
+
+        refracted = lens.interact(ray, hit_point, normal, tangent)[0]
+
+        # Must keep going forward (transmit), NOT reflect backward like a mirror.
+        assert refracted.direction[0] > 0
+        # Must diverge: an above-axis ray bends further away from the axis (upward).
+        assert refracted.direction[1] > 0
+        # Virtual extension crosses the axis on the incident side at distance |f|:
+        # the outgoing slope magnitude equals |y / f| = 10 / 50 = 0.2.
+        slope = refracted.direction[1] / refracted.direction[0]
+        assert slope == pytest.approx(10.0 / 50.0, rel=1e-6)
+
+    def test_oblique_parallel_bundle_focuses_to_point(self):
+        """Ideal-lens law: a parallel bundle at ANY angle focuses to one point.
+
+        With tan(θ_out) = tan(θ_in) − y/f, rays of a common input angle but
+        different heights y all cross the back focal plane (x = f) at the same
+        height f·tan(θ_in). This f·tanθ focusing is what makes the ray-slope law
+        exact; the older θ_out = θ_in − arctan(y/f) form smeared off-axis bundles.
+        """
+        from optiverse.raytracing.elements import LensElement
+        from optiverse.raytracing.ray import Polarization, RayState
+
+        f = 100.0
+        lens = LensElement(p1=np.array([0.0, -40.0]), p2=np.array([0.0, 40.0]), efl_mm=f)
+        normal = np.array([1.0, 0.0])
+        tangent = np.array([0.0, 1.0])
+
+        theta_in = 0.30  # oblique bundle (~17°)
+        in_dir = np.array([math.cos(theta_in), math.sin(theta_in)])
+
+        focal_plane_heights = []
+        for y in (-20.0, -10.0, 0.0, 10.0, 20.0):
+            ray = RayState(
+                position=np.array([-10.0, y]),
+                direction=in_dir,
+                intensity=1.0,
+                polarization=Polarization.horizontal(),
+                wavelength_nm=633.0,
+                path=[],
+                events=0,
+            )
+            hit_point = np.array([0.0, y])
+            out = lens.interact(ray, hit_point, normal, tangent)[0]
+            # Propagate the exit ray from the lens (x=0) to the focal plane x=f.
+            t = f / out.direction[0]
+            focal_plane_heights.append(hit_point[1] + t * out.direction[1])
+
+        target = f * math.tan(theta_in)
+        for h in focal_plane_heights:
+            assert h == pytest.approx(target, abs=1e-6)
+
 
 class TestRefractiveElement:
     """Test RefractiveElement implementation"""
