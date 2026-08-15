@@ -260,9 +260,27 @@ def deserialize_component(data: dict[str, Any], settings_service=None) -> Compon
 
 @dataclass
 class SourceParams:
+    """Emission parameters for a ray or Gaussian-beam source.
+
+    Angle convention (#109): world coordinates are Y-up, and ``angle_deg`` is
+    measured **clockwise** from the +x axis, so a positive angle rotates the
+    emission direction from +x toward −y::
+
+        angle_deg=0    → (+1,  0)   right
+        angle_deg=90   → ( 0, -1)   down
+        angle_deg=180  → (-1,  0)   left
+        angle_deg=270  → ( 0, +1)   up      (same as -90)
+
+    Equivalently ``direction = (cos(-angle_rad), sin(-angle_rad))``; the sign
+    flip to the math (counter-clockwise) convention happens once, in
+    ``optiverse.raytracing.engine._generate_rays_from_source``. Element
+    orientations (``BaseOpticalParams.angle_deg`` and friends) use the same
+    clockwise convention.
+    """
+
     x_mm: float = -400.0
     y_mm: float = 0.0
-    angle_deg: float = 0.0
+    angle_deg: float = 0.0  # Clockwise from +x; see class docstring
     # Custom layer-panel name (None = fall back to the "Source" type label).
     # Without this field a source rename had nowhere to be stored and reverted.
     name: str | None = None

@@ -320,19 +320,23 @@ J_mirror = [[1,  0],
 
 ### 5. Thin Lens Equation
 
-Optiverse uses the **paraxial (thin lens) approximation**:
+Optiverse models an **ideal thin lens** using the exact **ray-slope** law:
 
 #### Thin Lens Formula
 
 ```
-θ_out = θ_in - y/f
+tan(θ_out) = tan(θ_in) - y/f
 ```
 
 where:
-- **θ_in** = incident angle (relative to optical axis)
-- **θ_out** = output angle (relative to optical axis)
-- **y** = height of ray on lens (distance from optical axis)
-- **f** = effective focal length (EFL)
+- **θ_in** = incident angle (relative to the lens normal)
+- **θ_out** = output angle (relative to the lens normal)
+- **y** = height of ray on lens (signed distance from the lens centre)
+- **f** = effective focal length (EFL), **signed**: `f > 0` converging, `f < 0` diverging
+
+This is the *slope* form, not the small-angle form. It is what makes a parallel
+bundle at **any** incidence angle converge to a single point at height `f·tan(θ_in)`
+in the focal plane, for every ray height `y`.
 
 #### Ray Height Calculation
 
@@ -346,31 +350,53 @@ y = (hit_point - center) · tangent
 
 #### Direction Update
 
-**Step 1: Decompose incident direction**
+**Step 1: Orient the normal along propagation, then decompose**
 
 ```
-a_n = direction · normal
-a_t = direction · tangent
-θ_in = atan2(a_t, a_n)
+if direction · normal < 0:  normal = -normal      # normal now points forward
+a_n = direction · normal                          # cos(θ_in) ≥ 0
+a_t = direction · tangent                         # sin(θ_in)
+tan(θ_in) = a_t / a_n
 ```
 
-**Step 2: Apply thin lens equation**
+**Step 2: Apply the ray-slope thin lens law**
 
 ```
-θ_out = θ_in - y/f
+slope = a_t / a_n - y / f
 ```
 
 **Step 3: Reconstruct output direction**
 
 ```
-direction_out = normalize(cos(θ_out)·normal + sin(θ_out)·tangent)
+direction_out = normalize(normal + slope·tangent)
 ```
+
+Building the exit direction as `normal + slope·tangent` — rather than from an
+angle — is what keeps the lens **transmissive for either sign of f**: the
+component along the forward-facing normal is fixed at `+1` before
+normalization, so it can never go negative.
+
+#### Sign of `f`: converging vs. diverging
+
+A **negative** EFL is a diverging lens, not a mirror. A collimated ray at height
+`y` exits with slope `-y/f`, which for `f < 0` has the same sign as `y` — the
+ray bends *away* from the axis, and its backward extension crosses the axis at
+`x = -|f|` (the **virtual** focus, on the incident side):
+
+```
+f = +100 mm, y = -5 mm  →  slope = +0.05,  real focus at x = +100 mm
+f = -50 mm,  y = -5 mm  →  slope = -0.10,  virtual focus at x = -50 mm
+```
+
+In both cases the ray continues **forward**. Reconstructing the direction from
+`atan2(y, f)` instead places `θ_out` in the rear hemisphere when `f < 0` and
+makes the lens reflect — the bug behind issues #102 and #109.
 
 #### Limitations
 
-- **Paraxial approximation**: Only valid for small angles (typically < 10°)
 - **Thin lens**: Assumes lens thickness is negligible
 - **No aberrations**: Does not model spherical aberration, coma, etc.
+- **Tangential plane only**: 2D tracer; no sagittal/tangential split
 
 ---
 
@@ -570,21 +596,23 @@ class IOpticalElement(ABC):
 
 ### 2. Lens (`LensElement`)
 
-**Physics**: Thin lens approximation (paraxial optics)
+**Physics**: Ideal thin lens, exact ray-slope law
 
 **Input**: Ray with direction **v_in**, height **y** on lens
 
 **Process**:
-1. Compute ray height **y** from optical axis
-2. Apply thin lens equation: `θ_out = θ_in - y/f`
-3. Reconstruct output direction
-4. Preserve polarization (ideal lens)
+1. Flip the normal to point along propagation
+2. Compute ray height **y** from the lens centre
+3. Apply the ray-slope law: `slope = tan(θ_in) - y/f`
+4. Reconstruct output direction as `normalize(normal + slope·tangent)` — always forward
+5. Preserve polarization (ideal lens)
 
 **Output**: Single refracted ray
 
 **Equations**:
-- Thin lens: `θ_out = θ_in - y/f`
+- Thin lens: `tan(θ_out) = tan(θ_in) - y/f`
 - No intensity loss (ideal lens)
+- Signed `f`: `f > 0` converges, `f < 0` diverges (never reflects)
 
 ---
 
@@ -685,18 +713,47 @@ class IOpticalElement(ABC):
 
 - **Origin**: Canvas center (0, 0)
 - **X-axis**: Positive right, negative left
-- **Y-axis**: Positive DOWN, negative UP (Y-down, screen convention)
+- **Y-axis**: Positive UP, negative DOWN (Y-up, mathematical convention)
 - **Units**: Millimeters (mm)
 
 ### Conversion
 
-When rendering interfaces from component editor to main canvas:
+Storage and scene coordinates are **both Y-up**, so interface endpoints need no
+flip when a component is placed on the canvas. Qt's own coordinate system is
+Y-down, and that is reconciled in exactly two places:
+
+- `GraphicsView.__init__` applies `scale(1.0, -1.0)` once at the view level, so
+  scene mm are drawn Y-up on screen.
+- `ComponentSprite` applies `scale(1.0, -1.0)` to flip each SVG from its native
+  Y-down pixel space into the Y-up scene.
+
+Items whose text must stay upright despite the view flip (`TextNoteItem`,
+`PathMeasureItem`, `AngleMeasureItem`) re-invert locally while painting.
+
+### Angle Convention
+
+**All user-facing angles — `SourceParams.angle_deg` and every element
+`angle_deg` — are measured CLOCKWISE from the +x axis.** Since the world is
+Y-up, a positive angle rotates from +x toward −y:
+
+| `angle_deg` | Direction   | On screen |
+|-------------|-------------|-----------|
+| `0`         | `(+1,  0)`  | right →   |
+| `90`        | `( 0, -1)`  | down ↓    |
+| `180`       | `(-1,  0)`  | left ←    |
+| `270`/`-90` | `( 0, +1)`  | up ↑      |
+
+Equivalently, for a source:
 
 ```
-y_scene = -y_component  (flip Y-axis)
+direction = (cos(-angle_rad), sin(-angle_rad))
 ```
 
-This conversion happens in `ComponentSprite` during rendering.
+The single sign flip from this clockwise convention to the math
+(counter-clockwise) convention lives in
+`raytracing/engine._generate_rays_from_source`; the equivalent flip for element
+orientation lives in `core.raytracing_math.user_angle_to_qt` /
+`qt_angle_to_user`.
 
 ---
 
