@@ -19,9 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Zoom-invariant ruler rendering** (#80): Ruler endpoint bars, labels, selection bounds, and hit-test areas now maintain constant screen size regardless of zoom level, matching the existing cosmetic-pen line behavior
 
+### Documentation
+
+- **Sign and coordinate conventions** (#109): `docs/RAYTRACING_PHYSICS.md` now states that all user-facing angles (`SourceParams.angle_deg` and element `angle_deg`) are measured **clockwise** from +x in Y-up world coordinates (`0°` → right, `90°` → down, `270°`/`-90°` → up), with the same note on `SourceParams` itself. The thin-lens section was updated to the shipped ray-slope law `tan(θ_out) = tan(θ_in) − y/f` (it still documented the superseded angle form), including how a signed `f` gives a real or virtual focus without ever reflecting. Corrected the scene coordinate system description, which claimed Y-down when the canvas view has been Y-up since the `scale(1, -1)` view flip
+
 ### Fixed
 
-- **Negative-focal-length lenses** (#102): Diverging lenses (f < 0) now correctly transmit and diverge rays instead of reflecting them back toward the source. The ideal thin-lens deflection now uses the ray-slope law `tan(θ_out) = tan(θ_in) − y/f`, which focuses an off-axis parallel bundle to a single point (`f·tan θ`) and matches the web engine's tracer
+- **Negative-focal-length lenses** (#102, #109): Diverging lenses (f < 0) now correctly transmit and diverge rays instead of reflecting them back toward the source. The ideal thin-lens deflection now uses the ray-slope law `tan(θ_out) = tan(θ_in) − y/f`, which focuses an off-axis parallel bundle to a single point (`f·tan θ`) and matches the web engine's tracer. End-to-end regression coverage now traces a full `-50`/`+150` Galilean beam expander through `trace_rays_polymorphic`, guarding the propagation direction as well as the deflection
 
 ## [0.3.4] - 2026-04-30
 

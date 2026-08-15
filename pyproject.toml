@@ -62,7 +62,13 @@ line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint]
-extend-select = ["E", "F", "I", "UP", "B", "Q", "W"]
+# `select`, not `extend-select`: extend-select *adds to* whatever ruff's default
+# rule set happens to be, so the effective rule set drifted whenever ruff changed
+# that default. ruff 0.16 broadened it (BLE, SIM, RUF, DTZ, PLR, S, EXE, ...) and
+# turned CI red repo-wide on unmodified code. Listing the rules with `select`
+# pins the set the project actually chose. "E" and "F" are supersets of the old
+# default (E4/E7/E9 + F), so this is equivalent to the previous behaviour.
+select = ["E", "F", "I", "UP", "B", "Q", "W"]
 ignore = ["E203"]
 
 [tool.black]

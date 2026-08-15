@@ -5,10 +5,12 @@ This tests the complete end-to-end raytracing using IOpticalElement polymorphism
 """
 
 import numpy as np
+import pytest
 
 from optiverse.core.models import SourceParams
 from optiverse.data import LensProperties, LineSegment, MirrorProperties, OpticalInterface
 from optiverse.integration import create_polymorphic_element
+from optiverse.raytracing.elements import LensElement
 from optiverse.raytracing.engine import trace_rays_polymorphic
 
 
@@ -601,3 +603,163 @@ class TestRaySeparationRotation:
             assert (
                 abs(dot_product) < 0.01
             ), f"At {angle}°: Separation should be perpendicular, dot={dot_product}"
+
+
+class TestNegativeFocalLengthEndToEnd:
+    """Regression (#109): diverging lenses must not send rays backwards.
+
+    `TestLensElement.test_negative_focal_length_diverges_forward` already covers
+    `LensElement.interact()` in isolation. These tests exercise the same physics
+    through the full tracer — source generation, intersection, propagation — which
+    is the level at which #109 was reported: the reported symptom was final path
+    points at negative x, i.e. a wrong *propagation* direction rather than a wrong
+    deflection.
+    """
+
+    @staticmethod
+    def _source() -> SourceParams:
+        """Collimated 3-ray bundle at y = -5, 0, +5 travelling in +x from x=-200."""
+        return SourceParams(
+            x_mm=-200.0,
+            y_mm=0.0,
+            angle_deg=0.0,
+            spread_deg=0.0,
+            n_rays=3,
+            size_mm=10.0,
+            ray_length_mm=600.0,
+            wavelength_nm=780.0,
+            color_hex="#FF0000",
+            polarization_type="horizontal",
+        )
+
+    def test_negative_efl_propagates_forward(self):
+        """Every segment of every path must keep travelling in +x."""
+        lens = LensElement(p1=np.array([0.0, -25.4]), p2=np.array([0.0, 25.4]), efl_mm=-50.0)
+
+        paths = trace_rays_polymorphic([lens], [self._source()], max_events=10)
+
+        assert len(paths) == 3
+        for path in paths:
+            pts = np.asarray(path.points)
+            # Monotonically increasing x: a reflected ray would turn this around.
+            dx = np.diff(pts[:, 0])
+            assert np.all(dx > 0), f"Ray propagates backwards: {pts.tolist()}"
+
+    def test_negative_efl_axial_ray_is_undeviated(self):
+        """The clearest tell from #109: an on-axis ray must exit at +x, y=0.
+
+        An ideal thin lens leaves a ray through its centre undeviated, so the sign
+        of the exit x is set purely by the propagation step. The bug produced
+        (-400, 0) here.
+        """
+        lens = LensElement(p1=np.array([0.0, -25.4]), p2=np.array([0.0, 25.4]), efl_mm=-50.0)
+
+        paths = trace_rays_polymorphic([lens], [self._source()], max_events=10)
+
+        axial = min(paths, key=lambda p: abs(p.points[0][1]))
+        end = axial.points[-1]
+        # 600 mm of ray length starting 200 mm before the lens → ends at x=+400.
+        assert end[0] == pytest.approx(400.0, abs=1.0)
+        assert end[1] == pytest.approx(0.0, abs=1e-6)
+
+    def test_negative_efl_diverges_from_virtual_focus(self):
+        """Marginal rays must bend away from the axis, from a virtual focus at x=-|f|.
+
+        A collimated ray at height y exits with slope −y/f (f<0 → same sign as y),
+        so back-extending the exit ray crosses the axis at x = −|f| on the incident
+        side. That is the defining property of a diverging lens.
+        """
+        f = -50.0
+        lens = LensElement(p1=np.array([0.0, -25.4]), p2=np.array([0.0, 25.4]), efl_mm=f)
+
+        paths = trace_rays_polymorphic([lens], [self._source()], max_events=10)
+
+        for path in paths:
+            pts = np.asarray(path.points)
+            y_in = pts[0][1]
+            if abs(y_in) < 1e-9:
+                continue  # axial ray covered above
+
+            exit_dir = pts[-1] - pts[-2]
+            # Slope alone cannot distinguish a diverging ray from its backwards
+            # twin (the #109 bug produced the correct slope on a reversed ray).
+            assert exit_dir[0] > 0, f"Exit ray travels backwards: {pts.tolist()}"
+            slope = exit_dir[1] / exit_dir[0]
+            # tan(θ_out) = tan(θ_in) − y/f = 0 − y/(−50) = y/50
+            assert slope == pytest.approx(-y_in / f, rel=1e-6)
+            # Diverging: exit slope carries the ray further from the axis.
+            assert slope * y_in > 0, "Diverging lens must bend rays away from the axis"
+
+            # Back-extend from the lens plane (x=0, y=y_in) to the axis.
+            virtual_focus_x = -y_in / slope
+            assert virtual_focus_x == pytest.approx(f, rel=1e-6)
+
+    def test_galilean_telescope_expands_and_stays_collimated(self):
+        """The layout from #109: a −50 / +150 Galilean beam expander.
+
+        Separation f1 + f2 = 100 mm gives an afocal system with 3× magnification.
+        Rays must exit forward, collimated, at 3× the input height — the bug made
+        this bundle travel away from the source instead.
+        """
+        l1 = LensElement(p1=np.array([0.0, -30.0]), p2=np.array([0.0, 30.0]), efl_mm=-50.0)
+        l2 = LensElement(p1=np.array([100.0, -60.0]), p2=np.array([100.0, 60.0]), efl_mm=150.0)
+        source = self._source()
+        source.x_mm = -100.0
+        source.ray_length_mm = 500.0
+
+        paths = trace_rays_polymorphic([l1, l2], [source], max_events=10)
+
+        assert len(paths) == 3
+        for path in paths:
+            pts = np.asarray(path.points)
+            # source → lens 1 → lens 2 → end
+            assert len(pts) == 4, f"Expected two lens hits, got {pts.tolist()}"
+            assert np.all(np.diff(pts[:, 0]) > 0), "Bundle must keep travelling in +x"
+
+            y_in = pts[0][1]
+            assert pts[2][1] == pytest.approx(3.0 * y_in, rel=1e-6), "3× expansion at lens 2"
+
+            exit_dir = pts[-1] - pts[-2]
+            assert exit_dir[1] / exit_dir[0] == pytest.approx(0.0, abs=1e-9), "Afocal output"
+
+
+class TestSourceAngleConvention:
+    """`SourceParams.angle_deg` is measured clockwise from +x (documented in #109).
+
+    World coordinates are Y-up (the canvas view applies a single Y flip), so a
+    positive angle rotates the emission direction from +x toward −y. This is easy
+    to get backwards when authoring layouts programmatically, so pin it down.
+    """
+
+    @staticmethod
+    def _direction(angle_deg: float) -> np.ndarray:
+        source = SourceParams(
+            x_mm=0.0,
+            y_mm=0.0,
+            angle_deg=angle_deg,
+            spread_deg=0.0,
+            n_rays=1,
+            size_mm=0.0,
+            ray_length_mm=100.0,
+            wavelength_nm=633.0,
+            color_hex="#FF0000",
+            polarization_type="horizontal",
+        )
+        paths = trace_rays_polymorphic([], [source], max_events=1)
+        assert len(paths) == 1
+        pts = np.asarray(paths[0].points)
+        delta = pts[-1] - pts[0]
+        return delta / np.linalg.norm(delta)
+
+    @pytest.mark.parametrize(
+        ("angle_deg", "expected"),
+        [
+            (0.0, (1.0, 0.0)),  # +x (right)
+            (90.0, (0.0, -1.0)),  # −y
+            (180.0, (-1.0, 0.0)),  # −x (left)
+            (270.0, (0.0, 1.0)),  # +y
+            (-90.0, (0.0, 1.0)),  # +y
+        ],
+    )
+    def test_positive_angle_rotates_clockwise(self, angle_deg, expected):
+        assert self._direction(angle_deg) == pytest.approx(np.array(expected), abs=1e-9)
