@@ -16,6 +16,7 @@ Architecture:
 from .elements import Beamsplitter, Dichroic, Lens, Mirror, RefractiveInterfaceElement, Waveplate
 from .elements.base import IOpticalElement, RayIntersection
 from .engine import trace_rays_polymorphic
+from .psf import ImagePlane, PointSpreadFunction, compute_geometric_psf
 from .ray import Polarization, Ray, RayPath
 
 __all__ = [
@@ -23,6 +24,8 @@ __all__ = [
     "Ray",
     "RayPath",
     "Polarization",
+    "ImagePlane",
+    "PointSpreadFunction",
     # Element interface and implementations
     "IOpticalElement",
     "RayIntersection",
@@ -34,4 +37,6 @@ __all__ = [
     "Dichroic",
     # Raytracing engine
     "trace_rays_polymorphic",
+    # Analysis
+    "compute_geometric_psf",
 ]

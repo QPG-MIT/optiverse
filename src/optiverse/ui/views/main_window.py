@@ -100,6 +100,7 @@ class MainWindow(QtWidgets.QMainWindow):
     _raywidth_group: QtGui.QActionGroup
     act_retrace: QtGui.QAction
     act_clear: QtGui.QAction
+    act_point_spread: QtGui.QAction
     act_editor: QtGui.QAction
     act_reload: QtGui.QAction
     act_open_library_folder: QtGui.QAction
@@ -595,6 +596,23 @@ class MainWindow(QtWidgets.QMainWindow):
     def retrace(self):
         """Trace all rays from sources through optical elements."""
         self.raytracing_controller.retrace()
+
+    def show_point_spread_function_dialog(self):
+        """Open the point-spread-function analysis dialog."""
+        if not self.ray_data:
+            self.retrace()
+        if not self.ray_data:
+            QtWidgets.QMessageBox.information(
+                self,
+                "Point Spread Function",
+                "Trace rays before computing a point spread function.",
+            )
+            return
+
+        from .point_spread_dialog import PointSpreadFunctionDialog
+
+        dialog = PointSpreadFunctionDialog(self.raytracing_controller, self)
+        dialog.exec()
 
     def _maybe_retrace(self):
         """Retrace if autotrace is enabled (with debouncing)."""

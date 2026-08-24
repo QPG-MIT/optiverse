@@ -81,6 +81,28 @@ class RaytracingController(QtCore.QObject):
         """Get the current ray data (list of RayPath objects)."""
         return self._ray_data
 
+    def compute_geometric_psf(
+        self,
+        *,
+        plane_x_mm: float,
+        plane_y_mm: float = 0.0,
+        normal_angle_deg: float = 0.0,
+        bin_count: int = 101,
+        extent_mm: float | None = None,
+        source_index: int | None = None,
+    ):
+        """Compute a geometric point-spread function from the current ray paths."""
+        from ...raytracing import ImagePlane, compute_geometric_psf
+
+        image_plane = ImagePlane.from_xy_angle(plane_x_mm, plane_y_mm, normal_angle_deg)
+        return compute_geometric_psf(
+            self._ray_data,
+            image_plane,
+            bin_count=bin_count,
+            extent_mm=extent_mm,
+            source_index=source_index,
+        )
+
     @property
     def autotrace(self) -> bool:
         """Get autotrace enabled state."""
