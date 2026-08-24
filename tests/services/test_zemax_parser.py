@@ -70,7 +70,7 @@ def test_zemax_parser_surface1_entry():
     assert not surf1.is_flat
     assert abs(surf1.thickness - 4.0) < 0.01
     assert surf1.glass == "N-LAK22"
-    assert abs(surf1.diameter - 12.7) < 0.1
+    assert abs(surf1.semi_diameter_mm - 12.7) < 0.1
     assert surf1.coating == "THORB"
     assert surf1.comment == "AC254-100-B"
 
@@ -88,7 +88,7 @@ def test_zemax_parser_surface2_cemented():
     assert not surf2.is_flat
     assert abs(surf2.thickness - 1.5) < 0.01
     assert surf2.glass == "N-SF6HT"
-    assert abs(surf2.diameter - 12.7) < 0.1
+    assert abs(surf2.semi_diameter_mm - 12.7) < 0.1
 
 
 def test_zemax_parser_surface3_exit():
@@ -104,7 +104,7 @@ def test_zemax_parser_surface3_exit():
     assert not surf3.is_flat
     assert abs(surf3.thickness - 97.09) < 0.01
     assert surf3.glass == ""  # Air
-    assert abs(surf3.diameter - 12.7) < 0.1
+    assert abs(surf3.semi_diameter_mm - 12.7) < 0.1
     assert surf3.coating == "THORBSLAH64"
 
 
@@ -117,4 +117,4 @@ def test_zemax_parser_surface4_image():
 
     assert surf4.number == 4
     assert surf4.is_flat
-    assert abs(surf4.diameter - 0.0052) < 0.001  # Very small diameter
+    assert abs(surf4.semi_diameter_mm - 0.0052) < 0.001  # Very small semi-diameter

@@ -1,10 +1,12 @@
 """Tests for ComponentEditor (upgraded from ComponentEditorDialog)."""
 
+from pathlib import Path
+
 import pytest
 
 # Note: These tests require PyQt6 to be properly installed
 try:
-    from PyQt6 import QtCore, QtGui
+    from PyQt6 import QtCore, QtGui, QtWidgets
 
     HAVE_PYQT6 = True
 except ImportError:
@@ -176,3 +178,49 @@ def test_component_editor_backward_compat_name(qtbot):
 
     assert editor is not None
     assert hasattr(editor, "saved")  # New feature should be present
+
+
+@pytest.mark.skipif(not HAVE_PYQT6, reason="PyQt6 not available")
+def test_component_editor_imports_zemax_fixture(qtbot, monkeypatch):
+    """Smoke-test the File -> Import Zemax path with the checked-in fixture."""
+    from optiverse.services.storage_service import StorageService
+    from optiverse.ui.views.component_editor_dialog import ComponentEditor
+
+    sample_zmx = Path(__file__).parents[1] / "fixtures" / "sample.zmx"
+
+    class FakeFileDialog:
+        FileMode = QtWidgets.QFileDialog.FileMode
+
+        def __init__(self, *args, **kwargs):
+            self._selected_files = [str(sample_zmx)]
+
+        def setFileMode(self, *args, **kwargs):
+            pass
+
+        def setNameFilter(self, *args, **kwargs):
+            pass
+
+        def setAttribute(self, *args, **kwargs):
+            pass
+
+        def exec(self):
+            return QtWidgets.QDialog.DialogCode.Accepted
+
+        def selectedFiles(self):
+            return self._selected_files
+
+    monkeypatch.setattr(QtWidgets, "QFileDialog", FakeFileDialog)
+    monkeypatch.setattr(QtWidgets.QMessageBox, "information", lambda *args, **kwargs: None)
+
+    editor = ComponentEditor(storage=StorageService())
+    qtbot.addWidget(editor)
+
+    try:
+        editor._import_zemax()
+
+        interfaces = editor.interface_panel.get_interfaces()
+        assert len(interfaces) == 3
+        assert editor.name_edit.text().startswith("AC254-100-B")
+        assert editor.object_height_mm.value() == pytest.approx(25.4)
+    finally:
+        editor.close()

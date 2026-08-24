@@ -14,10 +14,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Arrow key nudging** (#89): Move selected items with arrow keys (0.1 mm step) or Shift+Arrow (1.0 mm step); both step sizes are configurable in Preferences → Canvas & Editing
 - **Configurable ruler label positioning** (#90): Ruler labels can be placed Above, Below, Left, or Right relative to the segment via the Edit dialog; setting is serialized and fully undoable
 - **Cross-instance copy/paste** (#34): Items copied in one Optiverse window can be pasted into another via the system clipboard (uses custom MIME type for serialization)
+- **Zemax `UNIT` card** (#95): Parser handles `UNIT MM | CM | M | IN`; lengths are normalised to mm at parse time (`DISZ`/`DIAM`/`ENPD` multiplied, `CURV` divided). Inch-unit prescriptions now import at their correct physical size
+- **Zemax `COORDBRK` surfaces** (#95): Converter applies in-plane decenter (PARM 1) and tilt (PARM 4) so subsequent surfaces are placed on a rotated/translated optical axis. Multi-mirror systems (e.g. periscopes) unfold correctly in the editor
+- **Zemax `GLAS MIRROR` mapping** (#95): Mirror surfaces import as `element_type=mirror`; propagation direction flips after a planar reflection so folded systems lay out with the right geometry
+- **Asphere and aperture-stop annotations** (#95): `EVENASPH` / `ODDASPHE` surfaces import at their base radius and are flagged "(Asphere approx.)"; `STOP` surfaces that survive the dummy filter get an "(Aperture Stop)" annotation in the interface name
 
 ### Changed
 
 - **Zoom-invariant ruler rendering** (#80): Ruler endpoint bars, labels, selection bounds, and hit-test areas now maintain constant screen size regardless of zoom level, matching the existing cosmetic-pen line behavior
+- **Zemax import preserves `COMM`** (#95): Zemax surface comments (often part numbers) are now prefixed to the descriptive auto-generated name instead of replacing it, so material/curvature info isn't lost
+- **`examples/zemax_parse_simple.py`** (#95): Replaced a 263-line inline copy-pasted parser (which still had the original `DIAM`-as-full-diameter bug) with a thin wrapper over the canonical `ZemaxParser` + `ZemaxToInterfaceConverter`
+
+### Fixed
+
+- **Zemax `DIAM` interpreted as full diameter** (#95): The Zemax `DIAM` card stores the surface *semi*-diameter, but the importer was treating it as a full diameter and then halving it again. Imported lenses rendered at half their real size. The field is now `ZemaxSurface.semi_diameter_mm`; a 1″ achromat imports as a 25.4 mm-tall component with a ±12.7 mm aperture
+- **Zemax import emits ghost interfaces** (#95): The image plane (last surface) and flat air-to-air dummy / aperture-stop surfaces are no longer emitted as `n=1→n=1` interfaces. The image-plane heuristic uses position; dummies are detected by `is_flat AND |n1−n2| < 1e-4`
+- **Zemax import test coverage** (#95): 17 parser/converter tests that had been silently skipped on every run (because `tests/fixtures/sample.zmx` wasn't checked in) now execute. Fixture added, plus 35 new tests covering UNIT scaling, mirror handling, dummy filtering, COMM preservation, COORDBRK rotation, periscope geometry, and asphere/stop annotations. Active Zemax tests: 15 → 56
 
 ### Documentation
 

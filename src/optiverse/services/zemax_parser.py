@@ -4,8 +4,9 @@ Zemax ZMX file parser for importing lens prescriptions.
 Supports:
 - Sequential mode (MODE SEQ)
 - Standard surfaces
-- Glass materials
-- Coatings and diameters
+- Glass materials (including ``MIRROR`` for reflective surfaces)
+- Coatings and semi-diameters
+- Lens units (``UNIT MM | CM | M | IN``) — all lengths returned in mm
 """
 
 from __future__ import annotations
@@ -15,20 +16,50 @@ from dataclasses import dataclass, field
 
 _logger = logging.getLogger(__name__)
 
+# Zemax PARM cards on a COORDBRK surface:
+#   PARM 1: x-decenter (length, in lens units)
+#   PARM 2: y-decenter (length, in lens units)
+#   PARM 3: tilt about x (degrees)
+#   PARM 4: tilt about y (degrees)
+#   PARM 5: tilt about z (degrees)
+#   PARM 6: order flag (0 = decenter-then-tilt, 1 = tilt-then-decenter)
+# Only PARM 1 and PARM 2 are length quantities and require UNIT scaling.
+_COORDBRK_LENGTH_PARMS = (1, 2)
+
+# Conversion factor from each supported Zemax lens-unit to millimetres.
+# Lengths (DISZ, DIAM, ENPD) are *multiplied* by this, curvatures (CURV) are
+# *divided* by it (since CURV is 1/length).
+_UNIT_TO_MM: dict[str, float] = {
+    "MM": 1.0,
+    "CM": 10.0,
+    "M": 1000.0,
+    "IN": 25.4,
+    "INCH": 25.4,
+}
+
 
 @dataclass
 class ZemaxSurface:
-    """Parsed Zemax surface data."""
+    """Parsed Zemax surface data.
+
+    `semi_diameter_mm` reflects Zemax's DIAM card, which stores the surface
+    *semi*-diameter (half-aperture) in lens units. The full clear aperture
+    diameter of the surface is therefore ``2 * semi_diameter_mm``.
+    """
 
     number: int
     type: str = "STANDARD"
     curvature: float = 0.0  # 1/mm
     thickness: float = 0.0  # mm to next surface
     glass: str = ""
-    diameter: float = 0.0  # mm
+    semi_diameter_mm: float = 0.0  # mm (DIAM card; semi-diameter, not full diameter)
     coating: str = ""
     comment: str = ""
     is_stop: bool = False
+    # PARM cards by index (1-based). Length-valued parms (1, 2 on COORDBRK)
+    # are already converted to millimetres at parse time; angle-valued parms
+    # (3, 4, 5 on COORDBRK) remain in degrees.
+    parm: dict[int, float] = field(default_factory=dict)
 
     @property
     def radius_mm(self) -> float:
@@ -41,6 +72,26 @@ class ZemaxSurface:
     def is_flat(self) -> bool:
         """Check if surface is flat (infinite radius)."""
         return abs(self.curvature) < 1e-10
+
+    @property
+    def is_mirror(self) -> bool:
+        """True if this surface is reflective (Zemax ``GLAS MIRROR``)."""
+        return self.glass.strip().upper() == "MIRROR"
+
+    @property
+    def is_coordinate_break(self) -> bool:
+        """True if this surface is a Zemax coordinate break (TYPE COORDBRK)."""
+        return self.type.strip().upper() == "COORDBRK"
+
+    @property
+    def is_aspheric(self) -> bool:
+        """True if this surface is an even or odd aspheric (TYPE EVENASPH / ODDASPHE).
+
+        The parser does not capture aspheric coefficients; the converter
+        treats the surface as a sphere at its base radius and flags it.
+        """
+        t = self.type.strip().upper()
+        return t in {"EVENASPH", "ODDASPHE", "ASPHERIC"}
 
 
 @dataclass
@@ -107,6 +158,11 @@ class ZemaxParser:
         """Parse lines from Zemax file."""
         zemax = ZemaxFile()
 
+        # First pass: pick up the UNIT card so we can normalise lengths to mm
+        # as we parse surface blocks below. Zemax convention puts UNIT before
+        # any SURF, but scanning first is robust to other orderings.
+        length_scale_mm = self._extract_length_scale_mm(lines)
+
         i = 0
         while i < len(lines):
             line = lines[i].strip()
@@ -131,9 +187,11 @@ class ZemaxParser:
                 zemax.notes.append(note_content)
 
             elif line.startswith("ENPD "):
-                # Entrance pupil diameter
+                # Entrance pupil diameter (full diameter, in file units → mm)
                 try:
-                    zemax.entrance_pupil_diameter = self._parse_float(line[5:])
+                    zemax.entrance_pupil_diameter = (
+                        self._parse_float(line[5:]) * length_scale_mm
+                    )
                 except ValueError:
                     pass
 
@@ -157,7 +215,9 @@ class ZemaxParser:
             elif line.startswith("SURF "):
                 # Surface definition
                 surf_num = int(line[5:].strip())
-                i, surface = self._parse_surface_block(lines, i + 1, surf_num)
+                i, surface = self._parse_surface_block(
+                    lines, i + 1, surf_num, length_scale_mm
+                )
                 zemax.surfaces.append(surface)
                 continue  # _parse_surface_block already advances i
 
@@ -165,11 +225,39 @@ class ZemaxParser:
 
         return zemax
 
+    def _extract_length_scale_mm(self, lines: list[str]) -> float:
+        """Scan for the UNIT card and return the mm-per-file-unit factor.
+
+        Defaults to mm (1.0) when UNIT is absent or specifies an unknown unit.
+        """
+        for raw in lines:
+            stripped = raw.strip()
+            if not stripped.startswith("UNIT "):
+                continue
+            parts = stripped[5:].split()
+            if not parts:
+                continue
+            unit = parts[0].upper()
+            scale = _UNIT_TO_MM.get(unit)
+            if scale is None:
+                _logger.warning("Unknown Zemax UNIT '%s'; assuming mm", unit)
+                return 1.0
+            return scale
+        return 1.0
+
     def _parse_surface_block(
-        self, lines: list[str], start_idx: int, surf_num: int
+        self,
+        lines: list[str],
+        start_idx: int,
+        surf_num: int,
+        length_scale_mm: float = 1.0,
     ) -> tuple[int, ZemaxSurface]:
         """
         Parse a SURF block.
+
+        ``length_scale_mm`` is the mm-per-file-unit factor from the UNIT card.
+        Lengths (DISZ, DIAM) are multiplied by it; curvatures (CURV) are
+        divided by it (since 1/file-unit → 1/mm requires dividing by mm/unit).
 
         Returns:
             (next_line_index, ZemaxSurface)
@@ -195,20 +283,20 @@ class ZemaxParser:
                 surface.type = line[5:].split()[0]
 
             elif line.startswith("CURV "):
-                # CURV <value> ...
+                # CURV <value> ...   (file units of 1/length → 1/mm)
                 parts = line[5:].split()
                 if parts:
-                    surface.curvature = self._parse_float(parts[0])
+                    surface.curvature = self._parse_float(parts[0]) / length_scale_mm
 
             elif line.startswith("DISZ "):
-                # DISZ <value>
+                # DISZ <value>   (file units of length → mm)
                 parts = line[5:].split()
                 if parts:
                     val_str = parts[0]
                     if val_str.upper() == "INFINITY":
                         surface.thickness = float("inf")
                     else:
-                        surface.thickness = self._parse_float(val_str)
+                        surface.thickness = self._parse_float(val_str) * length_scale_mm
 
             elif line.startswith("GLAS "):
                 # GLAS <material> ...
@@ -217,10 +305,10 @@ class ZemaxParser:
                     surface.glass = parts[0]
 
             elif line.startswith("DIAM "):
-                # DIAM <value> ...
+                # DIAM <semi_diameter> ...   (Zemax DIAM is a semi-diameter, in file units)
                 parts = line[5:].split()
                 if parts:
-                    surface.diameter = self._parse_float(parts[0])
+                    surface.semi_diameter_mm = self._parse_float(parts[0]) * length_scale_mm
 
             elif line.startswith("COAT "):
                 # COAT <coating_name>
@@ -235,7 +323,28 @@ class ZemaxParser:
             elif line.startswith("STOP"):
                 surface.is_stop = True
 
+            elif line.startswith("PARM "):
+                # PARM <index> <value> ...
+                # Stored raw here; UNIT scaling for length-valued PARMs is
+                # applied below once TYPE is known (TYPE may follow PARM).
+                parts = line[5:].split()
+                if len(parts) >= 2:
+                    try:
+                        idx = int(parts[0])
+                        val = self._parse_float(parts[1])
+                    except ValueError:
+                        pass
+                    else:
+                        surface.parm[idx] = val
+
             i += 1
+
+        # Apply UNIT scaling to length-valued PARMs (only meaningful for
+        # COORDBRK surfaces, where PARMs 1 and 2 are decenters).
+        if length_scale_mm != 1.0 and surface.is_coordinate_break:
+            for parm_idx in _COORDBRK_LENGTH_PARMS:
+                if parm_idx in surface.parm:
+                    surface.parm[parm_idx] *= length_scale_mm
 
         return i, surface
 
@@ -265,7 +374,7 @@ class ZemaxParser:
                     f"  S{surf.number}: R={r_str}mm, "
                     f"t={surf.thickness:.2f}mm, "
                     f"mat={glass_str}, "
-                    f"d={surf.diameter:.2f}mm"
+                    f"semi_d={surf.semi_diameter_mm:.2f}mm"
                 )
 
         return "\n".join(lines)
