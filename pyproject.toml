@@ -33,6 +33,8 @@ dev = [
   "ruff>=0.6.0",
   "black>=24.3.0",
   "mypy>=1.8.0",
+  # Validates the shared canonical `2.0` layout schema (drift guard with optiverse-web).
+  "jsonschema>=4.0",
 ]
 
 [project.urls]
