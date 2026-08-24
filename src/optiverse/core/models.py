@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -143,10 +144,10 @@ def serialize_component(rec: ComponentRecord, settings_service=None) -> dict[str
     Image paths are stored using the following priority:
     1. Library-relative format (@library/...) if within a configured library
     2. Package-relative format if within the package (built-in components)
-    3. Absolute path as fallback
+    3. Empty string if the image is outside all known locations (never absolute)
 
-    This makes assemblies portable across different computers while maintaining
-    backward compatibility with absolute paths.
+    Absolute paths are never written so that save files remain portable across
+    different computers and home-directory layouts.
 
     Args:
         rec: ComponentRecord to serialize
@@ -167,11 +168,11 @@ def serialize_component(rec: ComponentRecord, settings_service=None) -> dict[str
             image_path_serialized = library_relative
         else:
             # Fall back to package-relative (for built-in components)
-            if rec.image_path:
-                rel_path = to_relative_path(rec.image_path)
-                image_path_serialized = rel_path if isinstance(rel_path, str) else str(rel_path)
-            else:
-                image_path_serialized = ""
+            rel_path = to_relative_path(rec.image_path)
+            if rel_path and not Path(rel_path).is_absolute():
+                image_path_serialized = rel_path
+            # else: image is outside both library and package — don't write an
+            # absolute path; image_path_serialized stays as ""
 
     base = {
         "name": rec.name,
